@@ -1,0 +1,51 @@
+{
+  "name": "battery-diagnostic-platform",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch src/server/index.ts",
+    "build": "npm run build:web && npm run build:api",
+    "build:web": "vite build",
+    "build:api": "tsc -p tsconfig.server.json",
+    "start": "node dist/server/server/index.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.server.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pino": "^9.7.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^3.8.1",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.14.1",
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.5",
+    "@types/supertest": "^6.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.24.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^16.0.0",
+    "jsdom": "^26.0.0",
+    "supertest": "^7.1.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.29.1",
+    "vite": "^6.2.6",
+    "vitest": "^3.1.1"
+  }
+}

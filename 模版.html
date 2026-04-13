@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>锂电智诊 — 毛利承压与经营质量智能诊断系统</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0b0f1a;--bg2:#111827;
+  --gl:rgba(255,255,255,.04);--bd:rgba(255,255,255,.07);
+  --t1:#f1f5f9;--t2:#94a3b8;--t3:#64748b;
+  --blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4;
+  --green:#10b981;--red:#ef4444;--orange:#f59e0b;
+  --r:12px;--rl:18px;
+}
+html,body{height:100%;font-family:'Inter',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t1);overflow:hidden}
+button{font-family:inherit;cursor:pointer;border:none;outline:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;outline:none;color:var(--t1)}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+.S{position:fixed;inset:0;opacity:0;visibility:hidden;transition:opacity .35s,visibility .35s;overflow-y:auto;z-index:0}
+.S.on{opacity:1;visibility:visible;z-index:10}
+
+/* === LOADING === */
+#ld{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);z-index:9999}
+.orb{width:90px;height:90px;position:relative;margin-bottom:32px}
+.orb i{position:absolute;inset:0;border-radius:50%;border:2px solid transparent;animation:sp 1.6s linear infinite}
+.orb i:nth-child(1){border-top-color:var(--blue)}
+.orb i:nth-child(2){inset:8px;border-right-color:var(--purple);animation-direction:reverse;animation-duration:2s}
+.orb i:nth-child(3){inset:16px;border-bottom-color:var(--cyan);animation-duration:2.4s}
+.orb em{position:absolute;inset:24px;border-radius:50%;background:radial-gradient(circle,var(--blue),transparent);animation:pu 1.8s ease-in-out infinite;display:block}
+@keyframes sp{to{transform:rotate(360deg)}}
+@keyframes pu{0%,100%{opacity:.5;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
+.lt{font-size:12px;color:var(--t3);letter-spacing:6px;text-transform:uppercase;animation:fio 2s ease-in-out infinite}
+@keyframes fio{0%,100%{opacity:.3}50%{opacity:1}}
+.lb{width:160px;height:2px;background:rgba(255,255,255,.04);border-radius:2px;margin-top:16px;overflow:hidden}
+.lb span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:2px;transition:width .2s}
+
+/* === ROLE === */
+#role{display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 30% 20%,rgba(59,130,246,.06),transparent 50%),var(--bg)}
+.rt{font-size:clamp(24px,4.5vw,38px);font-weight:700;margin-bottom:6px;background:linear-gradient(135deg,#fff 30%,var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.rs{color:var(--t2);margin-bottom:40px;font-size:14px}
+.rcs{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;padding:0 20px}
+.rc{width:280px;padding:32px 24px;border-radius:var(--rl);background:var(--gl);border:1px solid var(--bd);text-align:center;transition:transform .25s,border-color .25s,box-shadow .25s}
+.rc:hover{transform:translateY(-5px);border-color:rgba(255,255,255,.13);box-shadow:0 10px 36px rgba(0,0,0,.3)}
+.rc .ic{font-size:40px;margin-bottom:16px;display:block}
+.rc h3{font-size:17px;margin-bottom:8px}
+.rc p{font-size:12px;color:var(--t2);line-height:1.6}
+
+/* === COLLECT === */
+#ce,#ci{display:flex;justify-content:center;padding:36px 20px;background:radial-gradient(ellipse at 50% 0%,rgba(59,130,246,.04),transparent 50%),var(--bg)}
+.cb{width:100%;max-width:720px}
+.ch{text-align:center;margin-bottom:28px}
+.ch h2{font-size:22px;margin-bottom:5px}
+.ch p{color:var(--t2);font-size:13px}
+.sts{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:28px}
+.sd{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.08);transition:.25s}
+.sd.on{background:var(--blue);box-shadow:0 0 8px rgba(59,130,246,.35)}
+.sd.ok{background:var(--green)}
+.sln{width:32px;height:2px;background:rgba(255,255,255,.05)}
+.qc{background:var(--gl);border:1px solid var(--bd);border-radius:var(--rl);padding:24px;margin-bottom:14px;animation:su .3s}
+@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.qc h4{font-size:14px;margin-bottom:3px;font-weight:600}
+.qc .ht{font-size:11px;color:var(--t3);margin-bottom:12px}
+.fr{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.fg{flex:1;min-width:160px}
+.fg label{display:block;font-size:11px;color:var(--t2);margin-bottom:4px}
+.fg input,.fg select,.fg textarea{width:100%;padding:8px 11px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);font-size:12px;transition:.2s}
+.fg textarea{min-height:60px;resize:vertical}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(59,130,246,.15)}
+.tg{display:flex;gap:10px;margin-bottom:14px}
+.tb{flex:1;padding:12px;border-radius:var(--r);text-align:center;background:rgba(255,255,255,.025);border:1px solid var(--bd);font-size:12px;transition:.2s}
+.tb.on{background:rgba(59,130,246,.08);border-color:var(--blue);color:var(--blue)}
+.tb:hover{border-color:rgba(255,255,255,.12)}
+.br{display:flex;gap:8px;justify-content:center;margin-top:24px}
+.bt{padding:10px 24px;border-radius:var(--r);font-size:12px;font-weight:600;transition:.2s}
+.bp{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;box-shadow:0 3px 12px rgba(59,130,246,.25)}
+.bp:hover{transform:translateY(-1px)}
+.bgh{background:transparent;border:1px solid var(--bd);color:var(--t2)}
+.bgh:hover{border-color:rgba(255,255,255,.14);color:var(--t1)}
+.pn{text-align:center;margin-top:18px;font-size:11px;color:var(--t3);padding:8px;border-top:1px solid var(--bd)}
+
+/* === APP === */
+.al{display:flex;height:100vh}
+.nv{width:64px;display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:2px;background:rgba(0,0,0,.2);border-right:1px solid var(--bd);flex-shrink:0}
+.nl{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--purple));display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;margin-bottom:20px}
+.ni{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:17px;transition:.15s;position:relative}
+.ni:hover{color:var(--t2);background:rgba(255,255,255,.025)}
+.ni.on{color:var(--blue);background:rgba(59,130,246,.07)}
+.ni.on::before{content:'';position:absolute;left:-8px;width:2px;height:16px;border-radius:0 2px 2px 0;background:var(--blue)}
+.ni .tp{position:absolute;left:50px;padding:4px 9px;border-radius:5px;background:rgba(0,0,0,.8);font-size:10px;white-space:nowrap;opacity:0;transform:translateX(-2px);transition:.15s;pointer-events:none}
+.ni:hover .tp{opacity:1;transform:translateX(0)}
+.nsp{flex:1}
+.nav2{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer}
+.am{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.at{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--bd);background:rgba(0,0,0,.1);flex-shrink:0}
+.att{font-size:14px;font-weight:600}
+.atr{display:flex;gap:8px}
+.ab{width:32px;height:32px;border-radius:var(--r);background:rgba(255,255,255,.025);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:13px;transition:.15s}
+.ab:hover{background:rgba(255,255,255,.05)}
+.ac{flex:1;overflow-y:auto;padding:20px}
+.pg{display:none}.pg.on{display:block;animation:fi .2s}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+
+/* dashboard */
+.dg{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.dc{background:var(--gl);border:1px solid var(--bd);border-radius:var(--rl);padding:18px;transition:.15s}
+.dc:hover{border-color:rgba(255,255,255,.1)}
+.dc .lb{font-size:11px;color:var(--t3);margin-bottom:5px}
+.dc .vl{font-size:24px;font-weight:700;margin-bottom:2px}
+.dc .ch{font-size:11px}
+.ch.up{color:var(--green)}.ch.dn{color:var(--red)}
+.dc.w{grid-column:span 2}
+.mc{height:100px;margin-top:12px}
+.cbg{display:flex;align-items:flex-end;gap:4px;height:100%}
+.cb{flex:1;border-radius:3px 3px 0 0;position:relative}
+.cb .bl{position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:var(--t3);white-space:nowrap}
+.gc{display:flex;align-items:center;gap:14px;margin-top:8px}
+.gr{width:66px;height:66px;position:relative;flex-shrink:0}
+.gr svg{transform:rotate(-90deg)}
+.gt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.gi{flex:1}.gi .gl{font-size:11px;color:var(--t2);margin-bottom:2px}.gi .gd{font-size:10px;color:var(--t3)}
+.dt{width:100%;margin-top:12px;border-collapse:collapse}
+.dt th,.dt td{padding:8px 9px;text-align:left;font-size:11px;border-bottom:1px solid var(--bd)}
+.dt th{color:var(--t3);font-weight:500}.dt td{color:var(--t2)}.dt tr:hover td{color:var(--t1)}
+.rk{display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600}
+.rk.h{background:rgba(239,68,68,.1);color:var(--red)}.rk.m{background:rgba(245,158,11,.1);color:var(--orange)}.rk.l{background:rgba(16,185,129,.1);color:var(--green)}
+
+/* chat */
+.cly{display:flex;height:calc(100vh - 96px);margin:-20px}
+.cp{flex:1;display:flex;flex-direction:column;min-width:0}
+.cms{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px}
+.m{max-width:76%;animation:mi .2s}
+@keyframes mi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.m.u{align-self:flex-end}.m.a{align-self:flex-start}
+.mb{padding:11px 14px;border-radius:12px;font-size:12px;line-height:1.7}
+.m.u .mb{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;border-bottom-right-radius:3px}
+.m.a .mb{background:var(--gl);border:1px solid var(--bd);color:var(--t1);border-bottom-left-radius:3px}
+.mt{font-size:9px;color:var(--t3);margin-top:2px;padding:0 2px}
+.th{display:flex;gap:3px;padding:5px 0}
+.th i{width:6px;height:6px;border-radius:50%;background:var(--blue);opacity:.4;animation:tk 1.3s ease-in-out infinite}
+.th i:nth-child(2){animation-delay:.2s}.th i:nth-child(3){animation-delay:.4s}
+@keyframes tk{0%,80%,100%{opacity:.4;transform:scale(.8)}40%{opacity:1;transform:scale(1.2)}}
+.cia{padding:12px 18px;border-top:1px solid var(--bd);background:rgba(0,0,0,.12);flex-shrink:0}
+.ciw{display:flex;gap:8px;align-items:flex-end;background:var(--gl);border:1px solid var(--bd);border-radius:12px;padding:5px 8px;transition:.15s}
+.ciw:focus-within{border-color:var(--blue)}
+.ci{flex:1;background:transparent;border:none;font-size:12px;padding:4px 5px;resize:none;max-height:80px;line-height:1.4}
+.ci::placeholder{color:var(--t3)}
+.cse{width:32px;height:32px;border-radius:var(--r);background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;transition:.15s}
+.cse:hover{transform:scale(1.03)}
+.mts{display:flex;gap:5px;padding:8px 18px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.mt2{padding:4px 12px;border-radius:7px;font-size:11px;font-weight:500;color:var(--t3);border:1px solid transparent;transition:.15s}
+.mt2.on{background:rgba(59,130,246,.07);color:var(--blue);border-color:rgba(59,130,246,.12)}
+.mt2:hover{color:var(--t2)}
+.csb{width:240px;border-left:1px solid var(--bd);background:rgba(0,0,0,.08);overflow-y:auto;flex-shrink:0}
+.ss{padding:12px;border-bottom:1px solid var(--bd)}
+.ss h5{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.ii{display:flex;align-items:center;justify-content:space-between;padding:6px 7px;border-radius:7px;cursor:pointer;transition:.12s;margin-bottom:2px}
+.ii:hover{background:rgba(255,255,255,.025)}
+.ii .inn{font-size:11px;color:var(--t2)}.ii .iv{font-size:11px;font-weight:600}
+.ii .ia{width:20px;height:20px;border-radius:5px;background:rgba(59,130,246,.07);color:var(--blue);display:none;align-items:center;justify-content:center;font-size:12px}
+.ii:hover .ia{display:flex}
+
+/* settings */
+.sts2{background:var(--gl);border:1px solid var(--bd);border-radius:var(--rl);padding:18px;margin-bottom:14px}
+.sts2 h3{font-size:14px;font-weight:600;margin-bottom:12px}
+.sr{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd)}
+.sr:last-child{border:none}
+.sl2{font-size:12px;color:var(--t2)}
+.sc{display:flex;align-items:center;gap:6px}
+.csw{width:24px;height:24px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:.15s}
+.csw.on{border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,.12)}
+.csw:hover{transform:scale(1.08)}
+.sw{width:38px;height:20px;border-radius:10px;background:rgba(255,255,255,.07);position:relative;cursor:pointer;transition:.15s}
+.sw.on{background:var(--blue)}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+.sw.on::after{left:20px}
+.ssel{padding:4px 7px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid var(--bd);color:var(--t1);font-size:11px}
+.mbtn{width:100%;padding:16px;border-radius:var(--rl);background:linear-gradient(135deg,rgba(139,92,246,.06),rgba(6,182,212,.06));border:1px solid rgba(139,92,246,.12);display:flex;align-items:center;justify-content:center;gap:9px;font-size:13px;font-weight:600;transition:.15s}
+.mbtn:hover{background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(6,182,212,.12));transform:translateY(-1px)}
+.mbtn .mi2{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--purple),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:16px}
+
+/* stock */
+.sk{background:var(--gl);border:1px solid var(--bd);border-radius:var(--rl);padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:14px;transition:.15s}
+.sk:hover{border-color:rgba(255,255,255,.1)}
+.sk-i{flex:1}.sk-n{font-size:13px;font-weight:600;margin-bottom:1px}.sk-c{font-size:10px;color:var(--t3)}
+.sk-p{text-align:right}.sk-pr{font-size:18px;font-weight:700}.sk-pc{font-size:11px;margin-top:1px}
+.sk-pc.up{color:var(--green)}.sk-pc.dn{color:var(--red)}
+
+/* === MEMORY === */
+#mem{z-index:100;background:var(--bg)}
+.mbg{position:absolute;inset:0;overflow:hidden}
+#scv{position:absolute;inset:0}
+.mct{position:relative;z-index:2;height:100vh;display:flex;flex-direction:column}
+.mtb{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;flex-shrink:0}
+.mbk{display:flex;align-items:center;gap:5px;color:var(--t2);font-size:12px;background:rgba(255,255,255,.04);border:1px solid var(--bd);padding:6px 12px;border-radius:var(--r);transition:.15s}
+.mbk:hover{background:rgba(255,255,255,.07);color:var(--t1)}
+.mvp{flex:1;overflow:auto;position:relative;cursor:grab}
+.mvp:active{cursor:grabbing}
+.mtr{min-width:1050px;min-height:650px;position:relative;padding:40px}
+.tsv{position:absolute;inset:0;pointer-events:none;z-index:0}
+.tsv line{stroke:rgba(255,255,255,.05);stroke-width:2;stroke-dasharray:0}
+
+/* 3D glass node */
+.tn{position:absolute;width:160px;padding:12px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);box-shadow:0 6px 24px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.06);cursor:pointer;transition:transform .25s,box-shadow .25s,border-color .25s}
+.tn::before{content:'';position:absolute;inset:-1px;border-radius:16px;background:linear-gradient(135deg,rgba(255,255,255,.08),transparent 50%,rgba(255,255,255,.02));pointer-events:none}
+.tn:hover{transform:translateY(-3px) rotateX(4deg) rotateY(-4deg);box-shadow:0 12px 36px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.1),0 0 20px rgba(139,92,246,.06);border-color:rgba(255,255,255,.15)}
+.tn.ct{width:180px;padding:16px;background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(139,92,246,.08));border-color:rgba(59,130,246,.18);box-shadow:0 8px 32px rgba(59,130,246,.1),inset 0 1px 0 rgba(255,255,255,.08)}
+.tn .ti{font-size:20px;margin-bottom:5px}.tn .tt{font-size:12px;font-weight:600;margin-bottom:2px}.tn .tp2{font-size:10px;color:var(--t3);line-height:1.4}
+
+/* detail */
+.ndo{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:.25s}
+.ndo.on{opacity:1;visibility:visible}
+.nd{width:86%;max-width:440px;background:var(--bg2);border:1px solid var(--bd);border-radius:var(--rl);padding:24px;transform:translateY(12px);transition:.25s}
+.ndo.on .nd{transform:translateY(0)}
+.nd h3{font-size:16px;margin-bottom:5px}.nd .dm{font-size:11px;color:var(--t3);margin-bottom:12px}.nd .db{font-size:12px;color:var(--t2);line-height:1.8;white-space:pre-line}
+.nd .cd{margin-top:16px;width:100%;padding:9px;border-radius:var(--r);background:rgba(255,255,255,.04);color:var(--t2);font-size:12px;transition:.15s}
+.nd .cd:hover{background:rgba(255,255,255,.07);color:var(--t1)}
+
+@media(max-width:768px){.rcs{flex-direction:column;align-items:center}.dc.w{grid-column:span 1}.csb{display:none}.cly{flex-direction:column}.nv{width:48px}.fr{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="ld" class="S on">
+  <div class="orb"><i></i><i></i><i></i><em></em></div>
+  <div class="lt">锂电智诊</div>
+  <div class="lb"><span id="ldb"></span></div>
+</div>
+
+<!-- ROLE -->
+<div id="role" class="S">
+  <h1 class="rt">欢迎使用锂电智诊</h1>
+  <p class="rs">请选择您的身份以开始使用</p>
+  <div class="rcs">
+    <div class="rc" onclick="pick('e')"><span class="ic">🏭</span><h3>企业运营分析</h3><p>深度诊断企业毛利承压原因，<br>提供经营质量优化建议</p></div>
+    <div class="rc" onclick="pick('i')"><span class="ic">📊</span><h3>投资人员</h3><p>行业趋势分析与投资推荐，<br>深度解析标的企业价值</p></div>
+  </div>
+</div>
+
+<!-- COLLECT ENTERPRISE -->
+<div id="ce" class="S">
+  <div class="cb">
+    <div class="ch"><h2>📋 企业数据收集</h2><p>请填写以下信息以便我们为您提供精准分析</p></div>
+    <div class="sts" id="e-steps"></div>
+    <!-- S1: history -->
+    <div id="es1" class="qc">
+      <h4>历史数据可用性</h4><p class="ht">您是否有最近4个季度的历史运营数据？</p>
+      <div class="tg" id="e-hist"><div class="tb" onclick="pickHist(this,'yes')">✅ 有完整数据</div><div class="tb" onclick="pickHist(this,'no')">❌ 仅有当前数据</div></div>
+      <div class="br"><button class="bt bp" onclick="eGo(2)">下一步 →</button></div>
+    </div>
+    <!-- S2: current quarter -->
+    <div id="es2" class="qc" style="display:none">
+      <h4>当前季度核心数据</h4><p class="ht">请填写当前季度的运营数据</p>
+      <div class="fr"><div class="fg"><label>本季度毛利率 (%)</label><input placeholder="例: 18.5"></div><div class="fg"><label>当前季度总收入 (万元)</label><input placeholder="例: 52000"></div></div>
+      <div class="fr"><div class="fg"><label>当前季度总成本 (万元)</label><input placeholder="例: 42400"></div><div class="fg"><label>当前季度销量 (万件)</label><input placeholder="例: 850"></div></div>
+      <div class="fr"><div class="fg"><label>当前季度产量 (万件)</label><input placeholder="例: 900"></div><div class="fg"><label>当前季度库存费用 (万元)</label><input placeholder="例: 3200"></div></div>
+      <div class="fr"><div class="fg"><label>产品总制造费用 (万元)</label><input placeholder="例: 28000"></div><div class="fg"><label>总营业成本 (万元)</label><input placeholder="例: 42400"></div></div>
+      <div class="fr"><div class="fg"><label>当前季度现金流 (万元)</label><input placeholder="例: 8500"></div><div class="fg"><label>本月总收入 (万元)</label><input placeholder="例: 18000"></div></div>
+      <div class="fr"><div class="fg"><label>总负债 (万元)</label><input placeholder="例: 35000"></div><div class="fg"><label>总资产 (万元)</label><input placeholder="例: 120000"></div></div>
+      <div class="br"><button class="bt bgh" onclick="eGo(1)">← 上一步</button><button class="bt bp" onclick="eGo(3)">下一步 →</button></div>
+    </div>
+    <!-- S3: comparison quarter -->
+    <div id="es3" class="qc" style="display:none">
+      <h4 id="e-s3-title">去年同季度对比数据</h4><p class="ht" id="e-s3-hint">请填写去年同期数据以便进行对比分析</p>
+      <div class="fr"><div class="fg"><label>去年同季度毛利率 (%)</label><input placeholder="例: 23.2"></div><div class="fg"><label>去年同季度总收入 (万元)</label><input placeholder="例: 48000"></div></div>
+      <div class="fr"><div class="fg"><label>去年同季度总成本 (万元)</label><input placeholder="例: 36900"></div><div class="fg"><label>去年同季度销量 (万件)</label><input placeholder="例: 720"></div></div>
+      <div class="fr"><div class="fg"><label>去年同季度库存费用 (万元)</label><input placeholder="例: 2620"></div><div class="fg"></div></div>
+      <div id="e-full-history" style="display:none">
+        <div style="padding:10px;background:rgba(59,130,246,.04);border-radius:var(--r);margin-bottom:12px;font-size:12px;color:var(--t2)">📊 检测到您有完整历史数据，以下为中间两个季度补充</div>
+        <div class="fr"><div class="fg"><label>上一季度毛利率 (%)</label><input placeholder="例: 20.1"></div><div class="fg"><label>上一季度总收入 (万元)</label><input placeholder="例: 50000"></div></div>
+        <div class="fr"><div class="fg"><label>两季度前毛利率 (%)</label><input placeholder="例: 21.8"></div><div class="fg"><label>两季度前总收入 (万元)</label><input placeholder="例: 49000"></div></div>
+      </div>
+      <div class="br"><button class="bt bgh" onclick="eGo(2)">← 上一步</button><button class="bt bp" onclick="goApp('e')">开始分析 →</button></div>
+      <div class="pn">🔒 我们承诺对贵企业的信息进行保密，数据只用于数据分析</div>
+    </div>
+  </div>
+</div>
+
+<!-- COLLECT INVESTOR -->
+<div id="ci" class="S">
+  <div class="cb">
+    <div class="ch"><h2>📊 投资信息收集</h2><p>了解您的投资情况以便提供个性化分析</p></div>
+    <div class="sts" id="i-steps"></div>
+    <div id="is1" class="qc">
+      <h4>投资概况</h4><p class="ht">请填写您的基本投资信息</p>
+      <div class="fr"><div class="fg"><label>已投资锂电企业</label><input placeholder="例: 宁德时代、比亚迪、亿纬锂能"></div></div>
+      <div class="fr"><div class="fg"><label>资金成本 (年化 %)</label><input placeholder="例: 5.5"></div><div class="fg"><label>投资总金额 (万元)</label><input placeholder="例: 200"></div></div>
+      <div class="fr"><div class="fg"><label>投资周期偏好</label><select><option value="">请选择</option><option>短期 (1-3个月)</option><option>中期 (3-12个月)</option><option>长期 (1年以上)</option></select></div><div class="fg"><label>风险承受能力</label><select><option value="">请选择</option><option>保守型</option><option>稳健型</option><option>积极型</option></select></div></div>
+      <div class="fr"><div class="fg"><label>最关注的细分领域</label><select><option value="">请选择</option><option>动力电池</option><option>储能电池</option><option>消费电池</option><option>上游材料</option><option>锂电设备</option><option>全产业链</option></select></div><div class="fg"><label>关注的投资主题</label><select><option value="">请选择</option><option>毛利率变化趋势</option><option>产能扩张与利用率</option><option>技术路线迭代</option><option>海外市场拓展</option><option>行业整合并购</option></select></div></div>
+      <div class="fr"><div class="fg"><label>其他补充说明</label><textarea placeholder="请补充其他关注点或特殊需求..."></textarea></div></div>
+      <div class="br"><button class="bt bp" onclick="iGo(2)">下一步 →</button></div>
+    </div>
+    <div id="is2" class="qc" style="display:none">
+      <h4>确认信息</h4><p class="ht">请确认您的投资信息</p>
+      <div style="padding:14px;background:rgba(139,92,246,.05);border-radius:var(--r);margin-bottom:10px;font-size:12px;color:var(--t2);line-height:1.8">✅ 投资信息已收集完毕<br>✅ 系统将根据您的偏好提供个性化分析<br>✅ 包含行业分析、投资推荐、深度解析三大模式</div>
+      <div class="br"><button class="bt bgh" onclick="iGo(1)">← 上一步</button><button class="bt bp" onclick="goApp('i')">开始使用 →</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP ENTERPRISE -->
+<div id="ae" class="S">
+  <div class="al">
+    <nav class="nv">
+      <div class="nl">锂</div>
+      <div class="ni on" onclick="nav('e','home',this)"><span>🏠</span><span class="tp">首页</span></div>
+      <div class="ni" onclick="nav('e','ana',this)"><span>💬</span><span class="tp">分析</span></div>
+      <div class="ni" onclick="nav('e','set',this)"><span>⚙️</span><span class="tp">设置</span></div>
+      <div class="nsp"></div>
+      <div class="nav2">企</div>
+    </nav>
+    <div class="am">
+      <div class="at"><span class="att" id="e-tt">首页</span><div class="atr"><button class="ab">🔔</button><button class="ab">❓</button></div></div>
+      <div class="ac">
+        <div id="e-home" class="pg on">
+          <div class="dg">
+            <div class="dc"><div class="lb">本季度毛利率</div><div class="vl" style="color:var(--red)">18.5%</div><div class="ch dn">▼ 4.7pp vs 去年同季</div></div>
+            <div class="dc"><div class="lb">总收入</div><div class="vl">5.20<span style="font-size:13px;color:var(--t3)">亿</span></div><div class="ch up">▲ 8.3% YoY</div></div>
+            <div class="dc"><div class="lb">单位成本</div><div class="vl">49.9<span style="font-size:13px;color:var(--t3)">元/件</span></div><div class="ch dn">▲ 12.1%</div></div>
+            <div class="dc"><div class="lb">库存周转天数</div><div class="vl">68<span style="font-size:13px;color:var(--t3)">天</span></div><div class="ch dn">▲ 15天 vs 去年</div></div>
+            <div class="dc w"><div class="lb">毛利率趋势 (近4季度)</div>
+              <div class="mc"><div class="cbg">
+                <div class="cb" style="height:78%;background:linear-gradient(180deg,var(--blue),rgba(59,130,246,.15))"><span class="bl">Q1'24</span></div>
+                <div class="cb" style="height:72%;background:linear-gradient(180deg,var(--blue),rgba(59,130,246,.15))"><span class="bl">Q2'24</span></div>
+                <div class="cb" style="height:65%;background:linear-gradient(180deg,var(--orange),rgba(245,158,11,.15))"><span class="bl">Q3'24</span></div>
+                <div class="cb" style="height:55%;background:linear-gradient(180deg,var(--red),rgba(239,68,68,.15))"><span class="bl">Q4'24</span></div>
+              </div></div>
+            </div>
+            <div class="dc"><div class="lb">经营健康度</div>
+              <div class="gc"><div class="gr"><svg width="66" height="66" viewBox="0 0 66 66"><circle cx="33" cy="33" r="27" fill="none" stroke="rgba(255,255,255,.04)" stroke-width="5"/><circle cx="33" cy="33" r="27" fill="none" stroke="var(--orange)" stroke-width="5" stroke-dasharray="130" stroke-dashoffset="46" stroke-linecap="round"/></svg><span class="gt" style="color:var(--orange)">65</span></div><div class="gi"><div class="gl">中等风险</div><div class="gd">毛利率下滑需关注，建议优化成本结构</div></div></div>
+            </div>
+            <div class="dc"><div class="lb">现金流 / 收入比</div>
+              <div class="gc"><div class="gr"><svg width="66" height="66" viewBox="0 0 66 66"><circle cx="33" cy="33" r="27" fill="none" stroke="rgba(255,255,255,.04)" stroke-width="5"/><circle cx="33" cy="33" r="27" fill="none" stroke="var(--green)" stroke-width="5" stroke-dasharray="130" stroke-dashoffset="26" stroke-linecap="round"/></svg><span class="gt" style="color:var(--green)">47%</span></div><div class="gi"><div class="gl">健康</div><div class="gd">现金流充裕，短期抗风险能力强</div></div></div>
+            </div>
+            <div class="dc w"><div class="lb">成本结构分解</div>
+              <table class="dt"><thead><tr><th>项目</th><th>金额(万元)</th><th>占比</th><th>同比</th><th>风险</th></tr></thead><tbody>
+                <tr><td>原材料</td><td>25,200</td><td>59.4%</td><td style="color:var(--red)">+15.2%</td><td><span class="rk h">高</span></td></tr>
+                <tr><td>人工成本</td><td>6,800</td><td>16.0%</td><td style="color:var(--orange)">+5.8%</td><td><span class="rk m">中</span></td></tr>
+                <tr><td>制造费用</td><td>7,200</td><td>17.0%</td><td style="color:var(--green)">-2.1%</td><td><span class="rk l">低</span></td></tr>
+                <tr><td>库存持有</td><td>3,200</td><td>7.5%</td><td style="color:var(--red)">+22.0%</td><td><span class="rk h">高</span></td></tr>
+              </tbody></table>
+            </div>
+            <div class="dc w"><div class="lb">诊断结论与建议</div>
+              <div style="margin-top:8px;font-size:12px;color:var(--t2);line-height:1.8">
+                🔴 <b>核心问题：</b>原材料成本占比上升7.4pp，库存持有成本激增22%<br>
+                🟡 <b>次要问题：</b>产大于销50万件，产能利用率83%低于头部90%+<br>
+                🟢 <b>积极信号：</b>销量+18.1%，收入+8.3%，资产负债率29.2%健康<br>
+                💡 <b>建议行动：</b>①重谈供应商定价 ②优化排产减库存 ③提升高毛利产品占比
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="e-ana" class="pg">
+          <div class="cly"><div class="cp">
+            <div class="cms" id="e-msgs">
+              <div class="m a"><div class="mb">👋 您好！我是锂电智诊智能分析助手。<br><br>初步诊断结果：<br>🔴 <b>毛利率下滑4.7pp</b>，主要驱动因素：<br>• 原材料成本上涨15.2%（正极材料传导滞后）<br>• 库存持有成本+22%（产大于销50万件）<br>• 规模效应未充分体现（销量+18%，制造费仅降2.1%）<br><br>💡 点击右侧指标或直接输入问题深入分析</div><div class="mt">13:20</div></div>
+            </div>
+            <div class="cia"><div class="ciw"><textarea class="ci" id="e-in" rows="1" placeholder="请输入您的问题..." onkeydown="ck(event,'e')"></textarea><button class="cse" onclick="sm('e')">➤</button></div></div>
+          </div><div class="csb">
+            <div class="ss"><h5>行业参考指标</h5>
+              <div class="ii" onclick="ai('e','行业平均毛利率','21.3%')"><span class="inn">行业平均毛利率</span><span class="iv">21.3%</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai('e','头部企业毛利率','28.5%')"><span class="inn">头部企业毛利率</span><span class="iv">28.5%</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai('e','碳酸锂均价','9.8万/吨')"><span class="inn">碳酸锂均价</span><span class="iv">9.8万</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai('e','行业产能利用率','72%')"><span class="inn">行业产能利用率</span><span class="iv">72%</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai('e','正极材料价格指数','86.2')"><span class="inn">正极材料价格指数</span><span class="iv">86.2</span><div class="ia">+</div></div>
+            </div>
+            <div class="ss"><h5>风险预警</h5>
+              <div class="ii" onclick="ai('e','原材料价格波动','高')"><span class="inn">原材料价格波动</span><span class="iv" style="color:var(--red)">高</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai('e','库存积压风险','中高')"><span class="inn">库存积压</span><span class="iv" style="color:var(--orange)">中高</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai('e','价格战压力','中')"><span class="inn">价格战压力</span><span class="iv" style="color:var(--orange)">中等</span><div class="ia">+</div></div>
+            </div>
+          </div></div>
+        </div>
+        <div id="e-set" class="pg">
+          <div class="sts2"><h3>🎨 界面配色</h3>
+            <div class="sr"><span class="sl2">主题色</span><div class="sc"><div class="csw on" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6)" onclick="pt(this)"></div><div class="csw" style="background:linear-gradient(135deg,#10b981,#06b6d4)" onclick="pt(this)"></div><div class="csw" style="background:linear-gradient(135deg,#f59e0b,#ef4444)" onclick="pt(this)"></div><div class="csw" style="background:linear-gradient(135deg,#ec4899,#8b5cf6)" onclick="pt(this)"></div></div></div>
+            <div class="sr"><span class="sl2">深色模式</span><div class="sw on" onclick="tw(this)"></div></div>
+          </div>
+          <div class="sts2"><h3>📋 基本信息</h3>
+            <div class="sr"><span class="sl2">分析角色</span><span style="color:var(--blue);font-size:12px">企业运营分析</span></div>
+            <div class="sr"><span class="sl2">数据季度</span><span style="color:var(--t3);font-size:12px">Q4 2024</span></div>
+          </div>
+          <div class="sts2"><h3>🤖 Agent 任务</h3>
+            <div class="sr"><span class="sl2">自动分析频率</span><div class="sc"><select class="ssel"><option>每周一次</option><option>每两周一次</option><option>每月一次</option></select></div></div>
+            <div class="sr"><span class="sl2">异常预警推送</span><div class="sw on" onclick="tw(this)"></div></div>
+            <div class="sr"><span class="sl2">毛利预警阈值</span><div class="sc"><select class="ssel"><option>15%</option><option>18%</option><option>20%</option></select></div></div>
+          </div>
+          <div class="sts2"><button class="mbtn" onclick="openMem()"><div class="mi2">🧠</div><span>记忆中的你</span></button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APP INVESTOR -->
+<div id="ai2" class="S">
+  <div class="al">
+    <nav class="nv">
+      <div class="nl">锂</div>
+      <div class="ni on" onclick="nav('i','home',this)"><span>🏠</span><span class="tp">首页</span></div>
+      <div class="ni" onclick="nav('i','ana',this)"><span>💬</span><span class="tp">分析</span></div>
+      <div class="ni" onclick="nav('i','set',this)"><span>⚙️</span><span class="tp">设置</span></div>
+      <div class="nsp"></div>
+      <div class="nav2">投</div>
+    </nav>
+    <div class="am">
+      <div class="at"><span class="att" id="i-tt">首页</span><div class="atr"><button class="ab">🔔</button><button class="ab">❓</button></div></div>
+      <div class="ac">
+        <div id="i-home" class="pg on">
+          <div class="dg">
+            <div class="dc w"><div class="lb">自选股行情</div>
+              <div class="sk"><div class="sk-i"><div class="sk-n">宁德时代</div><div class="sk-c">300750.SZ</div></div><div class="sk-p"><div class="sk-pr">¥218.50</div><div class="sk-pc up">+2.35%</div></div></div>
+              <div class="sk"><div class="sk-i"><div class="sk-n">比亚迪</div><div class="sk-c">002594.SZ</div></div><div class="sk-p"><div class="sk-pr">¥285.60</div><div class="sk-pc up">+1.12%</div></div></div>
+              <div class="sk"><div class="sk-i"><div class="sk-n">亿纬锂能</div><div class="sk-c">300014.SZ</div></div><div class="sk-p"><div class="sk-pr">¥42.88</div><div class="sk-pc dn">-0.86%</div></div></div>
+            </div>
+            <div class="dc"><div class="lb">投资组合收益</div><div class="vl" style="color:var(--green)">+12.8%</div><div class="ch up">▲ 超额5.2pp vs 沪深300</div></div>
+            <div class="dc"><div class="lb">行业景气指数</div>
+              <div class="gc"><div class="gr"><svg width="66" height="66" viewBox="0 0 66 66"><circle cx="33" cy="33" r="27" fill="none" stroke="rgba(255,255,255,.04)" stroke-width="5"/><circle cx="33" cy="33" r="27" fill="none" stroke="var(--blue)" stroke-width="5" stroke-dasharray="130" stroke-dashoffset="39" stroke-linecap="round"/></svg><span class="gt" style="color:var(--blue)">70</span></div><div class="gi"><div class="gl">景气偏暖</div><div class="gd">储能高增长对冲动力市场放缓</div></div></div>
+            </div>
+            <div class="dc w"><div class="lb">标的毛利率预测趋势</div>
+              <div class="mc"><div class="cbg">
+                <div class="cb" style="height:60%;background:linear-gradient(180deg,var(--cyan),rgba(6,182,212,.15))"><span class="bl">Q1</span></div>
+                <div class="cb" style="height:65%;background:linear-gradient(180deg,var(--cyan),rgba(6,182,212,.15))"><span class="bl">Q2</span></div>
+                <div class="cb" style="height:62%;background:linear-gradient(180deg,var(--blue),rgba(59,130,246,.15))"><span class="bl">Q3</span></div>
+                <div class="cb" style="height:58%;background:linear-gradient(180deg,var(--blue),rgba(59,130,246,.15))"><span class="bl">Q4</span></div>
+                <div class="cb" style="height:55%;background:linear-gradient(180deg,var(--orange),rgba(245,158,11,.15))"><span class="bl">Q1'F</span></div>
+                <div class="cb" style="height:52%;background:linear-gradient(180deg,var(--orange),rgba(245,158,11,.15))"><span class="bl">Q2'F</span></div>
+                <div class="cb" style="height:56%;background:repeating-linear-gradient(45deg,rgba(16,185,129,.2),rgba(16,185,129,.2) 2px,transparent 2px,transparent 4px)"><span class="bl">Q3'F</span></div>
+                <div class="cb" style="height:60%;background:repeating-linear-gradient(45deg,rgba(16,185,129,.2),rgba(16,185,129,.2) 2px,transparent 2px,transparent 4px)"><span class="bl">Q4'F</span></div>
+              </div></div>
+            </div>
+            <div class="dc w"><div class="lb">行业关键数据一览</div>
+              <table class="dt"><thead><tr><th>指标</th><th>当前值</th><th>环比</th><th>同比</th><th>趋势</th></tr></thead><tbody>
+                <tr><td>动力电池装机量(GWh)</td><td>85.6</td><td style="color:var(--green)">+5.2%</td><td style="color:var(--green)">+18.3%</td><td>📈</td></tr>
+                <tr><td>碳酸锂价格(万/吨)</td><td>9.8</td><td style="color:var(--red)">-3.5%</td><td style="color:var(--red)">-25.6%</td><td>📉</td></tr>
+                <tr><td>储能装机量(GWh)</td><td>28.3</td><td style="color:var(--green)">+12.8%</td><td style="color:var(--green)">+65.2%</td><td>📈</td></tr>
+                <tr><td>行业平均毛利率</td><td>19.8%</td><td style="color:var(--red)">-0.8pp</td><td style="color:var(--red)">-3.2pp</td><td>📉</td></tr>
+              </tbody></table>
+            </div>
+            <div class="dc w"><div class="lb">投资建议概要</div>
+              <div style="margin-top:8px;font-size:12px;color:var(--t2);line-height:1.8">
+                📈 <b>看好：</b>储能赛道(+65%)、海外布局企业、毛利稳定20%+标的<br>
+                ⚠️ <b>谨慎：</b>纯动力电池（毛利承压）、产能过剩标的<br>
+                ⏳ <b>时机：</b>碳酸锂接近底部，预计2025H2毛利触底回升<br>
+                💡 <b>策略：</b>分批建仓，关注Q2毛利率拐点信号
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="i-ana" class="pg">
+          <div class="cly"><div class="cp">
+            <div class="mts">
+              <button class="mt2 on" onclick="smode(this,'ind')">📊 行业状况分析</button>
+              <button class="mt2" onclick="smode(this,'rec')">💡 投资推荐</button>
+              <button class="mt2" onclick="smode(this,'dep')">🔬 深度解析</button>
+            </div>
+            <div class="cms" id="i-msgs">
+              <div class="m a"><div class="mb">👋 您好！我是您的投资分析助手。<br><br>当前模式：<b>行业状况分析</b><br><br>📊 快照：<br>• 动力电池装机量 +18.3% YoY<br>• 储能 +65.2% YoY<br>• 行业毛利承压 -3.2pp YoY<br>• 碳酸锂走低利好中游成本端<br><br>请随时提问或切换模式。</div><div class="mt">13:20</div></div>
+            </div>
+            <div class="cia"><div class="ciw"><textarea class="ci" id="i-in" rows="1" placeholder="请输入您的问题..." onkeydown="ck(event,'i')"></textarea><button class="cse" onclick="sm('i')">➤</button></div></div>
+          </div><div class="csb">
+            <div class="ss"><h5>行业核心指标</h5>
+              <div class="ii" onclick="ai2('i','装机量增速','+18.3%')"><span class="inn">装机量增速</span><span class="iv" style="color:var(--green)">+18.3%</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai2('i','碳酸锂均价','9.8万/吨')"><span class="inn">碳酸锂均价</span><span class="iv">9.8万</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai2('i','储能增速','+65.2%')"><span class="inn">储能增速</span><span class="iv" style="color:var(--green)">+65.2%</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai2('i','CR5市占率','78.5%')"><span class="inn">CR5市占率</span><span class="iv">78.5%</span><div class="ia">+</div></div>
+            </div>
+            <div class="ss"><h5>估值参考</h5>
+              <div class="ii" onclick="ai2('i','行业PE中位数','25.3x')"><span class="inn">行业PE中位数</span><span class="iv">25.3x</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai2('i','行业PB中位数','3.2x')"><span class="inn">行业PB中位数</span><span class="iv">3.2x</span><div class="ia">+</div></div>
+              <div class="ii" onclick="ai2('i','十年期国债收益率','2.35%')"><span class="inn">十年期国债收益率</span><span class="iv">2.35%</span><div class="ia">+</div></div>
+            </div>
+          </div></div>
+        </div>
+        <div id="i-set" class="pg">
+          <div class="sts2"><h3>🎨 界面配色</h3>
+            <div class="sr"><span class="sl2">主题色</span><div class="sc"><div class="csw on" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6)" onclick="pt(this)"></div><div class="csw" style="background:linear-gradient(135deg,#10b981,#06b6d4)" onclick="pt(this)"></div><div class="csw" style="background:linear-gradient(135deg,#f59e0b,#ef4444)" onclick="pt(this)"></div><div class="csw" style="background:linear-gradient(135deg,#ec4899,#8b5cf6)" onclick="pt(this)"></div></div></div>
+            <div class="sr"><span class="sl2">深色模式</span><div class="sw on" onclick="tw(this)"></div></div>
+          </div>
+          <div class="sts2"><h3>📋 基本信息</h3>
+            <div class="sr"><span class="sl2">分析角色</span><span style="color:var(--purple);font-size:12px">投资人员</span></div>
+          </div>
+          <div class="sts2"><h3>🤖 Agent 任务</h3>
+            <div class="sr"><span class="sl2">自动推送频率</span><div class="sc"><select class="ssel"><option>每日一次</option><option>每周一次</option><option>有异动时</option></select></div></div>
+            <div class="sr"><span class="sl2">重大事件推送</span><div class="sw on" onclick="tw(this)"></div></div>
+          </div>
+          <div class="sts2"><button class="mbtn" onclick="openMem()"><div class="mi2">🧠</div><span>记忆中的你</span></button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MEMORY -->
+<div id="mem" class="S">
+  <div class="mbg"><canvas id="scv"></canvas></div>
+  <div class="mct">
+    <div class="mtb"><button class="mbk" onclick="closeMem()">← 返回</button><span style="font-size:12px;color:var(--t3)">记忆中的你</span><div style="width:60px"></div></div>
+    <div class="mvp" id="mvp"><div class="mtr" id="mtr"><svg class="tsv" id="tsv"></svg></div></div>
+  </div>
+</div>
+
+<!-- NODE DETAIL -->
+<div class="ndo" id="ndo" onclick="cnd(event)"><div class="nd"><h3 id="nd-t">—</h3><div class="dm" id="nd-m">—</div><div class="db" id="nd-b">—</div><button class="cd" onclick="cnd()">关闭</button></div></div>
+
+<script>
+let role=null,app=null,hist=null,starRaf=null;
+
+/* LOADING */
+!function(){const b=document.getElementById('ldb');let w=0;
+const t=setInterval(()=>{w+=Math.random()*16+4;if(w>100)w=100;b.style.width=w+'%';
+if(w>=100){clearInterval(t);setTimeout(()=>{document.getElementById('ld').classList.remove('on');show('role')},300)}
+},160)}();
+
+function show(id){document.querySelectorAll('.S').forEach(s=>s.classList.remove('on'));document.getElementById(id).classList.add('on')}
+function pick(r){role=r;show(r==='e'?'ce':'ci');buildSteps(r)}
+
+/* STEPS */
+function buildSteps(r){
+  const el=document.getElementById(r+'-steps');
+  const n=r==='e'?3:2;
+  el.innerHTML='';
+  for(let i=0;i<n*2-1;i++){
+    if(i%2===0){const d=document.createElement('div');d.className='sd'+(i===0?' on':'');d.id=r+'d'+(i/2+1);el.appendChild(d)}
+    else{const l=document.createElement('div');l.className='sln';el.appendChild(l)}
+  }
+}
+function setStep(r,s,total){
+  for(let i=1;i<=total;i++){
+    const d=document.getElementById(r+'d'+i);
+    if(d)d.className='sd'+(i<s?' ok':i===s?' on':'');
+  }
+}
+
+/* ENTERPRISE FLOW */
+function pickHist(el,v){
+  hist=v;
+  el.parentElement.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  // show/hide full history section in step 3
+  const fh=document.getElementById('e-full-history');
+  if(fh)fh.style.display=v==='yes'?'block':'none';
+  const ti=document.getElementById('e-s3-title');
+  const hi=document.getElementById('e-s3-hint');
+  if(ti)ti.textContent=v==='yes'?'历史季度对比数据':'去年同季度对比数据';
+  if(hi)hi.textContent=v==='yes'?'请填写近4个季度的历史数据':'请填写去年同期数据以便进行对比分析';
+}
+function eGo(s){
+  for(let i=1;i<=3;i++)document.getElementById('es'+i).style.display=i===s?'block':'none';
+  setStep('e',s,3);
+}
+function iGo(s){
+  for(let i=1;i<=2;i++)document.getElementById('is'+i).style.display=i===s?'block':'none';
+  setStep('i',s,2);
+}
+function goApp(r){app=r;show(r==='e'?'ae':'ai2')}
+
+/* APP NAV */
+const tt={home:'首页',ana:'分析',set:'设置'};
+function nav(r,pg,el){
+  const p=r==='e'?'e':'i';
+  document.querySelectorAll('#a'+p+' .pg, #'+(p==='e'?'ae':'ai2')+' .pg').forEach(x=>x.classList.remove('on'));
+  document.getElementById(p+'-'+pg).classList.add('on');
+  document.querySelectorAll('#'+(p==='e'?'ae':'ai2')+' .ni').forEach(n=>n.classList.remove('on'));
+  if(el)el.classList.add('on');
+  document.getElementById(p+'-tt').textContent=tt[pg];
+}
+
+/* CHAT */
+function gt(){const d=new Date();return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')}
+function es(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function sm(r){
+  const inp=document.getElementById(r+'-in'),box=document.getElementById(r+'-msgs');
+  const t=inp.value.trim();if(!t)return;inp.value='';inp.style.height='auto';
+  const u=document.createElement('div');u.className='m u';
+  u.innerHTML='<div class="mb">'+es(t)+'</div><div class="mt">'+gt()+'</div>';
+  box.appendChild(u);
+  const th=document.createElement('div');th.className='m a';th.innerHTML='<div class="th"><i></i><i></i><i></i></div>';
+  box.appendChild(th);box.scrollTop=box.scrollHeight;
+  setTimeout(()=>{th.remove();const a=document.createElement('div');a.className='m a';
+  a.innerHTML='<div class="mb">'+gAI(t,r)+'</div><div class="mt">'+gt()+'</div>';
+  box.appendChild(a);box.scrollTop=box.scrollHeight},900+Math.random()*500);
+}
+function ck(e,r){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sm(r)}}
+
+const eR=[
+  '根据您的数据，毛利率下降核心驱动因素：<br><br>1️⃣ <b>原材料成本占比上升</b>：从52%升至59.4%，碳酸锂降价但正极材料传导滞后<br>2️⃣ <b>库存持有成本激增</b>(+22%)：产大于销50万件<br>3️⃣ <b>规模效应未充分体现</b>：销量+18%但制造费仅降2.1%<br><br>💡 <b>优先行动</b>：与上游重谈季度定价，优化排产减库存',
+  '行业对标：<br><br>📊 您的毛利率18.5% <b>低于行业均值21.3%</b> 约2.8pp<br><br>差距来源：<br>• 原材料采购：CR5企业议价权更强<br>• 产品结构：高端产品占比偏低<br>• 产能利用率：您83%，头部90%+<br><br>🔑 提升路径：增加储能、半固态电池等高毛利产品',
+  '现金流分析：<br><br>✅ 现金流/收入比47%，健康<br>⚠️ 经营性现金流同比-12%，资本开支高位<br>📊 资产负债率29.2%，安全<br><br>📌 若毛利持续降至15%以下，安全垫将显著收窄'
+];
+const iR=[
+  '投资建议：<br><br>📈 <b>看好</b>：储能赛道(+65%)、海外布局企业<br>⚠️ <b>谨慎</b>：纯动力电池(毛利承压)、产能过剩标的<br><br>💡 关注毛利稳定20%+、储能占比提升的企业',
+  '宁德时代解析：<br><br>🟢 技术领先、全球市占率37%、储能高增长<br>🟡 海外扩张风险、毛利从30%回落至22%<br>🔴 估值偏高(PE 28x)<br><br>📊 建议分批建仓，关注Q2毛利拐点',
+  '行业景气判断：<br><br>当前处于<b>周期底部磨底</b>：<br>• 碳酸锂较高点跌超70%，接近底部<br>• 行业出清加速<br>• 需求强劲(动力+储能年增30%+)<br><br>⏳ 预计2025H2毛利触底回升'
+];
+function gAI(q,r){const rs=r==='e'?eR:iR;return rs[Math.floor(Math.random()*rs.length)]}
+
+function ai(r,n,v){addInd(r,n,v)}
+function ai2(r,n,v){addInd(r,n,v)}
+function addInd(r,n,v){
+  const box=document.getElementById(r+'-msgs');
+  const u=document.createElement('div');u.className='m u';
+  u.innerHTML='<div class="mb">请分析「'+n+'」指标（当前值：'+v+'）</div><div class="mt">'+gt()+'</div>';
+  box.appendChild(u);
+  const th=document.createElement('div');th.className='m a';
+  th.innerHTML='<div class="th"><i></i><i></i><i></i></div>';
+  box.appendChild(th);box.scrollTop=box.scrollHeight;
+  setTimeout(()=>{th.remove();const a=document.createElement('div');a.className='m a';
+  a.innerHTML='<div class="mb">📊 <b>'+n+'</b> 当前值 <b>'+v+'</b><br><br>详细分析正在生成，请稍候...</div><div class="mt">'+gt()+'</div>';
+  box.appendChild(a);box.scrollTop=box.scrollHeight},600);
+}
+
+function smode(el,m){
+  el.parentElement.querySelectorAll('.mt2').forEach(t=>t.classList.remove('on'));el.classList.add('on');
+  const nm={ind:'行业状况分析',rec:'投资推荐',dep:'深度解析'};
+  const box=document.getElementById('i-msgs');
+  const d=document.createElement('div');d.className='m a';
+  d.innerHTML='<div class="mb">已切换至 <b>'+nm[m]+'</b> 模式。请随时提问。</div><div class="mt">'+gt()+'</div>';
+  box.appendChild(d);box.scrollTop=box.scrollHeight;
+}
+
+function pt(el){el.parentElement.querySelectorAll('.csw').forEach(s=>s.classList.remove('on'));el.classList.add('on')}
+function tw(el){el.classList.toggle('on')}
+
+/* MEMORY */
+function openMem(){show('mem');initStars();buildTree()}
+function closeMem(){if(starRaf)cancelAnimationFrame(starRaf);show(app==='e'?'ae':'ai2')}
+
+function initStars(){
+  const cv=document.getElementById('scv'),cx=cv.getContext('2d');
+  let W,H,stars=[],mx=0,my=0,scrollX=0,scrollY=0;
+  function rs(){W=cv.width=cv.offsetWidth;H=cv.height=cv.offsetHeight}rs();
+  window.onresize=rs;
+  stars=[];for(let i=0;i<180;i++)stars.push({
+    x:Math.random()*2000,y:Math.random()*1500,
+    r:Math.random()*1.2+.2,vx:(Math.random()-.5)*.1,vy:(Math.random()-.5)*.1,
+    a:Math.random()*.45+.15,da:(Math.random()-.5)*.003
+  });
+  const vp=document.getElementById('mvp');
+  vp.onmousemove=e=>{mx=e.clientX;my=e.clientY};
+  vp.onscroll=()=>{scrollX=vp.scrollLeft;scrollY=vp.scrollTop};
+  !function draw(){
+    cx.clearRect(0,0,W,H);
+    // parallax glow follows mouse and scroll
+    const gx=(mx||W/2)+scrollX*.3, gy=(my||H/2)+scrollY*.3;
+    const g=cx.createRadialGradient(Math.min(gx,W),Math.min(gy,H),0,Math.min(gx,W),Math.min(gy,H),280);
+    g.addColorStop(0,'rgba(139,92,246,.06)');g.addColorStop(.5,'rgba(59,130,246,.03)');g.addColorStop(1,'transparent');
+    cx.fillStyle=g;cx.fillRect(0,0,W,H);
+    // secondary glow
+    const g2=cx.createRadialGradient(W-gx*.3,H-gy*.3,0,W-gx*.3,H-gy*.3,200);
+    g2.addColorStop(0,'rgba(6,182,212,.04)');g2.addColorStop(1,'transparent');
+    cx.fillStyle=g2;cx.fillRect(0,0,W,H);
+    stars.forEach(s=>{
+      // parallax: shift stars based on scroll
+      const px=(s.x-scrollX*.15)%W, py=(s.y-scrollY*.15)%H;
+      s.a+=s.da;if(s.a>.6||s.a<.08)s.da*=-1;
+      cx.beginPath();cx.arc(px<0?px+W:px,py<0?py+H:py,s.r,0,6.28);
+      cx.fillStyle='rgba(180,195,240,'+s.a+')';cx.fill();
+    });
+    starRaf=requestAnimationFrame(draw);
+  }();
+}
+
+function buildTree(){
+  const tr=document.getElementById('mtr'),sg=document.getElementById('tsv');
+  tr.querySelectorAll('.tn').forEach(n=>n.remove());sg.innerHTML='';
+  const isE=app==='e';
+  const nodes=isE?[
+    {id:'c',ic:'👤',t:'企业数据档案',p:'包含所有已录入的运营数据',x:430,y:280,c:1},
+    {id:'n1',ic:'💰',t:'毛利率数据',p:'本季度18.5% / 去年23.2%',x:170,y:80,d:'毛利率详情',dm:'Q4 2024',db:'本季度毛利率：18.5%\n去年同期：23.2%\n下降：4.7pp\n\n原因：\n• 原材料成本+15.2%\n• 产品均价-3.8%\n• 库存持有成本+22%'},
+    {id:'n2',ic:'📦',t:'收入与成本',p:'总收入5.20亿 / 总成本4.24亿',x:690,y:80,d:'收入成本详情',dm:'Q4 2024',db:'总收入：5.20亿元\n总成本：4.24亿元\n去年收入：4.80亿元\n去年成本：3.69亿元\n\n收入+8.3%，成本+14.9%\n成本增速远超收入增速'},
+    {id:'n3',ic:'📊',t:'销量与产量',p:'销量850万件 / 产量900万件',x:80,y:340,d:'产销详情',dm:'Q4 2024',db:'销量：850万件\n产量：900万件\n去年销量：720万件\n\n产大于销：50万件\n产销率：94.4%\n销量同比+18.1%'},
+    {id:'n4',ic:'🏭',t:'制造费用',p:'总制造2.80亿 / 营业4.24亿',x:220,y:490,d:'制造费用',dm:'Q4 2024',db:'制造费用：2.80亿元\n营业成本：4.24亿元\n占比：66.0%\n\n• 直接材料63%\n• 直接人工18%\n• 间接费用19%'},
+    {id:'n5',ic:'💵',t:'现金流',p:'现金流8500万 / 月收入1.80亿',x:650,y:340,d:'现金流详情',dm:'Q4 2024',db:'季度现金流：8,500万元\n月收入：1.80亿元\n\n经营性现金流同比-12%\n投资性现金流：扩产支出\n筹资性：净流入2,000万'},
+    {id:'n6',ic:'⚖️',t:'资产负债',p:'负债3.50亿 / 资产12亿',x:790,y:490,d:'资产负债',dm:'Q4 2024',db:'总负债：3.50亿\n总资产：12.00亿\n资产负债率：29.2%\n\n流动比率2.1 | 速动比率1.5\n• 短期借款1.2亿\n• 应付账款1.5亿\n• 长期负债0.8亿'},
+    {id:'n7',ic:'📈',t:'库存费用',p:'当前3200万 / 去年2620万',x:350,y:110,d:'库存费用',dm:'Q4 2024',db:'库存费用：3,200万元\n去年：2,620万元\n同比+22.1%\n\n周转天数：68天(去年53天)\n建议：优化排产减库存'},
+  ]:[
+    {id:'c',ic:'👤',t:'投资数据档案',p:'包含所有投资相关信息',x:430,y:280,c:1},
+    {id:'n1',ic:'🏭',t:'已投企业',p:'宁德时代、比亚迪、亿纬锂能',x:170,y:80,d:'已投企业',dm:'持仓概览',db:'• 宁德时代 (300750.SZ)\n• 比亚迪 (002594.SZ)\n• 亿纬锂能 (300014.SZ)\n\n主题：动力电池+储能'},
+    {id:'n2',ic:'💰',t:'资金状况',p:'资金成本5.5% / 总投资200万',x:690,y:80,d:'资金状况',dm:'投资概况',db:'资金成本：5.5%/年\n总额：200万元\n周期：中期(3-12月)\n风险：稳健型'},
+    {id:'n3',ic:'🎯',t:'投资兴趣',p:'关注动力电池和储能',x:80,y:340,d:'投资兴趣',dm:'关注领域',db:'最关注：动力电池\n主题：毛利率变化趋势\n\n次要：储能、海外市场、技术迭代'},
+    {id:'n4',ic:'📊',t:'分析偏好',p:'深度分析与趋势跟踪',x:790,y:340,d:'分析偏好',dm:'使用习惯',db:'常用：行业状况分析\n维度：毛利率趋势、装机量、估值\n频率：每周一次'},
+    {id:'n5',ic:'🔔',t:'预警设置',p:'重大事件推送已开启',x:220,y:500,d:'预警设置',dm:'通知偏好',db:'• 毛利率异常波动\n• 重大政策变动\n• 业绩预警\n• 价格异动\n\n推送：有异动时'},
+    {id:'n6',ic:'📈',t:'历史查询',p:'累计分析52次',x:650,y:500,d:'历史查询',dm:'使用统计',db:'累计：52次\n最常分析：宁德时代\n常用模式：行业状况分析\n\n最近：碳酸锂走势、储能增速、毛利拐点'},
+  ];
+  const ct=nodes.find(n=>n.c);
+  nodes.filter(n=>!n.c).forEach(n=>{
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',ct.x+80);l.setAttribute('y1',ct.y+45);
+    l.setAttribute('x2',n.x+80);l.setAttribute('y2',n.y+45);
+    sg.appendChild(l);
+  });
+  nodes.forEach(n=>{
+    const el=document.createElement('div');
+    el.className='tn'+(n.c?' ct':'');
+    el.style.cssText='left:'+n.x+'px;top:'+n.y+'px';
+    el.innerHTML='<div class="ti">'+n.ic+'</div><div class="tt">'+n.t+'</div><div class="tp2">'+n.p+'</div>';
+    if(n.d)el.onclick=()=>{document.getElementById('nd-t').textContent=n.d;document.getElementById('nd-m').textContent=n.dm;document.getElementById('nd-b').textContent=n.db;document.getElementById('ndo').classList.add('on')};
+    tr.appendChild(el);
+  });
+  const vp=document.getElementById('mvp');let dr=false,sx,sy,sl,st;
+  vp.onmousedown=e=>{if(e.target.closest('.tn'))return;dr=true;sx=e.clientX;sy=e.clientY;sl=vp.scrollLeft;st=vp.scrollTop};
+  vp.onmousemove=e=>{if(!dr)return;vp.scrollLeft=sl-(e.clientX-sx);vp.scrollTop=st-(e.clientY-sy)};
+  vp.onmouseup=vp.onmouseleave=()=>dr=false;
+}
+function cnd(e){if(e&&e.target!==e.currentTarget)return;document.getElementById('ndo').classList.remove('on')}
+</script>
+</body>
+</html>

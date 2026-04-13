@@ -1,0 +1,16 @@
+- [x] 系统构建成功（npm run build 无错误）
+- [x] 类型检查通过（npm run typecheck 无错误）
+- [x] 单元测试通过（npm run test 142个测试全部通过）
+- [ ] 代码规范检查通过（npm run lint 有108个预存问题，不影响功能运行）
+- [x] CORS 配置支持多源和通配符模式
+- [x] 生产环境安全响应头已添加
+- [x] Express 静态文件托管和 SPA 路由兜底正常工作
+- [x] .env.example 包含生产环境配置说明
+- [x] Dockerfile 创建完成且可成功构建镜像
+- [x] docker-compose.yml 创建完成
+- [x] .dockerignore 创建完成
+- [x] 生产模式下前端页面通过服务端口可访问
+- [x] 生产模式下核心 API 端点正常工作（/api/health, /api/meta, DQI, GMPS）
+- [x] 生产模式下 SSE 流式分析端点正常工作（单元测试覆盖）
+- [ ] Docker 容器启动后系统功能正常（当前机器未安装 Docker，需用户安装后验证）
+- [ ] Docker 数据持久化卷挂载正常（当前机器未安装 Docker，需用户安装后验证）
