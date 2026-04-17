@@ -25,6 +25,7 @@ import type {
   IndustryRetrievalOutput,
   MathAnalysisOutput,
 } from "../shared/agents.js";
+import type { EnterpriseOnboardingDraft } from "../shared/types.js";
 
 // ==================== DQI & GMPS 图表系统类型定义 ====================
 
@@ -223,33 +224,6 @@ export interface DiagnosticChartSuite {
   gmpsDimensionRadar: ChartConfig | null;
   featureWaterfall: ChartConfig | null;
 }
-
-export type EnterpriseOnboardingDraft = {
-  hasFullHistory: boolean;
-  enterpriseName: string;
-  currentQuarterLabel: string;
-  baselineQuarterLabel: string;
-  currentGrossMargin: string;
-  currentRevenue: string;
-  currentCost: string;
-  currentSalesVolume: string;
-  currentProductionVolume: string;
-  currentInventoryExpense: string;
-  currentManufacturingExpense: string;
-  currentOperatingCost: string;
-  currentOperatingCashFlow: string;
-  currentTotalLiabilities: string;
-  currentTotalAssets: string;
-  baselineGrossMargin: string;
-  baselineRevenue: string;
-  baselineCost: string;
-  baselineSalesVolume: string;
-  baselineInventoryExpense: string;
-  previousQuarterGrossMargin: string;
-  previousQuarterRevenue: string;
-  twoQuartersAgoGrossMargin: string;
-  twoQuartersAgoRevenue: string;
-};
 
 export const DEFAULT_ENTERPRISE_ONBOARDING: EnterpriseOnboardingDraft = {
   hasFullHistory: false,

@@ -102,3 +102,30 @@ export type MetaResponse = {
   subtitle: string;
   roles: RoleCard[];
 };
+
+export type EnterpriseOnboardingDraft = {
+  hasFullHistory: boolean;
+  enterpriseName: string;
+  currentQuarterLabel: string;
+  baselineQuarterLabel: string;
+  currentGrossMargin: string;
+  currentRevenue: string;
+  currentCost: string;
+  currentSalesVolume: string;
+  currentProductionVolume: string;
+  currentInventoryExpense: string;
+  currentManufacturingExpense: string;
+  currentOperatingCost: string;
+  currentOperatingCashFlow: string;
+  currentTotalLiabilities: string;
+  currentTotalAssets: string;
+  baselineGrossMargin: string;
+  baselineRevenue: string;
+  baselineCost: string;
+  baselineSalesVolume: string;
+  baselineInventoryExpense: string;
+  previousQuarterGrossMargin: string;
+  previousQuarterRevenue: string;
+  twoQuartersAgoGrossMargin: string;
+  twoQuartersAgoRevenue: string;
+};

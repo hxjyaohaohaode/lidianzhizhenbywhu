@@ -1,4 +1,4 @@
-import type { EnterpriseOnboardingDraft } from "../web/chart-data.js";
+import type { EnterpriseOnboardingDraft } from "./types.js";
 
 export type ValidationSeverity = "error" | "warning";
 
