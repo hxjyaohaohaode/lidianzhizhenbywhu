@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ScatterChart,
@@ -34,6 +35,21 @@ type VisualizationInsight = {
   source: string;
 };
 
+function useIsDark() {
+  const [isDark, setIsDark] = useState(true);
+  useEffect(() => {
+    const check = () => {
+      const el = document.documentElement;
+      setIsDark(el.getAttribute("data-theme-mode") === "dark" || !el.classList.contains("theme-light"));
+    };
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme-mode"] });
+    return () => observer.disconnect();
+  }, []);
+  return isDark;
+}
+
 function statusToClass(status: VisualizationStatus) {
   return status === "good" ? "good" : status === "watch" ? "watch" : status === "risk" ? "risk" : "neutral";
 }
@@ -55,7 +71,7 @@ function getNeonGradient(status: VisualizationStatus | undefined): string {
 }
 
 function getStatusColor(status: VisualizationStatus | undefined): string {
-  if (status === "good") return "#00D4FF";
+  if (status === "good") return "#00E676";
   if (status === "watch") return "#FFD600";
   if (status === "risk") return "#FF6B9D";
   return "var(--t1)";
@@ -429,60 +445,38 @@ function buildFilteredPayload(payload: VisualizationPayload, filterState: Record
   };
 }
 
+function ChartDetailModal({
+  isOpen,
+  onClose,
+  title,
+  children,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  if (!isOpen) return null;
+  return (
+    <div className="chart-modal-overlay" onClick={onClose}>
+      <div className="chart-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <button className="cm-close" onClick={onClose}>✕</button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function HeatChip({ label, status }: { label: string; status: VisualizationStatus }) {
   return <span className={`viz-chip ${statusToClass(status)}`}>{label}</span>;
 }
 
-function SourceMetaCard({
-  source,
-  compact = false,
-}: {
-  source: VisualizationSourceMeta;
-  compact?: boolean;
-}) {
-  const isDark = typeof document !== "undefined" && (document.documentElement.classList.contains("theme-dark") || !document.documentElement.classList.contains("theme-light"));
+function SourceMetaCard({ source, compact = false }: { source: VisualizationSourceMeta; compact?: boolean }) {
   return (
-    <div
-      style={{
-        border: `1px solid ${isDark ? "rgba(148, 163, 184, 0.28)" : "rgba(148, 163, 184, 0.18)"}`,
-        borderRadius: 14,
-        padding: compact ? "10px 12px" : "12px 14px",
-        background: isDark ? "rgba(15, 23, 42, 0.02)" : "rgba(255, 255, 255, 0.5)",
-        display: "grid",
-        gap: 8,
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <strong style={{ fontSize: compact ? "0.9rem" : "0.95rem" }}>{source.label}</strong>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <HeatChip label={getCategoryLabel(source.category)} status="neutral" />
-          <HeatChip label={getConfidenceLabel(source.confidence)} status={getConfidenceStatus(source.confidence)} />
-        </div>
-      </div>
-      <div style={{ fontSize: "0.84rem", opacity: 0.88 }}>{source.description}</div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: "0.78rem", opacity: 0.72 }}>
-        <span>时效 {source.freshnessLabel}</span>
-        {source.ownerLabel ? <span>主体 {source.ownerLabel}</span> : null}
-        {source.actualSource ? <span>来源 {source.actualSource}</span> : null}
-      </div>
-      {source.trace.length > 0 ? (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {source.trace.slice(0, compact ? 2 : 3).map((item) => (
-            <span
-              key={item}
-              style={{
-                fontSize: "0.76rem",
-                padding: "4px 8px",
-                borderRadius: 999,
-                background: "rgba(99, 102, 241, 0.08)",
-                color: "inherit",
-              }}
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-      ) : null}
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap", padding: compact ? "6px 10px" : "8px 12px", borderRadius: 10, border: "1px solid rgba(148, 163, 184, 0.15)", background: "rgba(99, 102, 241, 0.04)" }}>
+      <strong style={{ fontSize: compact ? "0.82rem" : "0.88rem" }}>{source.label}</strong>
+      <HeatChip label={getConfidenceLabel(source.confidence)} status={getConfidenceStatus(source.confidence)} />
     </div>
   );
 }
@@ -653,7 +647,7 @@ function CalendarWidget({
         </div>
       </div>
       {selected ? (
-        <div className={`viz-calendar-detail viz-detail-panel ${statusToClass(selected.status)}`}>
+        <div className={`viz-calendar-detail viz-detail-panel ${statusToClass(selected.status)}`} style={{ backgroundColor: getStatusColor(selected.status) }}>
           <div className="viz-calendar-detail-top">
             <span>{selected.label}</span>
             <HeatChip label={selected.value} status={selected.status} />
@@ -704,6 +698,7 @@ function BenchmarkTableWidget({
   selectedInsight: VisualizationInsight | null;
 }) {
   const [sortMode, setSortMode] = useState<"default" | "status">("default");
+  const [detailItem, setDetailItem] = useState<{label: string; detail: string} | null>(null);
   const rows = useMemo(() => {
     if (sortMode === "default") {
       return widget.rows;
@@ -715,6 +710,7 @@ function BenchmarkTableWidget({
   }, [sortMode, widget.rows]);
 
   return (
+    <>
     <DataTableShell
       density={density}
       columnCount={5}
@@ -743,7 +739,7 @@ function BenchmarkTableWidget({
               <tr
                 key={row.id}
                 className={`${statusToClass(row.status)} ${isDimmed ? "dimmed" : ""}`}
-                onClick={() => onSelectInsight({ title: row.item, summary: row.note, source: widget.title })}
+                onClick={() => { onSelectInsight({ title: row.item, summary: row.note, source: widget.title }); setDetailItem({ label: row.item, detail: row.note || "无详细说明" }); }}
               >
                 <td>{row.item}</td>
                 <td className="viz-cell-numeric">{row.current}</td>
@@ -761,6 +757,15 @@ function BenchmarkTableWidget({
         </tbody>
       </table>
     </DataTableShell>
+    <ChartDetailModal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title={detailItem?.label ?? ""}>
+      {detailItem && (
+        <>
+          <div className="cm-subtitle">{widget.subtitle}</div>
+          <div className="cm-desc">{detailItem.detail}</div>
+        </>
+      )}
+    </ChartDetailModal>
+    </>
   );
 }
 
@@ -784,7 +789,7 @@ function ZebraTableWidget({
       <table className="viz-table viz-zebra-table">
         <thead>
           <tr>
-            {widget.columns.map((column) => <th key={column}>{column}</th>)}
+            {widget.columns.map((column) => <th key={`${widget.id}-col-${column}`}>{column}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -821,7 +826,7 @@ function HeatmapTableWidget({
         <thead>
           <tr>
             <th>维度</th>
-            {widget.columns.map((column) => <th key={column}>{column}</th>)}
+            {widget.columns.map((column) => <th key={`${widget.id}-col-${column}`}>{column}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -1011,7 +1016,7 @@ function PivotMatrixWidget({
         <thead>
           <tr>
             <th>维度</th>
-            {widget.columns.map((column) => <th key={column}>{column}</th>)}
+            {widget.columns.map((column) => <th key={`${widget.id}-col-${column}`}>{column}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -1080,6 +1085,7 @@ function BarChartWidget({
   const max = Math.max(...widget.data.map((item) => item.value), 1);
   const [activeId, setActiveId] = useState<string>(widget.data[0]?.id ?? "");
   const active = widget.data.find((item) => item.id === activeId) ?? widget.data[0];
+  const [detailItem, setDetailItem] = useState<{label: string; detail: string} | null>(null);
 
   return (
     <div className="viz-bar-chart">
@@ -1103,6 +1109,7 @@ function BarChartWidget({
                   onClick={() => {
                     setActiveId(item.id);
                     onSelectInsight({ title: item.label, summary: item.detail, source: widget.title });
+                    setDetailItem({ label: item.label, detail: item.note || item.detail || "无详细说明" });
                   }}
                 >
                   <span
@@ -1121,17 +1128,16 @@ function BarChartWidget({
             })}
           </div>
         </div>
-        {active ? (
-          <div className={`viz-bar-detail viz-detail-panel ${statusToClass(active.status)}`}>
-            <div className="viz-bar-detail-top">
-              <span>{active.label}</span>
-              <strong>{active.displayValue}</strong>
-            </div>
-            <div className="viz-bar-detail-meta">{active.benchmark}</div>
-            <p>{active.detail}</p>
-          </div>
-        ) : null}
+
       </div>
+      <ChartDetailModal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title={detailItem?.label ?? ""}>
+        {detailItem && (
+          <>
+            <div className="cm-subtitle">{widget.subtitle}</div>
+            <div className="cm-desc">{detailItem.detail}</div>
+          </>
+        )}
+      </ChartDetailModal>
     </div>
   );
 }
@@ -1151,6 +1157,7 @@ function LineChartWidget({
 
   const [activeId, setActiveId] = useState<string>(widget.data[0]?.id ?? "");
   const active = widget.data.find((item) => item.id === activeId) ?? widget.data[0];
+  const [detailItem, setDetailItem] = useState<{label: string; detail: string} | null>(null);
 
   const points = widget.data.map((item, index) => {
     const x = (index / Math.max(widget.data.length - 1, 1)) * 100;
@@ -1160,11 +1167,18 @@ function LineChartWidget({
 
   const thresholdY = widget.threshold !== undefined ? 100 - ((widget.threshold - minVal) / range) * 100 : undefined;
 
-  const isDark = typeof document !== "undefined" && (document.documentElement.classList.contains("theme-dark") || !document.documentElement.classList.contains("theme-light"));
+  const isDark = useIsDark();
+  const chartTheme = {
+    gridStroke: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+    axisStroke: isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.4)",
+    axisText: isDark ? "rgba(203,213,225,0.82)" : "rgba(30,41,59,0.82)",
+    tooltipBg: isDark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.95)",
+    tooltipBorder: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    tooltipText: isDark ? "rgba(203,213,225,0.86)" : "rgba(30,41,59,0.86)",
+  };
   const lineColor = "#00D4FF";
-  const areaGradient = isDark ? "rgba(0,212,255,0.15)" : "rgba(0,212,255,0.08)";
-  const gridColor = isDark ? "rgba(99,102,241,0.08)" : "rgba(99,102,241,0.06)";
-  const textColor = isDark ? "rgba(203,213,225,0.7)" : "rgba(51,65,85,0.7)";
+  const gridColor = chartTheme.gridStroke;
+  const textColor = chartTheme.axisText;
 
   return (
     <div className="viz-bar-chart viz-line-chart">
@@ -1223,6 +1237,7 @@ function LineChartWidget({
                     onClick={() => {
                       setActiveId(item.id);
                       onSelectInsight({ title: item.label, summary: item.detail, source: widget.title });
+                      setDetailItem({ label: item.label, detail: item.detail || "无详细说明" });
                     }}
                   >
                     <div style={{
@@ -1238,17 +1253,16 @@ function LineChartWidget({
             </div>
           </div>
         </div>
-        {active ? (
-          <div className={`viz-bar-detail viz-detail-panel ${statusToClass(active.status)}`} style={{ marginTop: 0 }}>
-            <div className="viz-bar-detail-top">
-              <span>{active.label}</span>
-              <strong>{active.displayValue}</strong>
-            </div>
-            <div className="viz-bar-detail-meta">{active.benchmark}</div>
-            <p>{active.detail}</p>
-          </div>
-        ) : null}
+
       </div>
+      <ChartDetailModal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title={detailItem?.label ?? ""}>
+        {detailItem && (
+          <>
+            <div className="cm-subtitle">{widget.subtitle}</div>
+            <div className="cm-desc">{detailItem.detail}</div>
+          </>
+        )}
+      </ChartDetailModal>
     </div>
   );
 }
@@ -1277,6 +1291,7 @@ function WaterfallChartWidget({
 
   const [activeId, setActiveId] = useState<string>(widget.data[0]?.id ?? "");
   const active = widget.data.find((item) => item.id === activeId) ?? widget.data[0];
+  const [detailItem, setDetailItem] = useState<{label: string; detail: string} | null>(null);
 
   return (
     <div className="viz-bar-chart">
@@ -1307,6 +1322,7 @@ function WaterfallChartWidget({
                   onClick={() => {
                     setActiveId(item.id);
                     onSelectInsight({ title: item.label, summary: item.detail ?? item.displayValue, source: widget.title });
+                    setDetailItem({ label: item.label, detail: item.detail || item.displayValue || "无详细说明" });
                   }}
                 >
                   <span
@@ -1329,16 +1345,16 @@ function WaterfallChartWidget({
             })}
           </div>
         </div>
-        {active ? (
-          <div className={`viz-bar-detail viz-detail-panel ${statusToClass(active.status ?? "neutral")}`}>
-            <div className="viz-bar-detail-top">
-              <span>{active.label}</span>
-              <strong>{active.displayValue}</strong>
-            </div>
-            <p>{active.detail}</p>
-          </div>
-        ) : null}
+
       </div>
+      <ChartDetailModal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title={detailItem?.label ?? ""}>
+        {detailItem && (
+          <>
+            <div className="cm-subtitle">{widget.subtitle}</div>
+            <div className="cm-desc">{detailItem.detail}</div>
+          </>
+        )}
+      </ChartDetailModal>
     </div>
   );
 }
@@ -1354,6 +1370,7 @@ function BoxPlotChartWidget({
 }) {
   const [activeId, setActiveId] = useState<string>(widget.groups[0]?.id ?? "");
   const active = widget.groups.find((g) => g.id === activeId) ?? widget.groups[0];
+  const [detailItem, setDetailItem] = useState<{label: string; detail: string} | null>(null);
 
   const allValues = widget.groups.flatMap((g) => [g.min, g.max, ...(g.outliers ?? [])]);
   const globalMin = Math.min(...allValues);
@@ -1365,10 +1382,17 @@ function BoxPlotChartWidget({
 
   const toY = (value: number) => 100 - ((value - yMin) / yRange) * 80 - 5;
 
-  const isDark = typeof document !== "undefined" && (document.documentElement.classList.contains("theme-dark") || !document.documentElement.classList.contains("theme-light"));
-  const axisColor = isDark ? "rgba(148,163,184,0.25)" : "rgba(100,116,139,0.18)";
-  const textColor = isDark ? "rgba(203,213,225,0.75)" : "rgba(51,65,85,0.75)";
-  const gridColor = isDark ? "rgba(99,102,241,0.08)" : "rgba(99,102,241,0.06)";
+  const isDark = useIsDark();
+  const chartTheme = {
+    gridStroke: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+    axisStroke: isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.4)",
+    axisText: isDark ? "rgba(203,213,225,0.82)" : "rgba(30,41,59,0.82)",
+    tooltipBg: isDark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.95)",
+    tooltipBorder: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    tooltipText: isDark ? "rgba(203,213,225,0.86)" : "rgba(30,41,59,0.86)",
+  };
+  const textColor = chartTheme.axisText;
+  const gridColor = chartTheme.gridStroke;
 
   const groupCount = widget.groups.length;
   const slotWidth = 80 / groupCount;
@@ -1406,14 +1430,13 @@ function BoxPlotChartWidget({
               const isDimmed = selectedInsight && selectedInsight.title !== group.label;
               const isActive = activeId === group.id;
               const neonColor = NEON_COLORS[index % NEON_COLORS.length] ?? NEON_DEFAULT;
-              const gradient = getNeonGradient(group.status);
               const statusColor = getStatusColor(group.status);
               const opacity = isDimmed ? 0.2 : 1;
 
               return (
                 <g key={group.id} style={{ opacity, cursor: "pointer", transition: "opacity 0.8s" }}
                   onMouseEnter={() => setActiveId(group.id)}
-                  onClick={() => { setActiveId(group.id); onSelectInsight({ title: group.label, summary: group.detail, source: widget.title }); }}
+                  onClick={() => { setActiveId(group.id); onSelectInsight({ title: group.label, summary: group.detail, source: widget.title }); setDetailItem({ label: group.label, detail: group.detail || "无详细说明" }); }}
                 >
                   <line x1={cx} y1={yMinW} x2={cx} y2={yQ1} stroke={statusColor} strokeWidth="0.8" opacity={0.6} strokeDasharray="1.5,1" />
                   <line x1={cx} y1={yQ3} x2={cx} y2={yMaxW} stroke={statusColor} strokeWidth="0.8" opacity={0.6} strokeDasharray="1.5,1" />
@@ -1464,20 +1487,16 @@ function BoxPlotChartWidget({
             })}
           </svg>
         </div>
-        {active ? (
-          <div className={`viz-bar-detail viz-detail-panel ${statusToClass(active.status)}`}>
-            <div className="viz-bar-detail-top">
-              <span>{active.label}</span>
-              <strong>{active.displayValues.median}</strong>
-            </div>
-            <div className="viz-bar-detail-meta">
-              最小：${active.displayValues.min} · Q1 {active.displayValues.q1} · 中位数：${active.displayValues.median} · Q3 {active.displayValues.q3} · 最大：${active.displayValues.max}
-              {(active.outliers ?? []).length > 0 && ` · 离群值：${active.outliers!.join(", ")}`}
-            </div>
-            <p>{active.detail}</p>
-          </div>
-        ) : null}
+
       </div>
+      <ChartDetailModal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title={detailItem?.label ?? ""}>
+        {detailItem && (
+          <>
+            <div className="cm-subtitle">{widget.subtitle}</div>
+            <div className="cm-desc">{detailItem.detail}</div>
+          </>
+        )}
+      </ChartDetailModal>
     </div>
   );
 }
@@ -1493,10 +1512,19 @@ function ScatterChartWidget({
 }) {
   const [activeId, setActiveId] = useState<string>(widget.data[0]?.id ?? "");
   const active = widget.data.find((d) => d.id === activeId) ?? widget.data[0];
+  const [detailItem, setDetailItem] = useState<{label: string; detail: string} | null>(null);
 
-  const isDark = typeof document !== "undefined" && (document.documentElement.classList.contains("theme-dark") || !document.documentElement.classList.contains("theme-light"));
-  const axisColor = isDark ? "rgba(148,163,184,0.3)" : "rgba(100,116,139,0.2)";
-  const textColor = isDark ? "rgba(203,213,225,0.8)" : "rgba(51,65,85,0.8)";
+  const isDark = useIsDark();
+  const chartTheme = {
+    gridStroke: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+    axisStroke: isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.4)",
+    axisText: isDark ? "rgba(203,213,225,0.82)" : "rgba(30,41,59,0.82)",
+    tooltipBg: isDark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.95)",
+    tooltipBorder: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    tooltipText: isDark ? "rgba(203,213,225,0.86)" : "rgba(30,41,59,0.86)",
+  };
+  const axisColor = chartTheme.axisStroke;
+  const textColor = chartTheme.axisText;
   const activeStrokeColor = isDark ? "#fff" : "#1e293b";
 
   const scatterData = widget.data.map((d) => ({
@@ -1534,15 +1562,15 @@ function ScatterChartWidget({
                   const datum = payload[0]!.payload;
                   return (
                     <div style={{
-                      background: isDark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.96)",
-                      border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`,
+                      background: chartTheme.tooltipBg,
+                      border: `1px solid ${chartTheme.tooltipBorder}`,
                       borderRadius: 12, padding: "10px 14px", fontSize: "0.82rem",
                       boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 24px rgba(0,0,0,0.1)",
                       backdropFilter: "blur(12px)",
                     }}>
                       <div style={{ fontWeight: 700, marginBottom: 6, color: getStatusColor(datum.status) }}>{datum.label}</div>
-                      <div style={{ opacity: 0.85 }}>{widget.xLabel}: {datum.displayX}</div>
-                      <div style={{ opacity: 0.85 }}>{widget.yLabel}: {datum.displayY}</div>
+                      <div style={{ color: chartTheme.tooltipText }}>{widget.xLabel}: {datum.displayX}</div>
+                      <div style={{ color: chartTheme.tooltipText }}>{widget.yLabel}: {datum.displayY}</div>
                     </div>
                   );
                 }}
@@ -1558,6 +1586,7 @@ function ScatterChartWidget({
                   if (d) {
                     setActiveId(d.id);
                     onSelectInsight({ title: d.label, summary: d.detail, source: widget.title });
+                    setDetailItem({ label: d.label, detail: d.detail || "无详细说明" });
                   }
                 }}
               >
@@ -1587,70 +1616,62 @@ function ScatterChartWidget({
             </ScatterChart>
           </ResponsiveContainer>
         </div>
-        {active ? (
-          <div className={`viz-bar-detail viz-detail-panel ${statusToClass(active.status)}`}>
-            <div className="viz-bar-detail-top">
-              <span>{active.label}</span>
-              <strong>{active.displayY}</strong>
-            </div>
-            <div className="viz-bar-detail-meta">
-              {widget.xLabel}: {active.displayX} · {widget.yLabel}: {active.displayY}
-            </div>
-            <p>{active.detail}</p>
-          </div>
-        ) : null}
+
       </div>
+      <ChartDetailModal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title={detailItem?.label ?? ""}>
+        {detailItem && (
+          <>
+            <div className="cm-subtitle">{widget.subtitle}</div>
+            <div className="cm-desc">{detailItem.detail}</div>
+          </>
+        )}
+      </ChartDetailModal>
     </div>
   );
 }
 
 function RadarChartWidget({
   widget,
-  onSelectInsight,
-  selectedInsight,
 }: {
   widget: Extract<VisualizationWidget, { kind: "radarChart" }>;
   onSelectInsight: (insight: VisualizationInsight) => void;
   selectedInsight: VisualizationInsight | null;
 }) {
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof document !== "undefined") {
-      return document.documentElement.classList.contains("theme-dark") || !document.documentElement.classList.contains("theme-light");
-    }
-    return true;
-  });
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("theme-dark") || !document.documentElement.classList.contains("theme-light"));
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
+  const isDark = useIsDark();
+  const chartTheme = {
+    gridStroke: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+    axisStroke: isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.4)",
+    axisText: isDark ? "rgba(203,213,225,0.82)" : "rgba(30,41,59,0.82)",
+    tooltipBg: isDark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.95)",
+    tooltipBorder: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    tooltipText: isDark ? "rgba(203,213,225,0.86)" : "rgba(30,41,59,0.86)",
+  };
 
   const chartData = widget.dimensions.map((dim) => ({
-    dimension: dim.dimension,
+    dimension: `${widget.id}::${dim.dimension}`,
+    displayDimension: dim.dimension,
     current: dim.current,
     baseline: dim.baseline,
   }));
 
-  const [activeDim, setActiveDim] = useState<string>(widget.dimensions[0]?.dimension ?? "");
+  const [activeDim] = useState<string>(widget.dimensions[0]?.dimension ?? "");
   const activeDimension = widget.dimensions.find((dim) => dim.dimension === activeDim) ?? widget.dimensions[0];
+  const [detailItem, setDetailItem] = useState<{label: string; detail: string} | null>(null);
 
-  function CustomRadarTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; dataKey: string; payload: { dimension: string; current: number; baseline: number } }> }) {
+  function CustomRadarTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; dataKey: string; payload: { dimension: string; displayDimension: string; current: number; baseline: number } }> }) {
     if (!active || !payload || payload.length === 0) return null;
-    const dimName = payload[0]?.payload?.dimension ?? "";
+    const dimKey = payload[0]?.payload?.dimension ?? "";
+    const dimName = payload[0]?.payload?.displayDimension ?? "";
     const dim = widget.dimensions.find((d) => d.dimension === dimName);
     if (!dim) return null;
     const gap = dim.current - dim.baseline;
     return (
       <div
         style={{
-          background: isDark ? "rgba(15,23,42,0.88)" : "rgba(248,250,252,0.92)",
+          background: chartTheme.tooltipBg,
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
-          border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`,
+          border: `1px solid ${chartTheme.tooltipBorder}`,
           borderRadius: 12,
           padding: "10px 14px",
           boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)" : "0 8px 24px rgba(0,0,0,0.1)",
@@ -1658,18 +1679,18 @@ function RadarChartWidget({
           minWidth: 140,
         }}
       >
-        <div style={{ fontWeight: 600, marginBottom: 6, color: isDark ? "var(--t1)" : "var(--t2)" }}>{dimName}</div>
+        <div style={{ fontWeight: 600, marginBottom: 6, color: chartTheme.axisText }}>{dimName}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#00D4FF", display: "inline-block" }}></span>
-          <span style={{ color: isDark ? "var(--t3)" : "var(--t4)" }}>{widget.currentLabel}：</span>
+          <span style={{ color: chartTheme.tooltipText }}>{widget.currentLabel}：</span>
           <strong style={{ color: "#00D4FF" }}>{dim.displayCurrent}</strong>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#B388FF", display: "inline-block" }}></span>
-          <span style={{ color: isDark ? "var(--t3)" : "var(--t4)" }}>{widget.baselineLabel}：</span>
+          <span style={{ color: chartTheme.tooltipText }}>{widget.baselineLabel}：</span>
           <strong style={{ color: "#B388FF" }}>{dim.displayBaseline}</strong>
         </div>
-        <div style={{ borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, paddingTop: 6, marginTop: 4, color: gap >= 0 ? "#00E676" : "#FF6B9D" }}>
+        <div style={{ borderTop: `1px solid ${chartTheme.tooltipBorder}`, paddingTop: 6, marginTop: 4, color: gap >= 0 ? "#00E676" : "#FF6B9D" }}>
           差距：{gap >= 0 ? "+" : ""}{gap.toFixed(2)}
         </div>
       </div>
@@ -1682,8 +1703,8 @@ function RadarChartWidget({
         <div className="viz-chart-panel">
           <ResponsiveContainer width="100%" height={360}>
             <RadarChart data={chartData} cx="50%" cy="50%" outerRadius={72}>
-              <PolarGrid stroke={isDark ? "rgba(99,102,241,0.12)" : "rgba(99,102,241,0.1)"} gridType="polygon" strokeDasharray="3 3" />
-              <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 12, fill: isDark ? "rgba(203,213,225,0.8)" : "rgba(51,65,85,0.8)", fontWeight: 600 }} />
+              <PolarGrid stroke={chartTheme.gridStroke} gridType="polygon" strokeDasharray="3 3" />
+              <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 12, fill: chartTheme.axisText, fontWeight: 600 }} />
               <PolarRadiusAxis tick={{ fontSize: 10, fill: isDark ? "rgba(148,163,184,0.5)" : "rgba(100,116,139,0.5)" }} axisLine={false} />
               <Radar
                 name={widget.currentLabel}
@@ -1696,6 +1717,13 @@ function RadarChartWidget({
                 animationDuration={1000}
                 animationEasing="ease-out"
                 style={{ filter: "drop-shadow(0 0 10px rgba(0,212,255,0.35))" }}
+                onClick={(data: any) => {
+                  const dimName = data?.payload?.displayDimension ?? data?.payload?.dimension ?? "";
+                  const dim = widget.dimensions.find((d) => d.dimension === dimName);
+                  if (dim) {
+                    setDetailItem({ label: dimName, detail: `当前：${dim.displayCurrent}，基准：${dim.displayBaseline}，差距：${(dim.current - dim.baseline) >= 0 ? "+" : ""}${(dim.current - dim.baseline).toFixed(2)}` });
+                  }
+                }}
               />
               <Radar
                 name={widget.baselineLabel}
@@ -1715,18 +1743,16 @@ function RadarChartWidget({
             </RadarChart>
           </ResponsiveContainer>
         </div>
-        {activeDimension ? (
-          <div className="viz-bar-detail viz-detail-panel neutral">
-            <div className="viz-bar-detail-top">
-              <span>{activeDimension.dimension}</span>
-              <strong>{activeDimension.displayCurrent}</strong>
-            </div>
-            <div className="viz-bar-detail-meta">
-              {widget.baselineLabel}：{activeDimension.displayBaseline}　|　差距：{(activeDimension.current - activeDimension.baseline) >= 0 ? "+" : ""}{(activeDimension.current - activeDimension.baseline).toFixed(2)}
-            </div>
-          </div>
-        ) : null}
+
       </div>
+      <ChartDetailModal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title={detailItem?.label ?? ""}>
+        {detailItem && (
+          <>
+            <div className="cm-subtitle">{widget.subtitle}</div>
+            <div className="cm-desc">{detailItem.detail}</div>
+          </>
+        )}
+      </ChartDetailModal>
     </div>
   );
 }
@@ -1743,9 +1769,17 @@ function BubbleChartWidget({
   const [activeId, setActiveId] = useState<string>(widget.data[0]?.id ?? "");
   const active = widget.data.find((d) => d.id === activeId) ?? widget.data[0];
 
-  const isDark = typeof document !== "undefined" && (document.documentElement.classList.contains("theme-dark") || !document.documentElement.classList.contains("theme-light"));
-  const axisColor = isDark ? "rgba(148,163,184,0.3)" : "rgba(100,116,139,0.2)";
-  const textColor = isDark ? "rgba(203,213,225,0.8)" : "rgba(51,65,85,0.8)";
+  const isDark = useIsDark();
+  const chartTheme = {
+    gridStroke: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+    axisStroke: isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.4)",
+    axisText: isDark ? "rgba(203,213,225,0.82)" : "rgba(30,41,59,0.82)",
+    tooltipBg: isDark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.95)",
+    tooltipBorder: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    tooltipText: isDark ? "rgba(203,213,225,0.86)" : "rgba(30,41,59,0.86)",
+  };
+  const axisColor = chartTheme.axisStroke;
+  const textColor = chartTheme.axisText;
   const activeStrokeColor = isDark ? "#fff" : "#1e293b";
 
   const bubbleData = widget.data.map((d) => ({ ...d, z: d.z }));
@@ -1766,16 +1800,16 @@ function BubbleChartWidget({
                   const datum = payload[0]!.payload;
                   return (
                     <div style={{
-                      background: isDark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.96)",
-                      border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`,
+                      background: chartTheme.tooltipBg,
+                      border: `1px solid ${chartTheme.tooltipBorder}`,
                       borderRadius: 12, padding: "10px 14px", fontSize: "0.82rem",
                       boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 24px rgba(0,0,0,0.1)",
                       backdropFilter: "blur(12px)",
                     }}>
                       <div style={{ fontWeight: 700, marginBottom: 6, color: getStatusColor(datum.status) }}>{datum.label}</div>
-                      <div style={{ opacity: 0.85 }}>{widget.xLabel}: {datum.displayX}</div>
-                      <div style={{ opacity: 0.85 }}>{widget.yLabel}: {datum.displayY}</div>
-                      <div style={{ opacity: 0.85 }}>{widget.zLabel}: {datum.displayZ}</div>
+                      <div style={{ color: chartTheme.tooltipText }}>{widget.xLabel}: {datum.displayX}</div>
+                      <div style={{ color: chartTheme.tooltipText }}>{widget.yLabel}: {datum.displayY}</div>
+                      <div style={{ color: chartTheme.tooltipText }}>{widget.zLabel}: {datum.displayZ}</div>
                     </div>
                   );
                 }}
@@ -1807,13 +1841,7 @@ function BubbleChartWidget({
             </ScatterChart>
           </ResponsiveContainer>
         </div>
-        {active ? (
-          <div className={`viz-bar-detail viz-detail-panel ${statusToClass(active.status)}`}>
-            <div className="viz-bar-detail-top"><span>{active.label}</span><strong>{active.displayY}</strong></div>
-            <div className="viz-bar-detail-meta">{widget.xLabel}: {active.displayX} · {widget.yLabel}: {active.displayY} · {widget.zLabel}: {active.displayZ}</div>
-            <p>{active.detail}</p>
-          </div>
-        ) : null}
+
       </div>
     </div>
   );
@@ -1830,9 +1858,18 @@ function HeatmapChartWidget({
 }) {
   const [activeCellKey, setActiveCellKey] = useState<string>("");
   const activeCell = widget.cells.find((c) => `${c.row}-${c.column}` === activeCellKey) ?? widget.cells[0];
+  const [detailItem, setDetailItem] = useState<{label: string; detail: string} | null>(null);
 
-  const isDark = typeof document !== "undefined" && (document.documentElement.classList.contains("theme-dark") || !document.documentElement.classList.contains("theme-light"));
-  const labelColor = isDark ? "rgba(148,163,184,0.8)" : "rgba(71,85,105,0.8)";
+  const isDark = useIsDark();
+  const chartTheme = {
+    gridStroke: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+    axisStroke: isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.4)",
+    axisText: isDark ? "rgba(203,213,225,0.82)" : "rgba(30,41,59,0.82)",
+    tooltipBg: isDark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.95)",
+    tooltipBorder: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    tooltipText: isDark ? "rgba(203,213,225,0.86)" : "rgba(30,41,59,0.86)",
+  };
+  const labelColor = chartTheme.axisText;
 
   const allValues = widget.cells.map((c) => c.value);
   const minVal = Math.min(...allValues, 0);
@@ -1841,18 +1878,34 @@ function HeatmapChartWidget({
 
   function getHeatColor(value: number) {
     const norm = (value - minVal) / valRange;
-    if (norm < 0.25) {
-      const t = norm / 0.25;
-      return `rgb(${Math.round(20 + t * 20)},${Math.round(60 + t * 100)},${Math.round(180 + t * 20)})`;
-    } else if (norm < 0.5) {
-      const t = (norm - 0.25) / 0.25;
-      return `rgb(${Math.round(40 + t * 80)},${Math.round(160 + t * 60)},${Math.round(200 - t * 80)})`;
-    } else if (norm < 0.75) {
-      const t = (norm - 0.5) / 0.25;
-      return `rgb(${Math.round(120 + t * 120)},${Math.round(220 - t * 40)},${Math.round(120 - t * 80)})`;
+    if (isDark) {
+      if (norm < 0.25) {
+        const t = norm / 0.25;
+        return `rgb(${Math.round(20 + t * 20)},${Math.round(60 + t * 100)},${Math.round(180 + t * 20)})`;
+      } else if (norm < 0.5) {
+        const t = (norm - 0.25) / 0.25;
+        return `rgb(${Math.round(40 + t * 80)},${Math.round(160 + t * 60)},${Math.round(200 - t * 80)})`;
+      } else if (norm < 0.75) {
+        const t = (norm - 0.5) / 0.25;
+        return `rgb(${Math.round(120 + t * 120)},${Math.round(220 - t * 40)},${Math.round(120 - t * 80)})`;
+      } else {
+        const t = (norm - 0.75) / 0.25;
+        return `rgb(${Math.round(240 + t * 15)},${Math.round(180 - t * 100)},${Math.round(40 - t * 20)})`;
+      }
     } else {
-      const t = (norm - 0.75) / 0.25;
-      return `rgb(${Math.round(240 + t * 15)},${Math.round(180 - t * 100)},${Math.round(40 - t * 20)})`;
+      if (norm < 0.25) {
+        const t = norm / 0.25;
+        return `rgb(${Math.round(30 + t * 30)},${Math.round(80 + t * 90)},${Math.round(160 + t * 30)})`;
+      } else if (norm < 0.5) {
+        const t = (norm - 0.25) / 0.25;
+        return `rgb(${Math.round(60 + t * 90)},${Math.round(170 + t * 50)},${Math.round(190 - t * 70)})`;
+      } else if (norm < 0.75) {
+        const t = (norm - 0.5) / 0.25;
+        return `rgb(${Math.round(150 + t * 90)},${Math.round(220 - t * 50)},${Math.round(120 - t * 70)})`;
+      } else {
+        const t = (norm - 0.75) / 0.25;
+        return `rgb(${Math.round(240 + t * 15)},${Math.round(170 - t * 90)},${Math.round(50 - t * 20)})`;
+      }
     }
   }
 
@@ -1861,7 +1914,7 @@ function HeatmapChartWidget({
   const labelWidth = 120;
   const labelHeight = 40;
   const cellW = 100;
-  const cellH = 60;
+  const cellH = 70;
   const svgW = labelWidth + colCount * cellW;
   const svgH = labelHeight + rowCount * cellH;
 
@@ -1873,13 +1926,13 @@ function HeatmapChartWidget({
             style={{ width: "100%", minHeight: 280, overflow: "visible" }}
           >
             {widget.columns.map((col, ci) => (
-              <text key={col} x={labelWidth + ci * cellW + cellW / 2} y={labelHeight / 2}
+              <text key={`${widget.id}-col-${col}`} x={labelWidth + ci * cellW + cellW / 2} y={labelHeight / 2}
                 fontSize="13" fill={labelColor} textAnchor="middle" dominantBaseline="middle" fontWeight={600}>
                 {col}
               </text>
             ))}
             {widget.rows.map((row, ri) => (
-              <React.Fragment key={row}>
+              <React.Fragment key={`${widget.id}-row-${row}`}>
                 <text x={labelWidth - 8} y={labelHeight + ri * cellH + cellH / 2}
                   fontSize="12" fill={labelColor} textAnchor="end" dominantBaseline="middle" fontWeight={500}>
                   {row}
@@ -1887,14 +1940,14 @@ function HeatmapChartWidget({
                 {widget.columns.map((col, ci) => {
                   const cell = widget.cells.find((c) => c.row === row && c.column === col);
                   if (!cell) return null;
-                  const cellKey = `${row}-${col}`;
+                  const cellKey = `${widget.id}-${row}-${col}`;
                   const isActive = activeCellKey === cellKey;
                   const isDimmed = selectedInsight && selectedInsight.title !== `${row}·${col}`;
                   const color = getHeatColor(cell.value);
                   return (
                     <g key={cellKey} style={{ cursor: "pointer", transition: "opacity 0.8s" }}
                       onMouseEnter={() => setActiveCellKey(cellKey)}
-                      onClick={() => { setActiveCellKey(cellKey); onSelectInsight({ title: `${row}·${col}`, summary: cell.note, source: widget.title }); }}
+                      onClick={() => { setActiveCellKey(cellKey); onSelectInsight({ title: `${row}·${col}`, summary: cell.note, source: widget.title }); setDetailItem({ label: `${row}·${col}`, detail: cell.note || "无详细说明" }); }}
                     >
                       <rect x={labelWidth + ci * cellW + 2} y={labelHeight + ri * cellH + 2}
                         width={cellW - 4} height={cellH - 4}
@@ -1908,9 +1961,9 @@ function HeatmapChartWidget({
                         {cell.displayValue}
                       </text>
                       <text x={labelWidth + ci * cellW + cellW / 2} y={labelHeight + ri * cellH + cellH / 2 + 10}
-                        fontSize="9" fill={isDark ? "rgba(255,255,255,0.5)" : "rgba(15,23,42,0.45)"}
+                        fontSize="9" fill={isDark ? "rgba(255,255,255,0.5)" : "rgba(30,41,59,0.5)"}
                         textAnchor="middle" dominantBaseline="middle" fontWeight={400}>
-                        {cell.note.length > 8 ? cell.note.slice(0, 8) + "…" : cell.note}
+                        {cell.note.length > 6 ? cell.note.slice(0, 6) + "…" : cell.note}
                       </text>
                     </g>
                   );
@@ -1919,13 +1972,16 @@ function HeatmapChartWidget({
             ))}
           </svg>
         </div>
-        {activeCell ? (
-          <div className="viz-bar-detail viz-detail-panel neutral">
-            <div className="viz-bar-detail-top"><span>{activeCell.row} · {activeCell.column}</span><strong>{activeCell.displayValue}</strong></div>
-            <div className="viz-bar-detail-meta">{activeCell.note}</div>
-          </div>
-        ) : null}
+
       </div>
+      <ChartDetailModal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title={detailItem?.label ?? ""}>
+        {detailItem && (
+          <>
+            <div className="cm-subtitle">{widget.subtitle}</div>
+            <div className="cm-desc">{detailItem.detail}</div>
+          </>
+        )}
+      </ChartDetailModal>
     </div>
   );
 }
@@ -2008,9 +2064,11 @@ function VisualizationWidgetCard({
 }) {
   const widgetLayoutClass = getWidgetLayoutClass(widget.kind);
   const [expanded, setExpanded] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const widgetSources = useMemo(() => getWidgetSources(payload, widget), [payload, widget]);
 
   return (
+    <>
     <article className={`viz-widget viz-${widget.kind} ${widgetLayoutClass} ${expanded ? "expanded" : ""} ${className ?? ""}`.trim()}>
       <div className="viz-widget-head">
         <div>
@@ -2022,6 +2080,9 @@ function VisualizationWidgetCard({
           <button type="button" className={`viz-inline-btn ${refreshedAt ? "active" : ""}`} onClick={() => onRefresh(widget.id)}>
             刷新
           </button>
+          <button type="button" className="viz-inline-btn" onClick={() => setFullscreen(true)}>
+            全屏
+          </button>
           <button type="button" className="viz-inline-btn" onClick={() => setExpanded((value) => !value)}>
             {expanded ? "收起" : "展开"}
           </button>
@@ -2030,7 +2091,7 @@ function VisualizationWidgetCard({
       <div className="viz-widget-refresh">
         <span>{refreshLabel}</span>
         <span>更新时间 {formatRefreshTime(lastUpdated)}</span>
-        {refreshedAt ? <span>局部刷新：${formatRefreshTime(refreshedAt)}</span> : null}
+        {refreshedAt ? <span>局部刷新：{formatRefreshTime(refreshedAt)}</span> : null}
       </div>
       <WidgetSourceSummary widget={widget} sources={widgetSources} />
       <WidgetBody widget={widget} density={density} onSelectInsight={onSelectInsight} selectedInsight={selectedInsight} />
@@ -2040,6 +2101,13 @@ function VisualizationWidgetCard({
         </div>
       ) : null}
     </article>
+    <ChartDetailModal isOpen={fullscreen} onClose={() => setFullscreen(false)} title={widget.title}>
+      <div className="cm-subtitle">{widget.subtitle}</div>
+      <div style={{ height: "70vh", width: "100%" }}>
+        <WidgetBody widget={widget} density="comfortable" onSelectInsight={() => {}} selectedInsight={null} />
+      </div>
+    </ChartDetailModal>
+    </>
   );
 }
 
@@ -2066,9 +2134,6 @@ function VisualizationSectionView({
   refreshLedger: Record<string, string>;
   page: VisualizationPage;
 }) {
-  const tableWidgetCount = section.widgets.filter((widget) => isTableLikeWidget(widget.kind)).length;
-  const chartWidgetCount = section.widgets.filter((widget) => ["barChart", "lineChart", "waterfallChart", "radarChart", "boxPlotChart", "scatterChart"].includes(widget.kind)).length;
-
   return (
     <section className="viz-section">
     <div className="viz-section-head">
@@ -2077,20 +2142,6 @@ function VisualizationSectionView({
         <p>{section.subtitle}</p>
       </div>
       {section.emphasis ? <div className="viz-section-emphasis">{section.emphasis}</div> : null}
-    </div>
-    <div className="viz-section-stats">
-      <div className="viz-section-stat">
-        <span>视图组件</span>
-        <strong>{section.widgets.length}</strong>
-      </div>
-      <div className="viz-section-stat">
-        <span>表格视图</span>
-        <strong>{tableWidgetCount}</strong>
-      </div>
-      <div className="viz-section-stat">
-        <span>图形视图</span>
-        <strong>{chartWidgetCount}</strong>
-      </div>
     </div>
     <div className="viz-widget-grid">
       {section.widgets.map((widget, index) => {
@@ -2120,7 +2171,6 @@ export function VisualizationBoard({
   payload,
   page,
   className,
-  dataFormatter,
 }: {
   payload: VisualizationPayload | null;
   page: VisualizationPage;
@@ -2188,33 +2238,15 @@ export function VisualizationBoard({
         </div>
       </div>
       {filteredPayload.sourceMeta.length > 0 ? (
-        <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <div>
-              <div className="viz-board-kicker">真实数据来源元信息</div>
-              <div style={{ fontSize: "0.9rem", opacity: 0.78 }}>
-                当前图表共关联${filteredPayload.sourceMeta.length} 个来源节点，支持企业端与普通用户端统一追溯。
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {filteredPayload.sourceMeta.slice(0, 4).map((source) => (
-                <HeatChip
-                  key={source.id}
-                  label={`${getCategoryLabel(source.category)} · ${getConfidenceLabel(source.confidence)}`}
-                  status={getConfidenceStatus(source.confidence)}
-                />
-              ))}
-            </div>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: density === "compact" ? "repeat(auto-fit, minmax(220px, 1fr))" : "repeat(auto-fit, minmax(260px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {filteredPayload.sourceMeta.map((source) => <SourceMetaCard key={source.id} source={source} />)}
-          </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: "0.85rem", opacity: 0.78 }}>{filteredPayload.sourceMeta.length} 个数据源</span>
+          {filteredPayload.sourceMeta.slice(0, 4).map((source) => (
+            <HeatChip
+              key={source.id}
+              label={`${getCategoryLabel(source.category)} · ${getConfidenceLabel(source.confidence)}`}
+              status={getConfidenceStatus(source.confidence)}
+            />
+          ))}
         </div>
       ) : null}
       <div className="viz-filter-row">

@@ -1,19 +1,18 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// This file uses `any` intentionally for flexible chart config types
+
 import type { InvestorAnalysisResponse } from "./api.js";
+import { fetchLatestIndustryData } from "./api.js";
 import type {
   UserProfileResponse,
   VisualizationAlertRow,
   VisualizationBenchmarkRow,
-  VisualizationBoxPlotGroup,
-  VisualizationBubbleDatum,
   VisualizationCalendarEntry,
   VisualizationCardGroup,
   VisualizationFilter,
-  VisualizationHeatmapCell,
   VisualizationHeatmapRow,
   VisualizationPayload,
   VisualizationPivotRow,
-  VisualizationRadarDimension,
-  VisualizationScatterDatum,
   VisualizationSparkRow,
   VisualizationSourceMeta,
   VisualizationStatus,
@@ -167,11 +166,14 @@ export interface GMPSFeatureData {
 export interface DQIResult {
   dqi: number;
   status: '改善' | '稳定' | '恶化';
-  driver: '盈利能力' | '成长能力' | '现金流质量' | '无明显驱动';
+  driver: '盈利能力' | '成长能力' | '现金流质量' | '资产周转效率' | '研发投入强度' | '库存周转效率' | '无明显驱动';
   decomposition: {
     profitabilityContribution: number;
     growthContribution: number;
     cashflowContribution: number;
+    assetTurnoverContribution: number;
+    rdIntensityContribution: number;
+    inventoryTurnoverContribution: number;
   };
   metrics: {
     currentROE: number;
@@ -183,6 +185,12 @@ export interface DQIResult {
     currentOCFRatio: number;
     baselineOCFRatio: number;
     ocfRatioChange: number;
+    currentAssetTurnover: number;
+    baselineAssetTurnover: number;
+    currentRdRatio: number;
+    baselineRdRatio: number;
+    currentInventoryDays: number;
+    baselineInventoryDays: number;
   };
   trend: string;
   confidence: number;
@@ -203,6 +211,8 @@ export interface GMPSResult {
   };
   featureScores: Record<string, number>;
   keyFindings: string[];
+  industrySegment?: 'powerBattery' | 'energyStorage' | 'consumerBattery';
+  industryWeights?: Record<string, number>;
 }
 
 /** 完整诊断图表套件 */
@@ -242,44 +252,82 @@ export type EnterpriseOnboardingDraft = {
 };
 
 export const DEFAULT_ENTERPRISE_ONBOARDING: EnterpriseOnboardingDraft = {
-  hasFullHistory: true,
-  enterpriseName: "星海电池",
-  currentQuarterLabel: "Q4'24",
-  baselineQuarterLabel: "Q4'23",
-  currentGrossMargin: "18.5",
-  currentRevenue: "52000",
-  currentCost: "42400",
-  currentSalesVolume: "850",
-  currentProductionVolume: "900",
-  currentInventoryExpense: "3200",
-  currentManufacturingExpense: "28000",
-  currentOperatingCost: "42400",
-  currentOperatingCashFlow: "8500",
-  currentTotalLiabilities: "35000",
-  currentTotalAssets: "120000",
-  baselineGrossMargin: "23.2",
-  baselineRevenue: "48000",
-  baselineCost: "36900",
-  baselineSalesVolume: "720",
-  baselineInventoryExpense: "2620",
-  previousQuarterGrossMargin: "20.1",
-  previousQuarterRevenue: "50000",
-  twoQuartersAgoGrossMargin: "21.8",
-  twoQuartersAgoRevenue: "49000",
+  hasFullHistory: false,
+  enterpriseName: "",
+  currentQuarterLabel: "",
+  baselineQuarterLabel: "",
+  currentGrossMargin: "",
+  currentRevenue: "",
+  currentCost: "",
+  currentSalesVolume: "",
+  currentProductionVolume: "",
+  currentInventoryExpense: "",
+  currentManufacturingExpense: "",
+  currentOperatingCost: "",
+  currentOperatingCashFlow: "",
+  currentTotalLiabilities: "",
+  currentTotalAssets: "",
+  baselineGrossMargin: "",
+  baselineRevenue: "",
+  baselineCost: "",
+  baselineSalesVolume: "",
+  baselineInventoryExpense: "",
+  previousQuarterGrossMargin: "",
+  previousQuarterRevenue: "",
+  twoQuartersAgoGrossMargin: "",
+  twoQuartersAgoRevenue: "",
 };
 
-const INDUSTRY_STANDARD = {
-  grossMarginAverage: 21.3,
-  grossMarginHead: 28.5,
-  inventoryDays: 45,
-  cashFlowRatio: 30,
-  capacityUtilization: 85,
-  debtRatio: 35,
-  demandIndex: 72,
-  storageGrowth: 65.2,
-  lithiumPrice: 9.8,
-  industryWarmth: 70,
+const INDUSTRY_STANDARD_DEFAULTS = {
+  grossMarginAverage: 20,
+  grossMarginHead: 30,
+  inventoryDays: 90,
+  cashFlowRatio: 0.12,
+  capacityUtilization: 0.78,
+  debtRatio: 55,
+  demandIndex: 65,
+  storageGrowth: 55,
+  lithiumPrice: 12,
+  industryWarmth: 55,
 };
+
+let _industryStandardOverride: Partial<typeof INDUSTRY_STANDARD_DEFAULTS> | null = null;
+
+export function applyIndustryStandardOverride(override: Partial<typeof INDUSTRY_STANDARD_DEFAULTS>) {
+  _industryStandardOverride = override;
+}
+
+export async function loadIndustryStandardFromPlatformStore() {
+  try {
+    const result = await fetchLatestIndustryData();
+    if (!result.success || !result.data) return;
+    const data = result.data as Record<string, unknown>;
+    const override: Partial<typeof INDUSTRY_STANDARD_DEFAULTS> = {};
+    if (data.lithiumPrice && typeof (data.lithiumPrice as Record<string, unknown>).price === "number") {
+      const rawPrice = (data.lithiumPrice as Record<string, unknown>).price as number;
+      override.lithiumPrice = (Number.isFinite(rawPrice) ? rawPrice : INDUSTRY_STANDARD_DEFAULTS.lithiumPrice * 10000) / 10000;
+    }
+    if (data.industryIndex) {
+      const idx = data.industryIndex as Record<string, unknown>;
+      if (typeof idx.volatility === "number" && Number.isFinite(idx.volatility as number)) {
+        override.demandIndex = Number(((1 - (idx.volatility as number)) * 100).toFixed(2));
+      }
+      if (typeof idx.indexValue === "number" && Number.isFinite(idx.indexValue as number)) {
+        override.industryWarmth = Number(Math.min(100, (idx.indexValue as number) / 40).toFixed(2));
+      }
+    }
+    if (Object.keys(override).length > 0) {
+      applyIndustryStandardOverride(override);
+    }
+  } catch {
+    // PlatformStore data unavailable, keep defaults
+  }
+}
+
+function getIndustryStandard(): typeof INDUSTRY_STANDARD_DEFAULTS {
+  if (!_industryStandardOverride) return INDUSTRY_STANDARD_DEFAULTS;
+  return { ...INDUSTRY_STANDARD_DEFAULTS, ..._industryStandardOverride };
+}
 
 function toNumber(value: string | number | undefined, fallback: number) {
   const resolved = typeof value === "number" ? value : Number.parseFloat(value ?? "");
@@ -302,8 +350,6 @@ function toStatus(score: number): VisualizationStatus {
 
 // 导入新的数据格式化系统
 import {
-  formatPercent as fmtPercent,
-  formatAmount as fmtAmount,
   formatGap as fmtGap,
   formatFixed,
   DataFormatter,
@@ -337,6 +383,7 @@ function formatPercent(value: number, digits = 2) {
 }
 
 function formatAmount(value: number, _unit?: AmountUnit) {
+  void _unit;
   if (!_activeFormatter) return String(value);
   return _activeFormatter.amount(value);
 }
@@ -348,7 +395,7 @@ function formatGap(current: number, benchmark: number, digits = 2) {
 export { defaultFormatter, formatFixed, setActiveFormatter };
 export type { UnitPreferences, AmountUnit, VolumeUnit };
 
-function defaultFilters(): VisualizationFilter[] {
+function enterpriseFilters(): VisualizationFilter[] {
   return [
     {
       id: "window",
@@ -356,7 +403,6 @@ function defaultFilters(): VisualizationFilter[] {
       defaultValue: "quarterly",
       options: [
         { value: "quarterly", label: "近4季度" },
-        { value: "rolling", label: "滚动12月" },
         { value: "forward", label: "未来观察" },
       ],
     },
@@ -367,6 +413,28 @@ function defaultFilters(): VisualizationFilter[] {
       options: [
         { value: "industry", label: "行业标准" },
         { value: "leader", label: "头部企业" },
+      ],
+    },
+  ];
+}
+
+function investorFilters(): VisualizationFilter[] {
+  return [
+    {
+      id: "window",
+      label: "时间窗",
+      defaultValue: "quarterly",
+      options: [
+        { value: "quarterly", label: "近4季度" },
+        { value: "forward", label: "未来观察" },
+      ],
+    },
+    {
+      id: "benchmark",
+      label: "对标口径",
+      defaultValue: "industry",
+      options: [
+        { value: "industry", label: "行业标准" },
         { value: "portfolio", label: "投资偏好" },
       ],
     },
@@ -422,26 +490,26 @@ function createQuarterSeries(draft: EnterpriseOnboardingDraft) {
     {
       id: "baseline",
       label: draft.baselineQuarterLabel,
-      grossMargin: toNumber(draft.baselineGrossMargin, 23.2),
-      revenue: toNumber(draft.baselineRevenue, 48000),
+      grossMargin: toNumber(draft.baselineGrossMargin, 0),
+      revenue: toNumber(draft.baselineRevenue, 0),
     },
     {
       id: "q2",
       label: draft.twoQuartersAgoGrossMargin ? "Q2'24" : "Q2",
-      grossMargin: toNumber(draft.twoQuartersAgoGrossMargin, 21.8),
-      revenue: toNumber(draft.twoQuartersAgoRevenue, 49000),
+      grossMargin: toNumber(draft.twoQuartersAgoGrossMargin, 0),
+      revenue: toNumber(draft.twoQuartersAgoRevenue, 0),
     },
     {
       id: "q3",
       label: draft.previousQuarterGrossMargin ? "Q3'24" : "Q3",
-      grossMargin: toNumber(draft.previousQuarterGrossMargin, 20.1),
-      revenue: toNumber(draft.previousQuarterRevenue, 50000),
+      grossMargin: toNumber(draft.previousQuarterGrossMargin, 0),
+      revenue: toNumber(draft.previousQuarterRevenue, 0),
     },
     {
       id: "current",
       label: draft.currentQuarterLabel,
-      grossMargin: toNumber(draft.currentGrossMargin, 18.5),
-      revenue: toNumber(draft.currentRevenue, 52000),
+      grossMargin: toNumber(draft.currentGrossMargin, 0),
+      revenue: toNumber(draft.currentRevenue, 0),
     },
   ];
 }
@@ -453,21 +521,21 @@ export type WhatIfState = {
 };
 
 function buildEnterpriseCoreMetrics(draft: EnterpriseOnboardingDraft, profile?: UserProfileResponse | null, whatIf?: WhatIfState) {
-  let currentGrossMargin = toNumber(draft.currentGrossMargin, 18.5);
-  const baselineGrossMargin = toNumber(draft.baselineGrossMargin, 23.2);
-  const currentRevenue = toNumber(draft.currentRevenue, 52000);
-  const currentCost = toNumber(draft.currentCost, 42400);
-  const currentSalesVolume = toNumber(draft.currentSalesVolume, 850);
-  const currentProductionVolume = toNumber(draft.currentProductionVolume, 900);
-  const currentInventoryExpense = toNumber(draft.currentInventoryExpense, 3200);
-  const currentCashFlow = toNumber(draft.currentOperatingCashFlow, 8500);
-  const liabilities = toNumber(draft.currentTotalLiabilities, 35000);
-  const assets = toNumber(draft.currentTotalAssets, 120000);
+  let currentGrossMargin = toNumber(draft.currentGrossMargin, 0);
+  const baselineGrossMargin = toNumber(draft.baselineGrossMargin, 0);
+  const currentRevenue = toNumber(draft.currentRevenue, 0);
+  const currentCost = toNumber(draft.currentCost, 0);
+  const currentSalesVolume = toNumber(draft.currentSalesVolume, 0);
+  const currentProductionVolume = toNumber(draft.currentProductionVolume, 0);
+  const currentInventoryExpense = toNumber(draft.currentInventoryExpense, 0);
+  const currentCashFlow = toNumber(draft.currentOperatingCashFlow, 0);
+  const liabilities = toNumber(draft.currentTotalLiabilities, 0);
+  const assets = toNumber(draft.currentTotalAssets, 0);
   const inventoryDays = toNumber(
     typeof profile?.profile.enterpriseBaseInfo?.库存 === "string"
       ? profile.profile.enterpriseBaseInfo.库存.replace(/[^\d.]/g, "")
       : undefined,
-    68,
+    0,
   );
   const cashFlowRatio = currentRevenue > 0 ? (currentCashFlow / currentRevenue) * 100 : 0;
   let capacityUtilization = currentProductionVolume > 0 ? (currentSalesVolume / currentProductionVolume) * 100 : 0;
@@ -478,11 +546,12 @@ function buildEnterpriseCoreMetrics(draft: EnterpriseOnboardingDraft, profile?: 
   }
 
   const debtRatio = assets > 0 ? (liabilities / assets) * 100 : 0;
-  const grossMarginScore = clamp((currentGrossMargin / INDUSTRY_STANDARD.grossMarginAverage) * 100, 20, 120);
-  const turnoverScore = clamp((INDUSTRY_STANDARD.inventoryDays / Math.max(inventoryDays, 1)) * 100, 20, 120);
-  const cashFlowScore = clamp((cashFlowRatio / INDUSTRY_STANDARD.cashFlowRatio) * 100, 20, 120);
-  const utilizationScore = clamp((capacityUtilization / INDUSTRY_STANDARD.capacityUtilization) * 100, 20, 120);
-  const debtScore = clamp((INDUSTRY_STANDARD.debtRatio / Math.max(debtRatio, 1)) * 100, 20, 120);
+  const std = getIndustryStandard();
+  const grossMarginScore = clamp((currentGrossMargin / (std.grossMarginAverage || 20)) * 100, 20, 120);
+  const turnoverScore = clamp((std.inventoryDays / Math.max(inventoryDays, 1)) * 100, 20, 120);
+  const cashFlowScore = clamp((cashFlowRatio / (std.cashFlowRatio || 0.12)) * 100, 20, 120);
+  const utilizationScore = clamp((capacityUtilization / (std.capacityUtilization || 0.78)) * 100, 20, 120);
+  const debtScore = clamp((std.debtRatio / Math.max(debtRatio, 1)) * 100, 20, 120);
   const overall = grossMarginScore * 0.3 + turnoverScore * 0.2 + cashFlowScore * 0.2 + utilizationScore * 0.2 + debtScore * 0.1;
 
   return {
@@ -499,7 +568,7 @@ function buildEnterpriseCoreMetrics(draft: EnterpriseOnboardingDraft, profile?: 
     debtRatio,
     healthScore: Math.round(overall),
     riskStatus: toStatus(overall),
-    grossMarginGap: currentGrossMargin - INDUSTRY_STANDARD.grossMarginAverage,
+    grossMarginGap: currentGrossMargin - getIndustryStandard().grossMarginAverage,
   };
 }
 
@@ -528,8 +597,8 @@ export function buildEnterpriseVisualization(
       actualSource: `${enterpriseName} 当前诊断输入`,
       trace: [
         `毛利率 ${draft.currentGrossMargin || "--"}%`,
-        `收入 ${formatAmount(toNumber(draft.currentRevenue, 52000))}`,
-        `成本 ${formatAmount(toNumber(draft.currentCost, 42400))}`,
+        `收入 ${formatAmount(toNumber(draft.currentRevenue, 0))}`,
+        `成本 ${formatAmount(toNumber(draft.currentCost, 0))}`,
         `销量 ${draft.currentSalesVolume || "--"} / 产量 ${draft.currentProductionVolume || "--"}`,
       ],
     }),
@@ -553,16 +622,30 @@ export function buildEnterpriseVisualization(
       id: "enterprise-industry-benchmark",
       label: "行业基准口径",
       category: "industry_benchmark",
-      description: "来自锂电行业通用基准和投资安全垫，用于计算对标差距与阈值。",
+      description: "来自锂电行业通用基准和投资安全垫，用于计算对标差距与阈值。碳酸锂价格和行业波动率优先从系统持久化数据获取。",
       freshnessLabel: "本地对标口径已加载",
       confidence: "medium",
       ownerLabel: "系统基准库",
       actualSource: "INDUSTRY_STANDARD",
       trace: [
-        `行业毛利率均值 ${INDUSTRY_STANDARD.grossMarginAverage}%`,
-        `库存周转标准 ${INDUSTRY_STANDARD.inventoryDays}天`,
-        `现金流安全垫 ${INDUSTRY_STANDARD.cashFlowRatio}%`,
-        `产销匹配标准 ${INDUSTRY_STANDARD.capacityUtilization}%`,
+        `行业毛利率均值 ${getIndustryStandard().grossMarginAverage}%`,
+        `库存周转标准 ${getIndustryStandard().inventoryDays}天`,
+        `现金流安全垫 ${getIndustryStandard().cashFlowRatio}%`,
+        `产销匹配标准 ${getIndustryStandard().capacityUtilization}%`,
+      ],
+    }),
+    createSourceMeta({
+      id: "platform-store-industry",
+      label: "API自动获取行业数据",
+      category: "industry_benchmark",
+      description: "来自系统自动采集并持久化的行业数据（碳酸锂价格、行业指数、波动率），优先于默认值使用。",
+      freshnessLabel: "通过 /api/data/industry/latest 获取",
+      confidence: "high",
+      ownerLabel: "系统数据采集",
+      actualSource: "PlatformStore行业数据",
+      trace: [
+        "碳酸锂价格和行业波动率优先从此数据源获取",
+        "当此数据源不可用时回退到默认值",
       ],
     }),
   ];
@@ -572,37 +655,37 @@ export function buildEnterpriseVisualization(
       id: "gm",
       item: "毛利率",
       current: formatPercent(metrics.currentGrossMargin),
-      benchmark: formatPercent(INDUSTRY_STANDARD.grossMarginAverage),
-      gap: `${formatGap(metrics.currentGrossMargin, INDUSTRY_STANDARD.grossMarginAverage)}pp`,
-      status: metrics.currentGrossMargin >= INDUSTRY_STANDARD.grossMarginAverage ? "good" : "risk",
-      note: "参考锂电池行业平均盈利区间",
+      benchmark: formatPercent(getIndustryStandard().grossMarginAverage),
+      gap: `${formatGap(metrics.currentGrossMargin, getIndustryStandard().grossMarginAverage)}pp`,
+      status: metrics.currentGrossMargin >= getIndustryStandard().grossMarginAverage ? "good" : "risk",
+      note: "GMPS毛利率维度 · 参考锂电池行业平均盈利区间",
     },
     {
       id: "inventory",
       item: "库存周转天数",
-      current: `${metrics.inventoryDays.toFixed(0)}天`,
-      benchmark: `${INDUSTRY_STANDARD.inventoryDays}天`,
-      gap: `${formatGap(metrics.inventoryDays, INDUSTRY_STANDARD.inventoryDays, 0)}天`,
-      status: metrics.inventoryDays <= INDUSTRY_STANDARD.inventoryDays ? "good" : "risk",
-      note: "高于标准意味着库存积压和资金占用压力",
+      current: `${metrics.inventoryDays.toFixed(2)}天`,
+      benchmark: `${getIndustryStandard().inventoryDays}天`,
+      gap: `${formatGap(metrics.inventoryDays, getIndustryStandard().inventoryDays, 0)}天`,
+      status: metrics.inventoryDays <= getIndustryStandard().inventoryDays ? "good" : "risk",
+      note: "DQI资产周转效率维度 · 库存积压和资金占用压力",
     },
     {
       id: "cashflow",
       item: "经营现金流/收入",
       current: formatPercent(metrics.cashFlowRatio),
-      benchmark: formatPercent(INDUSTRY_STANDARD.cashFlowRatio),
-      gap: `${formatGap(metrics.cashFlowRatio, INDUSTRY_STANDARD.cashFlowRatio)}pp`,
-      status: metrics.cashFlowRatio >= INDUSTRY_STANDARD.cashFlowRatio ? "good" : "watch",
-      note: "参考投资行业常用安全垫口径",
+      benchmark: formatPercent(getIndustryStandard().cashFlowRatio),
+      gap: `${formatGap(metrics.cashFlowRatio, getIndustryStandard().cashFlowRatio)}pp`,
+      status: metrics.cashFlowRatio >= getIndustryStandard().cashFlowRatio ? "good" : "watch",
+      note: "DQI现金流质量维度 · 参考投资行业常用安全垫口径",
     },
     {
       id: "capacity",
       item: "产销匹配度",
       current: formatPercent(metrics.capacityUtilization),
-      benchmark: formatPercent(INDUSTRY_STANDARD.capacityUtilization),
-      gap: `${formatGap(metrics.capacityUtilization, INDUSTRY_STANDARD.capacityUtilization)}pp`,
+      benchmark: formatPercent(getIndustryStandard().capacityUtilization),
+      gap: `${formatGap(metrics.capacityUtilization, getIndustryStandard().capacityUtilization)}pp`,
       status: metrics.capacityUtilization >= 80 ? "good" : "watch",
-      note: "产销偏离越大，库存风险越高",
+      note: "GMPS产销负荷维度 · 产销偏离越大库存风险越高",
     },
   ];
 
@@ -633,7 +716,7 @@ export function buildEnterpriseVisualization(
     id: quarter.id,
     label: quarter.label,
     values: [
-      clamp((quarter.grossMargin / INDUSTRY_STANDARD.grossMarginAverage) * 100, 0, 120),
+      clamp((quarter.grossMargin / (getIndustryStandard().grossMarginAverage || 20)) * 100, 0, 120),
       clamp((quarter.revenue / 52000) * 100, 0, 120),
       clamp(100 - index * 8, 40, 100),
       clamp(82 - index * 6 + metrics.cashFlowRatio / 10, 35, 100),
@@ -642,7 +725,7 @@ export function buildEnterpriseVisualization(
       formatPercent(quarter.grossMargin),
       formatAmount(quarter.revenue),
       `${82 - index * 6}分`,
-      `${clamp(82 - index * 6 + metrics.cashFlowRatio / 10, 35, 100).toFixed(0)}分`,
+      `${clamp(82 - index * 6 + metrics.cashFlowRatio / 10, 35, 100).toFixed(2)}分`,
     ],
     notes: ["盈利韧性", "规模表现", "经营效率", "现金流质量"],
   }));
@@ -654,9 +737,9 @@ export function buildEnterpriseVisualization(
       value: formatPercent(metrics.currentGrossMargin),
       trend: quarterSeries.map((item) => item.grossMargin),
       trendLabel: "近4季度持续承压",
-      benchmark: formatPercent(INDUSTRY_STANDARD.grossMarginAverage),
-      status: metrics.currentGrossMargin >= INDUSTRY_STANDARD.grossMarginAverage ? "good" : "risk",
-      note: "需要结合产品结构和原材料传导效率复盘",
+      benchmark: formatPercent(getIndustryStandard().grossMarginAverage),
+      status: metrics.currentGrossMargin >= getIndustryStandard().grossMarginAverage ? "good" : "risk",
+      note: "GMPS毛利率维度 · 需结合产品结构和原材料传导效率复盘",
     },
     {
       id: "revenue-trend",
@@ -666,17 +749,17 @@ export function buildEnterpriseVisualization(
       trendLabel: "收入保持增长",
       benchmark: "行业均速 12%",
       status: "good",
-      note: "需求端仍有支撑，但盈利修复慢于收入恢复",
+      note: "DQI成长能力维度 · 需求端仍有支撑但盈利修复慢于收入恢复",
     },
     {
       id: "inventory-days",
       label: "库存周转",
-      value: `${metrics.inventoryDays.toFixed(0)}天`,
+      value: `${metrics.inventoryDays.toFixed(2)}天`,
       trend: [46, 51, 58, metrics.inventoryDays],
       trendLabel: "库存天数抬升",
-      benchmark: `${INDUSTRY_STANDARD.inventoryDays}天`,
-      status: metrics.inventoryDays <= INDUSTRY_STANDARD.inventoryDays ? "good" : "risk",
-      note: "排产与出货节奏失配导致压力累积",
+      benchmark: `${getIndustryStandard().inventoryDays}天`,
+      status: metrics.inventoryDays <= getIndustryStandard().inventoryDays ? "good" : "risk",
+      note: "GMPS产销负荷维度 · 排产与出货节奏失配导致压力累积",
     },
     {
       id: "cashflow-ratio",
@@ -684,9 +767,9 @@ export function buildEnterpriseVisualization(
       value: formatPercent(metrics.cashFlowRatio),
       trend: [41, 43, 45, metrics.cashFlowRatio],
       trendLabel: "现金流仍在安全区",
-      benchmark: formatPercent(INDUSTRY_STANDARD.cashFlowRatio),
-      status: metrics.cashFlowRatio >= INDUSTRY_STANDARD.cashFlowRatio ? "good" : "watch",
-      note: "是当前经营韧性的关键缓冲垫",
+      benchmark: formatPercent(getIndustryStandard().cashFlowRatio),
+      status: metrics.cashFlowRatio >= getIndustryStandard().cashFlowRatio ? "good" : "watch",
+      note: "DQI现金流质量维度 · 当前经营韧性的关键缓冲垫",
     },
   ];
 
@@ -695,32 +778,32 @@ export function buildEnterpriseVisualization(
       id: "gm-alert",
       rule: "毛利率跌破行业均值",
       current: formatPercent(metrics.currentGrossMargin),
-      threshold: `>= ${formatPercent(INDUSTRY_STANDARD.grossMarginAverage)}`,
-      severity: metrics.currentGrossMargin >= INDUSTRY_STANDARD.grossMarginAverage ? "good" : "risk",
+      threshold: `>= ${formatPercent(getIndustryStandard().grossMarginAverage)}`,
+      severity: metrics.currentGrossMargin >= getIndustryStandard().grossMarginAverage ? "good" : "risk",
       action: "复盘产品结构与季度定价机制",
     },
     {
       id: "inventory-alert",
       rule: "库存周转高于标准",
-      current: `${metrics.inventoryDays.toFixed(0)}天`,
-      threshold: `<= ${INDUSTRY_STANDARD.inventoryDays}天`,
-      severity: metrics.inventoryDays <= INDUSTRY_STANDARD.inventoryDays ? "good" : "risk",
+      current: `${metrics.inventoryDays.toFixed(2)}天`,
+      threshold: `<= ${getIndustryStandard().inventoryDays}天`,
+      severity: metrics.inventoryDays <= getIndustryStandard().inventoryDays ? "good" : "risk",
       action: "收紧排产并联动销售去库存",
     },
     {
       id: "cashflow-alert",
       rule: "现金流安全垫",
       current: formatPercent(metrics.cashFlowRatio),
-      threshold: `>= ${formatPercent(INDUSTRY_STANDARD.cashFlowRatio)}`,
-      severity: metrics.cashFlowRatio >= INDUSTRY_STANDARD.cashFlowRatio ? "good" : "watch",
+      threshold: `>= ${formatPercent(getIndustryStandard().cashFlowRatio)}`,
+      severity: metrics.cashFlowRatio >= getIndustryStandard().cashFlowRatio ? "good" : "watch",
       action: "保持回款优先级与采购节奏",
     },
     {
       id: "capacity-alert",
       rule: "产销匹配度",
       current: formatPercent(metrics.capacityUtilization),
-      threshold: `>= ${formatPercent(INDUSTRY_STANDARD.capacityUtilization)}`,
-      severity: metrics.capacityUtilization >= INDUSTRY_STANDARD.capacityUtilization ? "good" : "watch",
+      threshold: `>= ${formatPercent(getIndustryStandard().capacityUtilization)}`,
+      severity: metrics.capacityUtilization >= getIndustryStandard().capacityUtilization ? "good" : "watch",
       action: "按客户节奏调整产线切换计划",
     },
   ];
@@ -729,20 +812,20 @@ export function buildEnterpriseVisualization(
     {
       id: "profitability",
       title: "盈利与成本",
-      description: "映射毛利承压模型与行业盈利标准",
+      description: "GMPS毛利承压评估 · 毛利率与材料成本冲击维度",
       items: [
         {
           id: "gm-gap",
           label: "毛利差距",
           value: `${metrics.grossMarginGap > 0 ? "+" : ""}${metrics.grossMarginGap.toFixed(2)}pp`,
-          meta: `对比行业均值 ${formatPercent(INDUSTRY_STANDARD.grossMarginAverage)}`,
+          meta: `对比行业均值 ${formatPercent(getIndustryStandard().grossMarginAverage)}`,
           status: metrics.grossMarginGap >= 0 ? "good" : "risk",
         },
         {
           id: "head-gap",
           label: "距头部差距",
-          value: `${(INDUSTRY_STANDARD.grossMarginHead - metrics.currentGrossMargin).toFixed(2)}pp`,
-          meta: `头部企业 ${formatPercent(INDUSTRY_STANDARD.grossMarginHead)}`,
+          value: `${(getIndustryStandard().grossMarginHead - metrics.currentGrossMargin).toFixed(2)}pp`,
+          meta: `头部企业 ${formatPercent(getIndustryStandard().grossMarginHead)}`,
           status: "watch",
         },
       ],
@@ -750,7 +833,7 @@ export function buildEnterpriseVisualization(
     {
       id: "operations",
       title: "经营与周转",
-      description: "映射经营质量变化模型",
+      description: "DQI经营质量指数 · 产销负荷与杠杆安全维度",
       items: [
         {
           id: "capacity-match",
@@ -763,27 +846,27 @@ export function buildEnterpriseVisualization(
           id: "debt-ratio",
           label: "资产负债率",
           value: formatPercent(metrics.debtRatio),
-          meta: `安全线 ${formatPercent(INDUSTRY_STANDARD.debtRatio)}`,
-          status: metrics.debtRatio <= INDUSTRY_STANDARD.debtRatio ? "good" : "watch",
+          meta: `安全线 ${formatPercent(getIndustryStandard().debtRatio)}`,
+          status: metrics.debtRatio <= getIndustryStandard().debtRatio ? "good" : "watch",
         },
       ],
     },
     {
       id: "context",
       title: "外部标准",
-      description: "锂电行业和投资行业常用口径",
+      description: "GMPS外部风险维度 · 碳酸锂价格与行业景气指标",
       items: [
         {
           id: "demand-index",
           label: "行业需求指数",
-          value: `${INDUSTRY_STANDARD.demandIndex}`,
+          value: `${getIndustryStandard().demandIndex}`,
           meta: "需求热度高于 70 代表偏暖",
           status: "good",
         },
         {
           id: "lithium-price",
           label: "碳酸锂价格",
-          value: `${INDUSTRY_STANDARD.lithiumPrice}万/吨`,
+          value: `${getIndustryStandard().lithiumPrice}万/吨`,
           meta: "作为原材料传导的重要参考",
           status: "watch",
         },
@@ -821,20 +904,20 @@ export function buildEnterpriseVisualization(
     sourceSummary: "图表基于企业真实录入数据、用户画像补充信息和行业基准口径联合生成。",
     refreshLabel,
     sourceMeta,
-    filters: defaultFilters(),
+    filters: enterpriseFilters(),
     sections: [
       {
         id: "enterprise-home",
         page: "home",
         title: "经营总览",
-        subtitle: "聚焦企业端的盈利、周转、现金流与行业对标",
-        emphasis: "企业端优先展示经营诊断与行业标准偏差",
+        subtitle: "DQI经营质量指数 · 聚焦企业端的盈利、周转、现金流与行业对标",
+        emphasis: "企业端优先展示DQI/GMPS模型诊断与行业标准偏差",
         widgets: [
           {
             id: "enterprise-metric-cards",
             kind: "metricCards",
             title: "核心指标卡",
-            subtitle: "直接映射模型结论与行业标准",
+            subtitle: "DQI/GMPS模型结论 · 直接映射核心指标与行业标准",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-profile-memory", "enterprise-industry-benchmark"],
               "核心指标优先使用企业本期录入数据，并结合画像中的库存信息与行业基准计算健康度。",
@@ -846,9 +929,9 @@ export function buildEnterpriseVisualization(
                 label: "本季度毛利率",
                 value: formatPercent(metrics.currentGrossMargin),
                 delta: `${formatGap(metrics.currentGrossMargin, metrics.baselineGrossMargin)}pp vs 同期`,
-                benchmark: `行业均值 ${formatPercent(INDUSTRY_STANDARD.grossMarginAverage)}`,
-                status: metrics.currentGrossMargin >= INDUSTRY_STANDARD.grossMarginAverage ? "good" : "risk",
-                description: "毛利承压模型的核心输出指标",
+                benchmark: `行业均值 ${formatPercent(getIndustryStandard().grossMarginAverage)}`,
+                status: metrics.currentGrossMargin >= getIndustryStandard().grossMarginAverage ? "good" : "risk",
+                description: "GMPS毛利承压评估 · 毛利率维度核心输出",
               },
               {
                 id: "health-card",
@@ -857,25 +940,25 @@ export function buildEnterpriseVisualization(
                 delta: metrics.riskStatus === "risk" ? "重点预警" : "维持监控",
                 benchmark: "70分以上更稳健",
                 status: metrics.riskStatus,
-                description: "结合盈利、周转、现金流和杠杆推导",
+                description: "DQI经营质量指数 · ROE/OCF/Growth三维驱动",
               },
               {
                 id: "cashflow-card",
                 label: "现金流/收入",
                 value: formatPercent(metrics.cashFlowRatio),
                 delta: "高于安全垫",
-                benchmark: `安全垫 ${formatPercent(INDUSTRY_STANDARD.cashFlowRatio)}`,
-                status: metrics.cashFlowRatio >= INDUSTRY_STANDARD.cashFlowRatio ? "good" : "watch",
-                description: "投资行业常用现金流安全边际口径",
+                benchmark: `安全垫 ${formatPercent(getIndustryStandard().cashFlowRatio)}`,
+                status: metrics.cashFlowRatio >= getIndustryStandard().cashFlowRatio ? "good" : "watch",
+                description: "DQI现金流质量维度 · GMPS现金流安全指标",
               },
               {
                 id: "inventory-card",
                 label: "库存周转",
-                value: `${metrics.inventoryDays.toFixed(0)}天`,
-                delta: `${formatGap(metrics.inventoryDays, INDUSTRY_STANDARD.inventoryDays, 0)}天`,
-                benchmark: `行业标准 ${INDUSTRY_STANDARD.inventoryDays}天`,
-                status: metrics.inventoryDays <= INDUSTRY_STANDARD.inventoryDays ? "good" : "risk",
-                description: "经营质量变化模型中的周转维度",
+                value: `${metrics.inventoryDays.toFixed(2)}天`,
+                delta: `${formatGap(metrics.inventoryDays, getIndustryStandard().inventoryDays, 0)}天`,
+                benchmark: `行业标准 ${getIndustryStandard().inventoryDays}天`,
+                status: metrics.inventoryDays <= getIndustryStandard().inventoryDays ? "good" : "risk",
+                description: "GMPS产销负荷维度 · 库存周转驱动因子",
               },
             ],
           },
@@ -883,10 +966,9 @@ export function buildEnterpriseVisualization(
             id: "enterprise-line",
             kind: "lineChart",
             title: "近4季度毛利率走势",
-            subtitle: "折线图",
-            description: "结合历史季度与当前季度数据，观察盈利修复路径。",
+            subtitle: "折线图 · GMPS毛利率维度趋势",
             unit: "%",
-            threshold: INDUSTRY_STANDARD.grossMarginAverage,
+            threshold: getIndustryStandard().grossMarginAverage,
             thresholdLabel: "行业均值",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-industry-benchmark"],
@@ -898,17 +980,16 @@ export function buildEnterpriseVisualization(
               label: item.label,
               value: item.grossMargin,
               displayValue: formatPercent(item.grossMargin),
-              benchmark: `行业 ${formatPercent(INDUSTRY_STANDARD.grossMarginAverage)}`,
-              detail: `${item.label} 收入 ${formatAmount(item.revenue)}，适合查看阶段性趋势变化。`,
-              status: item.grossMargin >= INDUSTRY_STANDARD.grossMarginAverage ? "good" : item.grossMargin >= 18 ? "watch" : "risk",
+              benchmark: `行业 ${formatPercent(getIndustryStandard().grossMarginAverage)}`,
+              detail: `${item.label} 收入 ${formatAmount(item.revenue)}，GMPS毛利率维度趋势变化。`,
+              status: item.grossMargin >= getIndustryStandard().grossMarginAverage ? "good" : item.grossMargin >= 18 ? "watch" : "risk",
             })),
           },
           {
             id: "enterprise-waterfall",
             kind: "waterfallChart",
             title: "利润演变瀑布图",
-            subtitle: "瀑布图",
-            description: "从收入到最终利润的各项成本扣除演变。",
+            subtitle: "瀑布图 · GMPS毛利承压评估",
             unit: _activeFormatter?.getUnitLabel("amount") ?? "万元",
             ...createSourceLinkage(
               ["enterprise-manual-input"],
@@ -928,7 +1009,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-benchmark",
             kind: "benchmarkTable",
             title: "对标对照表",
-            subtitle: "对标行业与投资安全垫标准",
+            subtitle: "对标口径基于 DQI/GMPS 模型基准",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-profile-memory", "enterprise-industry-benchmark"],
               "对标表同时展示企业现值、画像补充项和行业安全垫阈值。",
@@ -940,11 +1021,10 @@ export function buildEnterpriseVisualization(
             id: "enterprise-zebra",
             kind: "zebraTable",
             title: "斑马纹成本结构表",
-            subtitle: "隔行变色表格",
-            ...createSourceLinkage(
-              ["enterprise-manual-input"],
-              "成本结构按当前营业成本和库存费用拆解，便于企业端复盘成本项压力来源。",
-              "成本结构",
+            subtitle: "隔行变色表格 · GMPS成本结构拆解",
+             ...createSourceLinkage(
+               ["enterprise-manual-input"],
+               "GMPS成本结构拆解 · 按当前营业成本和库存费用拆解，便于企业端复盘成本项压力来源。",
             ),
             columns: ["项目", "金额", "占比", "同比", "风险"],
             rows: zebraRows,
@@ -953,7 +1033,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-card-table",
             kind: "cardTable",
             title: "卡片式分组表格",
-            subtitle: "按维度查看模型结论和行业标准",
+            subtitle: "DQI/GMPS模型 · 按维度查看模型结论和行业标准",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-industry-benchmark"],
               "卡片组把企业经营结果与外部标准拆开，便于管理层快速定位偏差来源。",
@@ -965,8 +1045,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-radar",
             kind: "radarChart",
             title: "经营质量雷达图",
-            subtitle: "雷达图",
-            description: "五维度经营质量对比，当前值与行业基准并排展示。",
+            subtitle: "雷达图 · DQI五维经营质量评估",
             currentLabel: "当前值",
             baselineLabel: "行业基准",
             ...createSourceLinkage(
@@ -975,19 +1054,18 @@ export function buildEnterpriseVisualization(
               "五维对比",
             ),
             dimensions: [
-              { dimension: "盈利能力", current: clamp(metrics.currentGrossMargin / INDUSTRY_STANDARD.grossMarginAverage * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.currentGrossMargin / INDUSTRY_STANDARD.grossMarginAverage * 100, 20, 100).toFixed(0)}分`, displayBaseline: "100分" },
-              { dimension: "周转效率", current: clamp(INDUSTRY_STANDARD.inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(INDUSTRY_STANDARD.inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 100).toFixed(0)}分`, displayBaseline: "100分" },
-              { dimension: "现金流质量", current: clamp(metrics.cashFlowRatio / INDUSTRY_STANDARD.cashFlowRatio * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.cashFlowRatio / INDUSTRY_STANDARD.cashFlowRatio * 100, 20, 100).toFixed(0)}分`, displayBaseline: "100分" },
-              { dimension: "产销匹配", current: clamp(metrics.capacityUtilization / INDUSTRY_STANDARD.capacityUtilization * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.capacityUtilization / INDUSTRY_STANDARD.capacityUtilization * 100, 20, 100).toFixed(0)}分`, displayBaseline: "100分" },
-              { dimension: "杠杆安全", current: clamp(INDUSTRY_STANDARD.debtRatio / Math.max(metrics.debtRatio, 1) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(INDUSTRY_STANDARD.debtRatio / Math.max(metrics.debtRatio, 1) * 100, 20, 100).toFixed(0)}分`, displayBaseline: "100分" },
+              { dimension: "盈利能力", current: clamp(metrics.currentGrossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.currentGrossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "周转效率", current: clamp(getIndustryStandard().inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(getIndustryStandard().inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "现金流质量", current: clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "产销匹配", current: clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "杠杆安全", current: clamp(getIndustryStandard().debtRatio / Math.max(metrics.debtRatio, 1) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(getIndustryStandard().debtRatio / Math.max(metrics.debtRatio, 1) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
             ],
           },
           {
             id: "enterprise-box-plot",
             kind: "boxPlotChart",
             title: "毛利率分布箱型图",
-            subtitle: "箱型图",
-            description: "按产品线展示毛利率四分位分布与离群值。",
+            subtitle: "箱型图 · GMPS毛利率分布",
             xLabel: "产品线",
             yLabel: "毛利率(%)",
             ...createSourceLinkage(
@@ -1006,8 +1084,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-scatter",
             kind: "scatterChart",
             title: "毛利率与营收关联散点图",
-            subtitle: "散点图",
-            description: "展示各产品线毛利率与营收规模的关联关系。",
+            subtitle: "散点图 · GMPS毛利率与营收关联",
             xLabel: `营收(${_activeFormatter?.getUnitLabel("amount") ?? "万元"})`,
             yLabel: "毛利率(%)",
             ...createSourceLinkage(
@@ -1034,8 +1111,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-bubble",
             kind: "bubbleChart",
             title: "经营三维气泡图",
-            subtitle: "气泡图",
-            description: "展示毛利率、产销匹配度和营收规模的三维关系。",
+            subtitle: "气泡图 · DQI/GMPS三维经营视图",
             xLabel: "毛利率(%)",
             yLabel: "产销匹配度(%)",
             zLabel: `营收规模(${_activeFormatter?.getUnitLabel("amount") ?? "万元"})`,
@@ -1060,7 +1136,7 @@ export function buildEnterpriseVisualization(
             kind: "heatmapChart",
             title: "经营质量热力图",
             subtitle: "热力图",
-            description: "按季度展示各经营维度的强弱色阶分布。",
+            description: "DQI经营质量指数 · 按季度展示各经营维度的强弱色阶分布。",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-industry-benchmark"],
               "热力图将多维度多季度数据以连续色阶呈现，便于快速识别强弱区域。",
@@ -1069,22 +1145,22 @@ export function buildEnterpriseVisualization(
             rows: ["盈利能力", "周转效率", "现金流质量", "产销匹配"],
             columns: quarterSeries.map((q) => q.label),
             cells: [
-              { row: "盈利能力", column: quarterSeries[0]!.label, value: clamp(quarterSeries[0]!.grossMargin / INDUSTRY_STANDARD.grossMarginAverage * 100, 20, 120), displayValue: formatPercent(quarterSeries[0]!.grossMargin), note: "基准期盈利能力" },
-              { row: "盈利能力", column: quarterSeries[1]!.label, value: clamp(quarterSeries[1]!.grossMargin / INDUSTRY_STANDARD.grossMarginAverage * 100, 20, 120), displayValue: formatPercent(quarterSeries[1]!.grossMargin), note: "盈利能力开始承压" },
-              { row: "盈利能力", column: quarterSeries[2]!.label, value: clamp(quarterSeries[2]!.grossMargin / INDUSTRY_STANDARD.grossMarginAverage * 100, 20, 120), displayValue: formatPercent(quarterSeries[2]!.grossMargin), note: "盈利能力持续下滑" },
-              { row: "盈利能力", column: quarterSeries[3]!.label, value: clamp(quarterSeries[3]!.grossMargin / INDUSTRY_STANDARD.grossMarginAverage * 100, 20, 120), displayValue: formatPercent(quarterSeries[3]!.grossMargin), note: "当前季度盈利水平" },
+              { row: "盈利能力", column: quarterSeries[0]!.label, value: clamp(quarterSeries[0]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[0]!.grossMargin), note: "基准期盈利能力" },
+              { row: "盈利能力", column: quarterSeries[1]!.label, value: clamp(quarterSeries[1]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[1]!.grossMargin), note: "盈利能力开始承压" },
+              { row: "盈利能力", column: quarterSeries[2]!.label, value: clamp(quarterSeries[2]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[2]!.grossMargin), note: "盈利能力持续下滑" },
+              { row: "盈利能力", column: quarterSeries[3]!.label, value: clamp(quarterSeries[3]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[3]!.grossMargin), note: "当前季度盈利水平" },
               { row: "周转效率", column: quarterSeries[0]!.label, value: 85, displayValue: "85分", note: "基准期周转良好" },
               { row: "周转效率", column: quarterSeries[1]!.label, value: 78, displayValue: "78分", note: "周转略有放缓" },
               { row: "周转效率", column: quarterSeries[2]!.label, value: 68, displayValue: "68分", note: "库存压力上升" },
-              { row: "周转效率", column: quarterSeries[3]!.label, value: clamp(INDUSTRY_STANDARD.inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 120), displayValue: `${clamp(INDUSTRY_STANDARD.inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 120).toFixed(0)}分`, note: "当前周转水平" },
+              { row: "周转效率", column: quarterSeries[3]!.label, value: clamp(getIndustryStandard().inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 120), displayValue: `${clamp(getIndustryStandard().inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 120).toFixed(2)}分`, note: "当前周转水平" },
               { row: "现金流质量", column: quarterSeries[0]!.label, value: 92, displayValue: "92分", note: "基准期现金流充裕" },
               { row: "现金流质量", column: quarterSeries[1]!.label, value: 88, displayValue: "88分", note: "现金流仍稳健" },
               { row: "现金流质量", column: quarterSeries[2]!.label, value: 82, displayValue: "82分", note: "现金流略有收紧" },
-              { row: "现金流质量", column: quarterSeries[3]!.label, value: clamp(metrics.cashFlowRatio / INDUSTRY_STANDARD.cashFlowRatio * 100, 20, 120), displayValue: `${clamp(metrics.cashFlowRatio / INDUSTRY_STANDARD.cashFlowRatio * 100, 20, 120).toFixed(0)}分`, note: "当前现金流水平" },
+              { row: "现金流质量", column: quarterSeries[3]!.label, value: clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 120), displayValue: `${clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 120).toFixed(2)}分`, note: "当前现金流水平" },
               { row: "产销匹配", column: quarterSeries[0]!.label, value: 90, displayValue: "90分", note: "基准期产销匹配良好" },
               { row: "产销匹配", column: quarterSeries[1]!.label, value: 84, displayValue: "84分", note: "产销出现偏差" },
               { row: "产销匹配", column: quarterSeries[2]!.label, value: 76, displayValue: "76分", note: "产销偏差扩大" },
-              { row: "产销匹配", column: quarterSeries[3]!.label, value: clamp(metrics.capacityUtilization / INDUSTRY_STANDARD.capacityUtilization * 100, 20, 120), displayValue: `${clamp(metrics.capacityUtilization / INDUSTRY_STANDARD.capacityUtilization * 100, 20, 120).toFixed(0)}分`, note: "当前产销匹配水平" },
+              { row: "产销匹配", column: quarterSeries[3]!.label, value: clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 120), displayValue: `${clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 120).toFixed(2)}分`, note: "当前产销匹配水平" },
             ],
           },
         ],
@@ -1093,14 +1169,14 @@ export function buildEnterpriseVisualization(
         id: "enterprise-analysis",
         page: "analysis",
         title: "深度诊断矩阵",
-        subtitle: "聚焦归因、预警、层级下钻与运营节奏",
+        subtitle: "DQI/GMPS模型驱动 · 聚焦归因、预警、层级下钻与运营节奏",
         emphasis: "企业端分析页优先支持下钻、预警和整改排期",
         widgets: [
           {
             id: "enterprise-heatmap",
             kind: "heatmapTable",
             title: "色阶热力矩阵表格",
-            subtitle: "按季度查看关键维度强弱",
+            subtitle: "DQI经营质量指数 · 按季度查看关键维度强弱",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-industry-benchmark"],
               "热力矩阵按企业历史季度输入与行业基准重算，反映盈利、收入和现金流强弱变化。",
@@ -1113,7 +1189,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-spark",
             kind: "sparklineTable",
             title: "迷你图表内嵌复合表格",
-            subtitle: "趋势与当前值同屏查看",
+            subtitle: "DQI/GMPS模型 · 趋势与当前值同屏查看",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-profile-memory", "enterprise-industry-benchmark"],
               "迷你图将企业连续趋势、画像补充库存信息与行业基准放在同一视图。",
@@ -1125,7 +1201,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-alerts",
             kind: "alertTable",
             title: "条件格式预警高亮表格",
-            subtitle: "按规则突出风险项和动作建议",
+            subtitle: "DQI/GMPS模型 · 按规则突出风险项和动作建议",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-industry-benchmark"],
               "预警规则直接引用企业当前值和行业阈值，用于经营整改动作建议。",
@@ -1137,7 +1213,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-tree",
             kind: "treeTable",
             title: "树状层级折叠表格",
-            subtitle: "可展开查看成本和责任归属",
+            subtitle: "GMPS成本维度 · 可展开查看成本和责任归属",
             ...createSourceLinkage(
               ["enterprise-manual-input"],
               "责任树把成本拆解映射到企业内部责任主体，便于经营复盘与动作分派。",
@@ -1149,7 +1225,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-pivot",
             kind: "pivotMatrix",
             title: "多维交叉透视矩阵表",
-            subtitle: "按产品线交叉观察盈利、产销、库存和风险",
+            subtitle: "GMPS产销负荷维度 · 按产品线交叉观察",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-industry-benchmark"],
               "透视矩阵用于从产品线角度交叉观察企业经营差异和对标结果。",
@@ -1162,7 +1238,7 @@ export function buildEnterpriseVisualization(
             id: "enterprise-calendar",
             kind: "calendarTable",
             title: "日历视图表格",
-            subtitle: "把经营动作和预警节奏落到日历",
+            subtitle: "DQI/GMPS驱动 · 把经营动作和预警节奏落到日历",
             ...createSourceLinkage(
               ["enterprise-manual-input", "enterprise-industry-benchmark"],
               "日历节奏由当前企业风险点和行业阈值推导，适合运营周会跟踪。",
@@ -1183,8 +1259,28 @@ export function buildEnterpriseVisualization(
  * 用于图表配置中需要根据深色/浅色模式动态调整的颜色
  */
 function getThemeAwareColors() {
-  const isDark = typeof document !== 'undefined' && (document.documentElement.classList.contains('theme-dark') || !document.documentElement.classList.contains('theme-light'));
+  let isDark = true;
+  if (typeof document !== 'undefined') {
+    const root = document.documentElement;
+    const hasDarkClass = root.classList.contains('theme-dark');
+    const hasLightClass = root.classList.contains('theme-light');
+    const dataTheme = root.getAttribute('data-theme-mode') ?? root.getAttribute('data-theme');
+    const bgVar = getComputedStyle(root).getPropertyValue('--bg2').trim();
+    const isBgLight = bgVar !== '' && (bgVar === '#ffffff' || bgVar === '#fff' || bgVar.startsWith('#f') || bgVar.startsWith('rgb(255'));
+    if (hasLightClass) {
+      isDark = false;
+    } else if (hasDarkClass) {
+      isDark = true;
+    } else if (dataTheme === 'light') {
+      isDark = false;
+    } else if (dataTheme === 'dark') {
+      isDark = true;
+    } else if (isBgLight) {
+      isDark = false;
+    }
+  }
   return {
+    isDark,
     gridStroke: isDark ? 'rgba(99,102,241,0.12)' : '#E5E7EB',
     axisTextFill: isDark ? 'rgba(203,213,225,0.8)' : '#374151',
     dotFill: isDark ? '#FFFFFF' : '#FFFFFF',
@@ -1194,28 +1290,74 @@ function getThemeAwareColors() {
 }
 
 /**
- * 颜色常量定义
+ * 颜色常量定义 - 深色模式
  */
-const CHART_COLORS = {
-  // DQI 主色调
-  dqiPrimary: '#3B82F6',      // 蓝色
-  dqiBaseline: '#9CA3AF',     // 灰色（基准线）
-  dqiImprovement: '#10B981',  // 绿色（改善区间）
-  dqiDeterioration: '#EF4444',// 红色（恶化区间）
+const CHART_COLORS_DARK = {
+  dqiPrimary: '#60A5FA',
+  dqiBaseline: '#94A3B8',
+  dqiImprovement: '#34D399',
+  dqiDeterioration: '#F87171',
 
-  // GMPS 压力等级颜色
-  gmpsLow: '#10B981',         // 绿色 - 低压
-  gmpsMedium: '#F59E0B',      // 黄色 - 中压
-  gmpsHigh: '#EF4444',        // 红色 - 高压
-  gmpsBackground: '#E5E7EB',  // 浅灰色背景
+  gmpsLow: '#34D399',
+  gmpsMedium: '#FBBF24',
+  gmpsHigh: '#F87171',
 
-  // 雷达图
-  radarFill: 'rgba(59, 130, 246, 0.2)',     // 蓝色半透明填充
-  radarStroke: '#3B82F6',                    // 蓝色边框
-  radarBaselineStroke: '#9CA3AF',            // 灰色基期边框
-  gmpsRadarFill: 'rgba(239, 68, 68, 0.2)',   // 红色半透明填充（GMPS）
-  gmpsRadarStroke: '#EF4444',                // 红色边框（GMPS）
+  radarFill: 'rgba(96, 165, 250, 0.25)',
+  radarStroke: '#60A5FA',
+  radarBaselineStroke: '#94A3B8',
+  gmpsRadarFill: 'rgba(248, 113, 113, 0.25)',
+  gmpsRadarStroke: '#F87171',
+
+  primary: '#60A5FA',
+  secondary: '#A78BFA',
+  success: '#34D399',
+  warning: '#FBBF24',
+  danger: '#F87171',
+  info: '#22D3EE',
 } as const;
+
+/**
+ * 颜色常量定义 - 浅色模式
+ */
+const CHART_COLORS_LIGHT = {
+  dqiPrimary: '#2563EB',
+  dqiBaseline: '#64748B',
+  dqiImprovement: '#059669',
+  dqiDeterioration: '#DC2626',
+
+  gmpsLow: '#059669',
+  gmpsMedium: '#D97706',
+  gmpsHigh: '#DC2626',
+
+  radarFill: 'rgba(37, 99, 235, 0.15)',
+  radarStroke: '#2563EB',
+  radarBaselineStroke: '#64748B',
+  gmpsRadarFill: 'rgba(220, 38, 38, 0.15)',
+  gmpsRadarStroke: '#DC2626',
+
+  primary: '#2563EB',
+  secondary: '#7C3AED',
+  success: '#059669',
+  warning: '#D97706',
+  danger: '#DC2626',
+  info: '#0891B2',
+} as const;
+
+/**
+ * 颜色常量定义 (向后兼容)
+ */
+const CHART_COLORS = CHART_COLORS_DARK;
+
+function getThemeAwareChartColors() {
+  const theme = getThemeAwareColors();
+  const baseColors = theme.isDark ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
+  return {
+    ...baseColors,
+    gmpsBackground: theme.gaugeBackground,
+    radarFill: theme.isDark ? 'rgba(96, 165, 250, 0.25)' : 'rgba(37, 99, 235, 0.15)',
+    gmpsRadarFill: theme.isDark ? 'rgba(248, 113, 113, 0.25)' : 'rgba(220, 38, 38, 0.15)',
+  };
+}
 
 /**
  * 根据分数获取 GMPS 压力等级颜色
@@ -1261,18 +1403,18 @@ export function buildDQITrendChart(
   }>
 ): ChartConfig {
   const themeColors = getThemeAwareColors();
-  // 数据转换：为 Recharts 准备数据格式
+  const chartColors = getThemeAwareChartColors();
   const chartData = dqiHistory.map((item) => ({
     ...item,
-    periodLabel: item.periodDate.replace(/^\d{4}-/, ''),  // 简化显示为 Q2, Q3 等
+    periodLabel: item.periodDate.replace(/^\d{4}-/, ''),
   }));
 
   return {
     type: 'line',
     data: chartData,
     options: {
-      title: 'DQI 经营质量趋势',
-      subtitle: '动态评价模型综合指标变化轨迹',
+      title: 'DQI 经营质量趋势（DQI模型）',
+      subtitle: '动态评价模型综合指标变化轨迹 · DQI = 0.4·ROE比率 + 0.3·Growth比率 + 0.3·OCF比率变化',
       xAxis: {
         dataKey: 'periodLabel',
         label: '报告期',
@@ -1303,17 +1445,17 @@ export function buildDQITrendChart(
           dataKey: 'dqi',
           name: 'DQI 值',
           type: 'monotone',
-          stroke: CHART_COLORS.dqiPrimary,
+          stroke: chartColors.dqiPrimary,
           strokeWidth: 2.5,
           dot: {
             r: 5,
             fill: themeColors.dotFill,
             strokeWidth: 2,
-            stroke: CHART_COLORS.dqiPrimary,
+            stroke: chartColors.dqiPrimary,
           },
           activeDot: {
             r: 7,
-            fill: CHART_COLORS.dqiPrimary,
+            fill: chartColors.dqiPrimary,
           },
         },
       ],
@@ -1321,21 +1463,21 @@ export function buildDQITrendChart(
         {
           value: 1.0,
           label: '基准线 1.0',
-          stroke: CHART_COLORS.dqiBaseline,
+          stroke: chartColors.dqiBaseline,
           strokeDasharray: '8 4',
           position: 'insideTopRight',
         },
         {
           value: 1.05,
           label: '',
-          stroke: CHART_COLORS.dqiImprovement,
+          stroke: chartColors.dqiImprovement,
           strokeDasharray: '3 3',
           strokeOpacity: 0.5,
         },
         {
           value: 0.95,
           label: '',
-          stroke: CHART_COLORS.dqiDeterioration,
+          stroke: chartColors.dqiDeterioration,
           strokeDasharray: '3 3',
           strokeOpacity: 0.5,
         },
@@ -1379,18 +1521,23 @@ export function buildDriverRadarChart(
     profitabilityContribution: number;
     growthContribution: number;
     cashflowContribution: number;
+    assetTurnoverContribution?: number;
+    rdIntensityContribution?: number;
+    inventoryTurnoverContribution?: number;
   },
   baselineData?: {
     profitabilityContribution: number;
     growthContribution: number;
     cashflowContribution: number;
+    assetTurnoverContribution?: number;
+    rdIntensityContribution?: number;
+    inventoryTurnoverContribution?: number;
   }
 ): ChartConfig {
   const themeColors = getThemeAwareColors();
-  // 维度标签
-  const dimensions = ['盈利能力', '成长能力', '现金流质量'];
+  const chartColors = getThemeAwareChartColors();
+  const dimensions = ['盈利能力', '成长能力', '现金流质量', '资产周转效率', '研发投入强度', '库存周转效率'];
 
-  // 构建数据数组
   const chartData = [
     {
       dimension: dimensions[0],
@@ -1407,25 +1554,38 @@ export function buildDriverRadarChart(
       当期: currentData.cashflowContribution,
       基期: baselineData?.cashflowContribution ?? null,
     },
+    {
+      dimension: dimensions[3],
+      当期: currentData.assetTurnoverContribution ?? 0,
+      基期: baselineData?.assetTurnoverContribution ?? null,
+    },
+    {
+      dimension: dimensions[4],
+      当期: currentData.rdIntensityContribution ?? 0,
+      基期: baselineData?.rdIntensityContribution ?? null,
+    },
+    {
+      dimension: dimensions[5],
+      当期: currentData.inventoryTurnoverContribution ?? 0,
+      基期: baselineData?.inventoryTurnoverContribution ?? null,
+    },
   ];
 
-  // 构建系列配置
   const series: SeriesConfig[] = [
     {
       dataKey: '当期',
       name: '当期',
-      stroke: CHART_COLORS.radarStroke,
-      fill: CHART_COLORS.radarFill,
+      stroke: chartColors.radarStroke,
+      fill: chartColors.radarFill,
       strokeWidth: 2,
     },
   ];
 
-  // 如果有基期数据，添加基期系列
   if (baselineData) {
     series.push({
       dataKey: '基期',
       name: '基期',
-      stroke: CHART_COLORS.radarBaselineStroke,
+      stroke: chartColors.radarBaselineStroke,
       fill: 'transparent',
       strokeWidth: 2,
       strokeDasharray: '5 5',
@@ -1436,13 +1596,19 @@ export function buildDriverRadarChart(
     type: 'radar',
     data: chartData,
     options: {
-      title: 'DQI 驱动因素分析',
-      subtitle: '三维雷达图展示各维度贡献度',
+      title: 'DQI 驱动因素分析（DQI模型）',
+      subtitle: '六维雷达图展示 ROE/Growth/OCF/资产周转/研发投入/库存周转 各维度贡献度',
       tooltip: {
-        formatter: (value: number, name: string) => [
-          `${(value * 100).toFixed(2)}%`,
-          `${name}贡献度`,
-        ],
+        formatter: (value: number, name: string) => {
+          const nameMap: Record<string, string> = {
+            '当期': '当期',
+            '基期': '基期',
+          };
+          return [
+            `${(value * 100).toFixed(2)}%`,
+            `${nameMap[name] ?? name}贡献度`,
+          ];
+        },
       },
       legend: {
         align: 'center',
@@ -1464,12 +1630,18 @@ export function buildDriverRadarChart(
             currentData.profitabilityContribution,
             currentData.growthContribution,
             currentData.cashflowContribution,
+            currentData.assetTurnoverContribution ?? 0,
+            currentData.rdIntensityContribution ?? 0,
+            currentData.inventoryTurnoverContribution ?? 0,
             baselineData?.profitabilityContribution ?? 0,
             baselineData?.growthContribution ?? 0,
-            baselineData?.cashflowContribution ?? 0
+            baselineData?.cashflowContribution ?? 0,
+            baselineData?.assetTurnoverContribution ?? 0,
+            baselineData?.rdIntensityContribution ?? 0,
+            baselineData?.inventoryTurnoverContribution ?? 0
           ) * 1.2],
           tick: {
-            formatter: (value: number) => `${(value * 100).toFixed(0)}%`,
+            formatter: (value: number) => `${(value * 100).toFixed(2)}%`,
           },
         },
         polarGrid: {
@@ -1508,9 +1680,6 @@ export function buildGMPSGaugeChart(
   const color = getGMPSColor(gmps);
   const themeColors = getThemeAwareColors();
 
-  // 将 GMPS 值转换为角度（0-180度半圆）
-  const angle = (gmps / 100) * 180;
-
   // 仪表盘数据：背景圆环 + 实际值扇形
   const chartData = [
     {
@@ -1529,8 +1698,8 @@ export function buildGMPSGaugeChart(
     type: 'pie',
     data: chartData,
     options: {
-      title: 'GMPS 毛利压力指数',
-      subtitle: `当前压力等级: ${level}`,
+      title: 'GMPS 毛利压力指数（GMPS模型）',
+      subtitle: `当前压力等级: ${level} · GMPS 评估毛利承压与经营质量变化`,
       tooltip: {
         formatter: (value: number, name: string) => {
           if (name === '完成度') return [`${value.toFixed(2)}`, 'GMPS 值'];
@@ -1603,7 +1772,7 @@ export function buildGMPSDimensionRadarChart(
   }
 ): ChartConfig {
   const themeColors = getThemeAwareColors();
-  // 维度顺序和完整名称映射
+  const chartColors = getThemeAwareChartColors();
   const dimensionMapping = [
     { key: 'A_毛利率结果' as const, shortName: '毛利率', fullName: 'A-毛利率结果' },
     { key: 'B_材料成本冲击' as const, shortName: '材料成本', fullName: 'B-材料成本冲击' },
@@ -1612,7 +1781,6 @@ export function buildGMPSDimensionRadarChart(
     { key: 'E_现金流安全' as const, shortName: '现金流', fullName: 'E-现金流安全' },
   ];
 
-  // 构建数据数组
   const chartData = dimensionMapping.map(({ key, shortName }) => ({
     dimension: shortName,
     score: dimensionScores[key],
@@ -1622,8 +1790,8 @@ export function buildGMPSDimensionRadarChart(
     type: 'radar',
     data: chartData,
     options: {
-      title: 'GMPS 五维度压力分布',
-      subtitle: '雷达图展示各维度压力得分',
+      title: 'GMPS 五维度压力分布（GMPS模型）',
+      subtitle: '雷达图展示各维度压力得分 · 毛利率/材料成本/产销负荷/外部风险/现金流安全',
       tooltip: {
         formatter: (value: number, name: string) => [
           `${value.toFixed(2)}分`,
@@ -1634,13 +1802,12 @@ export function buildGMPSDimensionRadarChart(
         {
           dataKey: 'score',
           name: '压力得分',
-          stroke: CHART_COLORS.gmpsRadarStroke,
-          fill: CHART_COLORS.gmpsRadarFill,
+          stroke: chartColors.gmpsRadarStroke,
+          fill: chartColors.gmpsRadarFill,
           strokeWidth: 2,
         },
       ],
       style: {
-        // 雷达图配置（五边形）
         polarAngleAxis: {
           dataKey: 'dimension',
           tick: {
@@ -1660,18 +1827,17 @@ export function buildGMPSDimensionRadarChart(
           gridType: 'polygon',
         },
 
-        // 在顶点显示数值
         label: {
           show: true,
           formatter: (props: any) => {
             const { payload } = props;
-            return payload.score.toFixed(0);
+            return payload.score.toFixed(2);
           },
           position: 'outside' as const,
           style: {
             fontSize: 11,
             fontWeight: 'bold' as const,
-            fill: CHART_COLORS.gmpsRadarStroke,
+            fill: chartColors.gmpsRadarStroke,
           },
         },
       },
@@ -1683,16 +1849,16 @@ export function buildGMPSDimensionRadarChart(
 
 /** 特征变量权重和中文标签映射 */
 const FEATURE_CONFIG = [
-  { key: 'gpmYoy', weight: 0.14, label: '毛利率同比' },
-  { key: 'unitCostYoy', weight: 0.12, label: '单位成本同比' },
-  { key: 'mfgCostRatio', weight: 0.12, label: '制造费用占比' },
-  { key: 'revCostGap', weight: 0.11, label: '营收成本增速差' },
-  { key: 'saleProdRatio', weight: 0.10, label: '产销率' },
-  { key: 'liPriceYoy', weight: 0.10, label: '碳酸锂价格同比' },
-  { key: 'invYoy', weight: 0.09, label: '库存同比' },
-  { key: 'cfoRatio', weight: 0.08, label: '现金流比率' },
-  { key: 'lev', weight: 0.07, label: '资产负债率' },
-  { key: 'indVol', weight: 0.07, label: '行业波动率' },
+  { key: 'gpmYoy', weight: 0.14, label: '毛利率同比变化(gpmYoy)' },
+  { key: 'unitCostYoy', weight: 0.12, label: '单位营业成本变化率(unitCostYoy)' },
+  { key: 'mfgCostRatio', weight: 0.12, label: '制造费用占营业成本比(mfgCostRatio)' },
+  { key: 'revCostGap', weight: 0.11, label: '营收增速减成本增速(revCostGap)' },
+  { key: 'saleProdRatio', weight: 0.10, label: '产销率(saleProdRatio)' },
+  { key: 'liPriceYoy', weight: 0.10, label: '碳酸锂价格同比变化(liPriceYoy)' },
+  { key: 'invYoy', weight: 0.09, label: '库存同比增速(invYoy)' },
+  { key: 'cfoRatio', weight: 0.08, label: '经营现金流/营业收入(cfoRatio)' },
+  { key: 'lev', weight: 0.07, label: '资产负债率(lev)' },
+  { key: 'indVol', weight: 0.07, label: '行业指数波动率(indVol)' },
 ] as const;
 
 /**
@@ -1736,8 +1902,8 @@ export function buildFeatureWaterfallChart(
     type: 'bar',
     data: chartData,
     options: {
-      title: 'GMPS 特征变量得分分布',
-      subtitle: '按权重排序的水平条形图（10个特征变量）',
+      title: 'GMPS 特征变量得分分布（GMPS模型）',
+      subtitle: '按权重排序的水平条形图（10个特征变量）· gpmYoy/unitCostYoy/revCostGap/liPriceYoy/invYoy/saleProdRatio/mfgCostRatio/indVol/cfoRatio/lev',
       layout: 'vertical',  // 水平条形图
       xAxis: {
         label: '得分值',
@@ -1783,7 +1949,7 @@ export function buildFeatureWaterfallChart(
         labelList: {
           dataKey: 'score',
           position: 'right' as const,
-          formatter: (value: number) => `${value.toFixed(0)}`,
+          formatter: (value: number) => `${value.toFixed(2)}`,
           style: {
             fontSize: 11,
             fontWeight: 'medium' as const,
@@ -1880,13 +2046,29 @@ export function extractDQIResult(mathAnalysis?: MathAnalysisOutput | null): DQIR
   if (!mathAnalysis?.dqiModel) return null;
 
   const model = mathAnalysis.dqiModel;
+  const decomp = model.decomposition;
 
   return {
     dqi: model.dqi,
     status: model.status,
     driver: model.driver,
-    decomposition: { ...model.decomposition },
-    metrics: { ...model.metrics },
+    decomposition: {
+      profitabilityContribution: decomp.profitabilityContribution,
+      growthContribution: decomp.growthContribution,
+      cashflowContribution: decomp.cashflowContribution,
+      assetTurnoverContribution: decomp.assetTurnoverContribution ?? 0,
+      rdIntensityContribution: decomp.rdIntensityContribution ?? 0,
+      inventoryTurnoverContribution: decomp.inventoryTurnoverContribution ?? 0,
+    },
+    metrics: {
+      ...model.metrics,
+      currentAssetTurnover: (model.metrics as any).currentAssetTurnover ?? 0,
+      baselineAssetTurnover: (model.metrics as any).baselineAssetTurnover ?? 0,
+      currentRdRatio: (model.metrics as any).currentRdRatio ?? 0,
+      baselineRdRatio: (model.metrics as any).baselineRdRatio ?? 0,
+      currentInventoryDays: (model.metrics as any).currentInventoryDays ?? 0,
+      baselineInventoryDays: (model.metrics as any).baselineInventoryDays ?? 0,
+    },
     trend: model.trend,
     confidence: model.confidence,
   };
@@ -1911,7 +2093,10 @@ export function extractGMPSResult(mathAnalysis?: MathAnalysisOutput | null): GMP
     dimensionScores: { ...model.dimensionScores },
     featureScores: { ...model.featureScores },
     keyFindings: [...model.keyFindings],
-  };
+    industrySegment: (model as any).industrySegment ?? undefined,
+    industryWeights: (model as any).industryWeights ?? undefined,
+    dataProvenance: mathAnalysis.dataProvenance ?? undefined,
+  } as GMPSResult & { dataProvenance?: { estimatedFields: string[]; estimationMethod: string } };
 }
 
 /**
@@ -1995,15 +2180,29 @@ export function buildInvestorHomeVisualization(
       id: "investor-industry-benchmark",
       label: "行业景气与对标口径",
       category: "industry_benchmark",
-      description: "来自系统内置行业热度、装机增速、原料价格与估值比较口径。",
+      description: "来自系统内置行业热度、装机增速、原料价格与估值比较口径。碳酸锂价格和行业波动率优先从系统持久化数据获取。",
       freshnessLabel: "本地市场口径已加载",
       confidence: "medium",
       ownerLabel: "系统市场库",
       actualSource: "INDUSTRY_STANDARD",
       trace: [
-        `行业景气 ${INDUSTRY_STANDARD.industryWarmth}`,
-        `储能增速 ${INDUSTRY_STANDARD.storageGrowth}%`,
-        `碳酸锂 ${INDUSTRY_STANDARD.lithiumPrice} 万/吨`,
+        `行业景气 ${getIndustryStandard().industryWarmth}`,
+        `储能增速 ${getIndustryStandard().storageGrowth}%`,
+        `碳酸锂 ${getIndustryStandard().lithiumPrice} 万/吨`,
+      ],
+    }),
+    createSourceMeta({
+      id: "investor-platform-store-industry",
+      label: "API自动获取行业数据",
+      category: "industry_benchmark",
+      description: "来自系统自动采集并持久化的行业数据（碳酸锂价格、行业指数、波动率），优先于默认值使用。",
+      freshnessLabel: "通过 /api/data/industry/latest 获取",
+      confidence: "high",
+      ownerLabel: "系统数据采集",
+      actualSource: "PlatformStore行业数据",
+      trace: [
+        "碳酸锂价格和行业波动率优先从此数据源获取",
+        "当此数据源不可用时回退到默认值",
       ],
     }),
   ];
@@ -2015,20 +2214,20 @@ export function buildInvestorHomeVisualization(
     sourceSummary: "图表优先使用用户画像、最近会话上下文和行业景气基准，为普通用户端生成投资观察视图。",
     refreshLabel,
     sourceMeta,
-    filters: defaultFilters(),
+    filters: investorFilters(),
     sections: [
       {
         id: "investor-home",
         page: "home",
         title: "投资总览",
-        subtitle: "普通用户端优先展示景气、风险收益和配置参考",
+        subtitle: "DQI/GMPS模型驱动 · 景气、风险收益和配置参考",
         emphasis: `当前按 ${investorName || "普通用户"} 的 ${horizon} 周期和 ${riskAppetite} 风险偏好编排`,
         widgets: [
           {
             id: "investor-metrics",
             kind: "metricCards",
             title: "投资指标卡",
-            subtitle: "汇总行业热度、收益和配置立场",
+            subtitle: "DQI/GMPS模型 · 汇总行业热度、收益和配置立场",
             ...createSourceLinkage(
               ["investor-profile", "investor-industry-benchmark"],
               "指标卡将用户画像偏好与行业景气基准融合，用于形成普通用户端的配置立场。",
@@ -2038,29 +2237,29 @@ export function buildInvestorHomeVisualization(
               {
                 id: "warmth",
                 label: "行业景气指数",
-                value: `${INDUSTRY_STANDARD.industryWarmth}`,
+                value: `${getIndustryStandard().industryWarmth}`,
                 delta: "储能高景气对冲动力放缓",
                 benchmark: "70 以上偏暖",
                 status: "good",
-                description: "结合装机、价格、政策和订单信号",
+                description: "GMPS外部风险维度 · 行业景气与政策信号驱动",
               },
               {
                 id: "storage-growth",
                 label: "储能装机增速",
-                value: formatPercent(INDUSTRY_STANDARD.storageGrowth),
+                value: formatPercent(getIndustryStandard().storageGrowth),
                 delta: "景气核心支撑",
                 benchmark: "高于 50% 偏强",
                 status: "good",
-                description: "普通用户端优先观察的需求弹性来源",
+                description: "DQI成长能力维度 · 储能需求弹性驱动Growth指标",
               },
               {
                 id: "lithium-price",
                 label: "碳酸锂价格",
-                value: `${INDUSTRY_STANDARD.lithiumPrice}万/吨`,
+                value: `${getIndustryStandard().lithiumPrice}万/吨`,
                 delta: "接近周期底部",
                 benchmark: "成本端关键锚点",
                 status: "watch",
-                description: "决定盈利修复节奏的重要变量",
+                description: "GMPS材料成本冲击维度 · 碳酸锂价格传导核心变量",
               },
               {
                 id: "allocation",
@@ -2069,7 +2268,7 @@ export function buildInvestorHomeVisualization(
                 delta: `${watchlist.length} 个关注标的`,
                 benchmark: "结合画像偏好",
                 status: stanceStatus,
-                description: "综合景气、风险收益和个体偏好",
+                description: "DQI经营质量指数驱动 · GMPS毛利承压评估综合立场",
               },
             ],
           },
@@ -2077,8 +2276,7 @@ export function buildInvestorHomeVisualization(
             id: "investor-bar",
             kind: "barChart",
             title: "重点赛道热度柱状图",
-            subtitle: "柱状图",
-            description: "适合快速判断资金和景气关注重心。",
+            subtitle: "柱状图 · GMPS外部风险维度热度",
             unit: "分",
             ...createSourceLinkage(
               ["investor-industry-benchmark"],
@@ -2096,7 +2294,7 @@ export function buildInvestorHomeVisualization(
             id: "investor-benchmark",
             kind: "benchmarkTable",
             title: "可比公司对标表",
-            subtitle: "对标对比对照表",
+            subtitle: "对标口径基于 DQI/GMPS 模型基准",
             ...createSourceLinkage(
               ["investor-profile", "investor-industry-benchmark"],
               "可比公司表以用户关注标的为主，配合行业均值呈现相对位置。",
@@ -2109,18 +2307,17 @@ export function buildInvestorHomeVisualization(
               benchmark: "行业均值 19.8%",
               gap: ["+0.7pp", "-0.9pp", "+2.3pp", "-2.4pp"][index] ?? "+0.0pp",
               status: index === 1 || index === 3 ? "watch" : "good",
-              note: "结合毛利、订单兑现和现金流质量观察",
+              note: "DQI经营质量指数 · 结合毛利、订单兑现和现金流质量观察",
             })),
           },
           {
             id: "investor-zebra",
             kind: "zebraTable",
             title: "斑马纹行业数据表",
-            subtitle: "隔行变色表格",
-            ...createSourceLinkage(
-              ["investor-industry-benchmark"],
-              "行业表聚合装机、价格和毛利等市场观察信号，用于用户端快速浏览。",
-              "行业快照",
+            subtitle: "隔行变色表格 · DQI/GMPS行业快照",
+             ...createSourceLinkage(
+               ["investor-industry-benchmark"],
+               "DQI/GMPS行业快照 · 聚合装机、价格和毛利等市场观察信号，用于用户端快速浏览。",
             ),
             columns: ["指标", "当前值", "环比", "同比", "趋势"],
             rows: [
@@ -2134,7 +2331,7 @@ export function buildInvestorHomeVisualization(
             id: "investor-card-table",
             kind: "cardTable",
             title: "卡片式分组表格",
-            subtitle: "按投资逻辑拆分关键驱动",
+            subtitle: "DQI/GMPS模型 · 按投资逻辑拆分关键驱动",
             ...createSourceLinkage(
               ["investor-profile", "investor-session-context", "investor-industry-benchmark"],
               "分组卡片把用户偏好、会话背景和市场信号拆成可读的投资逻辑块。",
@@ -2144,7 +2341,7 @@ export function buildInvestorHomeVisualization(
               {
                 id: "demand",
                 title: "景气驱动",
-                description: "普通用户端默认优先展示",
+                description: "DQI成长能力维度 · 景气弹性驱动",
                 items: [
                   { id: "g1", label: "储能订单", value: "高增长", meta: "海外及工商业双轮驱动", status: "good" },
                   { id: "g2", label: "动力需求", value: "偏弱复苏", meta: "整车价格战压制", status: "watch" },
@@ -2153,7 +2350,7 @@ export function buildInvestorHomeVisualization(
               {
                 id: "risk",
                 title: "风险收益",
-                description: "帮助快速判断建仓节奏",
+                description: "GMPS现金流安全维度 · 下行保护评估",
                 items: [
                   { id: "r1", label: "盈利弹性", value: "中高", meta: "取决于原料价格企稳", status: "watch" },
                   { id: "r2", label: "下行保护", value: "现金流优先", meta: "优选回款稳健公司", status: "good" },
@@ -2165,8 +2362,7 @@ export function buildInvestorHomeVisualization(
             id: "investor-radar",
             kind: "radarChart",
             title: "投资画像雷达图",
-            subtitle: "雷达图",
-            description: "五维度投资画像对比，当前景气与基准并排展示。",
+            subtitle: "雷达图 · DQI五维投资画像评估",
             currentLabel: "当前景气",
             baselineLabel: "历史基准",
             ...createSourceLinkage(
@@ -2186,8 +2382,7 @@ export function buildInvestorHomeVisualization(
             id: "investor-box-plot",
             kind: "boxPlotChart",
             title: "行业风险分布箱型图",
-            subtitle: "箱型图",
-            description: "展示关注标的风险得分的分布特征。",
+            subtitle: "箱型图 · GMPS风险分布",
             xLabel: "赛道",
             yLabel: "风险得分",
             ...createSourceLinkage(
@@ -2207,7 +2402,7 @@ export function buildInvestorHomeVisualization(
             kind: "scatterChart",
             title: "风险收益散点图",
             subtitle: "散点图",
-            description: "展示关注标的的风险暴露与收益弹性关系。",
+            description: "DQI经营质量指数 · 展示关注标的的风险暴露与收益弹性关系。",
             xLabel: "风险暴露",
             yLabel: "收益弹性",
             ...createSourceLinkage(
@@ -2234,8 +2429,7 @@ export function buildInvestorHomeVisualization(
             id: "investor-bubble",
             kind: "bubbleChart",
             title: "投资三维气泡图",
-            subtitle: "气泡图",
-            description: "展示行业景气、盈利弹性和市值规模的三维关系。",
+            subtitle: "气泡图 · DQI/GMPS三维投资视图",
             xLabel: "行业景气",
             yLabel: "盈利弹性",
             zLabel: "市值规模(亿元)",
@@ -2260,7 +2454,7 @@ export function buildInvestorHomeVisualization(
             kind: "heatmapChart",
             title: "风险收益热力图",
             subtitle: "热力图",
-            description: "按关注标的展示多维度风险收益色阶分布。",
+            description: "DQI经营质量指数 · 按关注标的展示多维度风险收益色阶分布。",
             ...createSourceLinkage(
               ["investor-profile", "investor-industry-benchmark"],
               "热力图将多标的维度数据以色阶呈现，便于快速识别强弱。",
@@ -2581,20 +2775,20 @@ export function buildInvestorAnalysisVisualization(
     sourceSummary: "分析页串联当前会话、数学模型、行业检索、证据审校、正式辩论与附件材料，形成可追溯的用户端判断链路。",
     refreshLabel,
     sourceMeta,
-    filters: defaultFilters(),
+    filters: investorFilters(),
     sections: [
       {
         id: "investor-analysis",
         page: "analysis",
         title: "投资判断图表工作台",
-        subtitle: "围绕推荐、证据、风险收益和跟踪节奏展开",
+        subtitle: "DQI/GMPS模型驱动 · 推荐、证据、风险收益和跟踪节奏",
         emphasis: "普通用户端优先展示投资判断支撑而非经营过程细节",
         widgets: [
           {
             id: "analysis-metrics",
             kind: "metricCards",
             title: "会话摘要卡",
-            subtitle: "本轮结论、风险与证据一屏查看",
+            subtitle: "DQI/GMPS模型 · 本轮结论、风险与证据一屏查看",
             ...createSourceLinkage(
               ["analysis-session-context", "analysis-math-model", "analysis-evidence-review", "analysis-debate"],
               "摘要卡整合当前推荐、模型风险、证据可信度与画像联动结果，是用户端分析页的总入口。",
@@ -2635,7 +2829,7 @@ export function buildInvestorAnalysisVisualization(
                 delta: analysisResult.personalization.summary,
                 benchmark: "持续沉淀偏好",
                 status: "good",
-                description: "用户画像会反向影响后续图表排序和建议表达。",
+                description: "DQI/GMPS模型输出反向优化用户画像与图表排序",
               },
             ],
           },
@@ -2643,7 +2837,7 @@ export function buildInvestorAnalysisVisualization(
             id: "analysis-benchmark",
             kind: "benchmarkTable",
             title: "投资判断对照表",
-            subtitle: "推荐、风险和证据并行对照",
+            subtitle: "对标口径基于 DQI/GMPS 模型基准",
             ...createSourceLinkage(
               ["analysis-session-context", "analysis-math-model", "analysis-evidence-review"],
               "对照表把推荐、模型风险和证据可信度放在同一口径下比较。",
@@ -2655,7 +2849,7 @@ export function buildInvestorAnalysisVisualization(
             id: "analysis-heatmap",
             kind: "heatmapTable",
             title: "风险收益热力矩阵",
-            subtitle: "色阶热力矩阵表格",
+            subtitle: "DQI/GMPS模型 · 色阶热力矩阵",
             ...createSourceLinkage(
               ["analysis-industry-retrieval", "analysis-math-model", "analysis-evidence-review"],
               "热力矩阵结合景气、订单、价格和兑现四类来源，帮助用户看清收益和风险暴露。",

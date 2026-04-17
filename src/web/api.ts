@@ -15,11 +15,17 @@ import type {
   AnalysisTimelineEntry,
   DebateRound,
   EnterpriseAnalysisRequest,
+  EnterpriseAnalysisStreamEvent,
   EnterpriseCollectionRequest,
+  EnterpriseAttachmentUploadRequest,
   InvestorAnalysisStreamEvent,
   InvestorAnalysisRequest,
   InvestorAttachmentUploadRequest,
+  InvestorModeSwitchRequest,
   InvestorProfileRequest,
+  InvestorSessionBatchDeleteRequest,
+  InvestorSessionCreateRequest,
+  InvestorSessionDeleteRequest,
   PrivateMemoryUpdateRequest,
   PrivateMemoryWriteRequest,
   ProfileUpdateReceipt,
@@ -33,6 +39,15 @@ import type {
 import type { HealthResponse, MetaResponse } from "../shared/types.js";
 
 const clientEnv = getClientEnv(import.meta.env);
+
+export type ChatMessage = {
+  id: string;
+  sessionId: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+};
 
 export type ConfidenceLabel = "high" | "medium" | "low";
 export type RecommendationStance = "推荐关注" | "谨慎跟踪" | "暂缓配置";
@@ -137,6 +152,12 @@ export type InvestorAttachmentUploadResponse = {
   sessionContext: SessionContext;
 };
 
+export type EnterpriseAttachmentUploadResponse = {
+  attachment: SessionAttachment;
+  warnings: string[];
+  sessionContext: SessionContext;
+};
+
 export type MemoryWriteResponse = {
   memory: MemoryEntry;
   sessionContext?: SessionContext;
@@ -198,9 +219,9 @@ function buildPortalAuditSummary(role: PortalAuditRole, channelCount: number, pa
     : `共纳入 ${channelCount} 条投资端相关个性化链路，覆盖 ${pageCount} 个投资页面，重点校验研究判断链路是否与企业端内容隔离。`;
 }
 
-export async function fetchPortalAuditReport(role: PortalAuditRole): Promise<PortalAuditReport> {
+export async function fetchPortalAuditReport(role: PortalAuditRole, userId: string): Promise<PortalAuditReport> {
   const report = await requestJson<DualPortalPersonalizationAuditReport>(
-    "/acceptance/dual-portal-personalization-audit",
+    `/acceptance/dual-portal-personalization-audit?userId=${encodeURIComponent(userId)}`,
   );
   const pages = report.pageMatrix.filter((page) => page.audience === role);
   const channels = report.dataChannels
@@ -242,7 +263,8 @@ export async function fetchPortalAuditReport(role: PortalAuditRole): Promise<Por
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${clientEnv.VITE_API_BASE_URL}${path}`, {
+  const url = `${clientEnv.VITE_API_BASE_URL}${path}`;
+  const response = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -251,6 +273,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
+    console.error(`[API 404/500] ${response.status} ${url}`);
     let message = `Request failed with status ${response.status}`;
 
     try {
@@ -280,8 +303,8 @@ export function fetchMeta() {
   return requestJson<MetaResponse>("/meta");
 }
 
-export function fetchCompetitiveBaselineReport() {
-  return requestJson<CompetitiveAcceptanceReport>("/acceptance/competitive-baseline");
+export function fetchCompetitiveBaselineReport(userId: string) {
+  return requestJson<CompetitiveAcceptanceReport>(`/acceptance/competitive-baseline?userId=${encodeURIComponent(userId)}`);
 }
 
 export function bootstrapUserIdentity(payload: UserIdentityBootstrapRequest) {
@@ -316,6 +339,83 @@ export function analyzeEnterprise(payload: EnterpriseAnalysisRequest) {
   });
 }
 
+export async function streamEnterpriseAnalysis(
+  payload: EnterpriseAnalysisRequest,
+  onEvent: (event: EnterpriseAnalysisStreamEvent) => void,
+  signal?: AbortSignal,
+) {
+  const response = await fetch(`${clientEnv.VITE_API_BASE_URL}/enterprise/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() ?? "";
+
+      for (const chunk of chunks) {
+        const dataLine = chunk
+          .split("\n")
+          .find((line) => line.startsWith("data:"))
+          ?.replace(/^data:\s*/, "");
+
+        if (!dataLine) {
+          continue;
+        }
+
+        try {
+          onEvent(JSON.parse(dataLine) as EnterpriseAnalysisStreamEvent);
+        } catch {
+          // skip malformed SSE data line
+        }
+      }
+    }
+
+    // Process remaining buffer after stream ends
+    if (buffer.trim()) {
+      const dataLine = buffer
+        .split("\n")
+        .find((line) => line.startsWith("data:"))
+        ?.replace(/^data:\s*/, "");
+
+      if (dataLine) {
+        try {
+          onEvent(JSON.parse(dataLine) as EnterpriseAnalysisStreamEvent);
+        } catch {
+          // skip malformed SSE data line
+        }
+      }
+    }
+  } catch (streamError) {
+    if (signal?.aborted) {
+      return;
+    }
+    console.warn("SSE stream read error:", streamError);
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export function createInvestorProfile(payload: InvestorProfileRequest) {
   return requestJson<InvestorProfileResponse>("/investor/profile", {
     method: "POST",
@@ -324,32 +424,32 @@ export function createInvestorProfile(payload: InvestorProfileRequest) {
 }
 
 export function fetchInvestorSessions(userId: string) {
-  return requestJson<InvestorSessionListResponse>(`/investor/sessions/${encodeURIComponent(userId)}`);
+  return requestJson<InvestorSessionListResponse>(`/investor/sessions/${encodeURIComponent(userId)}?userId=${encodeURIComponent(userId)}&role=investor`);
 }
 
-export function fetchInvestorSessionContext(sessionId: string) {
-  return requestJson<SessionContext>(`/context/${encodeURIComponent(sessionId)}`);
+export function fetchEnterpriseSessions(userId: string) {
+  return requestJson<InvestorSessionListResponse>(`/enterprise/sessions/${encodeURIComponent(userId)}?userId=${encodeURIComponent(userId)}`);
 }
 
-export function createInvestorSession(payload: {
-  userId: string;
-  focusMode: FocusMode;
-  enterpriseName?: string;
-}) {
+export function fetchInvestorSessionContext(sessionId: string, userId: string) {
+  return requestJson<SessionContext>(`/context/${encodeURIComponent(sessionId)}?userId=${encodeURIComponent(userId)}`);
+}
+
+export function createInvestorSession(payload: InvestorSessionCreateRequest) {
   return requestJson<InvestorSessionCreateResponse>("/investor/sessions", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function deleteCurrentInvestorSession(payload: { userId: string; sessionId: string }) {
+export function deleteCurrentInvestorSession(payload: InvestorSessionDeleteRequest) {
   return requestJson<InvestorSessionDeleteResponse>("/investor/sessions/delete-current", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function deleteInvestorSessions(payload: { userId: string; sessionIds: string[] }) {
+export function deleteInvestorSessions(payload: InvestorSessionBatchDeleteRequest) {
   return requestJson<InvestorSessionDeleteResponse>("/investor/sessions/delete-batch", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -363,13 +463,14 @@ export function uploadInvestorAttachment(payload: InvestorAttachmentUploadReques
   });
 }
 
-export function switchInvestorMode(payload: {
-  userId: string;
-  sessionId: string;
-  focusMode: FocusMode;
-  enterpriseName?: string;
-  query?: string;
-}) {
+export function uploadEnterpriseAttachment(payload: EnterpriseAttachmentUploadRequest) {
+  return requestJson<EnterpriseAttachmentUploadResponse>("/enterprise/attachments", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function switchInvestorMode(payload: InvestorModeSwitchRequest) {
   return requestJson<InvestorModeResponse>("/investor/mode", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -448,6 +549,22 @@ export async function streamInvestorAnalysis(
         }
       }
     }
+
+    // Process remaining buffer after stream ends
+    if (buffer.trim()) {
+      const dataLine = buffer
+        .split("\n")
+        .find((line) => line.startsWith("data:"))
+        ?.replace(/^data:\s*/, "");
+
+      if (dataLine) {
+        try {
+          onEvent(JSON.parse(dataLine) as InvestorAnalysisStreamEvent);
+        } catch {
+          // skip malformed SSE data line
+        }
+      }
+    }
   } catch (streamError) {
     if (signal?.aborted) {
       return;
@@ -466,7 +583,7 @@ export function writePrivateMemory(payload: PrivateMemoryWriteRequest) {
 }
 
 export function fetchPrivateMemories(userId: string, limit = 8) {
-  return requestJson<MemoryListResponse>(`/memory/${encodeURIComponent(userId)}?limit=${limit}`);
+  return requestJson<MemoryListResponse>(`/memory/${encodeURIComponent(userId)}?userId=${encodeURIComponent(userId)}&limit=${limit}`);
 }
 
 export function updatePrivateMemory(memoryId: string, payload: PrivateMemoryUpdateRequest) {
@@ -485,10 +602,172 @@ export function deletePrivateMemory(memoryId: string, userId: string) {
   );
 }
 
-export async function clearRagCache(): Promise<{ success: boolean; message: string }> {
-  const response = await fetch(`${clientEnv.VITE_API_BASE_URL}/rag/cache/clear`, { method: "POST" });
-  if (!response.ok) throw new Error("Failed to clear RAG cache");
-  return response.json();
+export async function clearRagCache(userId: string): Promise<{ success: boolean; message: string }> {
+  return requestJson("/rag/cache/clear?userId=" + encodeURIComponent(userId), { method: "POST" });
+}
+
+export async function fetchLatestIndustryData() {
+  return requestJson<{ success: boolean; data: Record<string, unknown> | null; message?: string }>("/data/industry/latest");
+}
+
+export async function fetchEnterpriseFinancialData(enterpriseId: string) {
+  return requestJson<{ success: boolean; data: Record<string, unknown> | null; message?: string }>(`/data/financial/${encodeURIComponent(enterpriseId)}`);
+}
+
+export async function refreshData(userId: string, enterpriseName?: string) {
+  return requestJson<{ success: boolean; data: Record<string, unknown> }>("/data/refresh", {
+    method: "POST",
+    body: JSON.stringify({ userId, enterpriseName }),
+  });
+}
+
+export async function fetchSessionMessages(sessionId: string, userId: string) {
+  return requestJson<{ success: boolean; data: ChatMessage[] }>(`/sessions/${encodeURIComponent(sessionId)}/messages?userId=${encodeURIComponent(userId)}`);
+}
+
+export async function realtimeRagSearch(payload: {
+  query: string;
+  maxResults?: number;
+  maxSourceAgeDays?: number;
+  minConfidence?: number;
+  userId: string;
+}) {
+  return requestJson("/rag/realtime", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchMinimumDeploymentAudit(userId: string) {
+  return requestJson("/acceptance/minimum-deployment?userId=" + encodeURIComponent(userId));
+}
+
+export async function submitFeedback(payload: {
+  userId: string;
+  sessionId?: string;
+  rating: number;
+  comment?: string;
+  category?: string;
+}) {
+  return requestJson("/feedback", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchUserHistory(userId: string, viewer = "owner") {
+  return requestJson(`/history/${encodeURIComponent(userId)}?viewer=${encodeURIComponent(viewer)}`);
+}
+
+export async function submitEnterpriseAnalysisTask(payload: {
+  userId: string;
+  enterpriseName: string;
+  query: string;
+}) {
+  return requestJson("/tasks/enterprise-analysis", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function submitInvestorAnalysisTask(payload: {
+  userId: string;
+  enterpriseName: string;
+  query: string;
+}) {
+  return requestJson("/tasks/investor-analysis", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchTaskStatus(taskId: string, userId: string) {
+  return requestJson(`/tasks/${encodeURIComponent(taskId)}?userId=${encodeURIComponent(userId)}`);
+}
+
+export async function requestTaskManualTakeover(taskId: string, userId: string) {
+  return requestJson(`/tasks/${encodeURIComponent(taskId)}/manual-takeover?userId=${encodeURIComponent(userId)}`, {
+    method: "POST",
+  });
+}
+
+export async function calculateDQI(payload: {
+  userId: string;
+  currentRoe: number;
+  baselineRoe: number;
+  currentGrowth: number;
+  baselineGrowth: number;
+  currentOcfRatio: number;
+  baselineOcfRatio: number;
+}) {
+  return requestJson("/models/dqi/calculate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function calculateGMPS(payload: {
+  userId: string;
+  gpmYoy: number;
+  indVolYoy: number;
+  mfgCostRatio: number;
+  inventoryTurnover: number;
+  ocfToRevenue: number;
+  debtToAsset: number;
+  rAndDIntensity: number;
+}) {
+  return requestJson("/models/gmps/calculate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function analyzeGrossMarginPressure(payload: {
+  userId: string;
+  currentGrossMargin: number;
+  baselineGrossMargin: number;
+  currentRevenue: number;
+  baselineRevenue: number;
+  currentCost: number;
+  baselineCost: number;
+  currentSalesVolume: number;
+  baselineSalesVolume: number;
+  currentInventoryExpense: number;
+  baselineInventoryExpense: number;
+}) {
+  return requestJson("/models/gross-margin-pressure", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function analyzeOperatingQuality(payload: {
+  userId: string;
+  currentSalesVolume: number;
+  baselineSalesVolume: number;
+  currentProductionVolume: number;
+  baselineProductionVolume: number;
+  currentManufacturingExpense: number;
+  baselineManufacturingExpense: number;
+  currentOperatingCost: number;
+  baselineOperatingCost: number;
+  currentOperatingCashFlow: number;
+  baselineOperatingCashFlow: number;
+  currentRevenue: number;
+  baselineRevenue: number;
+  currentTotalLiabilities: number;
+  baselineTotalLiabilities: number;
+  currentTotalAssets: number;
+  baselineTotalAssets: number;
+}) {
+  return requestJson("/models/operating-quality", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchOpsDashboard(userId: string, viewer = "operations") {
+  return requestJson(`/ops/dashboard?viewer=${encodeURIComponent(viewer)}`);
 }
 
 export { clientEnv };

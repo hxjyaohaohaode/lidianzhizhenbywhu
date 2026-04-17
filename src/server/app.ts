@@ -32,12 +32,64 @@ type CreateAppOptions = {
   logger: Logger;
 };
 
+const MAX_RATE_LIMIT_ENTRIES = 10000;
+
+type ApiCategory = "analysis" | "query" | "other";
+
+const CATEGORY_LIMITS: Record<ApiCategory, number> = {
+  analysis: 10,
+  query: 60,
+  other: 30,
+};
+
+const ANALYSIS_PATTERNS = [
+  "/api/enterprise/stream",
+  "/api/investor/stream",
+  "/api/enterprise/analyze",
+  "/api/investor/recommend",
+  "/api/investor/deep-dive",
+  "/api/investor/industry-status",
+];
+
+function classifyApiCategory(path: string): ApiCategory {
+  if (ANALYSIS_PATTERNS.includes(path)) {
+    return "analysis";
+  }
+  if (path.startsWith("/api/users/") || path.startsWith("/api/sessions/") || path.startsWith("/api/context/") || path.startsWith("/api/memory/") || path.startsWith("/api/investor/sessions")) {
+    return "query";
+  }
+  return "other";
+}
+
+function extractUserId(request: express.Request): string {
+  const fromBody = request.body?.userId;
+  if (typeof fromBody === "string" && fromBody.length > 0) return fromBody;
+  const fromQuery = request.query?.userId;
+  if (typeof fromQuery === "string" && fromQuery.length > 0) return fromQuery;
+  const fromHeader = request.headers["x-user-id"];
+  if (typeof fromHeader === "string" && fromHeader.length > 0) return fromHeader;
+  return request.ip || request.headers["x-forwarded-for"]?.toString() || "local";
+}
+
 function createRateLimitMiddleware(env: ServerEnv) {
   const requests = new Map<string, { startedAt: number; count: number }>();
 
   return (request: express.Request, response: express.Response, next: express.NextFunction) => {
-    const key = request.ip || request.headers["x-forwarded-for"]?.toString() || "local";
+    const userId = extractUserId(request);
+    const category = classifyApiCategory(request.path);
+    const key = `${userId}:${category}`;
+    const maxRequests = CATEGORY_LIMITS[category];
     const now = Date.now();
+
+    if (requests.size > MAX_RATE_LIMIT_ENTRIES) {
+      const sorted = [...requests.entries()].sort((a, b) => a[1].startedAt - b[1].startedAt);
+      const deleteCount = Math.ceil(sorted.length * 0.5);
+      for (let i = 0; i < deleteCount; i++) {
+        const entry = sorted[i];
+        if (entry) requests.delete(entry[0]);
+      }
+    }
+
     const current = requests.get(key);
 
     if (!current || now - current.startedAt > env.RATE_LIMIT_WINDOW_MS) {
@@ -46,7 +98,11 @@ function createRateLimitMiddleware(env: ServerEnv) {
       return;
     }
 
-    if (current.count >= env.RATE_LIMIT_MAX_REQUESTS) {
+    if (current.count >= maxRequests) {
+      const elapsed = now - current.startedAt;
+      const remainingMs = env.RATE_LIMIT_WINDOW_MS - elapsed;
+      const retryAfter = Math.max(1, Math.ceil(remainingMs / 1000));
+      response.setHeader("Retry-After", String(retryAfter));
       next(
         new AppError({
           code: "RATE_LIMITED",
@@ -87,7 +143,7 @@ function authenticateRequest(request: express.Request, response: express.Respons
 function authorizeRole(requiredRole: string) {
   return (request: express.Request, response: express.Response, next: express.NextFunction) => {
     const role = request.body?.role || request.query?.role;
-    if (role && role !== requiredRole) {
+    if (role !== requiredRole) {
       return response.status(403).json({ error: { code: "FORBIDDEN", message: `无权访问${requiredRole === "enterprise" ? "企业端" : "投资端"}功能。` } });
     }
     next();
@@ -310,15 +366,15 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.post("/api/models/gross-margin-pressure", (request, response, next) => {
+  app.post("/api/models/gross-margin-pressure", authenticateRequest, (request, response, next) => {
     try {
-      response.json(analyzeGrossMarginPressure(request.body));
+      response.json({ success: true, data: analyzeGrossMarginPressure(request.body), modelId: "grossMarginPressure" });
     } catch (error) {
       next(error);
     }
   });
 
-  app.post("/api/models/operating-quality", (request, response, next) => {
+  app.post("/api/models/operating-quality", authenticateRequest, (request, response, next) => {
     try {
       response.json({ success: true, data: analyzeOperatingQuality(request.body) });
     } catch (error) {
@@ -327,7 +383,7 @@ export function createApp({ env, logger }: CreateAppOptions) {
   });
 
   // DQI模型计算接口
-  app.post("/api/models/dqi/calculate", (request, response, next) => {
+  app.post("/api/models/dqi/calculate", authenticateRequest, (request, response, next) => {
     try {
       const result = calculateDQI(request.body);
       response.json({ success: true, data: result });
@@ -337,7 +393,7 @@ export function createApp({ env, logger }: CreateAppOptions) {
   });
 
   // GMPS模型计算接口
-  app.post("/api/models/gmps/calculate", (request, response, next) => {
+  app.post("/api/models/gmps/calculate", authenticateRequest, (request, response, next) => {
     try {
       const result = calculateGMPS(request.body);
       response.json({ success: true, data: result });
@@ -361,7 +417,70 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.get("/api/acceptance/competitive-baseline", async (_request, response, next) => {
+  app.get("/api/data/industry/latest", (_request, response) => {
+    try {
+      const latest = platformStore.getLatestIndustryData();
+      if (!latest) {
+        response.json({ success: true, data: null, message: "暂无行业数据，请先触发数据采集。" });
+        return;
+      }
+      response.json({ success: true, data: latest });
+    } catch (error) {
+      console.error("[API] Error fetching latest industry data:", error);
+      response.status(500).json({ success: false, data: null, message: "获取行业数据失败", error: error instanceof Error ? error.message : "未知错误" });
+    }
+  });
+
+  app.get("/api/data/financial/:enterpriseId", (request, response) => {
+    const enterpriseId = request.params.enterpriseId;
+    const latest = platformStore.getFinancialData(enterpriseId);
+    if (!latest) {
+      response.json({ success: true, data: null, message: "暂无该企业财务数据。" });
+      return;
+    }
+    response.json({ success: true, data: latest });
+  });
+
+  app.post("/api/data/refresh", authenticateRequest, async (request, response, next) => {
+    try {
+      const dataGatheringAgent = diagnosticWorkflowService.getDataGatheringAgent();
+      const currentYear = String(new Date().getFullYear());
+      const enterpriseName = typeof request.body?.enterpriseName === "string" ? request.body.enterpriseName : undefined;
+      const results: Record<string, unknown> = {};
+
+      if (enterpriseName) {
+        const financials = await dataGatheringAgent.collectEnterpriseFinancialData(enterpriseName, currentYear);
+        results.enterpriseFinancials = financials;
+        if (!financials.degraded) {
+          const reports = [
+            ...(Array.isArray(financials.exchangeReports) ? financials.exchangeReports : []),
+            ...(Array.isArray(financials.eastmoneyReports) ? financials.eastmoneyReports : []),
+          ];
+          results.reportsFetched = reports.length;
+          results.reportSources = [
+            ...(Array.isArray(financials.exchangeReports) ? ["exchange"] : []),
+            ...(Array.isArray(financials.eastmoneyReports) ? ["eastmoney"] : []),
+          ];
+        }
+      }
+
+      const industryResult = await dataGatheringAgent.fetchEastmoneyIndustryReports("锂电池");
+      results.industryReports = industryResult;
+
+      const macroResult = await diagnosticWorkflowService.collectIndustryData();
+      results.macroData = macroResult;
+
+      const latestIndustry = platformStore.getLatestIndustryData();
+      results.latestIndustryData = latestIndustry;
+      results.stale = platformStore.isIndustryDataStale(env.DATA_STALE_THRESHOLD_DAYS ?? 7);
+
+      response.json({ success: true, data: results });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/acceptance/competitive-baseline", authenticateRequest, async (_request, response, next) => {
     try {
       response.json(await diagnosticWorkflowService.generateCompetitiveAcceptanceReport());
     } catch (error) {
@@ -369,7 +488,7 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.get("/api/acceptance/dual-portal-personalization-audit", (_request, response, next) => {
+  app.get("/api/acceptance/dual-portal-personalization-audit", authenticateRequest, (_request, response, next) => {
     try {
       response.json(diagnosticWorkflowService.generateDualPortalPersonalizationAuditReport());
     } catch (error) {
@@ -377,7 +496,7 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.get("/api/acceptance/minimum-deployment", async (_request, response, next) => {
+  app.get("/api/acceptance/minimum-deployment", authenticateRequest, async (_request, response, next) => {
     try {
       response.json(await diagnosticWorkflowService.generateMinimumDeploymentAuditReport());
     } catch (error) {
@@ -385,7 +504,7 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.post("/api/rag/realtime", async (request, response, next) => {
+  app.post("/api/rag/realtime", authenticateRequest, async (request, response, next) => {
     try {
       const parsed = realtimeRagRequestSchema.safeParse(request.body);
 
@@ -407,7 +526,7 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.post("/api/rag/cache/clear", (_request, response, next) => {
+  app.post("/api/rag/cache/clear", authenticateRequest, (_request, response, next) => {
     try {
       realtimeRagService.clearCache();
       response.json({ success: true, message: "RAG缓存已清除" });
@@ -432,7 +551,55 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.post("/api/tasks/enterprise-analysis", async (request, response, next) => {
+  app.post("/api/enterprise/stream", authenticateRequest, authorizeRole("enterprise"), async (request, response) => {
+    response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    response.setHeader("Cache-Control", "no-cache, no-transform");
+    response.setHeader("Connection", "keep-alive");
+    response.flushHeaders();
+
+    const heartbeatInterval = setInterval(() => {
+      if (!response.writableEnded) {
+        response.write(': keepalive\n\n');
+      }
+    }, 30000);
+
+    request.on("close", () => {
+      clearInterval(heartbeatInterval);
+    });
+
+    response.on("close", () => {
+      clearInterval(heartbeatInterval);
+    });
+
+    try {
+      await businessPortalService.streamEnterpriseAnalysis(request.body, async (event) => {
+        if (!response.writableEnded) {
+          writeSseEvent(response, event.type, event);
+        }
+      }, { signal: { get aborted() { return response.destroyed; } } });
+      if (!response.writableEnded) response.end();
+    } catch (error) {
+      if (response.writableEnded) return;
+      writeSseEvent(response, "error", {
+        type: "error",
+        message: error instanceof Error ? error.message : "企业端流式分析失败。",
+      });
+      response.end();
+      response.locals.logger?.error({ err: error }, "enterprise stream failed");
+    } finally {
+      clearInterval(heartbeatInterval);
+    }
+  });
+
+  app.post("/api/enterprise/attachments", authenticateRequest, authorizeRole("enterprise"), async (request, response, next) => {
+    try {
+      response.status(201).json(await businessPortalService.uploadEnterpriseAttachment(request.body));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/tasks/enterprise-analysis", authenticateRequest, async (request, response, next) => {
     try {
       response.status(202).json(await taskManager.submitEnterpriseAnalysis(request.body));
     } catch (error) {
@@ -451,6 +618,15 @@ export function createApp({ env, logger }: CreateAppOptions) {
   app.get("/api/investor/sessions/:userId", authenticateRequest, authorizeRole("investor"), (request, response, next) => {
     try {
       response.json(businessPortalService.listInvestorSessions(request.params.userId as string));
+    } catch (error) {
+      console.error("[API] Error listing investor sessions:", error);
+      response.status(500).json({ success: false, items: [], message: "获取会话列表失败", error: error instanceof Error ? error.message : "未知错误" });
+    }
+  });
+
+  app.get("/api/enterprise/sessions/:userId", authenticateRequest, authorizeRole("enterprise"), (request, response, next) => {
+    try {
+      response.json(businessPortalService.listEnterpriseSessions(request.params.userId as string));
     } catch (error) {
       next(error);
     }
@@ -539,43 +715,71 @@ export function createApp({ env, logger }: CreateAppOptions) {
     response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
     response.setHeader("Cache-Control", "no-cache, no-transform");
     response.setHeader("Connection", "keep-alive");
+    response.setHeader("X-Accel-Buffering", "no");
     response.flushHeaders();
 
-    const heartbeatInterval = setInterval(() => {
-      if (!response.writableEnded) {
-        response.write(': keepalive\n\n');
+    let heartbeatInterval: NodeJS.Timeout | null = setInterval(() => {
+      try {
+        if (!response.writableEnded && !response.destroyed) {
+          response.write(': keepalive\n\n');
+        }
+      } catch {
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+        }
       }
-    }, 30000);
+    }, 15000);
 
-    request.on("close", () => {
-      clearInterval(heartbeatInterval);
-    });
+    const cleanup = () => {
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+    };
 
-    response.on("close", () => {
-      clearInterval(heartbeatInterval);
-    });
+    request.on("close", cleanup);
+    response.on("close", cleanup);
+    response.on("error", cleanup);
+
+    const writeEvent = (eventName: string, payload: unknown) => {
+      try {
+        if (!response.writableEnded && !response.destroyed && response.writable) {
+          writeSseEvent(response, eventName, payload);
+        }
+      } catch (writeError) {
+        console.error("[SSE] Write failed:", writeError);
+        cleanup();
+      }
+    };
 
     try {
       await businessPortalService.streamInvestorAnalysis(request.body, async (event) => {
-        if (!response.writableEnded) {
-          writeSseEvent(response, event.type, event);
-        }
-      }, { signal: { get aborted() { return response.destroyed; } } });
-      if (!response.writableEnded) response.end();
+        writeEvent(event.type, event);
+      }, { signal: { get aborted() { return response.destroyed || response.writableEnded; } } });
+      
+      if (!response.writableEnded && !response.destroyed) {
+        response.end();
+      }
     } catch (error) {
-      if (response.writableEnded) return;
-      writeSseEvent(response, "error", {
-        type: "error",
-        message: error instanceof Error ? error.message : "流式分析失败。",
-      });
-      response.end();
+      try {
+        if (!response.writableEnded && !response.destroyed) {
+          writeEvent("error", {
+            type: "error",
+            message: error instanceof Error ? error.message : "流式分析失败。",
+          });
+          response.end();
+        }
+      } catch {
+        // Response already ended or destroyed, just log
+      }
       response.locals.logger?.error({ err: error }, "investor stream failed");
     } finally {
-      clearInterval(heartbeatInterval);
+      cleanup();
     }
   });
 
-  app.post("/api/tasks/investor-analysis", async (request, response, next) => {
+  app.post("/api/tasks/investor-analysis", authenticateRequest, async (request, response, next) => {
     try {
       response.status(202).json(await taskManager.submitInvestorAnalysis(request.body));
     } catch (error) {
@@ -583,9 +787,9 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.get("/api/tasks/:taskId", (request, response, next) => {
+  app.get("/api/tasks/:taskId", authenticateRequest, (request, response, next) => {
     try {
-      const task = taskManager.getTask(request.params.taskId);
+      const task = taskManager.getTask(request.params.taskId as string);
 
       if (!task) {
         throw new AppError({
@@ -601,9 +805,9 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.post("/api/tasks/:taskId/manual-takeover", async (request, response, next) => {
+  app.post("/api/tasks/:taskId/manual-takeover", authenticateRequest, async (request, response, next) => {
     try {
-      response.json(await taskManager.requestManualTakeover(request.params.taskId));
+      response.json(await taskManager.requestManualTakeover(request.params.taskId as string));
     } catch (error) {
       next(error);
     }
@@ -612,6 +816,15 @@ export function createApp({ env, logger }: CreateAppOptions) {
   app.get("/api/context/:sessionId", authenticateRequest, verifySessionOwnership, (request, response, next) => {
     try {
       response.json(businessPortalService.getSessionContext(request.params.sessionId as string));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/sessions/:sessionId/messages", authenticateRequest, verifySessionOwnership, (request, response, next) => {
+    try {
+      const messages = platformStore.getChatMessages(request.params.sessionId as string);
+      response.json({ success: true, data: messages });
     } catch (error) {
       next(error);
     }
@@ -663,7 +876,7 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.post("/api/feedback", async (request, response, next) => {
+  app.post("/api/feedback", authenticateRequest, async (request, response, next) => {
     try {
       response.json(await businessPortalService.recordUserFeedback(request.body));
     } catch (error) {
@@ -684,7 +897,7 @@ export function createApp({ env, logger }: CreateAppOptions) {
     }
   });
 
-  app.get("/api/ops/dashboard", (request, response, next) => {
+  app.get("/api/ops/dashboard", authenticateRequest, (request, response, next) => {
     try {
       const viewer = request.query.viewer === "admin" ? "admin" : "operations";
       response.json(businessPortalService.getOperationsDashboard(viewer));
@@ -716,6 +929,8 @@ export function createApp({ env, logger }: CreateAppOptions) {
   });
 
   app.use(errorHandler(logger));
+
+  (app as unknown as { platformStore?: PlatformStore }).platformStore = platformStore;
 
   return app;
 }

@@ -108,6 +108,7 @@ export const serverEnvSchema = clientEnvSchema.extend({
     "edu.cn",
   ]),
   RAG_MAX_SOURCE_AGE_DAYS: z.coerce.number().int().positive().default(60),
+  DATA_STALE_THRESHOLD_DAYS: z.coerce.number().int().positive().default(7),
   HEALTHCHECK_INCLUDE_DETAILS: booleanFlag.default(true),
   ENABLE_BACKGROUND_TASKS: booleanFlag.default(true),
   DEEPSEEK_API_KEY: optionalSecret,

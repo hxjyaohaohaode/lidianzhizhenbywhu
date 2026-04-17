@@ -38,6 +38,7 @@ const testEnv: ServerEnv = {
   DEEPSEEK_BASE_URL: "https://api.deepseek.com/v1",
   GLM_BASE_URL: "https://open.bigmodel.cn/api/paas/v4",
   QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  DATA_STALE_THRESHOLD_DAYS: 7,
 };
 
 describe("api skeleton", () => {
@@ -49,7 +50,7 @@ describe("api skeleton", () => {
 
   async function waitForTask(taskId: string) {
     for (let attempt = 0; attempt < 80; attempt += 1) {
-      const response = await request(app).get(`/api/tasks/${taskId}`);
+      const response = await request(app).get(`/api/tasks/${taskId}?userId=ops-user`);
       if (response.body.status === "completed" || response.body.status === "manual_takeover") {
         return response;
       }
@@ -205,6 +206,7 @@ describe("api skeleton", () => {
 
   it("returns gross margin pressure analysis result", async () => {
     const response = await request(app).post("/api/models/gross-margin-pressure").send({
+      userId: "test-user",
       currentGrossMargin: 18,
       baselineGrossMargin: 24,
       currentRevenue: 1350,
@@ -219,13 +221,14 @@ describe("api skeleton", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.modelId).toBe("grossMarginPressure");
-    expect(response.body.riskLevel).toBeTypeOf("string");
-    expect(response.body.trend.direction).toBe("deteriorating");
-    expect(response.body.normalizedMetrics.marginChange).toBeTruthy();
+    expect(response.body.data.riskLevel).toBeTypeOf("string");
+    expect(response.body.data.trend.direction).toBe("deteriorating");
+    expect(response.body.data.normalizedMetrics.marginChange).toBeTruthy();
   });
 
   it("returns operating quality validation failure details", async () => {
     const response = await request(app).post("/api/models/operating-quality").send({
+      userId: "test-user",
       currentSalesVolume: 100,
       baselineSalesVolume: 100,
       currentProductionVolume: 100,
@@ -266,7 +269,7 @@ describe("api skeleton", () => {
         role: "enterprise",
         userId: "user-1",
         enterpriseName: "星海电池",
-        query: "请判断当前毛利承压与经营质量变化，并给出行动建议",
+        query: "请进行企业诊断与经营分析，判断毛利率压力与经营质量变化，并给出行动建议",
         focusMode: "operationalDiagnosis",
         grossMarginInput: {
           currentGrossMargin: 18,
@@ -471,7 +474,7 @@ describe("api skeleton", () => {
   });
 
   it("outputs quantified competitive acceptance baseline report", { timeout: 60000 }, async () => {
-    const response = await request(app).get("/api/acceptance/competitive-baseline");
+    const response = await request(app).get("/api/acceptance/competitive-baseline?userId=test-user");
 
     expect(response.status).toBe(200);
     expect(response.body.baselines).toHaveLength(4);
@@ -538,7 +541,7 @@ describe("api skeleton", () => {
   });
 
   it("outputs dual portal personalization audit report", async () => {
-    const response = await request(app).get("/api/acceptance/dual-portal-personalization-audit");
+    const response = await request(app).get("/api/acceptance/dual-portal-personalization-audit?userId=test-user");
 
     expect(response.status).toBe(200);
     expect(response.body.summary).toEqual(
@@ -591,7 +594,7 @@ describe("api skeleton", () => {
   });
 
   it("outputs minimum deployment audit report", { timeout: 60000 }, async () => {
-    const response = await request(app).get("/api/acceptance/minimum-deployment");
+    const response = await request(app).get("/api/acceptance/minimum-deployment?userId=test-user");
 
     expect(response.status).toBe(200);
     expect(response.body.evidenceMode).toBe("automated_mock");
@@ -618,6 +621,7 @@ describe("api skeleton", () => {
 
   it("returns realtime rag retrieval result", async () => {
     const response = await request(app).post("/api/rag/realtime").send({
+      userId: "test-user",
       role: "investor",
       query: "请跟踪行业景气、现金流风险和政策信号",
       focusMode: "investmentRecommendation",
@@ -767,7 +771,7 @@ describe("api skeleton", () => {
         role: "investor",
         sessionId: profileResponse.body.sessionContext.sessionId,
         enterpriseName: "星海电池",
-        query: "请先判断当前行业景气与供需结构",
+        query: "请先判断行业景气与供需结构",
         industryContext: {
           marketDemandIndex: 108,
           materialCostTrend: "down",
@@ -786,7 +790,7 @@ describe("api skeleton", () => {
         role: "investor",
         sessionId: profileResponse.body.sessionContext.sessionId,
         enterpriseName: "星海电池",
-        query: "请给出当前投资建议",
+        query: "请给出投资建议",
         grossMarginInput: {
           currentGrossMargin: 22,
           baselineGrossMargin: 20,
@@ -1146,7 +1150,7 @@ describe("api skeleton", () => {
 
     const manualTakeoverResponse = await request(app).post(
       `/api/tasks/${taskCreateResponse.body.taskId}/manual-takeover`,
-    );
+    ).send({ userId: "ops-user" });
     expect(manualTakeoverResponse.status).toBe(200);
     expect(manualTakeoverResponse.body.manualTakeoverRequested).toBe(true);
 
@@ -1166,7 +1170,7 @@ describe("api skeleton", () => {
     expect(historyResponse.body.analyses.length).toBeGreaterThan(0);
     expect(historyResponse.body.tasks.length).toBeGreaterThan(0);
 
-    const dashboardResponse = await request(app).get("/api/ops/dashboard?viewer=admin");
+    const dashboardResponse = await request(app).get("/api/ops/dashboard?viewer=admin&userId=ops-user");
     expect(dashboardResponse.status).toBe(200);
     expect(dashboardResponse.body.overview.userCount).toBeGreaterThan(0);
     expect(dashboardResponse.body.serviceOpportunities.length).toBeGreaterThan(0);

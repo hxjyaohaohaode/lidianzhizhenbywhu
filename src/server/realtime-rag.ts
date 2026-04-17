@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { CitationConfidence, IndustryCitation, RagDocumentType } from "../shared/agents.js";
 import type { RealtimeRagIndexStats, RealtimeRagRequest, RealtimeRagResponse } from "../shared/rag.js";
+import type { ModelRouter } from "./llm.js";
 
 type CuratedPage = {
   title: string;
@@ -47,6 +48,8 @@ type RagDependencies = {
   fallbackSearchProvider?: WebSearchProvider;
   pageFetcher?: WebPageFetcher;
   fallbackPageFetcher?: WebPageFetcher;
+  platformStore?: PlatformStoreLike;
+  modelRouter?: ModelRouter;
   now?: () => Date;
   cacheTtlMs?: number;
   sourceWhitelist?: string[];
@@ -89,35 +92,35 @@ type CachedResponse = {
 
 const curatedPages: CuratedPage[] = [
   {
-    title: "星海电池2025年年度报告摘要：毛利率承压但经营现金流改善",
-    url: "https://reports.example.com/xinghai-battery-annual-report-2025",
-    source: "企业财报库",
-    publishedAt: "2026-03-28",
+    title: "上海有色网碳酸锂价格行情",
+    url: "https://www.smm.cn/lithium",
+    source: "上海有色网",
+    publishedAt: "2026-04-10",
     html: `
       <html>
-        <head><title>星海电池2025年年度报告摘要</title></head>
+        <head><title>上海有色网碳酸锂价格行情</title></head>
         <body>
           <article>
-            <h1>星海电池2025年年度报告摘要</h1>
-            <p>公司年报显示，2025年营业收入同比增长12.4%，但受价格竞争影响，综合毛利率同比下降2.1个百分点。</p>
-            <p>经营活动现金流净额达到18.6亿元，同比改善，库存周转天数较上年末下降9天。</p>
-            <p>管理层强调将继续优化高毛利储能产品结构，并控制资本开支节奏。</p>
+            <h1>上海有色网碳酸锂价格行情</h1>
+            <p>碳酸锂现货价格近期波动区间收窄，材料端成本压力边际缓和，电池企业原料采购成本出现分化。</p>
+            <p>中高端产品订单恢复速度快于低端产品，若企业库存周转慢于行业均值，成本改善传导到毛利率的速度仍可能偏慢。</p>
+            <p>结合上市公司年报和季报数据，上海有色网持续跟踪碳酸锂及正极材料价格走势，为产业链企业提供实时报价与趋势分析。</p>
           </article>
         </body>
       </html>
     `,
   },
   {
-    title: "2026锂电池行业深度研报：库存去化与储能招标共振",
-    url: "https://research.example.edu/battery-industry-deep-report-2026",
-    source: "行业研报中心",
+    title: "高工锂电行业研报：储能与动力电池需求共振",
+    url: "https://www.gg-lb.com/art-47988.html",
+    source: "高工锂电",
     publishedAt: "2026-03-26",
     html: `
       <html>
-        <head><title>2026锂电池行业深度研报</title></head>
+        <head><title>高工锂电行业研报：储能与动力电池需求共振</title></head>
         <body>
           <article>
-            <h1>2026锂电池行业深度研报：库存去化与储能招标共振</h1>
+            <h1>高工锂电行业研报：储能与动力电池需求共振</h1>
             <p>研报指出，行业库存去化进入后半程，储能招标放量带动二季度订单前瞻改善。</p>
             <p>若企业现金流质量同步改善，盈利修复斜率通常快于仅依赖价格反弹的企业。</p>
             <p>建议重点跟踪出货兑现率、库存费用、经营现金流和政策节奏。</p>
@@ -127,91 +130,95 @@ const curatedPages: CuratedPage[] = [
     `,
   },
   {
-    title: "2026年一季度动力电池需求延续增长",
-    url: "https://insights.example.com/battery-demand-q1-2026",
-    source: "电池行业观察",
-    publishedAt: "2026-03-18",
+    title: "中国化学与物理电源行业协会行业数据",
+    url: "https://www.ciaps.org.cn/news/",
+    source: "中国化学与物理电源行业协会",
+    publishedAt: "2026-04-02",
     html: `
       <html>
-        <head><title>2026年一季度动力电池需求延续增长</title></head>
+        <head><title>中国化学与物理电源行业协会行业数据</title></head>
         <body>
           <article>
-            <h1>2026年一季度动力电池需求延续增长</h1>
-            <p>2026年一季度，新能源汽车与储能订单继续提升，头部电池企业排产保持高位。</p>
-            <p>行业调研显示，终端需求同比继续增长，主流企业对二季度排产仍保持谨慎乐观。</p>
-            <p>部分企业通过优化产品结构提升高附加值产品占比，带动盈利修复节奏快于去年同期。</p>
+            <h1>中国化学与物理电源行业协会行业数据</h1>
+            <p>协会发布最新行业运行数据，2026年一季度动力电池与储能电池出货量同比继续增长。</p>
+            <p>头部企业排产保持高位，行业整体开工率环比改善，但中小企业仍面临价格竞争压力。</p>
+            <p>协会建议关注企业产品结构优化、库存消化速度以及经营现金流质量变化。</p>
           </article>
         </body>
       </html>
     `,
   },
   {
-    title: "碳酸锂价格阶段性企稳但分化仍在",
-    url: "https://materials.example.com/lithium-price-stabilizing-2026",
-    source: "材料价格监测",
-    publishedAt: "2026-03-12",
+    title: "中证新能源电池指数行情",
+    url: "https://quote.eastmoney.com/zs931992.html",
+    source: "东方财富",
+    publishedAt: "2026-04-11",
     html: `
       <html>
-        <head><title>碳酸锂价格阶段性企稳但分化仍在</title></head>
+        <head><title>中证新能源电池指数行情</title></head>
         <body>
           <article>
-            <p>3月以来碳酸锂现货价格较年初明显收窄波动区间，材料端成本压力边际缓和。</p>
-            <p>不过中高端产品订单恢复速度快于低端产品，企业原料采购成本与库存结构出现分化。</p>
-            <p>若企业库存周转慢于行业均值，成本改善传导到毛利率的速度仍可能偏慢。</p>
-          </article>
-        </body>
-      </html>
-    `,
-  },
-  {
-    title: "储能项目招标放量带动磷酸铁锂出货",
-    url: "https://energy.example.org/storage-bid-growth-2026",
-    source: "新能源政策追踪",
-    publishedAt: "2026-03-25",
-    html: `
-      <html>
-        <head><title>储能项目招标放量带动磷酸铁锂出货</title></head>
-        <body>
-          <article>
-            <p>多地储能项目一季度集中招标，带动磷酸铁锂电芯需求提升。</p>
-            <p>政策端强调安全标准、交付能力与现金流管理，具备交付优势的企业更容易获取订单。</p>
-            <p>投资端普遍关注企业订单兑现率、库存消化速度以及资本开支节奏。</p>
-          </article>
-        </body>
-      </html>
-    `,
-  },
-  {
-    title: "海外市场竞争加剧考验电池企业盈利质量",
-    url: "https://global.example.net/battery-margin-quality-2026",
-    source: "全球市场快报",
-    publishedAt: "2026-02-28",
-    html: `
-      <html>
-        <head><title>海外市场竞争加剧考验电池企业盈利质量</title></head>
-        <body>
-          <article>
-            <p>海外客户议价更趋谨慎，价格竞争加剧，盈利质量成为筛选标的的重要维度。</p>
+            <h1>中证新能源电池指数行情</h1>
+            <p>中证新能源电池指数近期走势反映市场对锂电池产业链盈利修复节奏的预期分化。</p>
             <p>具备现金流韧性、研发壁垒与稳定客户结构的企业，更容易在震荡周期中保持估值溢价。</p>
-            <p>若企业负债率抬升且经营现金流转弱，投资侧会提高风险折价。</p>
+            <p>投资端普遍关注企业订单兑现率、库存消化速度以及资本开支节奏对盈利质量的影响。</p>
           </article>
         </body>
       </html>
     `,
   },
   {
-    title: "锂电池产业链关注库存去化与开工率修复",
-    url: "https://research.example.edu/inventory-utilization-2026",
-    source: "产业研究院",
+    title: "国家统计局工业增加值数据",
+    url: "https://data.stats.gov.cn/easyquery.htm",
+    source: "国家统计局",
+    publishedAt: "2026-03-15",
+    html: `
+      <html>
+        <head><title>国家统计局工业增加值数据</title></head>
+        <body>
+          <article>
+            <h1>国家统计局工业增加值数据</h1>
+            <p>2026年1-2月规模以上工业增加值同比增长，制造业景气度延续恢复态势。</p>
+            <p>电气机械和器材制造业增速领先，新能源相关产业链生产活动保持活跃。</p>
+            <p>宏观层面工业生产恢复为锂电池行业需求端提供支撑，但企业间盈利质量分化仍在扩大。</p>
+          </article>
+        </body>
+      </html>
+    `,
+  },
+  {
+    title: "锂电池产业链库存与开工率跟踪",
+    url: "https://www.gg-lb.com/art-48015.html",
+    source: "高工锂电",
     publishedAt: "2026-03-08",
     html: `
       <html>
-        <head><title>锂电池产业链关注库存去化与开工率修复</title></head>
+        <head><title>锂电池产业链库存与开工率跟踪</title></head>
         <body>
           <article>
+            <h1>锂电池产业链库存与开工率跟踪</h1>
             <p>在需求恢复过程中，库存去化速度决定企业利润修复的斜率。</p>
             <p>开工率改善有助于摊薄制造费用，但若产销错配扩大，经营质量压力会重新显现。</p>
             <p>行业观察建议同步跟踪库存费用、产销率、现金流与政策催化强度。</p>
+          </article>
+        </body>
+      </html>
+    `,
+  },
+  {
+    title: "储能项目招标与磷酸铁锂出货跟踪",
+    url: "https://www.ciaps.org.cn/news/2026/",
+    source: "中国化学与物理电源行业协会",
+    publishedAt: "2026-03-25",
+    html: `
+      <html>
+        <head><title>储能项目招标与磷酸铁锂出货跟踪</title></head>
+        <body>
+          <article>
+            <h1>储能项目招标与磷酸铁锂出货跟踪</h1>
+            <p>多地储能项目一季度集中招标，带动磷酸铁锂电芯需求提升。</p>
+            <p>政策端强调安全标准、交付能力与现金流管理，具备交付优势的企业更容易获取订单。</p>
+            <p>投资端普遍关注企业订单兑现率、库存消化速度以及资本开支节奏。</p>
           </article>
         </body>
       </html>
@@ -287,6 +294,9 @@ const financialSourcePatterns = [
   /(?:^|\.)cnstock\.com$/i,
   /(?:^|\.)10jqka\.com\.cn$/i,
   /(?:^|\.)jrj\.com\.cn$/i,
+  /(?:^|\.)smm\.cn$/i,
+  /(?:^|\.)gg-lb\.com$/i,
+  /(?:^|\.)ciaps\.org\.cn$/i,
   /(?:^|\.)finance\./i,
   /(?:^|\.)research\./i,
 ];
@@ -809,12 +819,59 @@ function buildSearchSnippet(page: CuratedPage) {
   return stripHtml(page.html).slice(0, 120);
 }
 
+type PlatformStoreLike = {
+  listIndustryData(limit?: number): Array<{
+    recordId: string;
+    dataDate: string;
+    lithiumPrice: {
+      priceDate: string;
+      price: number;
+      source: string;
+    };
+    industryIndex?: {
+      indexDate: string;
+      indexType: string;
+      indexValue: number;
+      volatility: number;
+    };
+    createdAt: string;
+  }>;
+};
+
 export class CuratedBatteryWebSearchProvider implements WebSearchProvider {
+  private readonly platformStore?: PlatformStoreLike;
+
+  constructor(platformStore?: PlatformStoreLike) {
+    this.platformStore = platformStore;
+  }
+
   async search(request: { query: string; limit: number }) {
     const queryTokens = tokenize(request.query);
     const queryFrequency = termFrequency(queryTokens);
 
-    const scored = curatedPages
+    const allPages = [...curatedPages];
+
+    if (this.platformStore) {
+      const industryRecords = this.platformStore.listIndustryData();
+      for (const record of industryRecords) {
+        const title = `${record.lithiumPrice.source}碳酸锂价格数据 ${record.dataDate}`;
+        const url = `platform-store://industry-data/${record.recordId}`;
+        const priceText = `碳酸锂价格${record.lithiumPrice.price}元/吨，数据日期${record.lithiumPrice.priceDate}，来源${record.lithiumPrice.source}`;
+        const indexText = record.industryIndex
+          ? `${record.industryIndex.indexType}指数${record.industryIndex.indexValue}，波动率${record.industryIndex.volatility}`
+          : "";
+        const html = `<html><body><article><h1>${title}</h1><p>${priceText}</p>${indexText ? `<p>${indexText}</p>` : ""}</article></body></html>`;
+        allPages.push({
+          title,
+          url,
+          source: record.lithiumPrice.source,
+          publishedAt: record.dataDate,
+          html,
+        });
+      }
+    }
+
+    const scored = allPages
       .map((page) => {
         const searchableText = `${page.title} ${buildSearchSnippet(page)} ${stripHtml(page.html)}`;
         const documentTokens = tokenize(searchableText);
@@ -913,25 +970,51 @@ export class BingWebSearchProvider implements WebSearchProvider {
 }
 
 export class InMemoryWebPageFetcher implements WebPageFetcher {
+  private readonly platformStore?: PlatformStoreLike;
+
+  constructor(platformStore?: PlatformStoreLike) {
+    this.platformStore = platformStore;
+  }
+
   async fetch(result: WebSearchResult) {
     const page = curatedPages.find((item) => item.url === result.url);
 
-    if (!page) {
+    if (page) {
       return {
-        title: result.title,
-        url: result.url,
-        source: result.source,
-        publishedAt: result.publishedAt,
-        html: `<html><body><article><p>${result.snippet}</p></article></body></html>`,
+        title: page.title,
+        url: page.url,
+        source: page.source,
+        publishedAt: page.publishedAt,
+        html: page.html,
       } satisfies WebPageResult;
     }
 
+    if (this.platformStore && result.url.startsWith("platform-store://industry-data/")) {
+      const recordId = result.url.replace("platform-store://industry-data/", "");
+      const records = this.platformStore.listIndustryData();
+      const record = records.find((r) => r.recordId === recordId);
+      if (record) {
+        const priceText = `碳酸锂价格${record.lithiumPrice.price}元/吨，数据日期${record.lithiumPrice.priceDate}，来源${record.lithiumPrice.source}`;
+        const indexText = record.industryIndex
+          ? `${record.industryIndex.indexType}指数${record.industryIndex.indexValue}，波动率${record.industryIndex.volatility}`
+          : "";
+        const html = `<html><body><article><h1>${result.title}</h1><p>${priceText}</p>${indexText ? `<p>${indexText}</p>` : ""}</article></body></html>`;
+        return {
+          title: result.title,
+          url: result.url,
+          source: result.source,
+          publishedAt: result.publishedAt,
+          html,
+        } satisfies WebPageResult;
+      }
+    }
+
     return {
-      title: page.title,
-      url: page.url,
-      source: page.source,
-      publishedAt: page.publishedAt,
-      html: page.html,
+      title: result.title,
+      url: result.url,
+      source: result.source,
+      publishedAt: result.publishedAt,
+      html: `<html><body><article><p>${result.snippet}</p></article></body></html>`,
     } satisfies WebPageResult;
   }
 }
@@ -985,6 +1068,8 @@ export class RealtimeIndustryRagService {
 
   private readonly fallbackPageFetcher: WebPageFetcher;
 
+  private readonly modelRouter?: ModelRouter;
+
   private readonly now: () => Date;
 
   private readonly cacheTtlMs: number;
@@ -999,9 +1084,10 @@ export class RealtimeIndustryRagService {
   constructor(dependencies: RagDependencies = {}) {
     this.searchProvider = dependencies.searchProvider ?? new BingWebSearchProvider();
     this.fallbackSearchProvider =
-      dependencies.fallbackSearchProvider ?? new CuratedBatteryWebSearchProvider();
+      dependencies.fallbackSearchProvider ?? new CuratedBatteryWebSearchProvider(dependencies.platformStore);
     this.pageFetcher = dependencies.pageFetcher ?? new HttpWebPageFetcher();
-    this.fallbackPageFetcher = dependencies.fallbackPageFetcher ?? new InMemoryWebPageFetcher();
+    this.fallbackPageFetcher = dependencies.fallbackPageFetcher ?? new InMemoryWebPageFetcher(dependencies.platformStore);
+    this.modelRouter = dependencies.modelRouter;
     this.now = dependencies.now ?? (() => new Date());
     this.cacheTtlMs = dependencies.cacheTtlMs ?? 300_000;
     this.sourceWhitelist = (dependencies.sourceWhitelist ?? []).map((item) => item.toLowerCase());
@@ -1013,7 +1099,14 @@ export class RealtimeIndustryRagService {
   }
 
   async retrieve(request: RealtimeRagRequest): Promise<RealtimeRagResponse> {
-    const searchQuery = this.composeQuery(request);
+    const now = this.now();
+    
+    const queryUnderstanding = await this.understandQueryWithLLM(request);
+    const expandedQuery = queryUnderstanding?.expandedTerms.length
+      ? `${request.query} ${queryUnderstanding.expandedTerms.slice(0, 3).join(" ")}`
+      : request.query;
+    
+    const searchQuery = this.composeQuery({ ...request, query: expandedQuery });
     const cacheKey = JSON.stringify({
       role: request.role,
       enterpriseName: request.enterpriseName,
@@ -1022,7 +1115,6 @@ export class RealtimeIndustryRagService {
       limit: request.limit,
     });
     const cached = this.cache.get(cacheKey);
-    const now = this.now();
 
     if (cached && now.getTime() - cached.storedAt <= this.cacheTtlMs) {
       return {
@@ -1185,7 +1277,10 @@ export class RealtimeIndustryRagService {
         ),
       );
 
-    const documentTypes = Array.from(new Set(citations.map((item) => item.trace.documentType)));
+    const rerankedCitations = await this.rerankCitationsWithLLM(citations, request);
+    const evidenceEvaluation = await this.evaluateEvidenceWithLLM(rerankedCitations, request);
+
+    const documentTypes = Array.from(new Set(rerankedCitations.map((item) => item.trace.documentType)));
 
     const indexStats: RealtimeRagIndexStats = {
       searchHits: searchHits.length,
@@ -1197,8 +1292,8 @@ export class RealtimeIndustryRagService {
       cacheHit: false,
       filteredSources: filteredOutCount,
       staleFiltered: staleFilteredChunks,
-      traceableCitations: citations.filter((item) => Boolean(item.trace)).length,
-      traceableDocuments: new Set(citations.map((item) => item.trace.documentId)).size,
+      traceableCitations: rerankedCitations.filter((item) => Boolean(item.trace)).length,
+      traceableDocuments: new Set(rerankedCitations.map((item) => item.trace.documentId)).size,
       documentTypes,
       conflictWarnings:
         staleFilteredChunks > 0
@@ -1206,19 +1301,27 @@ export class RealtimeIndustryRagService {
           : [],
     };
 
+    const enhancedRetrievalSummary = `${buildRetrievalSummary(
+      request,
+      rerankedCitations,
+      indexStats.searchProvider,
+      indexStats.fallbackUsed,
+    )}${queryUnderstanding ? ` [LLM查询理解: ${queryUnderstanding.intent}]` : ""}${evidenceEvaluation.evidenceQuality !== "partial" ? ` [证据质量: ${evidenceEvaluation.evidenceQuality === "sufficient" ? "充分" : "不足"}]` : ""}`;
+
     const response = {
       role: request.role,
       focusMode: request.focusMode,
       query: searchQuery,
-      retrievalSummary: buildRetrievalSummary(
-        request,
-        citations,
-        indexStats.searchProvider,
-        indexStats.fallbackUsed,
-      ),
-      referenceAbstract: composeReferenceAbstract(citations),
-      citations,
+      retrievalSummary: enhancedRetrievalSummary,
+      referenceAbstract: composeReferenceAbstract(rerankedCitations),
+      citations: rerankedCitations,
       indexStats,
+      evidenceEvaluation,
+      queryUnderstanding: queryUnderstanding ? {
+        intent: queryUnderstanding.intent,
+        entities: queryUnderstanding.entities,
+        queryType: queryUnderstanding.queryType,
+      } : undefined,
     };
 
     if (this.cache.size >= this.maxCacheSize) {
@@ -1355,5 +1458,168 @@ export class RealtimeIndustryRagService {
         },
       },
     } satisfies IndustryCitation;
+  }
+
+  private async understandQueryWithLLM(request: RealtimeRagRequest): Promise<{
+    intent: string;
+    entities: string[];
+    expandedTerms: string[];
+    queryType: string;
+  } | null> {
+    if (!this.modelRouter) return null;
+    
+    try {
+      const result = await this.modelRouter.complete({
+        agentId: "industryRetrieval",
+        capability: "queryUnderstanding",
+        prompt: `分析以下查询的意图，提取关键实体，并生成扩展查询词。
+
+用户查询: ${request.query}
+企业名称: ${request.enterpriseName || "未指定"}
+角色: ${request.role === "enterprise" ? "企业端" : "投资端"}
+分析模式: ${request.focusMode}
+
+请以JSON格式输出：
+{
+  "intent": "查询意图描述",
+  "entities": ["提取的实体1", "提取的实体2"],
+  "expandedTerms": ["扩展词1", "扩展词2", "扩展词3"],
+  "queryType": "diagnosis|comparison|trend|investment|general"
+}`,
+        context: { query: request.query, role: request.role, focusMode: request.focusMode, enterpriseName: request.enterpriseName },
+      });
+
+      const parsed = JSON.parse(result.result.text);
+      return {
+        intent: String(parsed.intent || ""),
+        entities: Array.isArray(parsed.entities) ? parsed.entities.map(String) : [],
+        expandedTerms: Array.isArray(parsed.expandedTerms) ? parsed.expandedTerms.map(String) : [],
+        queryType: String(parsed.queryType || "general"),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async rerankCitationsWithLLM(
+    citations: IndustryCitation[],
+    request: RealtimeRagRequest,
+  ): Promise<IndustryCitation[]> {
+    if (!this.modelRouter || citations.length <= 1) return citations;
+
+    try {
+      const citationsInfo = citations.slice(0, 8).map((c, i) => ({
+        index: i,
+        title: c.title,
+        source: c.source,
+        summary: c.summary.slice(0, 200),
+        relevanceScore: c.relevanceScore,
+      }));
+
+      const result = await this.modelRouter.complete({
+        agentId: "industryRetrieval",
+        capability: "reranking",
+        prompt: `根据查询意图对以下检索结果进行重排序。
+
+用户查询: ${request.query}
+企业名称: ${request.enterpriseName || "未指定"}
+
+检索结果:
+${JSON.stringify(citationsInfo, null, 2)}
+
+请以JSON格式输出重排序后的索引数组和每个结果的相关性评分：
+{
+  "rankedIndices": [2, 0, 3, 1, ...],
+  "scores": [0.95, 0.85, 0.75, 0.65, ...],
+  "reasoning": "重排序理由简述"
+}`,
+        context: { query: request.query, citations: citationsInfo },
+      });
+
+      const parsed = JSON.parse(result.result.text);
+      if (!Array.isArray(parsed.rankedIndices)) return citations;
+
+      const rankedIndices = parsed.rankedIndices as number[];
+      const scores = (Array.isArray(parsed.scores) ? parsed.scores : []) as number[];
+
+      const reranked: IndustryCitation[] = [];
+      for (let newIdx = 0; newIdx < rankedIndices.length; newIdx++) {
+        const idx = rankedIndices[newIdx];
+        if (typeof idx !== "number" || idx < 0 || idx >= citations.length) continue;
+        const citation = citations[idx];
+        if (!citation) continue;
+        const scoreValue = scores[newIdx];
+        const newScore = typeof scoreValue === "number" ? scoreValue : citation.relevanceScore;
+        reranked.push({
+          ...citation,
+          relevanceScore: newScore,
+          confidenceScore: newScore,
+          confidence: newScore >= 0.76 ? "high" as const : newScore >= 0.56 ? "medium" as const : "low" as const,
+        });
+      }
+      return reranked.length > 0 ? reranked : citations;
+    } catch {
+      return citations;
+    }
+  }
+
+  private async evaluateEvidenceWithLLM(
+    citations: IndustryCitation[],
+    request: RealtimeRagRequest,
+  ): Promise<{
+    evidenceQuality: "sufficient" | "partial" | "insufficient";
+    gaps: string[];
+    recommendations: string[];
+  }> {
+    if (!this.modelRouter || citations.length === 0) {
+      return {
+        evidenceQuality: "insufficient",
+        gaps: ["无法获取LLM服务或无检索结果"],
+        recommendations: ["请检查网络连接或稍后重试"],
+      };
+    }
+
+    try {
+      const citationsInfo = citations.slice(0, 5).map((c) => ({
+        title: c.title,
+        source: c.source,
+        summary: c.summary.slice(0, 150),
+        confidence: c.confidence,
+      }));
+
+      const result = await this.modelRouter.complete({
+        agentId: "evidenceReview",
+        capability: "evidenceEvaluation",
+        prompt: `评估以下证据是否足以支撑诊断结论。
+
+用户查询: ${request.query}
+企业名称: ${request.enterpriseName || "未指定"}
+分析模式: ${request.focusMode}
+
+可用证据:
+${JSON.stringify(citationsInfo, null, 2)}
+
+请以JSON格式输出：
+{
+  "evidenceQuality": "sufficient|partial|insufficient",
+  "gaps": ["证据缺口1", "证据缺口2"],
+  "recommendations": ["建议1", "建议2"]
+}`,
+        context: { query: request.query, citations: citationsInfo, focusMode: request.focusMode },
+      });
+
+      const parsed = JSON.parse(result.result.text);
+      return {
+        evidenceQuality: (parsed.evidenceQuality as "sufficient" | "partial" | "insufficient") || "partial",
+        gaps: Array.isArray(parsed.gaps) ? parsed.gaps.map(String) : [],
+        recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.map(String) : [],
+      };
+    } catch {
+      return {
+        evidenceQuality: "partial",
+        gaps: ["证据评估服务暂时不可用"],
+        recommendations: ["请结合其他信息源进行判断"],
+      };
+    }
   }
 }

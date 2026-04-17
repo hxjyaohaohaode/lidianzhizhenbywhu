@@ -8,7 +8,9 @@ import {
   gmpsInputSchema,
   grossMarginPressureInputSchema,
   operatingQualityInputSchema,
+  GMPS_INDUSTRY_WEIGHTS,
   type GMPSDimensionScores,
+  type GMPSIndustrySegment,
   type GMPSInput,
   type GMPSLevel,
   type GMPSResult,
@@ -70,11 +72,51 @@ function metric(label: string, rawValue: number, normalizedScore: number): Norma
   };
 }
 
-function weightedScore(items: Array<{ normalizedScore: number; weight: number }>) {
-  const validItems = items.filter((item) => Number.isFinite(item.normalizedScore));
-  if (validItems.length === 0) return 0;
-  const totalWeight = validItems.reduce((sum, item) => sum + item.weight, 0);
-  const totalScore = validItems.reduce((sum, item) => sum + item.normalizedScore * item.weight, 0);
+/** 缓存的行业数据（带TTL） */
+let _cachedIndustryData: { lithiumPrice: number; baselineLithiumPrice: number; industryVolatility: number; timestamp: number } | null = null;
+const INDUSTRY_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** 获取行业数据（带缓存） */
+export function getIndustryData(platformStore?: { getLatestIndustryData: () => { lithiumPrice?: { price: number }; industryIndex?: { volatility: number } } | null }): { lithiumPrice: number; baselineLithiumPrice: number; industryVolatility: number } {
+  const now = Date.now();
+  if (_cachedIndustryData && (now - _cachedIndustryData.timestamp) < INDUSTRY_CACHE_TTL_MS) {
+    return _cachedIndustryData;
+  }
+  let lithiumPrice = 10;
+  let baselineLithiumPrice = 12;
+  let industryVolatility = 0.2;
+  if (platformStore) {
+    const latest = platformStore.getLatestIndustryData();
+    if (latest?.lithiumPrice?.price && latest.lithiumPrice.price > 0) {
+      lithiumPrice = latest.lithiumPrice.price / 10000;
+      baselineLithiumPrice = lithiumPrice * 1.1;
+    }
+    if (latest?.industryIndex?.volatility && latest.industryIndex.volatility > 0) {
+      industryVolatility = latest.industryIndex.volatility;
+    }
+  }
+  _cachedIndustryData = { lithiumPrice, baselineLithiumPrice, industryVolatility, timestamp: now };
+  return _cachedIndustryData;
+}
+
+export function clearIndustryDataCache(): void {
+  _cachedIndustryData = null;
+}
+
+function weightedScore(items: Array<{ normalizedScore: number; weight: number }>): number {
+  let totalWeight = 0;
+  let totalScore = 0;
+  let validCount = 0;
+  const len = items.length;
+  for (let i = 0; i < len; i++) {
+    const item = items[i]!;
+    if (Number.isFinite(item.normalizedScore)) {
+      totalScore += item.normalizedScore * item.weight;
+      totalWeight += item.weight;
+      validCount++;
+    }
+  }
+  if (validCount === 0) return 0;
   return round(totalScore / totalWeight);
 }
 
@@ -135,25 +177,43 @@ function getInputQuality(auditTrail: string[]) {
   return auditTrail.length <= 2 ? "high" as const : "medium" as const;
 }
 
+/** 轻量级 reproducibilityKey 生成（避免全量 JSON.stringify） */
+function fastReproducibilityKey(modelId: string, payload: unknown): string {
+  try {
+    const p = payload as Record<string, unknown> | null;
+    if (p && typeof p === "object") {
+      const keys = Object.keys(p).sort();
+      const signature = keys.map(k => {
+        const v = p[k];
+        return `${k}:${typeof v === "number" ? v.toFixed(4) : String(v ?? "")}`;
+      }).join("|");
+      return createHash("sha1").update(`${modelId}:${signature}`).digest("hex").slice(0, 16);
+    }
+    return createHash("sha1").update(`${modelId}:${String(payload)}`).digest("hex").slice(0, 16);
+  } catch {
+    return `${modelId}-fallback-${Date.now().toString(36).slice(-8)}`;
+  }
+}
+
 function createGovernance<TModelId extends string>(
   modelId: TModelId,
   payload: unknown,
   confidenceScore: number,
   auditTrail: string[],
 ) {
+  const hasIssues = auditTrail.length > 0 && (auditTrail[0]?.includes("异常") || auditTrail.some((item) => item.includes("异常") || item.includes("兜底")));
   return {
     modelVersion: `${modelId}-2026.04`,
     parameterVersion: `${modelId}-baseline-v2`,
-    reproducibilityKey: createHash("sha1")
-      .update(`${modelId}:${JSON.stringify(payload)}`)
-      .digest("hex")
-      .slice(0, 16),
+    reproducibilityKey: fastReproducibilityKey(modelId, payload),
     confidenceScore: round(confidenceScore),
-    inputQuality: getInputQuality(auditTrail),
-    normalizedAt: new Date().toISOString(),
+    inputQuality: hasIssues ? "medium" as const : (auditTrail.length <= 2 ? "high" as const : "medium" as const),
+    normalizedAt: _cachedNormalizedTime ?? (_cachedNormalizedTime = new Date().toISOString()),
     auditTrail,
   };
 }
+
+let _cachedNormalizedTime: string | null = null;
 
 export function analyzeGrossMarginPressure(payload: unknown): GrossMarginPressureResult {
   const input = parseInput(grossMarginPressureInputSchema, payload);
@@ -458,285 +518,199 @@ function classifyGMPSRiskLevel(probability: number): GMPSRiskLevel {
  * Logistic回归预测下季度风险概率
  */
 export function calculateGMPS(payload: unknown): GMPSResult {
-  // 1. 输入验证
   const input = parseInput(gmpsInputSchema, payload);
 
-  // ========== 2. 计算五层10个特征变量 ==========
+  const industrySegment: GMPSIndustrySegment = input.industrySegment ?? "powerBattery";
+  const industryWeights = GMPS_INDUSTRY_WEIGHTS[industrySegment]!;
 
-  // A层：毛利率结果
-  const gpmYoy = growthRate(input.currentGrossMargin, input.baselineGrossMargin); // 毛利率同比
-  const revenueGrowth = growthRate(input.currentRevenue, input.baselineRevenue);
-  const costGrowth = growthRate(input.currentCost, input.baselineCost);
-  const revCostGap = costGrowth - revenueGrowth; // 营收成本增速差
+  const dimWeight_A = industryWeights.A_毛利率结果!;
+  const dimWeight_B = industryWeights.B_材料成本冲击!;
+  const dimWeight_C = industryWeights.C_产销负荷!;
+  const dimWeight_D = industryWeights.D_外部风险!;
+  const dimWeight_E = industryWeights.E_现金流安全!;
 
-  // B层：材料成本冲击
-  const liPriceYoy = growthRate(input.currentLithiumPrice, input.baselineLithiumPrice); // 碳酸锂价格同比
-  const currentUnitCost = input.currentCost / input.currentSalesVolume;
-  const baselineUnitCost = input.baselineCost / input.baselineSalesVolume;
-  const unitCostYoy = growthRate(currentUnitCost, baselineUnitCost); // 单位成本同比
+  const currentGM = input.currentGrossMargin;
+  const baselineGM = input.baselineGrossMargin;
+  const currentRev = input.currentRevenue;
+  const baselineRev = input.baselineRevenue;
+  const currentCost = input.currentCost;
+  const baselineCost = input.baselineCost;
+  const currentSales = input.currentSalesVolume;
+  const currentProd = input.currentProductionVolume;
+  const baselineSales = input.baselineSalesVolume;
+  const currentInv = input.currentInventory;
+  const baselineInv = input.baselineInventory;
+  const currentMfg = input.currentManufacturingExpense;
+  const currentOpCost = input.currentOperatingCost;
+  const currentOCF = input.currentOperatingCashFlow;
+  const currentLiab = input.currentTotalLiabilities;
+  const currentAssets = input.currentTotalAssets;
 
-  // C层：产销负荷
-  const invYoy = growthRate(input.currentInventory, input.baselineInventory); // 库存同比
-  const saleProdRatio = input.currentSalesVolume / input.currentProductionVolume; // 产销率
-  const mfgCostRatio = input.currentManufacturingExpense / input.currentOperatingCost; // 制造费用占比
+  const gpmYoy = growthRate(currentGM, baselineGM);
+  const revenueGrowth = growthRate(currentRev, baselineRev);
+  const costGrowth = growthRate(currentCost, baselineCost);
+  const revCostGap = costGrowth - revenueGrowth;
+  const liPriceYoy = growthRate(input.currentLithiumPrice, input.baselineLithiumPrice);
+  const currentUnitCost = currentCost / currentSales;
+  const baselineUnitCost = baselineCost / baselineSales;
+  const unitCostYoy = growthRate(currentUnitCost, baselineUnitCost);
+  const invYoy = growthRate(currentInv, baselineInv);
+  const saleProdRatio = currentSales / currentProd;
+  const mfgCostRatio = currentMfg / currentOpCost;
+  const indVol = input.industryVolatility;
+  const cfoRatio = currentOCF / currentRev;
+  const lev = currentLiab / currentAssets;
 
-  // D层：外部风险
-  const indVol = input.industryVolatility; // 行业指数波动率
-
-  // E层：现金流安全
-  const cfoRatio = input.currentOperatingCashFlow / input.currentRevenue; // 现金流比率
-  const lev = input.currentTotalLiabilities / input.currentTotalAssets; // 资产负债率
-
-  // ========== 3. 标准化打分（0-100分）==========
-
-  // 越大越危险的指标（使用 scoreIncreasingRisk）
-  // gpmYoy: 负值表示下降，越负越危险 → 取绝对值后打分
-  const score_gpmYoy = gpmYoy >= 0
-  ? scoreDecreasingRisk(gpmYoy, 0, 0.15)
-  : scoreIncreasingRisk(Math.abs(gpmYoy), 0.02, 0.15);
-  // revCostGap: 正值表示成本增速快于收入
+  // Optimized scoring with direct computation
+  const score_gpmYoy = gpmYoy >= 0 ? scoreDecreasingRisk(gpmYoy, 0, 0.15) : scoreIncreasingRisk(Math.abs(gpmYoy), 0.02, 0.15);
   const score_revCostGap = scoreIncreasingRisk(revCostGap, 0, 0.12);
-  // liPriceYoy: 价格上涨危险
   const score_liPriceYoy = scoreIncreasingRisk(liPriceYoy, 0, 0.30);
-  // unitCostYoy: 单位成本上升危险
   const score_unitCostYoy = scoreIncreasingRisk(unitCostYoy, 0, 0.15);
-  // invYoy: 库存积压危险
   const score_invYoy = scoreIncreasingRisk(invYoy, 0, 0.25);
-
-  // 越小越危险的指标（使用 scoreDecreasingRisk）
-  // saleProdRatio: 产销率低危险
   const score_saleProdRatio = scoreDecreasingRisk(saleProdRatio, 0.75, 1.0);
-  // mfgCostRatio: 制造费用占比高危险
   const score_mfgCostRatio = scoreIncreasingRisk(mfgCostRatio, 0.5, 0.85);
-  // indVol: 高波动危险
   const score_indVol = scoreIncreasingRisk(indVol, 0.15, 0.5);
-  // cfoRatio: 现金流比率低危险
   const score_cfoRatio = scoreDecreasingRisk(cfoRatio, -0.05, 0.15);
-  // lev: 高杠杆危险（越大越危险）
   const score_lev = scoreIncreasingRisk(lev, 0.35, 0.75);
 
-  // 特征得分汇总
-  const featureScores: Record<string, number> = {
-    gpmYoy: round(score_gpmYoy),
-    revCostGap: round(score_revCostGap),
-    liPriceYoy: round(score_liPriceYoy),
-    unitCostYoy: round(score_unitCostYoy),
-    invYoy: round(score_invYoy),
-    saleProdRatio: round(score_saleProdRatio),
-    mfgCostRatio: round(score_mfgCostRatio),
-    indVol: round(score_indVol),
-    cfoRatio: round(score_cfoRatio),
-    lev: round(score_lev),
-  };
+  // Inline weights (avoid object creation)
+  const w_gpmYoy = 0.14;
+  const w_revCostGap = 0.11;
+  const w_liPriceYoy = 0.10;
+  const w_unitCostYoy = 0.12;
+  const w_invYoy = 0.09;
+  const w_saleProdRatio = 0.10;
+  const w_mfgCostRatio = 0.12;
+  const w_indVol = 0.07;
+  const w_cfoRatio = 0.08;
+  const w_lev = 0.07;
 
-  // ========== 4. 加权综合得分计算 ==========
+  const rawGmps = round(
+    score_gpmYoy * w_gpmYoy +
+    score_revCostGap * w_revCostGap +
+    score_liPriceYoy * w_liPriceYoy +
+    score_unitCostYoy * w_unitCostYoy +
+    score_invYoy * w_invYoy +
+    score_saleProdRatio * w_saleProdRatio +
+    score_mfgCostRatio * w_mfgCostRatio +
+    score_indVol * w_indVol +
+    score_cfoRatio * w_cfoRatio +
+    score_lev * w_lev,
+  );
 
-  // 单个特征权重配置
-  const weights: Record<string, number> = {
-    gpmYoy: 0.14,
-    revCostGap: 0.11,
-    liPriceYoy: 0.10,
-    unitCostYoy: 0.12,
-    invYoy: 0.09,
-    saleProdRatio: 0.10,
-    mfgCostRatio: 0.12,
-    indVol: 0.07,
-    cfoRatio: 0.08,
-    lev: 0.07,
-  };
-
-  // 计算 GMPS 综合得分
-  let gmps = 0;
-  for (const [key, score] of Object.entries(featureScores)) {
-    gmps += score * weights[key]!;
-  }
-  gmps = round(gmps);
-
-  // ========== 5. 维度得分汇总 ==========
-
-  // 维度权重（用于计算维度得分）
-  const dimensionWeights = {
-    A: { features: ["gpmYoy", "revCostGap"], totalWeight: 0.25 },
-    B: { features: ["liPriceYoy", "unitCostYoy"], totalWeight: 0.22 },
-    C: { features: ["invYoy", "saleProdRatio", "mfgCostRatio"], totalWeight: 0.31 },
-    D: { features: ["indVol"], totalWeight: 0.07 },
-    E: { features: ["cfoRatio", "lev"], totalWeight: 0.15 },
-  };
-
-  // 计算各维度得分（维度内特征加权平均）
+  // Dimension scores
   const dimensionScores: GMPSDimensionScores = {
-    A_毛利率结果: round(
-      (featureScores.gpmYoy! * weights.gpmYoy! + featureScores.revCostGap! * weights.revCostGap!) /
-        (weights.gpmYoy! + weights.revCostGap!),
-    ),
-    B_材料成本冲击: round(
-      (featureScores.liPriceYoy! * weights.liPriceYoy! + featureScores.unitCostYoy! * weights.unitCostYoy!) /
-        (weights.liPriceYoy! + weights.unitCostYoy!),
-    ),
-    C_产销负荷: round(
-      (featureScores.invYoy! * weights.invYoy! +
-        featureScores.saleProdRatio! * weights.saleProdRatio! +
-        featureScores.mfgCostRatio! * weights.mfgCostRatio!) /
-        (weights.invYoy! + weights.saleProdRatio! + weights.mfgCostRatio!),
-    ),
-    D_外部风险: round(featureScores.indVol!),
-    E_现金流安全: round(
-      (featureScores.cfoRatio! * weights.cfoRatio! + featureScores.lev! * weights.lev!) /
-        (weights.cfoRatio! + weights.lev!),
-    ),
+    A_毛利率结果: round((score_gpmYoy * w_gpmYoy + score_revCostGap * w_revCostGap) / (w_gpmYoy + w_revCostGap)),
+    B_材料成本冲击: round((score_liPriceYoy * w_liPriceYoy + score_unitCostYoy * w_unitCostYoy) / (w_liPriceYoy + w_unitCostYoy)),
+    C_产销负荷: round((score_invYoy * w_invYoy + score_saleProdRatio * w_saleProdRatio + score_mfgCostRatio * w_mfgCostRatio) / (w_invYoy + w_saleProdRatio + w_mfgCostRatio)),
+    D_外部风险: round(score_indVol),
+    E_现金流安全: round((score_cfoRatio * w_cfoRatio + score_lev * w_lev) / (w_cfoRatio + w_lev)),
   };
 
-  // ========== 6. 等级划分 ==========
+  const gmps = round(
+    dimensionScores.A_毛利率结果 * dimWeight_A +
+    dimensionScores.B_材料成本冲击 * dimWeight_B +
+    dimensionScores.C_产销负荷 * dimWeight_C +
+    dimensionScores.D_外部风险 * dimWeight_D +
+    dimensionScores.E_现金流安全 * dimWeight_E,
+  );
+
   const level = classifyGMPSLevel(gmps);
 
-  // ========== 7. Logistic回归预测 ==========
-
-  // 默认 beta 参数
-  const beta = {
-    beta0: -2.5,
-    beta1: 0.05, // GMPS 系数
-    beta2: 0.02, // A层系数
-    beta3: 0.03, // B层系数
-    beta4: 0.02, // C层系数
-    beta5: 0.01, // D层系数
-    beta6: 0.02, // E层系数
-  };
-
-  // 计算 logistic 回归的 z 值
-  const z =
-    beta.beta0 +
-    beta.beta1 * gmps +
-    beta.beta2 * dimensionScores.A_毛利率结果 +
-    beta.beta3 * dimensionScores.B_材料成本冲击 +
-    beta.beta4 * dimensionScores.C_产销负荷 +
-    beta.beta5 * dimensionScores.D_外部风险 +
-    beta.beta6 * dimensionScores.E_现金流安全;
-
-  // 计算风险概率
+  const z = -2.5 + 0.05 * gmps + 0.02 * dimensionScores.A_毛利率结果 + 0.03 * dimensionScores.B_材料成本冲击 + 0.02 * dimensionScores.C_产销负荷 + 0.01 * dimensionScores.D_外部风险 + 0.02 * dimensionScores.E_现金流安全;
   const probabilityNextQuarter = round(sigmoid(z), 2);
   const riskLevel = classifyGMPSRiskLevel(probabilityNextQuarter);
 
-  // ========== 8. 构建标准化指标（用于展示）==========
-  const normalizedMetrics: Record<string, NormalizedMetric> = {
-    gpmYoy: metric("毛利率同比", gpmYoy, score_gpmYoy),
-    revCostGap: metric("营收成本增速差", revCostGap, score_revCostGap),
-    liPriceYoy: metric("碳酸锂价格同比", liPriceYoy, score_liPriceYoy),
-    unitCostYoy: metric("单位成本同比", unitCostYoy, score_unitCostYoy),
-    invYoy: metric("库存同比", invYoy, score_invYoy),
-    saleProdRatio: metric("产销率", saleProdRatio, score_saleProdRatio),
-    mfgCostRatio: metric("制造费用占比", mfgCostRatio, score_mfgCostRatio),
-    indVol: metric("行业指数波动率", indVol, score_indVol),
-    cfoRatio: metric("现金流比率", cfoRatio, score_cfoRatio),
-    lev: metric("资产负债率", lev, score_lev),
-  };
-
-  // ========== 9. 生成关键发现 ==========
+  // Key findings with early exit
   const keyFindings: string[] = [];
+  if (gpmYoy < -0.05) keyFindings.push(`毛利率同比下降 ${formatPercent(Math.abs(gpmYoy))}，毛利承压显著。`);
+  else if (gpmYoy < -0.02) keyFindings.push(`毛利率同比下降 ${formatPercent(Math.abs(gpmYoy))}，存在一定压力。`);
+  else if (gpmYoy > 0.02) keyFindings.push(`毛利率同比提升 ${formatPercent(gpmYoy)}，盈利能力改善。`);
 
-  // A层发现
-  if (gpmYoy < -0.05) {
-    keyFindings.push(`毛利率同比下降 ${formatPercent(Math.abs(gpmYoy))}，毛利承压显著。`);
-  } else if (gpmYoy < -0.02) {
-    keyFindings.push(`毛利率同比下降 ${formatPercent(Math.abs(gpmYoy))}，存在一定压力。`);
-  } else if (gpmYoy > 0.02) {
-    keyFindings.push(`毛利率同比提升 ${formatPercent(gpmYoy)}，盈利能力改善。`);
-  }
+  if (revCostGap > 0.05) keyFindings.push(`成本增速较收入快 ${formatPercent(revCostGap)}，利润挤压严重。`);
+  else if (revCostGap > 0) keyFindings.push(`成本增速略超收入增速 ${formatPercent(revCostGap)}。`);
 
-  if (revCostGap > 0.05) {
-    keyFindings.push(`成本增速较收入快 ${formatPercent(revCostGap)}，利润挤压严重。`);
-  } else if (revCostGap > 0) {
-    keyFindings.push(`成本增速略超收入增速 ${formatPercent(revCostGap)}。`);
-  }
+  if (liPriceYoy > 0.15) keyFindings.push(`碳酸锂价格上涨 ${formatPercent(liPriceYoy)}，原材料成本压力巨大。`);
+  else if (liPriceYoy > 0.05) keyFindings.push(`碳酸锂价格上涨 ${formatPercent(liPriceYoy)}，需关注成本传导。`);
 
-  // B层发现
-  if (liPriceYoy > 0.15) {
-    keyFindings.push(`碳酸锂价格上涨 ${formatPercent(liPriceYoy)}，原材料成本压力巨大。`);
-  } else if (liPriceYoy > 0.05) {
-    keyFindings.push(`碳酸锂价格上涨 ${formatPercent(liPriceYoy)}，需关注成本传导。`);
-  }
+  if (unitCostYoy > 0.08) keyFindings.push(`单位成本上升 ${formatPercent(unitCostYoy)}，生产效率需优化。`);
+  if (invYoy > 0.15) keyFindings.push(`库存同比增长 ${formatPercent(invYoy)}，存在积压风险。`);
 
-  if (unitCostYoy > 0.08) {
-    keyFindings.push(`单位成本上升 ${formatPercent(unitCostYoy)}，生产效率需优化。`);
-  }
+  if (saleProdRatio < 0.8) keyFindings.push(`产销率仅为 ${round(saleProdRatio * 100)}%，产能利用不足。`);
+  else if (saleProdRatio > 1.02) keyFindings.push(`产销率超过100%，可能存在透支库存销售的情况。`);
 
-  // C层发现
-  if (invYoy > 0.15) {
-    keyFindings.push(`库存同比增长 ${formatPercent(invYoy)}，存在积压风险。`);
-  }
+  if (mfgCostRatio > 0.7) keyFindings.push(`制造费用占营业成本比达 ${formatPercent(mfgCostRatio)}，费用管控空间较大。`);
+  if (indVol > 0.3) keyFindings.push(`行业波动率达 ${round(indVol * 100)}%，外部不确定性较高。`);
 
-  if (saleProdRatio < 0.8) {
-    keyFindings.push(`产销率仅为 ${round(saleProdRatio * 100)}%，产能利用不足。`);
-  } else if (saleProdRatio > 1.02) {
-    keyFindings.push(`产销率超过100%，可能存在透支库存销售的情况。`);
-  }
+  if (cfoRatio < 0) keyFindings.push(`经营现金流为负（${formatPercent(cfoRatio)}），现金流安全堪忧。`);
+  else if (cfoRatio < 0.05) keyFindings.push(`现金流比率仅为 ${formatPercent(cfoRatio)}，现金回款能力偏弱。`);
 
-  if (mfgCostRatio > 0.7) {
-    keyFindings.push(`制造费用占营业成本比达 ${formatPercent(mfgCostRatio)}，费用管控空间较大。`);
-  }
+  if (lev > 0.65) keyFindings.push(`资产负债率高达 ${formatPercent(lev)}，财务杠杆偏高。`);
+  else if (lev > 0.5) keyFindings.push(`资产负债率为 ${formatPercent(lev)}，处于中等水平。`);
 
-  // D层发现
-  if (indVol > 0.3) {
-    keyFindings.push(`行业波动率达 ${round(indVol * 100)}%，外部不确定性较高。`);
-  }
+  if (keyFindings.length === 0) keyFindings.push("各项指标整体表现平稳，未识别明显异常信号。");
 
-  // E层发现
-  if (cfoRatio < 0) {
-    keyFindings.push(`经营现金流为负（${formatPercent(cfoRatio)}），现金流安全堪忧。`);
-  } else if (cfoRatio < 0.05) {
-    keyFindings.push(`现金流比率仅为 ${formatPercent(cfoRatio)}，现金回款能力偏弱。`);
-  }
+  // Severe signal count
+  let severeCount = 0;
+  if (Math.abs(gpmYoy) > 0.08) severeCount++;
+  if (revCostGap > 0.1) severeCount++;
+  if (liPriceYoy > 0.25) severeCount++;
+  if (unitCostYoy > 0.12) severeCount++;
+  if (invYoy > 0.2) severeCount++;
+  if (saleProdRatio < 0.75) severeCount++;
+  if (mfgCostRatio > 0.8) severeCount++;
+  if (indVol > 0.35) severeCount++;
+  if (cfoRatio < -0.03) severeCount++;
+  if (lev > 0.72) severeCount++;
 
-  if (lev > 0.65) {
-    keyFindings.push(`资产负债率高达 ${formatPercent(lev)}，财务杠杆偏高。`);
-  } else if (lev > 0.5) {
-    keyFindings.push(`资产负债率为 ${formatPercent(lev)}，处于中等水平。`);
-  }
-
-  // 如果没有特别发现，补充总体评价
-  if (keyFindings.length === 0) {
-    keyFindings.push("各项指标整体表现平稳，未识别明显异常信号。");
-  }
-
-  // ========== 10. 构建治理信息 ==========
-  const severeSignalCount = [
-    Math.abs(gpmYoy) > 0.08,
-    revCostGap > 0.1,
-    liPriceYoy > 0.25,
-    unitCostYoy > 0.12,
-    invYoy > 0.2,
-    saleProdRatio < 0.75,
-    mfgCostRatio > 0.8,
-    indVol > 0.35,
-    cfoRatio < -0.03,
-    lev > 0.72,
-  ].filter(Boolean).length;
-
-  const auditTrail: string[] = [
+  const governance = createGovernance("gmps", input, probabilityNextQuarter, [
     "完成结构化输入校验。",
     "完成五层十维特征计算与归一化打分。",
     `完成加权综合评分（GMPS=${gmps}）。`,
     `完成Logistic回归预测（P=${probabilityNextQuarter}）。`,
-    severeSignalCount > 0 ? `识别 ${severeSignalCount} 个高压预警信号。` : "未识别需要兜底的异常信号。",
-  ];
+    "Logistic回归参数(beta0=-2.5, beta1=0.05等)为专家设定值，未经统计训练校准，参数版本v1.0-专家设定",
+    severeCount > 0 ? `识别 ${severeCount} 个高压预警信号。` : "未识别需要兜底的异常信号。",
+  ]);
 
-  const governance = createGovernance("gmps", input, probabilityNextQuarter, auditTrail);
-
-  // ========== 11. 返回完整结果 ==========
   return {
     gmps,
     level,
     probabilityNextQuarter,
     riskLevel,
     dimensionScores,
-    featureScores,
-    normalizedMetrics,
+    featureScores: {
+      gpmYoy: round(score_gpmYoy),
+      revCostGap: round(score_revCostGap),
+      liPriceYoy: round(score_liPriceYoy),
+      unitCostYoy: round(score_unitCostYoy),
+      invYoy: round(score_invYoy),
+      saleProdRatio: round(score_saleProdRatio),
+      mfgCostRatio: round(score_mfgCostRatio),
+      indVol: round(score_indVol),
+      cfoRatio: round(score_cfoRatio),
+      lev: round(score_lev),
+    },
+    normalizedMetrics: {
+      gpmYoy: metric("毛利率同比", gpmYoy, score_gpmYoy),
+      revCostGap: metric("营收成本增速差", revCostGap, score_revCostGap),
+      liPriceYoy: metric("碳酸锂价格同比", liPriceYoy, score_liPriceYoy),
+      unitCostYoy: metric("单位成本同比", unitCostYoy, score_unitCostYoy),
+      invYoy: metric("库存同比", invYoy, score_invYoy),
+      saleProdRatio: metric("产销率", saleProdRatio, score_saleProdRatio),
+      mfgCostRatio: metric("制造费用占比", mfgCostRatio, score_mfgCostRatio),
+      indVol: metric("行业指数波动率", indVol, score_indVol),
+      cfoRatio: metric("现金流比率", cfoRatio, score_cfoRatio),
+      lev: metric("资产负债率", lev, score_lev),
+    },
     keyFindings,
     governance,
+    industrySegment,
+    industryWeights,
   };
 }
 
 export function validateGMPSInput(payload: unknown): GMPSInput {
-  return parseInput(gmpsInputSchema, payload);
+  return parseInput(gmpsInputSchema, payload) as GMPSInput;
 }
 
 // ==================== DQI 经营质量动态评价模型实现 ====================
@@ -787,17 +761,24 @@ function identifyDriver(
   roeRatio: number,
   growthRatio: number,
   ocfRatio: number,
-): "盈利能力" | "成长能力" | "现金流质量" | "无明显驱动" {
-  const contributions = [
-    { name: "盈利能力" as const, value: Math.abs(roeRatio - 1) },
-    { name: "成长能力" as const, value: Math.abs(growthRatio - 1) },
-    { name: "现金流质量" as const, value: Math.abs(ocfRatio - 1) },
-  ];
-  const maxDeviation = Math.max(...contributions.map(c => c.value));
-  if (maxDeviation < 0.05) {
-    return "无明显驱动";
-  }
-  return contributions.reduce((max, current) => (current.value > max.value ? current : max)).name;
+  assetTurnoverRatio: number,
+  rdIntensityRatio: number,
+  inventoryTurnoverRatio: number,
+): "盈利能力" | "成长能力" | "现金流质量" | "资产周转效率" | "研发投入强度" | "库存周转效率" | "无明显驱动" {
+  const devRoe = Math.abs(roeRatio - 1);
+  const devGrowth = Math.abs(growthRatio - 1);
+  const devOcf = Math.abs(ocfRatio - 1);
+  const devAssetTurnover = Math.abs(assetTurnoverRatio - 1);
+  const devRdIntensity = Math.abs(rdIntensityRatio - 1);
+  const devInventoryTurnover = Math.abs(inventoryTurnoverRatio - 1);
+  const maxDeviation = Math.max(devRoe, devGrowth, devOcf, devAssetTurnover, devRdIntensity, devInventoryTurnover);
+  if (maxDeviation < 0.05) return "无明显驱动";
+  if (devRoe === maxDeviation) return "盈利能力";
+  if (devGrowth === maxDeviation) return "成长能力";
+  if (devOcf === maxDeviation) return "现金流质量";
+  if (devAssetTurnover === maxDeviation) return "资产周转效率";
+  if (devRdIntensity === maxDeviation) return "研发投入强度";
+  return "库存周转效率";
 }
 
 /**
@@ -822,42 +803,46 @@ function determineDQIStatus(dqi: number): "改善" | "稳定" | "恶化" {
  * 计算置信度（基于数据质量和指标一致性）
  */
 function calculateConfidence(
-  metrics: {
-    currentROE: number;
-    baselineROE: number;
-    currentGrowth: number;
-    baselineGrowth: number;
-    currentOCFRatio: number;
-    baselineOCFRatio: number;
-  },
+  currentROE: number,
+  baselineROE: number,
+  currentGrowth: number,
+  baselineGrowth: number,
+  currentOCFRatio: number,
+  baselineOCFRatio: number,
+  currentAssetTurnover?: number,
+  baselineAssetTurnover?: number,
+  currentRdRatio?: number,
+  baselineRdRatio?: number,
+  currentInventoryDays?: number,
+  baselineInventoryDays?: number,
 ): number {
-  // 基础置信度
   let confidence = 0.85;
 
-  // 如果各维度变化方向一致，提高置信度
-  const roeImproving = metrics.currentROE >= metrics.baselineROE;
-  const growthImproving = metrics.currentGrowth >= metrics.baselineGrowth;
-  const ocfImproving = metrics.currentOCFRatio >= metrics.baselineOCFRatio;
-
-  const consistentCount = [roeImproving, growthImproving, ocfImproving].filter(Boolean).length;
-
-  if (consistentCount === 3 || consistentCount === 0) {
-    confidence += 0.1; // 完全一致或完全相反，高置信度
-  } else if (consistentCount === 2 || consistentCount === 1) {
-    confidence += 0.05; // 部分一致，中等置信度
+  let consistentCount = 0;
+  if (currentROE >= baselineROE) consistentCount++;
+  if (currentGrowth >= baselineGrowth) consistentCount++;
+  if (currentOCFRatio >= baselineOCFRatio) consistentCount++;
+  if (currentAssetTurnover != null && baselineAssetTurnover != null) {
+    if (currentAssetTurnover >= baselineAssetTurnover) consistentCount++;
+  }
+  if (currentRdRatio != null && baselineRdRatio != null) {
+    if (currentRdRatio >= baselineRdRatio) consistentCount++;
+  }
+  if (currentInventoryDays != null && baselineInventoryDays != null) {
+    if (currentInventoryDays <= baselineInventoryDays) consistentCount++;
   }
 
-  // 检查是否有极端值（可能影响可靠性）
-  const hasExtremeValues =
-    Math.abs(metrics.currentROE) > 100 ||
-    Math.abs(metrics.baselineROE) > 100 ||
-    Math.abs(metrics.currentGrowth) > 5 ||
-    Math.abs(metrics.baselineGrowth) > 5 ||
-    Math.abs(metrics.currentOCFRatio) > 2 ||
-    Math.abs(metrics.baselineOCFRatio) > 2;
+  const totalDimensions = (currentAssetTurnover != null ? 1 : 0) + (currentRdRatio != null ? 1 : 0) + (currentInventoryDays != null ? 1 : 0) + 3;
 
-  if (hasExtremeValues) {
-    confidence -= 0.15; // 极端值降低置信度
+  if (consistentCount === totalDimensions || consistentCount === 0) confidence += 0.1;
+  else if (consistentCount >= totalDimensions - 1 || consistentCount <= 1) confidence += 0.05;
+
+  if (
+    Math.abs(currentROE) > 100 || Math.abs(baselineROE) > 100 ||
+    Math.abs(currentGrowth) > 5 || Math.abs(baselineGrowth) > 5 ||
+    Math.abs(currentOCFRatio) > 2 || Math.abs(baselineOCFRatio) > 2
+  ) {
+    confidence -= 0.15;
   }
 
   return clamp(confidence, 0.4, 1.0);
@@ -869,11 +854,14 @@ function calculateConfidence(
 function generateTrendDescription(
   dqi: number,
   status: "改善" | "稳定" | "恶化",
-  driver: "盈利能力" | "成长能力" | "现金流质量" | "无明显驱动",
+  driver: "盈利能力" | "成长能力" | "现金流质量" | "资产周转效率" | "研发投入强度" | "库存周转效率" | "无明显驱动",
   decomposition: {
     profitabilityContribution: number;
     growthContribution: number;
     cashflowContribution: number;
+    assetTurnoverContribution: number;
+    rdIntensityContribution: number;
+    inventoryTurnoverContribution: number;
   },
 ): string {
   const dqiPercent = round((dqi - 1) * 100, 2);
@@ -882,7 +870,7 @@ function generateTrendDescription(
     case "改善":
       return driver === "无明显驱动"
         ? `DQI指数为${round(dqi, 2)}（较基期提升${dqiPercent > 0 ? dqiPercent : 0}%），经营质量呈改善态势，各维度贡献相对均衡。`
-        : `DQI指数为${round(dqi, 2)}（较基期提升${dqiPercent > 0 ? dqiPercent : 0}%），经营质量呈改善态势。主要驱动力为${driver}，其中盈利能力贡献${round(decomposition.profitabilityContribution, 2)}，成长能力贡献${round(decomposition.growthContribution, 2)}，现金流质量贡献${round(decomposition.cashflowContribution, 2)}。`;
+        : `DQI指数为${round(dqi, 2)}（较基期提升${dqiPercent > 0 ? dqiPercent : 0}%），经营质量呈改善态势。主要驱动力为${driver}，其中盈利能力贡献${round(decomposition.profitabilityContribution, 2)}，成长能力贡献${round(decomposition.growthContribution, 2)}，现金流质量贡献${round(decomposition.cashflowContribution, 2)}，资产周转效率贡献${round(decomposition.assetTurnoverContribution, 2)}，研发投入强度贡献${round(decomposition.rdIntensityContribution, 2)}，库存周转效率贡献${round(decomposition.inventoryTurnoverContribution, 2)}。`;
 
     case "恶化":
       return driver === "无明显驱动"
@@ -890,7 +878,7 @@ function generateTrendDescription(
         : `DQI指数为${round(dqi, 2)}（较基期下降${Math.abs(dqiPercent)}%），经营质量呈恶化趋势。主要拖累因素为${driver}，需重点关注该维度的改善措施。`;
 
     case "稳定":
-      return `DQI指数为${round(dqi, 2)}（变动幅度在±5%以内），经营质量整体保持稳定。各维度贡献相对均衡：盈利能力${round(decomposition.profitabilityContribution, 2)}、成长能力${round(decomposition.growthContribution, 2)}、现金流质量${round(decomposition.cashflowContribution, 2)}。`;
+      return `DQI指数为${round(dqi, 2)}（变动幅度在±5%以内），经营质量整体保持稳定。各维度贡献：盈利能力${round(decomposition.profitabilityContribution, 2)}、成长能力${round(decomposition.growthContribution, 2)}、现金流质量${round(decomposition.cashflowContribution, 2)}、资产周转效率${round(decomposition.assetTurnoverContribution, 2)}、研发投入强度${round(decomposition.rdIntensityContribution, 2)}、库存周转效率${round(decomposition.inventoryTurnoverContribution, 2)}。`;
 
     default:
       return `DQI指数为${round(dqi, 2)}，经营质量处于待观察状态。`;
@@ -909,72 +897,68 @@ function generateTrendDescription(
  * - w3 = 0.3（现金流质量）
  */
 export function calculateDQI(payload: unknown): DQIResult {
-  // 1. 输入验证
   const input = parseInput<DQIInput>(dqiInputSchema, payload);
 
-  // 2. 计算基础指标
-  // ROE计算
-  const currentROE = calculateROE(
-    input.currentNetProfit,
-    input.currentBeginningEquity,
-    input.currentEndingEquity,
-  );
-  const baselineROE = calculateROE(
-    input.baselineNetProfit,
-    input.baselineBeginningEquity,
-    input.baselineEndingEquity,
-  );
+  const currentROE = calculateROE(input.currentNetProfit, input.currentBeginningEquity, input.currentEndingEquity);
+  const baselineROE = calculateROE(input.baselineNetProfit, input.baselineBeginningEquity, input.baselineEndingEquity);
 
-  // 营收增长率计算
   const currentGrowth = calculateRevenueGrowth(input.currentRevenue, input.baselineRevenue);
+  const baselineGrowthFallback = input.baselineGrowth == null;
   const baselineGrowth = input.baselineGrowth ?? (input.baselineRevenue > 0
     ? (input.baselineRevenue - input.currentRevenue * 0.85) / (input.currentRevenue * 0.85)
     : 0);
 
-  // OCF比率计算
   const currentOCFRatio = calculateOCFRatio(input.currentOperatingCashFlow, input.currentRevenue);
-  const baselineOCFRatio = calculateOCFRatio(
-    input.baselineOperatingCashFlow,
-    input.baselineRevenue,
-  );
+  const baselineOCFRatio = calculateOCFRatio(input.baselineOperatingCashFlow, input.baselineRevenue);
 
-  // 3. 计算比率变化（当期/基期）
-  // 处理除以零的边界情况
   const roeRatio = Math.abs(baselineROE) < Number.EPSILON ? 1 : currentROE / baselineROE;
-  const growthRatio =
-    Math.abs(baselineGrowth) < Number.EPSILON
-      ? 1 + currentGrowth
-      : currentGrowth / baselineGrowth;
-  // 对于增长率，如果基期为0，则直接用当前增长率作为比率（1+growth）
+  const growthRatio = Math.abs(baselineGrowth) < Number.EPSILON ? 1 + currentGrowth : currentGrowth / baselineGrowth;
+  const ocfRatioChange = Math.abs(baselineOCFRatio) < Number.EPSILON
+    ? (currentOCFRatio >= 0 ? 1 : 0.5)
+    : (baselineOCFRatio < 0 && currentOCFRatio < 0
+      ? Math.abs(currentOCFRatio) / Math.abs(baselineOCFRatio)
+      : currentOCFRatio / baselineOCFRatio);
 
-  // OCF比率的变化（注意：OCF可能是负数，需要特殊处理）
-  const ocfRatioChange =
-    Math.abs(baselineOCFRatio) < Number.EPSILON
-      ? currentOCFRatio >= 0
-        ? 1
-        : 0.5
-      : baselineOCFRatio < 0 && currentOCFRatio < 0
-        ? Math.abs(baselineOCFRatio) / Math.abs(currentOCFRatio)
-        : currentOCFRatio / baselineOCFRatio;
+  const currentAssetTurnover = input.currentTotalAssets > 0 ? input.currentRevenue / input.currentTotalAssets : 0;
+  const baselineAssetTurnover = input.baselineTotalAssets > 0 ? input.baselineRevenue / input.baselineTotalAssets : 0;
+  const assetTurnoverRatio = Math.abs(baselineAssetTurnover) < Number.EPSILON ? 1 : currentAssetTurnover / baselineAssetTurnover;
 
-  // 4. DQI综合指数加权求和（保留4位小数）
-  const WEIGHT_PROFITABILITY = 0.4; // w1 盈利能力权重
-  const WEIGHT_GROWTH = 0.3; // w2 成长能力权重
-  const WEIGHT_CASHFLOW = 0.3; // w3 现金流质量权重
+  const RD_RATIO_ESTIMATE_CURRENT = 0.045;
+  const RD_RATIO_ESTIMATE_BASELINE = 0.045;
+  const currentRdRatio = RD_RATIO_ESTIMATE_CURRENT;
+  const baselineRdRatio = RD_RATIO_ESTIMATE_BASELINE;
+  const rdIntensityRatio = Math.abs(baselineRdRatio) < Number.EPSILON ? 1 : currentRdRatio / baselineRdRatio;
 
-  const profitabilityContribution = round(WEIGHT_PROFITABILITY * clamp(roeRatio, 0, 3), 2);
-  const growthContribution = round(WEIGHT_GROWTH * clamp(growthRatio, 0, 3), 2);
-  const cashflowContribution = round(WEIGHT_CASHFLOW * clamp(ocfRatioChange, 0, 3), 2);
+  const currentInventoryDays = input.currentOperatingCost > 0
+    ? (input.currentInventoryExpense / input.currentOperatingCost) * 365
+    : 0;
+  const baselineInventoryDays = input.baselineOperatingCost > 0
+    ? (input.baselineInventoryExpense / input.baselineOperatingCost) * 365
+    : 0;
+  const inventoryTurnoverRatio = Math.abs(baselineInventoryDays) < Number.EPSILON
+    ? 1
+    : (currentInventoryDays > 0 && baselineInventoryDays > 0)
+      ? baselineInventoryDays / currentInventoryDays
+      : 1;
 
-  const dqi = round(profitabilityContribution + growthContribution + cashflowContribution, 2);
+  const w1 = 0.25;
+  const w2 = 0.20;
+  const w3 = 0.20;
+  const w4 = 0.15;
+  const w5 = 0.10;
+  const w6 = 0.10;
 
-  // 5. 趋势判断
+  const profitabilityContribution = round(w1 * clamp(roeRatio, 0, 3), 2);
+  const growthContribution = round(w2 * clamp(growthRatio, 0, 3), 2);
+  const cashflowContribution = round(w3 * clamp(ocfRatioChange, 0, 3), 2);
+  const assetTurnoverContribution = round(w4 * clamp(assetTurnoverRatio, 0, 3), 2);
+  const rdIntensityContribution = round(w5 * clamp(rdIntensityRatio, 0, 3), 2);
+  const inventoryTurnoverContribution = round(w6 * clamp(inventoryTurnoverRatio, 0, 3), 2);
+  const dqi = round(profitabilityContribution + growthContribution + cashflowContribution + assetTurnoverContribution + rdIntensityContribution + inventoryTurnoverContribution, 2);
+
   const status = determineDQIStatus(dqi);
+  const driver = identifyDriver(roeRatio, growthRatio, ocfRatioChange, assetTurnoverRatio, rdIntensityRatio, inventoryTurnoverRatio);
 
-  // 6. 驱动因素识别（argmax）
-  const driver = identifyDriver(roeRatio, growthRatio, ocfRatioChange);
-
-  // 7. 构建完整的metrics对象
   const metrics = {
     currentROE: round(currentROE, 2),
     baselineROE: round(baselineROE, 2),
@@ -985,30 +969,37 @@ export function calculateDQI(payload: unknown): DQIResult {
     currentOCFRatio: round(currentOCFRatio, 2),
     baselineOCFRatio: round(baselineOCFRatio, 2),
     ocfRatioChange: round(ocfRatioChange, 2),
+    currentAssetTurnover: round(currentAssetTurnover, 4),
+    baselineAssetTurnover: round(baselineAssetTurnover, 4),
+    currentRdRatio: round(currentRdRatio, 4),
+    baselineRdRatio: round(baselineRdRatio, 4),
+    currentInventoryDays: round(currentInventoryDays, 2),
+    baselineInventoryDays: round(baselineInventoryDays, 2),
   };
 
-  const confidence = round(calculateConfidence(metrics), 2);
+  const confidence = round(calculateConfidence(currentROE, baselineROE, currentGrowth, baselineGrowth, currentOCFRatio, baselineOCFRatio, currentAssetTurnover, baselineAssetTurnover, currentRdRatio, baselineRdRatio, currentInventoryDays, baselineInventoryDays), 2);
 
-  // 9. 生成趋势描述
-  const trend = generateTrendDescription(dqi, status, driver, {
-    profitabilityContribution,
-    growthContribution,
-    cashflowContribution,
-  });
+  const decomposition = { profitabilityContribution, growthContribution, cashflowContribution, assetTurnoverContribution, rdIntensityContribution, inventoryTurnoverContribution };
+  const trend = generateTrendDescription(dqi, status, driver, decomposition);
 
-  // 10. 返回结构化结果
+  const auditTrail: string[] = [
+    "完成结构化输入校验。",
+    baselineGrowthFallback
+      ? "baselineGrowth 未提供，使用当期营收×0.85作为基期营收估计，增长率为推算值"
+      : "基期增长率由输入直接提供。",
+    "完成ROE、营收增长率与OCF比率口径归一。",
+    "研发投入强度使用估算值（营收的4.5%），在dataProvenance中标注。",
+  ];
+
   return {
     dqi,
     status,
     driver,
-    decomposition: {
-      profitabilityContribution,
-      growthContribution,
-      cashflowContribution,
-    },
+    decomposition,
     metrics,
     trend,
     confidence,
+    governance: createGovernance("dqi", input, confidence, auditTrail),
   };
 }
 

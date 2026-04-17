@@ -35,6 +35,7 @@ const baseEnv: ServerEnv = {
   NBS_ACCOUNT: undefined,
   NBS_PASSWORD: undefined,
   NBS_TOKEN: undefined,
+  DATA_STALE_THRESHOLD_DAYS: 7,
 };
 
 function jsonResponse(payload: unknown, init: ResponseInit = {}) {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -16,6 +17,9 @@ const NEON_COLORS = [
   "var(--viz-accent-4)",
   "var(--viz-accent-5)",
 ];
+
+// 图表轴标签字体大小（与 styles.css 中的 --fs-chart-axis 对齐）
+const CHART_AXIS_FONT_SIZE = 11;
 
 export type ChartSpec = {
   type: "line" | "pie" | "radar" | "bar" | "area";
@@ -41,7 +45,7 @@ function parseChartBlocks(text: string): { textParts: string[]; charts: ChartSpe
       if (spec.type && spec.data) {
         charts.push(spec as ChartSpec);
       }
-    } catch {}
+    } catch (e) { void e; }
     lastIndex = match.index + match[0].length;
   }
   textParts.push(text.slice(lastIndex));
@@ -141,7 +145,7 @@ export const ChartRenderer: React.FC<{ spec: ChartSpec }> = ({ spec }) => {
 
   // 轴线通用样式
   const axisStyle = {
-    fontSize: 11,
+    fontSize: CHART_AXIS_FONT_SIZE,
     fill: "var(--viz-axis-text)",
     fontFamily: "inherit",
   };
@@ -207,7 +211,7 @@ export const ChartRenderer: React.FC<{ spec: ChartSpec }> = ({ spec }) => {
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: "4 4", stroke: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)" }} />
 
             <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
+              wrapperStyle={{ fontSize: CHART_AXIS_FONT_SIZE, paddingTop: 14 }}
               iconType="circle"
               iconSize={8}
             />
@@ -277,7 +281,7 @@ export const ChartRenderer: React.FC<{ spec: ChartSpec }> = ({ spec }) => {
             <Tooltip content={<CustomTooltip />} />
 
             <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
+              wrapperStyle={{ fontSize: CHART_AXIS_FONT_SIZE, paddingTop: 14 }}
               iconType="circle"
               iconSize={8}
             />
@@ -319,13 +323,13 @@ export const ChartRenderer: React.FC<{ spec: ChartSpec }> = ({ spec }) => {
                     textAnchor={props.textAnchor ?? "middle"}
                     dominantBaseline="central"
                     style={{
-                      fontSize: 11,
+                      fontSize: CHART_AXIS_FONT_SIZE,
                       fill: isDark ? "#94A3B8" : "#94A3B8",
                       fontWeight: 600,
                       pointerEvents: "none",
                     }}
                   >
-                    {`${percent.toFixed(0)}%`}
+                    {`${percent.toFixed(2)}%`}
                   </text>
                 );
               }}
@@ -359,7 +363,7 @@ export const ChartRenderer: React.FC<{ spec: ChartSpec }> = ({ spec }) => {
             <Tooltip content={<CustomTooltip />} />
 
             <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 18 }}
+              wrapperStyle={{ fontSize: CHART_AXIS_FONT_SIZE, paddingTop: 18 }}
               iconType="circle"
               iconSize={8}
             />
@@ -376,45 +380,66 @@ export const ChartRenderer: React.FC<{ spec: ChartSpec }> = ({ spec }) => {
             endAngle={-270}
           >
             <PolarGrid
-              stroke={isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)"}
+              stroke={isDark ? "rgba(148, 163, 184, 0.15)" : "rgba(100, 116, 139, 0.2)"}
               gridType="polygon"
+              strokeDasharray="3 3"
             />
             <PolarAngleAxis
               dataKey={spec.xKey || "subject"}
-              tick={axisStyle}
+              tick={{ 
+                ...axisStyle, 
+                fontSize: 12,
+                fontWeight: 600,
+                fill: isDark ? '#f1f5f9' : '#1e293b'
+              }}
               axisLine={false}
               tickLine={false}
             />
             <PolarRadiusAxis
-              tick={axisStyle}
+              tick={{ 
+                ...axisStyle, 
+                fontSize: 10,
+                fill: isDark ? 'rgba(148, 163, 184, 0.6)' : 'rgba(100, 116, 139, 0.7)'
+              }}
               axisLine={false}
               tickLine={false}
             />
 
-            {(spec.yKeys || ["value"]).map((key, i) => (
-              <Radar
-                key={key}
-                name={key}
-                dataKey={key}
-                stroke={NEON_COLORS[i % NEON_COLORS.length]}
-                fill={NEON_COLORS[i % NEON_COLORS.length]}
-                fillOpacity={0.15}
-                strokeWidth={2.5}
-                dot={{
-                  r: 4.5,
-                  fill: NEON_COLORS[i % NEON_COLORS.length],
-                  stroke: isDark ? "rgba(255,255,255,0.9)" : "#fff",
-                  strokeWidth: 1.5,
-                  filter: "none",
-                }}
-                animationDuration={1000}
-                animationEasing="ease-out"
-              />
-            ))}
+            {(spec.yKeys || ["value"]).map((key, i) => {
+              const color = NEON_COLORS[i % NEON_COLORS.length];
+              const isPrimary = i === 0;
+              return (
+                <Radar
+                  key={key}
+                  name={key}
+                  dataKey={key}
+                  stroke={color}
+                  fill={color}
+                  fillOpacity={isPrimary ? (isDark ? 0.25 : 0.2) : (isDark ? 0.15 : 0.1)}
+                  strokeWidth={isPrimary ? 3.5 : 3}
+                  strokeDasharray={isPrimary ? undefined : "5 5"}
+                  dot={{
+                    r: isPrimary ? 6 : 5,
+                    fill: color,
+                    stroke: isDark ? "rgba(255,255,255,0.95)" : "#fff",
+                    strokeWidth: isPrimary ? 3 : 2,
+                    filter: "none",
+                  }}
+                  animationDuration={1000}
+                  animationEasing="ease-out"
+                />
+              );
+            })}
 
             <Tooltip content={<CustomTooltip />} />
 
-            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
+            <Legend 
+              wrapperStyle={{ 
+                fontSize: 12, 
+                paddingTop: 16,
+                fontWeight: 500
+              }} 
+            />
           </RadarChart>
 
         /* ==================== 柱状图 ==================== */
@@ -452,7 +477,7 @@ export const ChartRenderer: React.FC<{ spec: ChartSpec }> = ({ spec }) => {
             />
 
             <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
+              wrapperStyle={{ fontSize: CHART_AXIS_FONT_SIZE, paddingTop: 14 }}
               iconType="circle"
               iconSize={8}
             />

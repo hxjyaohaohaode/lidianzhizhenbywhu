@@ -1,4 +1,4 @@
-﻿import { randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import type {
   DiagnosticWorkflowResponse,
@@ -9,6 +9,7 @@ import type {
 } from "../shared/agents.js";
 import {
   investorAttachmentUploadRequestSchema,
+  enterpriseAttachmentUploadRequestSchema,
   enterpriseAnalysisRequestSchema,
   enterpriseCollectionRequestSchema,
   enterpriseConfidentialityNotice,
@@ -29,6 +30,8 @@ import {
   type DebateMessage,
   type DebateRound,
   type EnterpriseCollectionRequest,
+  type EnterpriseAttachmentUploadRequest,
+  type EnterpriseAnalysisStreamEvent,
   type InvestorAnalysisRequest,
   type InvestorAnalysisStreamEvent,
   type InvestorAttachmentUploadRequest,
@@ -45,8 +48,10 @@ import type { ServerEnv } from "../shared/config.js";
 import type { ModelGovernance } from "../shared/diagnostics.js";
 import { AppError } from "./errors.js";
 import { DiagnosticWorkflowService } from "./agent-service.js";
+import { createLogger } from "./logger.js";
+import type { Logger } from "pino";
 import { InMemoryMemoryStore } from "./memory.js";
-import { PlatformStore, type PersistedUserRecord } from "./platform-store.js";
+import { PlatformStore, type PersistedUserRecord, type ChatMessage } from "./platform-store.js";
 import { InMemorySessionStore } from "./session-store.js";
 
 type BusinessPortalDependencies = {
@@ -55,6 +60,7 @@ type BusinessPortalDependencies = {
   workflowService?: DiagnosticWorkflowService;
   platformStore?: PlatformStore;
   modelRouter?: import("./llm.js").ModelRouter;
+  logger?: Logger;
 };
 
 type RecommendationStance = "推荐关注" | "谨慎跟踪" | "暂缓配置";
@@ -411,7 +417,7 @@ function inferMimeType(fileName: string, mimeType?: string) {
   return "text/plain";
 }
 
-function buildAttachmentSummary(input: InvestorAttachmentUploadRequest) {
+function buildAttachmentSummary(input: { fileName: string; mimeType?: string; content: string; sessionId: string; userId: string }) {
   const mimeType = inferMimeType(input.fileName, input.mimeType);
   const normalizedContent = input.content.replace(/\s+/g, " ").trim();
   const excerpt = normalizedContent.slice(0, 220);
@@ -659,6 +665,8 @@ async function buildDebate(
   userRecord?: PersistedUserRecord,
   modelRouter?: import("./llm.js").ModelRouter,
   signal?: { aborted: boolean },
+  logger?: Logger,
+  enterpriseName?: string,
 ) {
   const modelLabel: Record<DebateModel, string> = { glm5: "GLM", deepseekReasoner: "DeepSeek", qwen35Plus: "Qwen" };
   const roundConfigs: Array<{ round: number; debaters: [DebateModel, DebateModel]; judge: DebateModel }> = [
@@ -666,13 +674,38 @@ async function buildDebate(
     { round: 2, debaters: ["deepseekReasoner", "qwen35Plus"], judge: "glm5" },
     { round: 3, debaters: ["glm5", "qwen35Plus"], judge: "deepseekReasoner" },
   ];
-  const positiveCase = `支持当前建议“${recommendation.stance}”，理由是 ${recommendation.fitSignals[0] ?? "景气与经营质量共振"}，且 ${diagnostic.summary}`;
+  const mathAnalysis = diagnostic.agents.find((agent) => agent.agentId === "mathAnalysis")?.output as { dqiModel?: { dqi: number; status: string; driver: string }; gmpsModel?: { gmps: number; level: string; riskProbability: number }; grossMargin?: { riskLevel: string }; operatingQuality?: { riskLevel: string }; combinedRiskLevel: string; combinedInsights: string[] } | undefined;
+  const dqiInfo = mathAnalysis?.dqiModel ? `DQI经营质量指数=${mathAnalysis.dqiModel.dqi.toFixed(3)}，状态="${mathAnalysis.dqiModel.status}"，驱动因素=${mathAnalysis.dqiModel.driver}` : "DQI数据不足";
+  const gmpsInfo = mathAnalysis?.gmpsModel ? `GMPS毛利承压得分=${mathAnalysis.gmpsModel.gmps.toFixed(1)}，等级="${mathAnalysis.gmpsModel.level}"，风险概率=${(mathAnalysis.gmpsModel.riskProbability * 100).toFixed(1)}%` : "GMPS数据不足";
+  const riskInfo = mathAnalysis?.combinedRiskLevel ? `综合风险等级=${mathAnalysis.combinedRiskLevel}` : "风险等级未知";
+  const debateModelConstraint = `【辩论模型约束——所有辩论内容必须严格基于以下数学模型计算结果】
+
+当前企业数学模型计算结果：
+- ${dqiInfo}
+- ${gmpsInfo}  
+- ${riskInfo}
+
+辩论主题仅限于以下四个方面：
+1. 经营质量变化的驱动因素分析（基于DQI分解：盈利能力w1=0.4、成长能力w2=0.3、现金流质量w3=0.3）
+2. 毛利承压的来源归因分析（基于GMPS五维度得分：A毛利率结果、B材料成本冲击、C产销负荷、D外部风险、E现金流安全）
+3. 下一季度风险预测的依据讨论（基于Logistic回归概率P=1/(1+exp(-(β0+β1·GMPS+Σβd·S_d)))）
+4. 改善建议的优先级排序（基于DQI指数和GMPS等级的综合判断）
+
+辩论引用要求：
+- 每个论点必须引用具体模型名称（DQI或GMPS）和对应计算结果
+- 禁止脱离模型数据的主观推测
+- 示例："根据DQI模型，现金流质量维度贡献度为-0.15，表明OCF同比下滑是经营恶化的主因"`;
+  const positiveCase = `支持当前建议"${recommendation.stance}"，理由是 ${recommendation.fitSignals[0] ?? "景气与经营质量共振"}，且 ${diagnostic.summary}`;
   const cautiousCase = `我保留审慎意见，主要担心 ${buildEvidenceSummary(diagnostic)[0] ?? "证据链仍有缺口"}，需要继续验证现金流与订单兑现。`;
   let llmAvailable = false;
   if (modelRouter) { try { llmAvailable = modelRouter.listProviders().some((p) => p.available); } catch { llmAvailable = false; } }
+  if (!llmAvailable) {
+    logger?.warn({ providers: modelRouter?.listProviders() }, "辩论AI不可用，将使用模板");
+  }
   let sequence = 1;
   let previousRoundSummary = "";
   const rounds: DebateRound[] = [];
+  const resolvedEnterpriseName = enterpriseName ?? "目标企业";
   for (const config of roundConfigs) {
     if (signal?.aborted) break;
     const [debaterA, debaterB] = config.debaters;
@@ -680,19 +713,26 @@ async function buildDebate(
     let msgA1 = "", msgB1 = "", msgA2 = "", msgB2 = "", msgJudge = "";
     if (llmAvailable && modelRouter) {
       try {
-        const ctx = `立场：${recommendation.stance}，理由：${recommendation.rationale}，证据：${buildEvidenceSummary(diagnostic).join("；")}，用户关注：${userRecord?.preferences.constraints[0] ?? "下行保护"}`;
+        const ctx = `企业：${resolvedEnterpriseName}，立场：${recommendation.stance}，理由：${recommendation.rationale}，证据：${buildEvidenceSummary(diagnostic).join("；")}，用户关注：${userRecord?.preferences.constraints[0] ?? "下行保护"}`;
         const prev = previousRoundSummary ? `\n前一轮辩论摘要：${previousRoundSummary}` : "";
+        const modelPrompt = `\n${debateModelConstraint}`;
+        logger?.info({ round: config.round, debaterA, debaterB, enterpriseName: resolvedEnterpriseName }, "开始辩论AI调用");
         const [rA1, rB1] = await Promise.all([
-          modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterA]}辩手，支持立场"${recommendation.stance}"。基于以下信息陈述你的论点：${ctx}${prev}。请用2-3句话陈述你的核心论点。`, context: { query: recommendation.stance, enterpriseName: "", focusMode: "" }, preferredProviders: [debaterA] }).then((r) => r.result.text).catch(() => null),
-          modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterB]}辩手，对立场"${recommendation.stance}"持审慎态度。基于以下信息提出你的质疑：${ctx}${prev}。请用2-3句话陈述你的核心质疑。`, context: { query: recommendation.stance, enterpriseName: "", focusMode: "" }, preferredProviders: [debaterB] }).then((r) => r.result.text).catch(() => null),
+          modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterA]}辩手，支持立场"${recommendation.stance}"。基于以下信息陈述你的论点：${ctx}${prev}${modelPrompt}。请用2-3句话陈述你的核心论点，必须引用DQI或GMPS模型的具体计算结果。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterA] }).then((r) => { logger?.info({ round: config.round, debater: debaterA, textLength: r.result.text.length }, "辩手A1响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterA }, "辩论辩手A1调用失败"); return null; }),
+          modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterB]}辩手，对立场"${recommendation.stance}"持审慎态度。基于以下信息提出你的质疑：${ctx}${prev}${modelPrompt}。请用2-3句话陈述你的核心质疑，必须引用DQI或GMPS模型的具体计算结果。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterB] }).then((r) => { logger?.info({ round: config.round, debater: debaterB, textLength: r.result.text.length }, "辩手B1响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterB }, "辩论辩手B1调用失败"); return null; }),
         ]);
         if (rA1 && rB1) {
-          const rA2 = await modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterA]}辩手。对方质疑：${rB1}。请回应对方质疑并强化你的支持论点。用2-3句话。`, context: { query: recommendation.stance, enterpriseName: "", focusMode: "" }, preferredProviders: [debaterA] }).then((r) => r.result.text).catch(() => null);
-          const rB2 = await modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterB]}辩手。对方回应：${rA2 ?? "对方坚持原有立场"}。请做最后反驳。用2-3句话。`, context: { query: recommendation.stance, enterpriseName: "", focusMode: "" }, preferredProviders: [debaterB] }).then((r) => r.result.text).catch(() => null);
-          const rJ = await modelRouter.complete({ agentId: "expressionGeneration", capability: "review", prompt: `你是${modelLabel[config.judge]}裁判。正方论点：${rA1}，反方质疑：${rB1}，正方回应：${rA2 ?? ""}，反方反驳：${rB2 ?? ""}。请做出裁决，指出双方优劣，给出最终判断。用2-3句话。`, context: { query: recommendation.stance, enterpriseName: "", focusMode: "" }, preferredProviders: [config.judge] }).then((r) => r.result.text).catch(() => null);
-          if (rJ) { msgA1 = rA1; msgB1 = rB1; msgA2 = rA2 ?? `我承认对方指出的局限成立，但优势在于 ${recommendation.fitSignals[1] ?? "证据可信度尚可"}。`; msgB2 = rB2 ?? `我复述对方优势：经营风险并未失控，且存在改善信号；但局限在于外部证据更新仍不足。`; msgJudge = rJ; usedLlm = true; }
+          const rA2 = await modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterA]}辩手。对方质疑：${rB1}。请回应对方质疑并强化你的支持论点。${modelPrompt}。用2-3句话，必须引用模型数据支撑你的回应。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterA] }).then((r) => { logger?.info({ round: config.round, debater: debaterA, textLength: r.result.text.length }, "辩手A2响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterA }, "辩论辩手A2调用失败"); return null; });
+          const rB2 = await modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterB]}辩手。对方回应：${rA2 ?? "对方坚持原有立场"}。请做最后反驳。${modelPrompt}。用2-3句话，必须引用模型数据支撑你的反驳。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterB] }).then((r) => { logger?.info({ round: config.round, debater: debaterB, textLength: r.result.text.length }, "辩手B2响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterB }, "辩论辩手B2调用失败"); return null; });
+          const rJ = await modelRouter.complete({ agentId: "expressionGeneration", capability: "review", prompt: `你是${modelLabel[config.judge]}裁判。正方论点：${rA1}，反方质疑：${rB1}，正方回应：${rA2 ?? ""}，反方反驳：${rB2 ?? ""}。${modelPrompt}。请做出裁决，指出双方优劣，给出最终判断。用2-3句话，基于模型数据评估辩论质量。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [config.judge] }).then((r) => { logger?.info({ round: config.round, judge: config.judge, textLength: r.result.text.length }, "裁判响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, judge: config.judge }, "辩论裁判调用失败"); return null; });
+          if (rJ) { msgA1 = rA1; msgB1 = rB1; msgA2 = rA2 ?? `我承认对方指出的局限成立，但优势在于 ${recommendation.fitSignals[1] ?? "证据可信度尚可"}。`; msgB2 = rB2 ?? `我复述对方优势：经营风险并未失控，且存在改善信号；但局限在于外部证据更新仍不足。`; msgJudge = rJ; usedLlm = true; logger?.info({ round: config.round }, "辩论轮次AI调用成功"); }
+        } else {
+          logger?.warn({ round: config.round, rA1: !!rA1, rB1: !!rB1 }, "辩论首轮AI调用失败，回退到模板");
         }
-      } catch { usedLlm = false; }
+      } catch (err) { 
+        logger?.error({ err }, "辩论AI调用异常");
+        usedLlm = false; 
+      }
     }
     if (!usedLlm) {
       msgA1 = `${positiveCase} 本轮由我先陈述，看多逻辑集中在 ${recommendation.rationale}`;
@@ -794,6 +834,8 @@ export class BusinessPortalService {
 
   private readonly modelRouter?: import("./llm.js").ModelRouter;
 
+  private readonly logger: Logger;
+
   constructor(env: ServerEnv, dependencies: BusinessPortalDependencies = {}) {
     this.platformStore = dependencies.platformStore ?? new PlatformStore(env.STORAGE_DIR);
     this.memoryStore = dependencies.memoryStore ?? new InMemoryMemoryStore(this.platformStore);
@@ -805,6 +847,7 @@ export class BusinessPortalService {
         platformStore: this.platformStore,
       });
     this.modelRouter = dependencies.modelRouter;
+    this.logger = dependencies.logger ?? createLogger(env);
   }
 
   private async touchUserProfile(input: {
@@ -1191,12 +1234,30 @@ export class BusinessPortalService {
       personalizedSummary,
     });
 
+    const now = new Date().toISOString();
+    await this.platformStore.saveChatMessage({
+      id: randomUUID(),
+      sessionId: nextSession.sessionId,
+      role: "user",
+      content: input.query,
+      timestamp: now,
+    });
+    await this.platformStore.saveChatMessage({
+      id: randomUUID(),
+      sessionId: nextSession.sessionId,
+      role: "assistant",
+      content: diagnostic.finalAnswer ?? diagnostic.summary,
+      timestamp: new Date().toISOString(),
+      metadata: { combinedRiskLevel: mathAnalysis?.combinedRiskLevel, enterpriseName },
+    });
+
     return {
       sessionContext: this.sessionStore.toContext(nextSession, this.memoryStore.list(input.userId, 3)),
       collectionSummary: collectedData
         ? buildEnterpriseCollectionSummary(collectedData)
         : buildEnterpriseCollectionSummary({
             userId: input.userId,
+            role: "enterprise",
             sessionId: nextSession.sessionId,
             enterpriseName,
             hasFullQuarterHistory: false,
@@ -1223,6 +1284,166 @@ export class BusinessPortalService {
         ]).slice(0, 3),
       },
     };
+  }
+
+  async streamEnterpriseAnalysis(
+    payload: unknown,
+    onEvent: (event: EnterpriseAnalysisStreamEvent) => void | Promise<void>,
+    options?: { signal?: { aborted: boolean } },
+  ) {
+    const signal = options?.signal;
+    const input = parseSchema(payload, enterpriseAnalysisRequestSchema);
+    const snapshot = input.sessionId ? this.requireEnterpriseSession(input.sessionId, input.userId) : undefined;
+    const collectedData = snapshot?.metadata.enterpriseCollection as EnterpriseCollectionRequest | undefined;
+    const enterpriseName = input.enterpriseName ?? collectedData?.enterpriseName;
+
+    if (!enterpriseName) {
+      throw createInvalidRequestError([{ path: "enterpriseName", message: "请提供企业名称或先完成数据采集。" }]);
+    }
+
+    if (snapshot) {
+      await onEvent({
+        type: "session",
+        sessionContext: this.sessionStore.toContext(snapshot, this.memoryStore.list(input.userId, 3, "enterprise")),
+      });
+    }
+
+    if (signal?.aborted) return;
+
+    const timelineEntries: AnalysisTimelineEntry[] = [];
+
+    const onProgress = async (stage: "session" | "clarification" | "understanding" | "retrieval" | "feasibility" | "debate" | "evidence" | "writing" | "profile_update" | "completed", label: string, progressPercent: number, detail?: string) => {
+      const entry = createTimelineEntry(stage, label, progressPercent, detail);
+      timelineEntries.push(entry);
+      await onEvent({
+        type: "progress",
+        stage,
+        label,
+        progressPercent,
+        detail,
+        timelineEntry: entry,
+      });
+    };
+
+    const diagnostic = await this.workflowService.diagnose({
+      role: "enterprise",
+      userId: input.userId,
+      conversationId: snapshot?.sessionId,
+      enterpriseName,
+      query: input.query,
+      focusMode: input.focusMode,
+      grossMarginInput: input.grossMarginInput ?? collectedData?.grossMarginInput,
+      operatingQualityInput: input.operatingQualityInput ?? collectedData?.operatingQualityInput,
+      industryContext: input.industryContext ?? collectedData?.industryContext,
+      memoryNotes: buildWorkflowMemoryNotes(
+        input.userId,
+        [
+          ...(collectedData?.notes ?? []),
+          ...input.memoryNotes,
+        ],
+        snapshot
+          ? this.sessionStore.toContext(snapshot, this.memoryStore.list(input.userId, 3, "enterprise"))
+          : undefined,
+        this.memoryStore,
+        "enterprise",
+      ),
+    }, onProgress);
+
+    if (signal?.aborted) return;
+
+    const mathAnalysis = getMathAnalysisOutput(diagnostic);
+    const summary = `${enterpriseName} 已完成企业分析，综合风险为 ${mathAnalysis?.combinedRiskLevel ?? "medium"}。`;
+    const personalizedSummary = `结合长期画像，当前优先建议关注 ${uniqueStrings([
+      ...(this.platformStore.getUser(input.userId)?.preferences.attentionTags ?? []),
+      ...(mathAnalysis?.combinedInsights ?? []),
+    ]).slice(0, 2).join("、") || "现金流与库存周转"}。`;
+    const nextSession = await this.sessionStore.upsert({
+      sessionId: snapshot?.sessionId ?? input.sessionId,
+      userId: input.userId,
+      role: "enterprise",
+      activeMode: input.focusMode,
+      enterpriseName,
+      summary,
+      lastQuery: input.query,
+      recentEvent: createSessionEvent("enterprise_analysis", summary),
+      metadata: {
+        enterpriseCollection: (collectedData ?? input) as unknown as Record<string, unknown>,
+        lastWorkflowId: diagnostic.workflowId,
+      },
+    });
+    await this.touchUserProfile({
+      userId: input.userId,
+      role: "enterprise",
+      enterpriseName,
+      focusMode: input.focusMode,
+      profileSummary: summary,
+      attentionTags: [...(mathAnalysis?.combinedInsights ?? []), ...input.memoryNotes],
+    });
+    await this.recordAnalysis({
+      userId: input.userId,
+      role: "enterprise",
+      sessionId: nextSession.sessionId,
+      enterpriseName,
+      focusMode: input.focusMode,
+      query: input.query,
+      diagnostic,
+      personalizedSummary,
+    });
+
+    const result = {
+      sessionContext: this.sessionStore.toContext(nextSession, this.memoryStore.list(input.userId, 3)),
+      collectionSummary: collectedData
+        ? buildEnterpriseCollectionSummary(collectedData)
+        : buildEnterpriseCollectionSummary({
+            userId: input.userId,
+            role: "enterprise",
+            sessionId: nextSession.sessionId,
+            enterpriseName,
+            hasFullQuarterHistory: false,
+            currentQuarterLabel: "本季度",
+            baselineQuarterLabel: "去年同季度",
+            recentQuarterLabels: [],
+            grossMarginInput: input.grossMarginInput,
+            operatingQualityInput: input.operatingQualityInput,
+            industryContext: input.industryContext,
+            notes: input.memoryNotes,
+            enterpriseBaseInfo: {},
+          }),
+      diagnostic,
+      highlights: {
+        combinedRiskLevel: mathAnalysis?.combinedRiskLevel ?? "medium",
+        combinedInsights: mathAnalysis?.combinedInsights ?? [],
+      },
+      personalization: {
+        summary: personalizedSummary,
+        nextTasks: uniqueStrings([
+          "关注经营质量趋势变化",
+          mathAnalysis?.combinedRiskLevel === "high" ? "安排专项降本与库存复盘" : "建立周度跟踪节奏",
+          diagnostic.governance?.manualTakeoverAvailable ? "必要时请求人工复核" : "",
+        ]).slice(0, 3),
+      },
+    };
+
+    if (signal?.aborted) return;
+
+    const text = diagnostic.finalAnswer ?? "";
+    const chunks = chunkText(text);
+    const shouldDelay = text.length > 100;
+    for (const chunk of chunks) {
+      await onEvent({
+        type: "delta",
+        stage: "writing",
+        chunk,
+      });
+      if (shouldDelay) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    }
+
+    await onEvent({
+      type: "result",
+      result: result as unknown as Record<string, unknown>,
+    });
   }
 
   async createInvestorProfile(payload: unknown) {
@@ -1306,6 +1527,14 @@ export class BusinessPortalService {
     };
   }
 
+  listEnterpriseSessions(userId: string) {
+    return {
+      items: this.sessionStore
+        .listByUser(userId, "enterprise")
+        .map((snapshot) => this.buildSessionSummary(this.sessionStore.toContext(snapshot, this.memoryStore.list(userId, 3)))),
+    };
+  }
+
   async deleteCurrentInvestorSession(payload: unknown) {
     const input = parseSchema(payload, investorSessionDeleteRequestSchema);
     const snapshot = this.requireInvestorSession(input.sessionId, input.userId);
@@ -1349,6 +1578,35 @@ export class BusinessPortalService {
   async uploadInvestorAttachment(payload: unknown) {
     const input = parseSchema(payload, investorAttachmentUploadRequestSchema);
     const snapshot = this.requireInvestorSession(input.sessionId, input.userId);
+    const attachment = buildAttachmentSummary(input);
+    const attachments = [attachment, ...snapshot.attachments].slice(0, 8);
+    const nextSnapshot = await this.sessionStore.upsert({
+      sessionId: snapshot.sessionId,
+      userId: snapshot.userId,
+      role: snapshot.role,
+      activeMode: snapshot.activeMode,
+      enterpriseName: snapshot.enterpriseName,
+      summary: `${snapshot.summary} 已纳入附件 ${attachment.fileName}。`,
+      investedEnterprises: snapshot.investedEnterprises,
+      investorProfileSummary: snapshot.investorProfileSummary,
+      lastQuery: snapshot.lastQuery,
+      recentEvent: createSessionEvent("attachment_uploaded", `已上传并解析附件：${attachment.fileName}`),
+      metadata: {
+        ...snapshot.metadata,
+        attachments,
+      },
+    });
+
+    return {
+      attachment,
+      warnings: attachment.warnings,
+      sessionContext: this.sessionStore.toContext(nextSnapshot, this.memoryStore.list(input.userId, 3)),
+    };
+  }
+
+  async uploadEnterpriseAttachment(payload: unknown) {
+    const input = parseSchema(payload, enterpriseAttachmentUploadRequestSchema);
+    const snapshot = this.requireEnterpriseSession(input.sessionId, input.userId);
     const attachment = buildAttachmentSummary(input);
     const attachments = [attachment, ...snapshot.attachments].slice(0, 8);
     const nextSnapshot = await this.sessionStore.upsert({
@@ -1474,7 +1732,7 @@ export class BusinessPortalService {
     ]).slice(0, 2).join("、") || "景气与现金流"}。`;
     const recommendation = buildRecommendation(profile, diagnostic, userRecord);
     const industryReport = buildIndustryReport(diagnostic, attachments, userRecord);
-    const debate = await buildDebate(recommendation, diagnostic, userRecord, this.modelRouter);
+    const debate = await buildDebate(recommendation, diagnostic, userRecord, this.modelRouter, undefined, this.logger, enterpriseName);
     const evidenceSummary = buildEvidenceSummary(diagnostic);
     const clarificationQuestions = buildClarificationQuestions(input, userRecord);
     const timeline = buildTimeline(
@@ -1539,6 +1797,23 @@ export class BusinessPortalService {
       query: input.query,
       diagnostic,
       personalizedSummary,
+    });
+
+    const now = new Date().toISOString();
+    await this.platformStore.saveChatMessage({
+      id: randomUUID(),
+      sessionId: nextSession.sessionId,
+      role: "user",
+      content: input.query,
+      timestamp: now,
+    });
+    await this.platformStore.saveChatMessage({
+      id: randomUUID(),
+      sessionId: nextSession.sessionId,
+      role: "assistant",
+      content: diagnostic.finalAnswer ?? diagnostic.summary,
+      timestamp: new Date().toISOString(),
+      metadata: { focusMode: input.focusMode, enterpriseName, stance: recommendation.stance },
     });
 
     return {
@@ -1624,38 +1899,49 @@ export class BusinessPortalService {
 
     const result = await this.analyzeInvestorWithProgress(input, onEvent, signal);
 
+    const complexity = input.complexity ?? "moderate";
+
     if (input.focusMode === "investmentRecommendation") {
       if (signal?.aborted) return;
-      for (const [index, round] of result.debate.rounds.entries()) {
-        if (index === 1) {
-          await onEvent({
-            type: "delta",
-            stage: "debate",
-            chunk: "辩手与裁判换位，进行第二轮辩论",
-          });
+
+      if (complexity === "simple") {
+        await onEvent({
+          type: "delta",
+          stage: "writing",
+          chunk: result.debate.finalDecision,
+        });
+      } else {
+        for (const [index, round] of result.debate.rounds.entries()) {
+          if (index === 1) {
+            await onEvent({
+              type: "delta",
+              stage: "debate",
+              chunk: "辩手与裁判换位，进行第二轮辩论",
+            });
+          }
+
+          if (index === 2) {
+            await onEvent({
+              type: "delta",
+              stage: "debate",
+              chunk: "辩手与裁判换位，进行最后一轮辩论",
+            });
+          }
+
+          for (const message of round.messages) {
+            await onEvent({
+              type: "debate_message",
+              message,
+            });
+          }
         }
 
-        if (index === 2) {
-          await onEvent({
-            type: "delta",
-            stage: "debate",
-            chunk: "辩手与裁判换位，进行最后一轮辩论",
-          });
-        }
-
-        for (const message of round.messages) {
-          await onEvent({
-            type: "debate_message",
-            message,
-          });
-        }
+        await onEvent({
+          type: "delta",
+          stage: "writing",
+          chunk: result.debate.finalDecision,
+        });
       }
-
-      await onEvent({
-        type: "delta",
-        stage: "writing",
-        chunk: result.debate.finalDecision,
-      });
     } else {
       if (signal?.aborted) return;
       const text =
@@ -1668,13 +1954,17 @@ export class BusinessPortalService {
             ].join(" ")
           : [result.deepDive.thesis, ...result.deepDive.modules.map((item) => `${item.name}：${item.summary}`)].join(" ");
 
-      for (const chunk of chunkText(text)) {
+      const chunks = chunkText(text);
+      const shouldDelay = text.length > 100;
+      for (const chunk of chunks) {
         await onEvent({
           type: "delta",
           stage: input.focusMode === "industryStatus" ? "writing" : "evidence",
           chunk,
         });
-        await new Promise((r) => setTimeout(r, 50));
+        if (shouldDelay) {
+          await new Promise((r) => setTimeout(r, 20));
+        }
       }
     }
 
@@ -1684,6 +1974,25 @@ export class BusinessPortalService {
         profileUpdate: result.profileUpdate,
       });
     }
+
+    const completedLabel = input.focusMode === "investmentRecommendation" ? "分析完成"
+      : input.focusMode === "deepDive" ? "解析完成"
+        : "分析完成";
+    const completedEntry: AnalysisTimelineEntry = {
+      id: `tl-${Date.now()}-completed`,
+      stage: "completed",
+      label: completedLabel,
+      progressPercent: 100,
+      occurredAt: new Date().toISOString(),
+      status: "completed",
+    };
+    await onEvent({
+      type: "progress",
+      stage: "completed",
+      label: completedLabel,
+      progressPercent: 100,
+      timelineEntry: completedEntry,
+    });
 
     await onEvent({
       type: "result",
@@ -1725,7 +2034,9 @@ export class BusinessPortalService {
       userRecord,
     });
 
-    if (signal?.aborted) return {} as InvestorAnalysisResponsePayload;
+    if (signal?.aborted) {
+      throw new AppError({ code: "ABORTED", message: "分析已被用户取消。", statusCode: 499 });
+    }
 
     const diagnostic = await this.workflowService.diagnose({
       role: "investor",
@@ -1757,7 +2068,9 @@ export class BusinessPortalService {
       ),
     }, onProgress);
 
-    if (signal?.aborted) return {} as InvestorAnalysisResponsePayload;
+    if (signal?.aborted) {
+      throw new AppError({ code: "ABORTED", message: "分析已被用户取消。", statusCode: 499 });
+    }
 
     const summary =
       input.focusMode === "industryStatus"
@@ -1778,8 +2091,11 @@ export class BusinessPortalService {
     ]).slice(0, 2).join("、") || "景气与现金流"}。`;
     const recommendation = buildRecommendation(profile, diagnostic, userRecord);
     const industryReport = buildIndustryReport(diagnostic, attachments, userRecord);
-    if (signal?.aborted) return {} as InvestorAnalysisResponsePayload;
-    const debate = await buildDebate(recommendation, diagnostic, userRecord, this.modelRouter, signal);
+    if (signal?.aborted) {
+      throw new AppError({ code: "ABORTED", message: "分析已被用户取消。", statusCode: 499 });
+    }
+    const isSimpleQuery = input.complexity === "simple" || diagnostic.complexity === "simple";
+    const debate = await buildDebate(recommendation, diagnostic, userRecord, this.modelRouter, signal, this.logger, enterpriseName);
     const evidenceSummary = buildEvidenceSummary(diagnostic);
     const clarificationQuestions = buildClarificationQuestions(input, userRecord);
 
@@ -1839,6 +2155,23 @@ export class BusinessPortalService {
       query: input.query,
       diagnostic,
       personalizedSummary,
+    });
+
+    const now = new Date().toISOString();
+    await this.platformStore.saveChatMessage({
+      id: randomUUID(),
+      sessionId: nextSession.sessionId,
+      role: "user",
+      content: input.query,
+      timestamp: now,
+    });
+    await this.platformStore.saveChatMessage({
+      id: randomUUID(),
+      sessionId: nextSession.sessionId,
+      role: "assistant",
+      content: diagnostic.finalAnswer ?? diagnostic.summary,
+      timestamp: new Date().toISOString(),
+      metadata: { focusMode: input.focusMode, enterpriseName, stance: recommendation.stance },
     });
 
     return {

@@ -1,6 +1,0 @@
-- [ ] SSE stream abort signal uses `response.destroyed` instead of `clientDisconnected` flag
-- [ ] `request.on("close")` handler only clears heartbeat interval, does not set abort flag
-- [ ] `clientDisconnected` variable removed from SSE handler
-- [ ] All 5 debug `console.log("[DEBUG stream]...")` statements removed from app.ts
-- [ ] "streams formal debate events and reuses auto-built profile" test passes (15 debate events received)
-- [ ] All 9 previously failing tests now pass (0 failures in app.test.ts and app.models-api.test.ts)

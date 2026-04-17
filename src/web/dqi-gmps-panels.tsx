@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * DQI & GMPS 结果展示面板组件
  *
@@ -29,11 +30,14 @@ import type { MathAnalysisOutput } from '../shared/agents.js';
 export interface DQIData {
   dqi: number;
   status: "改善" | "稳定" | "恶化";
-  driver: "盈利能力" | "成长能力" | "现金流质量" | "无明显驱动";
+  driver: "盈利能力" | "成长能力" | "现金流质量" | "资产周转效率" | "研发投入强度" | "库存周转效率" | "无明显驱动";
   decomposition: {
     profitabilityContribution: number;
     growthContribution: number;
     cashflowContribution: number;
+    assetTurnoverContribution: number;
+    rdIntensityContribution: number;
+    inventoryTurnoverContribution: number;
   };
   metrics: {
     currentROE: number;
@@ -45,6 +49,12 @@ export interface DQIData {
     currentOCFRatio: number;
     baselineOCFRatio: number;
     ocfRatioChange: number;
+    currentAssetTurnover: number;
+    baselineAssetTurnover: number;
+    currentRdRatio: number;
+    baselineRdRatio: number;
+    currentInventoryDays: number;
+    baselineInventoryDays: number;
   };
   trend: string;
   confidence: number;
@@ -65,6 +75,12 @@ export interface GMPSData {
   };
   featureScores: Record<string, number>;
   keyFindings: string[];
+  industrySegment?: "powerBattery" | "energyStorage" | "consumerBattery";
+  industryWeights?: Record<string, number>;
+  dataProvenance?: {
+    estimatedFields: string[];
+    estimationMethod: string;
+  };
 }
 
 /** DQI面板属性 */
@@ -94,7 +110,7 @@ export interface GMPSResultPanelProps {
 /** 模型参数配置属性 */
 export interface ModelParameterConfigProps {
   /** DQI权重配置 */
-  dqiWeights?: { w1: number; w2: number; w3: number };
+  dqiWeights?: { w1: number; w2: number; w3: number; w4: number; w5: number; w6: number };
   /** GMPS权重配置 */
   gmpsWeights?: Record<string, number>;
   /** DQI权重变更回调 */
@@ -107,14 +123,12 @@ export interface ModelParameterConfigProps {
 
 /** 联合面板容器属性 */
 export interface DQIGMPSPanelsContainerProps {
-  /** 数学分析输出数据 */
   mathAnalysisOutput: MathAnalysisOutput | null;
-  /** 是否正在加载 */
   isLoading?: boolean;
-  /** 自定义类名 */
   className?: string;
-  /** 显示模式 */
   displayMode?: 'grid' | 'stacked' | 'tabs';
+  isDark?: boolean;
+  chartThemeKey?: number;
 }
 
 // ==================== 样式常量 ====================
@@ -135,6 +149,12 @@ const RISK_COLORS = {
   低风险: '#10B981',
   中风险: '#F59E0B',
   高风险: '#EF4444',
+} as const;
+
+const DQI_PRESETS = {
+  conservative: { label: '保守', dqi: { w1: 0.30, w2: 0.20, w3: 0.20, w4: 0.15, w5: 0.08, w6: 0.07 } },
+  neutral: { label: '中性', dqi: { w1: 0.25, w2: 0.20, w3: 0.20, w4: 0.15, w5: 0.10, w6: 0.10 } },
+  aggressive: { label: '激进', dqi: { w1: 0.20, w2: 0.25, w3: 0.15, w4: 0.15, w5: 0.15, w6: 0.10 } },
 } as const;
 
 // ==================== 辅助组件 ====================
@@ -271,7 +291,7 @@ const ConfidenceIndicator: React.FC<{ confidence: number }> = memo(({ confidence
 ConfidenceIndicator.displayName = 'ConfidenceIndicator';
 
 /** 关键发现列表项 */
-const FindingItem: React.FC<{ text: string; index: number }> = memo(({ text, index }) => {
+const FindingItem: React.FC<{ text: string }> = memo(({ text }) => {
   const getIcon = (text: string): string => {
     if (text.includes('风险') || text.includes('警告') || text.includes('注意')) return '⚠️';
     if (text.includes('良好') || text.includes('改善') || text.includes('优势')) return '✓';
@@ -300,7 +320,7 @@ const DimensionScoreBar: React.FC<{
     <div className="dqi-gmps-dimension-item">
       <div className="dqi-gmps-dimension-label">
         <span>{label.replace(/^[A-E]_/, '')}</span>
-        <span className="dqi-gmps-dimension-score" style={{ color }}>{normalizedScore.toFixed(0)}</span>
+        <span className="dqi-gmps-dimension-score" style={{ color }}>{normalizedScore.toFixed(2)}</span>
       </div>
       <div className="dqi-gmps-dimension-bar-bg">
         <div
@@ -403,9 +423,9 @@ export const DQIResultPanel: React.FC<DQIResultPanelProps> = memo(({
       {/* 详细信息区域 */}
       {showDetails && (
         <>
-          {/* 三维分解贡献度 */}
+          {/* 六维分解贡献度 */}
           <div className="dqi-gmps-decomposition-section">
-            <h4 className="dqi-gmps-section-title">三维分解贡献度</h4>
+            <h4 className="dqi-gmps-section-title">六维分解贡献度</h4>
             <div className="dqi-gmps-decomposition-bars">
               <ProgressBar
                 label="盈利能力"
@@ -424,6 +444,24 @@ export const DQIResultPanel: React.FC<DQIResultPanelProps> = memo(({
                 value={Math.abs(dqiData.decomposition.cashflowContribution) * 100}
                 max={100}
                 color="#06B6D4"
+              />
+              <ProgressBar
+                label="资产周转效率"
+                value={Math.abs(dqiData.decomposition.assetTurnoverContribution) * 100}
+                max={100}
+                color="#F59E0B"
+              />
+              <ProgressBar
+                label="研发投入强度"
+                value={Math.abs(dqiData.decomposition.rdIntensityContribution) * 100}
+                max={100}
+                color="#10B981"
+              />
+              <ProgressBar
+                label="库存周转效率"
+                value={Math.abs(dqiData.decomposition.inventoryTurnoverContribution) * 100}
+                max={100}
+                color="#EF4444"
               />
             </div>
           </div>
@@ -449,6 +487,18 @@ export const DQIResultPanel: React.FC<DQIResultPanelProps> = memo(({
             <div className="dqi-gmps-metric-card">
               <span className="dqi-gmps-metric-label">OCF比率变化</span>
               <span className="dqi-gmps-metric-value">{dqiData.metrics.ocfRatioChange.toFixed(2)}</span>
+            </div>
+            <div className="dqi-gmps-metric-card">
+              <span className="dqi-gmps-metric-label">资产周转率(当期)</span>
+              <span className="dqi-gmps-metric-value">{dqiData.metrics.currentAssetTurnover.toFixed(4)}</span>
+            </div>
+            <div className="dqi-gmps-metric-card">
+              <span className="dqi-gmps-metric-label">研发投入比(估算)</span>
+              <span className="dqi-gmps-metric-value">{(dqiData.metrics.currentRdRatio * 100).toFixed(2)}%</span>
+            </div>
+            <div className="dqi-gmps-metric-card">
+              <span className="dqi-gmps-metric-label">库存周转天数</span>
+              <span className="dqi-gmps-metric-value">{dqiData.metrics.currentInventoryDays.toFixed(2)}天</span>
             </div>
           </div>
         </>
@@ -517,6 +567,18 @@ export const GMPSResultPanel: React.FC<GMPSResultPanelProps> = memo(({
         <div className="dqi-gmps-panel-badges">
           <StatusBadge status={gmpsData.level} color={levelColor} />
           <StatusBadge status={gmpsData.riskLevel} color={riskColor} />
+          {gmpsData.industrySegment && (
+            <span
+              className="dqi-gmps-badge"
+              style={{
+                backgroundColor: 'rgba(99,102,241,0.15)',
+                color: '#6366F1',
+                borderColor: 'rgba(99,102,241,0.3)',
+              }}
+            >
+              {gmpsData.industrySegment === 'powerBattery' ? '动力电池' : gmpsData.industrySegment === 'energyStorage' ? '储能电池' : '消费电池'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -574,13 +636,29 @@ export const GMPSResultPanel: React.FC<GMPSResultPanelProps> = memo(({
             </div>
           </div>
 
+          {/* 行业细分权重 */}
+          {gmpsData.industryWeights && Object.keys(gmpsData.industryWeights).length > 0 && (
+            <div className="dqi-gmps-weights-section" style={{ marginTop: 12, padding: '8px 12px', borderRadius: 6, fontSize: 12, lineHeight: 1.8, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+              <div style={{ fontWeight: 600, marginBottom: 4, color: '#6366F1' }}>
+                行业细分权重配置
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+                {Object.entries(gmpsData.industryWeights).map(([key, weight]) => (
+                  <span key={key} style={{ color: '#374151' }}>
+                    {key.replace(/^[A-E]_/, '')}: {(weight * 100).toFixed(0)}%
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 关键发现列表 */}
           {gmpsData.keyFindings && gmpsData.keyFindings.length > 0 && (
             <div className="dqi-gmps-findings-section">
               <h4 className="dqi-gmps-section-title">关键发现</h4>
               <ul className="dqi-gmps-findings-list" role="list" aria-label="关键发现列表">
                 {gmpsData.keyFindings.map((finding, index) => (
-                  <FindingItem key={`finding-${index}`} text={finding} index={index} />
+                  <FindingItem key={`finding-${index}`} text={finding} />
                 ))}
               </ul>
             </div>
@@ -592,9 +670,21 @@ export const GMPSResultPanel: React.FC<GMPSResultPanelProps> = memo(({
               <h4 className="dqi-gmps-section-title">特征变量概览</h4>
               <p className="dqi-gmps-features-count">
                 共 <strong>{Object.keys(gmpsData.featureScores).length}</strong> 个特征变量参与评估，
-                最高分: <strong>{Math.max(...Object.values(gmpsData.featureScores)).toFixed(0)}</strong>，
-                最低分: <strong>{Math.min(...Object.values(gmpsData.featureScores)).toFixed(0)}</strong>
+                最高分: <strong>{Math.max(...Object.values(gmpsData.featureScores)).toFixed(2)}</strong>，
+                最低分: <strong>{Math.min(...Object.values(gmpsData.featureScores)).toFixed(2)}</strong>
               </p>
+            </div>
+          )}
+
+          {gmpsData.dataProvenance && (
+            <div className="dqi-gmps-data-provenance" style={{ marginTop: 12, padding: '8px 12px', borderRadius: 6, fontSize: 12, lineHeight: 1.6, background: gmpsData.dataProvenance.estimatedFields.some(f => f === 'currentLithiumPrice' || f === 'industryVolatility') ? '#FEF3C7' : '#F0FDF4', border: gmpsData.dataProvenance.estimatedFields.some(f => f === 'currentLithiumPrice' || f === 'industryVolatility') ? '1px solid #F59E0B' : '1px solid #86EFAC' }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                {gmpsData.dataProvenance.estimatedFields.some(f => f === 'currentLithiumPrice' || f === 'industryVolatility') ? '⚠️ 部分数据使用默认值' : '✅ 数据来源'}
+              </div>
+              <div style={{ color: '#374151' }}>{gmpsData.dataProvenance.estimationMethod}</div>
+              {gmpsData.dataProvenance.estimatedFields.some(f => f === 'currentLithiumPrice' || f === 'industryVolatility') && (
+                <div style={{ color: '#92400E', marginTop: 4 }}>建议配置数据源或触发数据采集以获取真实行业数据</div>
+              )}
             </div>
           )}
         </>
@@ -620,7 +710,7 @@ GMPSResultPanel.displayName = 'GMPSResultPanel';
  * ```
  */
 export const ModelParameterConfig: React.FC<ModelParameterConfigProps> = memo(({
-  dqiWeights = { w1: 0.4, w2: 0.35, w3: 0.25 },
+  dqiWeights = { w1: 0.25, w2: 0.20, w3: 0.20, w4: 0.15, w5: 0.10, w6: 0.10 },
   gmpsWeights,
   onDQIWeightChange,
   onGMPSWeightChange,
@@ -629,16 +719,9 @@ export const ModelParameterConfig: React.FC<ModelParameterConfigProps> = memo(({
   const [activeTab, setActiveTab] = useState<'dqi' | 'gmps'>('dqi');
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // 权重预设方案
-  const presets = {
-    conservative: { label: '保守', dqi: { w1: 0.5, w2: 0.3, w3: 0.2 } },
-    neutral: { label: '中性', dqi: { w1: 0.4, w2: 0.35, w3: 0.25 } },
-    aggressive: { label: '激进', dqi: { w1: 0.3, w2: 0.4, w3: 0.3 } },
-  };
-
-  const handlePresetSelect = useCallback((presetKey: keyof typeof presets) => {
+  const handlePresetSelect = useCallback((presetKey: 'conservative' | 'neutral' | 'aggressive') => {
     if (onDQIWeightChange) {
-      const preset = presets[presetKey].dqi;
+      const preset = DQI_PRESETS[presetKey].dqi;
       Object.entries(preset).forEach(([key, value]) => {
         onDQIWeightChange(key, value);
       });
@@ -683,11 +766,11 @@ export const ModelParameterConfig: React.FC<ModelParameterConfigProps> = memo(({
           {activeTab === 'dqi' && (
             <div className="dqi-gmps-config-section" role="tabpanel">
               <div className="dqi-gmps-presets">
-                {Object.entries(presets).map(([key, preset]) => (
+                {Object.entries(DQI_PRESETS).map(([key, preset]) => (
                   <button
                     key={key}
                     className="dqi-gmps-preset-btn"
-                    onClick={() => handlePresetSelect(key as keyof typeof presets)}
+                    onClick={() => handlePresetSelect(key as 'conservative' | 'neutral' | 'aggressive')}
                   >
                     {preset.label}
                   </button>
@@ -736,11 +819,53 @@ export const ModelParameterConfig: React.FC<ModelParameterConfigProps> = memo(({
                   />
                   <span>{dqiWeights.w3.toFixed(2)}</span>
                 </label>
+
+                <label className="dqi-gmps-slider-label">
+                  资产周转效率权重 (w4)
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={dqiWeights.w4}
+                    onChange={(e) => onDQIWeightChange?.('w4', parseFloat(e.target.value))}
+                    aria-label="资产周转效率权重"
+                  />
+                  <span>{dqiWeights.w4.toFixed(2)}</span>
+                </label>
+
+                <label className="dqi-gmps-slider-label">
+                  研发投入强度权重 (w5)
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={dqiWeights.w5}
+                    onChange={(e) => onDQIWeightChange?.('w5', parseFloat(e.target.value))}
+                    aria-label="研发投入强度权重"
+                  />
+                  <span>{dqiWeights.w5.toFixed(2)}</span>
+                </label>
+
+                <label className="dqi-gmps-slider-label">
+                  库存周转效率权重 (w6)
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={dqiWeights.w6}
+                    onChange={(e) => onDQIWeightChange?.('w6', parseFloat(e.target.value))}
+                    aria-label="库存周转效率权重"
+                  />
+                  <span>{dqiWeights.w6.toFixed(2)}</span>
+                </label>
               </div>
 
               <div className="dqi-gmps-weight-sum">
-                权重总和: {(dqiWeights.w1 + dqiWeights.w2 + dqiWeights.w3).toFixed(2)}
-                {Math.abs((dqiWeights.w1 + dqiWeights.w2 + dqiWeights.w3) - 1.0) > 0.01 && (
+                权重总和: {(dqiWeights.w1 + dqiWeights.w2 + dqiWeights.w3 + dqiWeights.w4 + dqiWeights.w5 + dqiWeights.w6).toFixed(2)}
+                {Math.abs((dqiWeights.w1 + dqiWeights.w2 + dqiWeights.w3 + dqiWeights.w4 + dqiWeights.w5 + dqiWeights.w6) - 1.0) > 0.01 && (
                   <span className="dqi-gmps-weight-warning"> (应等于1.0)</span>
                 )}
               </div>
@@ -800,8 +925,11 @@ export const DQIGMPSPanelsContainer: React.FC<DQIGMPSPanelsContainerProps> = mem
   isLoading = false,
   className = '',
   displayMode = 'grid',
+  isDark,
+  chartThemeKey,
 }) => {
-  // 从MathAnalysisOutput提取数据
+  void isDark;
+  void chartThemeKey;
   const dqiData = useMemo<DQIData | null>(() =>
     extractDQIResult(mathAnalysisOutput), [mathAnalysisOutput]
   );
@@ -810,7 +938,6 @@ export const DQIGMPSPanelsContainer: React.FC<DQIGMPSPanelsContainerProps> = mem
     extractGMPSResult(mathAnalysisOutput), [mathAnalysisOutput]
   );
 
-  // 标签页模式的状态
   const [activePanelTab, setActivePanelTab] = useState<'dqi' | 'gmps'>('dqi');
 
   // 如果没有数据且不在加载中，不渲染
@@ -933,7 +1060,7 @@ export function withDQIGMPSData<P extends object>(
  * @returns MathAnalysisOutput或null
  */
 export function extractMathAnalysisFromResponse(
-  diagnosticResponse: { diagnostic?: { agents?: Array<{ agentId: string; output?: any }> } } | null
+  diagnosticResponse: { diagnostic?: { agents?: Array<{ agentId: string; output?: unknown }> } } | null
 ): MathAnalysisOutput | null {
   if (!diagnosticResponse?.diagnostic?.agents) return null;
 
@@ -941,7 +1068,13 @@ export function extractMathAnalysisFromResponse(
     (agent) => agent.agentId === 'mathAnalysis'
   );
 
-  return mathAgent?.output as MathAnalysisOutput | null ?? null;
+  // 检查output是否为MathAnalysisOutput类型
+  const output = mathAgent?.output;
+  if (output && typeof output === 'object' && 'combinedRiskLevel' in output && 'combinedInsights' in output) {
+    return output as MathAnalysisOutput;
+  }
+
+  return null;
 }
 
 /**
@@ -951,7 +1084,7 @@ export function extractMathAnalysisFromResponse(
  * @returns DQI数据或null
  */
 export function quickExtractDQI(
-  diagnosticResponse: { diagnostic?: { agents?: Array<{ agentId: string; output?: any }> } } | null
+  diagnosticResponse: { diagnostic?: { agents?: Array<{ agentId: string; output?: MathAnalysisOutput }> } } | null
 ): DQIData | null {
   const mathAnalysis = extractMathAnalysisFromResponse(diagnosticResponse);
   return extractDQIResult(mathAnalysis);
@@ -964,7 +1097,7 @@ export function quickExtractDQI(
  * @returns GMPS数据或null
  */
 export function quickExtractGMPS(
-  diagnosticResponse: { diagnostic?: { agents?: Array<{ agentId: string; output?: any }> } } | null
+  diagnosticResponse: { diagnostic?: { agents?: Array<{ agentId: string; output?: unknown }> } } | null
 ): GMPSData | null {
   const mathAnalysis = extractMathAnalysisFromResponse(diagnosticResponse);
   return extractGMPSResult(mathAnalysis);

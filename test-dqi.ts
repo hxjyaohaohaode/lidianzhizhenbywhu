@@ -4,6 +4,7 @@
  */
 
 import { calculateDQI } from "./src/server/models.js";
+import type { DQIResult } from "./src/shared/diagnostics.js";
 
 console.log("========================================");
 console.log("  DQI 经营质量动态评价模型 测试");
@@ -114,7 +115,7 @@ const result4 = calculateDQI(testCase4);
 printDQIResult(result4);
 
 // 辅助函数：打印DQI结果
-function printDQIResult(result: any) {
+function printDQIResult(result: DQIResult) {
   console.log("========== DQI 计算结果 ==========");
   console.log(`DQI 综合指数: ${result.dqi}`);
   console.log(`状态判断: ${result.status}`);
@@ -145,7 +146,7 @@ function printDQIResult(result: any) {
   validateDQIResult(result);
 }
 
-function validateDQIResult(result: any) {
+function validateDQIResult(result: DQIResult) {
   const checks = [
     { condition: result.dqi >= 0 && result.dqi <= 3, message: "DQI指数在[0,3]范围内" },
     { condition: ["改善", "稳定", "恶化"].includes(result.status), message: "状态为有效值" },

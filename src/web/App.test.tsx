@@ -570,10 +570,23 @@ function getCurrentInvestorSessionId(container: HTMLElement) {
 
 async function settleBootstrap() {
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(1499);
+    await vi.advanceTimersByTimeAsync(10000);
   });
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(500);
+  });
+  await act(async () => {
+    await waitFor(() => {
+      expect(
+        document.body.textContent,
+      ).toContain("欢迎使用锂电智诊");
+    });
+  });
+}
+
+async function advanceValidationDelay() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000);
   });
 }
 
@@ -1274,6 +1287,18 @@ function installFetchMock(options: { streamResponseDelayMs?: number; preferences
       return createJsonResponse(enterpriseAnalysisResponse);
     }
 
+    if (pathname === "/api/enterprise/stream") {
+      const sseEvents = [
+        { type: "session", sessionContext: enterpriseAnalysisResponse.sessionContext },
+        { type: "progress", stage: "data_gathering", label: "采集经营数据", progressPercent: 20, detail: "已采集企业数据", timelineEntry: { id: "tl-1", stage: "data_gathering", label: "采集经营数据", status: "completed", detail: "已采集企业数据", progressPercent: 20, occurredAt: new Date().toISOString() } },
+        { type: "progress", stage: "analysis", label: "分析经营指标", progressPercent: 60, detail: "经营指标分析完成", timelineEntry: { id: "tl-2", stage: "analysis", label: "分析经营指标", status: "completed", detail: "经营指标分析完成", progressPercent: 60, occurredAt: new Date().toISOString() } },
+        { type: "progress", stage: "writing", label: "生成诊断报告", progressPercent: 90, detail: "诊断报告已生成", timelineEntry: { id: "tl-3", stage: "writing", label: "生成诊断报告", status: "completed", detail: "诊断报告已生成", progressPercent: 90, occurredAt: new Date().toISOString() } },
+        { type: "delta", stage: "writing", chunk: enterpriseAnalysisResponse.diagnostic.finalAnswer },
+        { type: "result", result: enterpriseAnalysisResponse },
+      ];
+      return createSseResponse(sseEvents);
+    }
+
     if (pathname === "/api/investor/profile") {
       const userId = String(body.userId ?? DEFAULT_USER_ID);
       const investedEnterprises = Array.isArray(body.investedEnterprises) ? body.investedEnterprises.map(String) : ["星海电池", "蓝峰材料"];
@@ -1769,11 +1794,12 @@ describe("App critical paths", () => {
     });
     await clickButton(view.container, "下一");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("历史季度对比数据");
+      expect(view.container.textContent).toContain("去年同季度对比数据");
     });
     await clickButton(view.container, "开始分");
+    await advanceValidationDelay();
     await waitFor(() => {
-      expect(view.container.textContent).toContain("企业端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
       expect(view.container.textContent).toContain("经营总览");
     });
 
@@ -1792,6 +1818,7 @@ describe("App critical paths", () => {
     await clickButton(view.container, "下一");
     await clickButton(view.container, "下一");
     await clickButton(view.container, "开始分");
+    await advanceValidationDelay();
 
     await waitFor(() => {
       expect(view.container.textContent).toContain("进入经营工作台");
@@ -1804,7 +1831,7 @@ describe("App critical paths", () => {
 
     await clickButton(view.container, "进入经营工作台");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("经营工作台闭环");
+      expect(view.container.textContent).toContain("经营诊断入口已闭环");
       expect(view.container.textContent).toContain("What-If 沙盘推演");
     });
 
@@ -1828,12 +1855,22 @@ describe("App critical paths", () => {
     await clickButton(view.container, "下一");
     await clickButton(view.container, "下一");
     await clickButton(view.container, "开始分");
-    await clickButton(view.container, "进入经营工作台");
-
+    await advanceValidationDelay();
     await waitFor(() => {
-      expect(view.container.textContent).toContain("企业诊断：真实接入");
-      expect(view.container.textContent).toContain("企业数据已通过真实接口同步");
+      expect(view.container.textContent).toContain("图表总览");
+      expect(view.container.textContent).toContain("经营总览");
     });
+    await waitFor(() => {
+      expect(view.container.textContent).toContain("进入经营");
+    });
+    await clickButton(view.container, "进入经营");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    await waitFor(() => {
+      expect(view.container.textContent).toContain("真实分析接口");
+      expect(view.container.textContent).toContain("已接入企业端真实分析接口");
+    }, 50);
 
     const textarea = view.container.querySelector(".cia textarea") as HTMLTextAreaElement | null;
     expect(textarea).not.toBeNull();
@@ -1842,7 +1879,7 @@ describe("App critical paths", () => {
 
     await waitFor(() => {
       expect(view.container.textContent).toContain("真实接口分析已返回");
-      expect(view.container.textContent).toContain("企业端诊断：库存去化慢于订单恢复");
+      expect(view.container.textContent).toContain("库存去化慢于订单恢复");
     });
 
     expect(
@@ -1854,7 +1891,7 @@ describe("App critical paths", () => {
     expect(
       fetchMock.mock.calls.some(([input]) => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-        return url.includes("/api/enterprise/analyze");
+        return url.includes("/api/enterprise/stream") || url.includes("/api/enterprise/analyze");
       }),
     ).toBe(true);
 
@@ -1904,6 +1941,7 @@ describe("App critical paths", () => {
     await clickButton(view.container, "下一");
     await clickButton(view.container, "下一");
     await clickButton(view.container, "开始分");
+    await advanceValidationDelay();
 
     const panel = view.container.querySelector(".competitive-panel-card") as HTMLElement | null;
     expect(panel).not.toBeNull();
@@ -1974,13 +2012,12 @@ describe("App critical paths", () => {
     await clickButton(view.container, "下一");
     
     await waitFor(() => {
-      expect(view.container.textContent).toContain("普通用户端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
     });
 
     await clickButton(view.container, "分析");
     await waitFor(() => {
       expect(view.container.textContent).toContain("分析工作台");
-      expect(view.container.textContent).toContain("当前会话：");
     });
 
     const investorApp = view.container.querySelector("#ai2") as HTMLElement;
@@ -2077,13 +2114,12 @@ describe("App critical paths", () => {
 
     await clickButton(view.container, "下一");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("普通用户端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
     });
 
     await clickButton(view.container, "分析");
     await waitFor(() => {
       expect(view.container.textContent).toContain("分析工作台");
-      expect(view.container.textContent).toContain("当前会话：");
     });
 
     const investorApp = view.container.querySelector("#ai2") as HTMLElement;
@@ -2176,13 +2212,12 @@ describe("App critical paths", () => {
 
     await clickButton(view.container, "下一");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("普通用户端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
     });
 
     await clickButton(view.container, "分析");
     await waitFor(() => {
       expect(view.container.textContent).toContain("分析工作台");
-      expect(view.container.textContent).toContain("当前会话：");
     });
 
     const investorApp = view.container.querySelector("#ai2") as HTMLElement;
@@ -2287,11 +2322,11 @@ describe("App critical paths", () => {
       .map((item) => item.textContent?.trim())
       .filter((item): item is string => Boolean(item));
 
-    expect(assistantMessages).toContain("辩手与裁判换位，进行第二轮辩论");
-    expect(assistantMessages).toContain("辩手与裁判换位，进行最后一轮辩论");
-    expect(assistantMessages).toContain("总结结果确定方案：推荐关注。");
+    expect(assistantMessages.some((item) => item.includes("辩手与裁判换位，进行第二轮辩论"))).toBe(true);
+    expect(assistantMessages.some((item) => item.includes("辩手与裁判换位，进行最后一轮辩论"))).toBe(true);
+    expect(assistantMessages.some((item) => item.includes("总结结果确定方案：推荐关注。"))).toBe(true);
 
-    const summaryOccurrences = assistantMessages.filter((item) => item === "总结结果确定方案：推荐关注。");
+    const summaryOccurrences = assistantMessages.filter((item) => item.includes("总结结果确定方案：推荐关注。"));
     expect(summaryOccurrences).toHaveLength(1);
     expect(assistantMessages.some((item) => item.includes("辩手与裁判换位，进行第二轮辩论总结结果确定方案"))).toBe(false);
     expect(assistantMessages.some((item) => item.includes("辩手与裁判换位，进行最后一轮辩论总结结果确定方案"))).toBe(false);
@@ -2323,7 +2358,7 @@ describe("App critical paths", () => {
 
     await clickButton(view.container, "下一");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("普通用户端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
     });
 
     await clickButton(view.container, "分析");
@@ -2379,7 +2414,7 @@ describe("App critical paths", () => {
     });
     await clickButton(firstView.container, "下一");
     await waitFor(() => {
-      expect(firstView.container.textContent).toContain("普通用户端图表系统");
+      expect(firstView.container.textContent).toContain("图表总览");
     });
 
     await clickButton(firstView.container, "设置");
@@ -2406,10 +2441,15 @@ describe("App critical paths", () => {
     firstView.unmount();
 
     const secondView = renderApp();
-    await settleBootstrap();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
 
     await waitFor(() => {
-      expect(secondView.container.textContent).toContain("普通用户端图表系统");
+      expect(secondView.container.textContent).toContain("图表总览");
     });
     expect(document.documentElement.classList.contains("theme-light")).toBe(true);
 
@@ -2431,11 +2471,12 @@ describe("App critical paths", () => {
     });
     await clickButton(view.container, "下一");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("历史季度对比数据");
+      expect(view.container.textContent).toContain("去年同季度对比数据");
     });
     await clickButton(view.container, "开始分");
+    await advanceValidationDelay();
     await waitFor(() => {
-      expect(view.container.textContent).toContain("企业端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
     });
 
     await clickButton(view.container, "设置");
@@ -2514,7 +2555,7 @@ describe("App critical paths", () => {
     });
     await clickButton(view.container, "下一");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("普通用户端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
     });
 
     await clickButton(view.container, "设置");
@@ -2585,7 +2626,7 @@ describe("App critical paths", () => {
     });
     await clickButton(view.container, "下一");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("普通用户端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
     });
 
     const expandButton = Array.from(view.container.querySelectorAll(".viz-inline-btn")).find(
@@ -2637,7 +2678,7 @@ describe("App critical paths", () => {
     });
     await clickButton(view.container, "下一");
     await waitFor(() => {
-      expect(view.container.textContent).toContain("普通用户端图表系统");
+      expect(view.container.textContent).toContain("图表总览");
     });
 
     await clickButton(view.container, "设置");

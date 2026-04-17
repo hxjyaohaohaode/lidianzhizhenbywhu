@@ -35,6 +35,7 @@ const baseEnv: ServerEnv = {
   DEEPSEEK_BASE_URL: "https://api.deepseek.com/v1",
   GLM_BASE_URL: "https://open.bigmodel.cn/api/paas/v4",
   QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  DATA_STALE_THRESHOLD_DAYS: 7,
 };
 
 function wait(ms: number) {
@@ -119,7 +120,7 @@ describe("diagnostic workflow service", () => {
     const result = await service.diagnose({
       role: "enterprise",
       userId: "parallel-user",
-      query: "分析经营风险",
+      query: "进行企业诊断与经营分析，评估毛利率压力下的经营风险变化趋势",
       focusMode: "operationalDiagnosis",
       grossMarginInput: {
         currentGrossMargin: 18,

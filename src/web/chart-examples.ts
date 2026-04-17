@@ -187,6 +187,9 @@ function exampleBuildDiagnosticCharts() {
       profitabilityContribution: 0.45,
       growthContribution: 0.35,
       cashflowContribution: 0.20,
+      assetTurnoverContribution: 0.15,
+      rdIntensityContribution: 0.10,
+      inventoryTurnoverContribution: 0.10,
     },
     metrics: {
       currentROE: 8.5,
@@ -198,6 +201,12 @@ function exampleBuildDiagnosticCharts() {
       currentOCFRatio: 18.2,
       baselineOCFRatio: 15.6,
       ocfRatioChange: 2.6,
+      currentAssetTurnover: 0.65,
+      baselineAssetTurnover: 0.58,
+      currentRdRatio: 0.045,
+      baselineRdRatio: 0.045,
+      currentInventoryDays: 72.5,
+      baselineInventoryDays: 85.3,
     },
     trend: '持续改善',
     confidence: 0.87,
@@ -297,9 +306,7 @@ function exampleExtractAndUseResults(mathAnalysis?: MathAnalysisOutput) {
     console.log(`主要驱动因素: ${dqiResult.driver}`);
     console.log(`置信度: ${(dqiResult.confidence * 100).toFixed(2)}%`);
 
-    // 可以单独生成某个图表
-    const radarChart = buildDriverRadarChart(dqiResult.decomposition);
-    // 渲染雷达图...
+    void buildDriverRadarChart(dqiResult.decomposition);
   }
 
   if (gmpsResult) {
@@ -307,12 +314,10 @@ function exampleExtractAndUseResults(mathAnalysis?: MathAnalysisOutput) {
     console.log(`下季度恶化概率: ${gmpsResult.probabilityNextQuarter}%`);
     console.log(`关键发现:\n${gmpsResult.keyFindings.join('\n')}`);
 
-    // 可以单独生成某个图表
-    const gaugeChart = buildGMPSGaugeChart({
+    void buildGMPSGaugeChart({
       gmps: gmpsResult.gmps,
       level: gmpsResult.level,
     });
-    // 渲染仪表盘...
   }
 }
 

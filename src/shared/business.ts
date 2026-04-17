@@ -41,6 +41,7 @@ export const sharedIndustryContextSchema = z.object({
 
 export const enterpriseCollectionRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("enterprise").default("enterprise"),
   sessionId: nonEmptyString.optional(),
   enterpriseName: nonEmptyString,
   hasFullQuarterHistory: z.boolean(),
@@ -56,6 +57,7 @@ export const enterpriseCollectionRequestSchema = z.object({
 
 export const enterpriseAnalysisRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("enterprise").default("enterprise"),
   sessionId: nonEmptyString.optional(),
   enterpriseName: nonEmptyString.optional(),
   query: nonEmptyString.default("请基于已采集数据输出企业经营诊断结论"),
@@ -69,6 +71,7 @@ export const enterpriseAnalysisRequestSchema = z.object({
 
 export const investorProfileRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("investor").default("investor"),
   sessionId: nonEmptyString.optional(),
   investorName: nonEmptyString.optional(),
   investedEnterprises: z.array(nonEmptyString).max(12).default([]),
@@ -82,6 +85,7 @@ export const investorProfileRequestSchema = z.object({
 
 export const investorModeSwitchRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("investor").default("investor"),
   sessionId: nonEmptyString,
   focusMode: z.enum(["industryStatus", "investmentRecommendation", "deepDive"]),
   enterpriseName: nonEmptyString.optional(),
@@ -90,6 +94,7 @@ export const investorModeSwitchRequestSchema = z.object({
 
 export const investorAnalysisRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("investor").default("investor"),
   sessionId: nonEmptyString.optional(),
   enterpriseName: nonEmptyString.optional(),
   query: nonEmptyString,
@@ -114,22 +119,35 @@ export const investorAnalysisRequestSchema = z.object({
 
 export const investorSessionCreateRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("investor").default("investor"),
   focusMode: z.enum(["industryStatus", "investmentRecommendation", "deepDive"]).default("industryStatus"),
   enterpriseName: nonEmptyString.optional(),
 });
 
 export const investorSessionDeleteRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("investor").default("investor"),
   sessionId: nonEmptyString,
 });
 
 export const investorSessionBatchDeleteRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("investor").default("investor"),
   sessionIds: z.array(nonEmptyString).min(1).max(20),
 });
 
 export const investorAttachmentUploadRequestSchema = z.object({
   userId: nonEmptyString,
+  role: z.literal("investor").default("investor"),
+  sessionId: nonEmptyString,
+  fileName: nonEmptyString.max(120),
+  mimeType: nonEmptyString.max(120).optional(),
+  content: z.string().min(1).max(40000),
+});
+
+export const enterpriseAttachmentUploadRequestSchema = z.object({
+  userId: nonEmptyString,
+  role: z.literal("enterprise").default("enterprise"),
   sessionId: nonEmptyString,
   fileName: nonEmptyString.max(120),
   mimeType: nonEmptyString.max(120).optional(),
@@ -225,6 +243,7 @@ export type InvestorSessionCreateRequest = z.output<typeof investorSessionCreate
 export type InvestorSessionDeleteRequest = z.output<typeof investorSessionDeleteRequestSchema>;
 export type InvestorSessionBatchDeleteRequest = z.output<typeof investorSessionBatchDeleteRequestSchema>;
 export type InvestorAttachmentUploadRequest = z.output<typeof investorAttachmentUploadRequestSchema>;
+export type EnterpriseAttachmentUploadRequest = z.output<typeof enterpriseAttachmentUploadRequestSchema>;
 export type PrivateMemoryWriteRequest = z.output<typeof privateMemoryWriteRequestSchema>;
 export type PrivateMemoryUpdateRequest = z.output<typeof privateMemoryUpdateRequestSchema>;
 export type PrivateMemoryDeleteRequest = z.output<typeof privateMemoryDeleteRequestSchema>;
@@ -347,6 +366,33 @@ export type InvestorAnalysisStreamEvent =
       type: "clarification_required";
       questions: string[];
       sessionContext?: SessionContext;
+    }
+  | {
+      type: "result";
+      result: Record<string, unknown>;
+    }
+  | {
+      type: "error";
+      message: string;
+    };
+
+export type EnterpriseAnalysisStreamEvent =
+  | {
+      type: "session";
+      sessionContext: SessionContext;
+    }
+  | {
+      type: "progress";
+      stage: AnalysisTimelineEntry["stage"];
+      label: string;
+      progressPercent: number;
+      detail?: string;
+      timelineEntry: AnalysisTimelineEntry;
+    }
+  | {
+      type: "delta";
+      stage: AnalysisTimelineEntry["stage"];
+      chunk: string;
     }
   | {
       type: "result";
@@ -788,6 +834,18 @@ export type VisualizationWidget =
       currentLabel: string;
       baselineLabel: string;
       dimensions: VisualizationRadarDimension[];
+    })
+  | (VisualizationWidgetEnhancement & {
+      id: string;
+      kind: "mulberryChart";
+      title: string;
+      subtitle: string;
+      description?: string;
+      categories: string[];
+      series: {
+        name: string;
+        data: { category: string; value: number; subValue?: number }[];
+      }[];
     });
 
 export type VisualizationSection = {

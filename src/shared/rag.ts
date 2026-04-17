@@ -35,6 +35,18 @@ export type RealtimeRagIndexStats = {
   documentTypes?: RagDocumentType[];
 };
 
+export type EvidenceEvaluation = {
+  evidenceQuality: "sufficient" | "partial" | "insufficient";
+  gaps: string[];
+  recommendations: string[];
+};
+
+export type QueryUnderstanding = {
+  intent: string;
+  entities: string[];
+  queryType: string;
+};
+
 export type RealtimeRagResponse = {
   role: z.infer<typeof diagnosticRoleSchema>;
   focusMode: z.infer<typeof focusModeSchema>;
@@ -43,4 +55,6 @@ export type RealtimeRagResponse = {
   referenceAbstract: string;
   citations: IndustryCitation[];
   indexStats: RealtimeRagIndexStats;
+  evidenceEvaluation?: EvidenceEvaluation;
+  queryUnderstanding?: QueryUnderstanding;
 };

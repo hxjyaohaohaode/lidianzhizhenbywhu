@@ -1,9 +1,8 @@
 node_modules
-dist
 .runtime
-.env
-.git
+dist
 .trae
 *.md
-docs
-coverage
+.git
+.gitignore
+.env

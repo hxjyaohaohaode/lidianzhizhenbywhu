@@ -133,7 +133,7 @@ const acceptanceBenchmarkScenarios: AcceptanceBenchmarkScenario[] = [
     payload: {
       role: "enterprise",
       userId: "acceptance-enterprise",
-      enterpriseName: "星海电池",
+      enterpriseName: "宁德时代",
       query: "请判断当前毛利承压与经营质量变化，并给出优先动作",
       focusMode: "operationalDiagnosis",
       grossMarginInput: {
@@ -180,7 +180,7 @@ const acceptanceBenchmarkScenarios: AcceptanceBenchmarkScenario[] = [
     payload: {
       role: "enterprise",
       userId: "acceptance-enterprise",
-      enterpriseName: "星海电池",
+      enterpriseName: "宁德时代",
       query: "延续上轮结论，判断风险是否缓和并更新行动建议",
       focusMode: "deepDive",
       grossMarginInput: {
@@ -227,7 +227,7 @@ const acceptanceBenchmarkScenarios: AcceptanceBenchmarkScenario[] = [
     payload: {
       role: "investor",
       userId: "acceptance-investor",
-      enterpriseName: "星海电池",
+      enterpriseName: "宁德时代",
       query: "面向偏好现金流稳健与政策弹性的投资者，给出当前建议",
       focusMode: "investmentRecommendation",
       grossMarginInput: {
@@ -281,7 +281,7 @@ const modelConnectivityAcceptanceCases = [
       role: "enterprise",
       focusMode: "operationalDiagnosis",
       query: "拆解企业诊断任务",
-      enterpriseName: "星海电池",
+      enterpriseName: "宁德时代",
     },
   },
   {
@@ -294,7 +294,7 @@ const modelConnectivityAcceptanceCases = [
       role: "enterprise",
       focusMode: "deepDive",
       query: "提取财报与研报关键字段",
-      enterpriseName: "星海电池",
+      enterpriseName: "宁德时代",
       longTextMode: true,
     },
   },
@@ -308,7 +308,7 @@ const modelConnectivityAcceptanceCases = [
       role: "investor",
       focusMode: "investmentRecommendation",
       query: "基于证据完成决策推理",
-      enterpriseName: "星海电池",
+      enterpriseName: "宁德时代",
     },
   },
 ] as const satisfies ReadonlyArray<{
@@ -824,14 +824,20 @@ function extractDQIInputFromContext(input: DiagnosticAgentRequest): unknown {
     currentEndingEquity: oqInput.currentTotalAssets * 0.44,
     currentRevenue: oqInput.currentRevenue,
     currentOperatingCashFlow: oqInput.currentOperatingCashFlow,
+    currentTotalAssets: oqInput.currentTotalAssets,
+    currentInventoryExpense: oqInput.currentRevenue * 0.18,
+    currentOperatingCost: oqInput.currentRevenue * 0.78,
     baselineNetProfit: oqInput.baselineRevenue * 0.09,
     baselineBeginningEquity: oqInput.baselineTotalAssets * 0.46,
     baselineEndingEquity: oqInput.baselineTotalAssets * 0.45,
     baselineRevenue: oqInput.baselineRevenue,
     baselineOperatingCashFlow: oqInput.baselineOperatingCashFlow,
+    baselineTotalAssets: oqInput.baselineTotalAssets,
+    baselineInventoryExpense: oqInput.baselineRevenue * 0.17,
+    baselineOperatingCost: oqInput.baselineRevenue * 0.76,
     dataProvenance: {
-      estimatedFields: ["currentNetProfit", "currentBeginningEquity", "currentEndingEquity", "baselineNetProfit", "baselineBeginningEquity", "baselineEndingEquity"],
-      estimationMethod: "净利润率假设8%/9%，净资产占资产比例假设44%-46%",
+      estimatedFields: ["currentNetProfit", "currentBeginningEquity", "currentEndingEquity", "baselineNetProfit", "baselineBeginningEquity", "baselineEndingEquity", "currentInventoryExpense", "currentOperatingCost", "baselineInventoryExpense", "baselineOperatingCost"],
+      estimationMethod: "净利润率假设8%/9%，净资产占资产比例假设44%-46%，库存费用占营收17%-18%，营业成本占营收76%-78%，研发投入强度按营收4.5%估算",
     },
   };
 }
@@ -842,23 +848,37 @@ function extractDQIInputFromContext(input: DiagnosticAgentRequest): unknown {
 function extractGMPSInputFromContext(
   input: DiagnosticAgentRequest,
   dataGatheringOutput?: DataGatheringOutput,
+  platformStore?: PlatformStore,
 ): unknown | null {
-  // GMPS需要：毛利率、营收、成本、销量、产量、库存、制造费用、负债、资产、碳酸锂价格、行业波动率
   const gmInput = input.grossMarginInput;
   const oqInput = input.operatingQualityInput;
 
   if (!gmInput || !oqInput) {
-    return null; // 数据不足
+    return null;
   }
 
-  // 从数据采集中尝试获取行业外部数据
-  let currentLithiumPrice = 10; // 默认值（万元/吨）
-  let baselineLithiumPrice = 12; // 默认基期价格
-  let industryVolatility = 0.2; // 默认行业波动率
+  let currentLithiumPrice = 10;
+  let baselineLithiumPrice = 12;
+  let industryVolatility = 0.2;
+  let usedPlatformStoreData = false;
+
+  if (platformStore) {
+    const latestIndustry = platformStore.getLatestIndustryData();
+    if (latestIndustry) {
+      if (latestIndustry.lithiumPrice?.price && latestIndustry.lithiumPrice.price > 0) {
+        currentLithiumPrice = latestIndustry.lithiumPrice.price / 10000;
+        baselineLithiumPrice = currentLithiumPrice * 1.1;
+        usedPlatformStoreData = true;
+      }
+      if (latestIndustry.industryIndex?.volatility && latestIndustry.industryIndex.volatility > 0) {
+        industryVolatility = latestIndustry.industryIndex.volatility;
+        usedPlatformStoreData = true;
+      }
+    }
+  }
 
   if (dataGatheringOutput?.gatheredData && typeof dataGatheringOutput.gatheredData === "object") {
     const gathered = dataGatheringOutput.gatheredData as Record<string, unknown>;
-    // 尝试从采集数据中获取锂价和波动率
     if (typeof gathered.lithiumPrice === "number") {
       currentLithiumPrice = gathered.lithiumPrice;
     }
@@ -870,8 +890,10 @@ function extractGMPSInputFromContext(
     }
   }
 
+  const isUsingDefaultLithiumPrice = currentLithiumPrice === 10 && baselineLithiumPrice === 12;
+  const isUsingDefaultVolatility = industryVolatility === 0.2;
+
   return {
-    // 当期财务数据
     currentGrossMargin: gmInput.currentGrossMargin,
     currentRevenue: gmInput.currentRevenue,
     currentCost: gmInput.currentCost,
@@ -883,7 +905,6 @@ function extractGMPSInputFromContext(
     currentTotalAssets: oqInput.currentTotalAssets,
     currentOperatingCashFlow: oqInput.currentOperatingCashFlow,
 
-    // 基期财务数据
     baselineGrossMargin: gmInput.baselineGrossMargin,
     baselineRevenue: gmInput.baselineRevenue,
     baselineCost: gmInput.baselineCost,
@@ -898,14 +919,17 @@ function extractGMPSInputFromContext(
     currentLithiumPrice,
     baselineLithiumPrice,
     industryVolatility,
+    industrySegment: "powerBattery" as const,
     dataProvenance: {
       estimatedFields: [
         "currentInventory",
         "baselineInventory",
-        ...(currentLithiumPrice === 10 && baselineLithiumPrice === 12 ? ["currentLithiumPrice", "baselineLithiumPrice"] : []),
-        ...(industryVolatility === 0.2 ? ["industryVolatility"] : []),
+        ...(isUsingDefaultLithiumPrice ? ["currentLithiumPrice", "baselineLithiumPrice"] : []),
+        ...(isUsingDefaultVolatility ? ["industryVolatility"] : []),
       ],
-      estimationMethod: "库存=库存费用×1.2/1.1；碳酸锂价格默认10/12万/吨；行业波动率默认0.2",
+      estimationMethod: usedPlatformStoreData
+        ? "库存=库存费用×1.2/1.1；碳酸锂价格和行业波动率来自PlatformStore行业数据"
+        : "库存=库存费用×1.2/1.1；碳酸锂价格默认10/12万/吨；行业波动率默认0.2",
     },
   };
 }
@@ -924,7 +948,7 @@ function calculateGrossMarginPressureFallback(input: DiagnosticAgentRequest) {
   return input.grossMarginInput ? analyzeGrossMarginPressure(input.grossMarginInput) : undefined;
 }
 
-function buildMathAnalysisOutput(input: DiagnosticAgentRequest, dataGatheringOutput?: DataGatheringOutput): { output: MathAnalysisOutput; degradationTrace: DegradationEvent[] } {
+function buildMathAnalysisOutput(input: DiagnosticAgentRequest, dataGatheringOutput?: DataGatheringOutput, platformStore?: PlatformStore): { output: MathAnalysisOutput; degradationTrace: DegradationEvent[] } {
   const degradationTrace: DegradationEvent[] = [];
   const grossMargin = input.grossMarginInput
     ? analyzeGrossMarginPressure(input.grossMarginInput)
@@ -983,7 +1007,7 @@ function buildMathAnalysisOutput(input: DiagnosticAgentRequest, dataGatheringOut
   const needsGMPS = shouldCalculateGMPS(input.focusMode, input.role);
   if (needsGMPS) {
     try {
-      const gmpsInput = extractGMPSInputFromContext(input, dataGatheringOutput);
+      const gmpsInput = extractGMPSInputFromContext(input, dataGatheringOutput, platformStore);
       if (gmpsInput) {
         const gmpsResult = calculateGMPS(gmpsInput);
         output.gmpsModel = {
@@ -994,7 +1018,13 @@ function buildMathAnalysisOutput(input: DiagnosticAgentRequest, dataGatheringOut
           dimensionScores: gmpsResult.dimensionScores,
           featureScores: gmpsResult.featureScores,
           keyFindings: gmpsResult.keyFindings,
+          industrySegment: gmpsResult.industrySegment,
+          industryWeights: gmpsResult.industryWeights,
         };
+
+        if (gmpsInput && typeof gmpsInput === "object" && "dataProvenance" in gmpsInput) {
+          output.dataProvenance = (gmpsInput as Record<string, unknown>).dataProvenance as { estimatedFields: string[]; estimationMethod: string };
+        }
 
         // 根据GMPS结果调整风险等级
         if (gmpsResult.gmps >= 40) {
@@ -1801,19 +1831,72 @@ export class DiagnosticWorkflowService {
   constructor(env: ServerEnv, dependencies: WorkflowDependencies = {}) {
     this.env = env;
     this.modelRouter = dependencies.modelRouter ?? new ModelRouter(createDefaultAdapters(env));
-    this.memoryStore = dependencies.memoryStore ?? new InMemoryMemoryStore();
+    this.memoryStore = dependencies.memoryStore ?? new InMemoryMemoryStore(dependencies.platformStore);
     this.ragService =
       dependencies.ragService ??
       new RealtimeIndustryRagService({
         cacheTtlMs: env.CACHE_TTL_SECONDS * 1000,
         sourceWhitelist: env.RAG_SOURCE_WHITELIST,
         maxSourceAgeDays: env.RAG_MAX_SOURCE_AGE_DAYS,
+        modelRouter: this.modelRouter,
+        platformStore: dependencies.platformStore,
       });
     this.providerStatus = getConfiguredProviders(env);
     this.dataGatheringAgent = dependencies.dataGatheringAgent ?? new DataGatheringAgent({ env });
     this.platformStore = dependencies.platformStore;
     this.retryLimit = env.AGENT_RETRY_LIMIT;
     this.budgetTotalTokens = env.AGENT_BUDGET_TOTAL_TOKENS;
+  }
+
+  getDataGatheringAgent() {
+    return this.dataGatheringAgent;
+  }
+
+  async collectIndustryData() {
+    const currentYear = String(new Date().getFullYear());
+    const currentPeriod = `${currentYear}-Q${Math.ceil((new Date().getMonth() + 1) / 3)}`;
+
+    const macroContext = await this.collectMacroContext(
+      { role: "enterprise", query: "碳酸锂价格 行业指数 锂电池行业" } as DiagnosticAgentRequest,
+      currentPeriod,
+      currentYear,
+    );
+
+    const result: Record<string, unknown> = {
+      macroContext,
+      success: !macroContext.degraded,
+    };
+
+    if (this.platformStore && !macroContext.degraded) {
+      const macroRec = macroContext as Record<string, unknown>;
+      const hasPlaceholder = Array.isArray(macroRec.records) && macroRec.records.some((r: Record<string, unknown>) => r.isPlaceholder);
+      if (!hasPlaceholder) {
+        const hasActualLithiumPrice = typeof macroRec.lithiumPrice === "number" && macroRec.lithiumPrice > 0;
+        const hasActualIndustryVolatility = typeof macroRec.industryVolatility === "number" && macroRec.industryVolatility > 0;
+        if (hasActualLithiumPrice || hasActualIndustryVolatility) {
+          await this.platformStore.saveIndustryData({
+            recordId: `industry_${Date.now()}`,
+            dataDate: new Date().toISOString().slice(0, 10),
+            lithiumPrice: {
+              priceDate: new Date().toISOString().slice(0, 10),
+              price: hasActualLithiumPrice ? (macroRec.lithiumPrice as number) * 10000 : 0,
+              source: hasActualLithiumPrice
+                ? (typeof macroRec.source === "string" ? macroRec.source : "data-gathering-agent")
+                : "default-estimate",
+            },
+            industryIndex: hasActualIndustryVolatility ? {
+              indexDate: new Date().toISOString().slice(0, 10),
+              indexType: "CSI_POWER_BATTERY",
+              indexValue: typeof macroRec.industryIndexValue === "number" ? macroRec.industryIndexValue : 0,
+              volatility: macroRec.industryVolatility as number,
+            } : undefined,
+          });
+          result.persisted = true;
+        }
+      }
+    }
+
+    return result;
   }
 
   private getAcceptanceEvidenceMode(): AcceptanceEvidenceMode {
@@ -2245,48 +2328,36 @@ export class DiagnosticWorkflowService {
     }
 
     if (complexity === "simple") {
-      onProgress?.("understanding", "计算数学模型", 30, "本地数学分析");
+      onProgress?.("understanding", "计算数学模型", 30, "数学分析+LLM表达");
       const mathAnalysis = await this.runMathAnalysisAgent(input);
-      const expressionGeneration = {
-        output: buildExpressionGenerationOutput(
+      degradationTrace.push(...mathAnalysis.degradationTrace);
+
+      onProgress?.("writing", "生成结论", 70, "LLM基于数学模型生成表达");
+      const expressionGeneration = await this.runModelBackedAgent({
+        agentId: "expressionGeneration",
+        input,
+        prompt: `请基于以下数学模型计算结果，简洁回答用户的问题：${input.query}\n\n模型计算结果：\n- 综合风险等级：${mathAnalysis.output.combinedRiskLevel}\n- 核心指标：${mathAnalysis.output.combinedInsights.slice(0, 4).join("；")}${mathAnalysis.output.dqiModel ? `\n- DQI指数：${mathAnalysis.output.dqiModel.dqi.toFixed(2)}（${mathAnalysis.output.dqiModel.status}）${mathAnalysis.output.dqiModel.trend ? `\n- DQI趋势：${mathAnalysis.output.dqiModel.trend}` : ""}` : ""}${mathAnalysis.output.gmpsModel ? `\n- GMPS得分：${mathAnalysis.output.gmpsModel.gmps.toFixed(2)}（${mathAnalysis.output.gmpsModel.level}）\n- 下季度风险概率：${(mathAnalysis.output.gmpsModel.probabilityNextQuarter * 100).toFixed(2)}%（${mathAnalysis.output.gmpsModel.riskLevel}）` : ""}`,
+        capability: "expression",
+        buildOutput: (text) => buildExpressionGenerationOutput(
           input,
           mathAnalysis.output,
-          { confidence: "medium", confidenceScore: 0.6, verifiedClaims: mathAnalysis.output.combinedInsights.slice(0, 3), challengedClaims: [], citations: [], citationAbstracts: [], reviewSummary: "简化路径：仅基于数学模型结果生成结论。" },
+          { confidence: "medium", confidenceScore: 0.6, verifiedClaims: mathAnalysis.output.combinedInsights.slice(0, 3), challengedClaims: [], citations: [], citationAbstracts: [], reviewSummary: "简单路径：基于DQI/GMPS模型计算结果生成结论。" },
           { workingMemoryDigest: input.memoryNotes.length > 0 ? input.memoryNotes.join("；") : "无历史记忆", recalledMemories: [] },
-          mathAnalysis.output.combinedInsights.join("；"),
+          text,
         ),
-        degradationTrace: [createHeuristicEvent("taskOrchestrator", "简单任务跳过LLM编排"), createHeuristicEvent("memoryManagement", "简单任务跳过记忆召回"), createHeuristicEvent("dataUnderstanding", "简单任务跳过数据理解"), createHeuristicEvent("industryRetrieval", "简单任务跳过行业检索"), createHeuristicEvent("evidenceReview", "简单任务跳过证据审校")] as DegradationEvent[],
-        result: {
-          agentId: agentIdSchema.enum.expressionGeneration,
-          status: "completed" as const,
-          provider: "local" as const,
-          summary: "简化路径：直接输出数学模型结论。",
-          attempts: [],
-          startedAt: nowIso(),
-          completedAt: nowIso(),
-          governance: { durationMs: 0, retryCount: 0, budgetUsedTokens: 0, manualInterventionAvailable: false },
-          output: {} as ExpressionGenerationOutput,
-        },
-      };
-      expressionGeneration.result.output = expressionGeneration.output;
+        buildSummary: (output) => output.executiveSummary,
+        fallbackOutput: () => buildExpressionGenerationOutput(
+          input,
+          mathAnalysis.output,
+          { confidence: "medium", confidenceScore: 0.6, verifiedClaims: mathAnalysis.output.combinedInsights.slice(0, 3), challengedClaims: [], citations: [], citationAbstracts: [], reviewSummary: "简单路径：基于数学模型结果生成结论。" },
+          { workingMemoryDigest: input.memoryNotes.length > 0 ? input.memoryNotes.join("；") : "无历史记忆", recalledMemories: [] },
+          `根据模型计算，综合风险等级为${mathAnalysis.output.combinedRiskLevel}。${mathAnalysis.output.combinedInsights.join("；")}`,
+        ),
+        fallbackMessage: "表达生成已切换到本地模板。",
+      });
+      degradationTrace.push(...expressionGeneration.degradationTrace);
 
-      const agents: AgentExecutionResult[] = [
-        { agentId: agentIdSchema.enum.taskOrchestrator, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过编排", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { mission: input.query, planNarrative: "简化路径", parallelBranches: [] } },
-        { agentId: agentIdSchema.enum.memoryManagement, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过记忆召回", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { workingMemoryDigest: "", recalledMemories: [] } },
-        { agentId: agentIdSchema.enum.dataGathering, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过数据采集", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { gatheredData: {}, status: "skipped", source: "none" } },
-        { agentId: agentIdSchema.enum.dataUnderstanding, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过数据理解", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { objective: input.query, extractedFocus: [input.focusMode], datasetCompleteness: "medium" as const, missingInputs: [] } },
-        mathAnalysis.result,
-        { agentId: agentIdSchema.enum.industryRetrieval, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过行业检索", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { query: "", synthesis: "", retrievalSummary: "", referenceAbstract: "", evidence: [], citations: [], indexStats: { searchHits: 0, fetchedPages: 0, chunkCount: 0, rankedChunks: 0, searchProvider: "none", fallbackUsed: false } } },
-        { agentId: agentIdSchema.enum.evidenceReview, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过证据审校", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { confidence: "medium" as const, confidenceScore: 0.6, verifiedClaims: [], challengedClaims: [], citations: [], citationAbstracts: [], reviewSummary: "" } },
-        expressionGeneration.result,
-      ];
-
-      const totalDurationMs = agents.reduce((sum, agent) => sum + (agent.governance?.durationMs ?? getDurationMs(agent.startedAt, agent.completedAt)), 0);
-      const usedTokens = agents.reduce((sum, agent) => sum + (agent.governance?.budgetUsedTokens ?? 0), 0);
-
-      onProgress?.("completed", "计算完成", 100);
-
-      await this.memoryStore.append({
+      await this.memoryStore.appendWithFilter({
         userId: input.userId,
         summary: `${input.query}｜${expressionGeneration.output.executiveSummary}`,
         tags: uniqueStrings([input.role, input.focusMode, mathAnalysis.output.combinedRiskLevel]).slice(0, 6),
@@ -2294,13 +2365,27 @@ export class DiagnosticWorkflowService {
         source: "workflow",
       });
 
+      const agents: AgentExecutionResult[] = [
+        { agentId: agentIdSchema.enum.taskOrchestrator, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过编排", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { mission: input.query, planNarrative: "简化路径：数学计算+LLM表达", parallelBranches: [] } },
+        { agentId: agentIdSchema.enum.memoryManagement, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过记忆召回", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { workingMemoryDigest: "", recalledMemories: [] } },
+        { agentId: agentIdSchema.enum.dataGathering, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过数据采集", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { gatheredData: {}, status: "skipped", source: "none" } },
+        { agentId: agentIdSchema.enum.dataUnderstanding, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过数据理解", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { objective: input.query, extractedFocus: [input.focusMode], datasetCompleteness: "medium" as const, missingInputs: [] } },
+        mathAnalysis.result,
+        { agentId: agentIdSchema.enum.industryRetrieval, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过行业检索", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { query: "", synthesis: "", retrievalSummary: "", referenceAbstract: "", evidence: [], citations: [], indexStats: { searchHits: 0, fetchedPages: 0, chunkCount: 0, rankedChunks: 0, searchProvider: "none", fallbackUsed: false } } },
+        { agentId: agentIdSchema.enum.evidenceReview, status: "skipped" as const, provider: "local" as const, summary: "简单任务跳过证据审校", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { confidence: "medium" as const, confidenceScore: 0.6, verifiedClaims: [], challengedClaims: [], citations: [], citationAbstracts: [], reviewSummary: "简单路径：基于模型结果直接表达" } },
+        expressionGeneration.result,
+      ];
+
+      const totalDurationMs = agents.reduce((sum, agent) => sum + (agent.governance?.durationMs ?? getDurationMs(agent.startedAt, agent.completedAt)), 0);
+      const usedTokens = agents.reduce((sum, agent) => sum + (agent.governance?.budgetUsedTokens ?? 0), 0);
+
       return {
         workflowId,
         role: input.role,
         providerStatus: this.providerStatus,
         plan: workflowPlan,
         agents,
-        degradationTrace: [...expressionGeneration.degradationTrace, ...mathAnalysis.degradationTrace],
+        degradationTrace,
         finalAnswer: expressionGeneration.output.finalAnswer,
         summary: expressionGeneration.output.executiveSummary,
         memorySnapshot: this.memoryStore.list(input.userId, 5),
@@ -2325,68 +2410,73 @@ export class DiagnosticWorkflowService {
         capability: "planning",
         buildOutput: (text) => ({ mission: input.query, planNarrative: text, parallelBranches: workflowPlan.filter((step) => step.executionMode === "parallel").map((step) => step.agentId) }),
         buildSummary: (output) => String(output.planNarrative),
-        fallbackOutput: () => ({ mission: input.query, planNarrative: "中等复杂度路径：并行执行数据采集、数学分析与行业检索。", parallelBranches: workflowPlan.filter((step) => step.executionMode === "parallel").map((step) => step.agentId) }),
+        fallbackOutput: () => ({ mission: input.query, planNarrative: "中等复杂度路径：数学分析与表达生成。", parallelBranches: [] }),
         fallbackMessage: "任务编排已切换到本地规则模板。",
       });
       degradationTrace.push(...orchestration.degradationTrace);
 
-      const memoryBase = { output: { workingMemoryDigest: input.memoryNotes.length > 0 ? input.memoryNotes.join("；") : "无历史记忆", recalledMemories: this.memoryStore.list(input.userId, 3, input.role) } as MemoryManagementOutput, degradationTrace: [createHeuristicEvent("memoryManagement", "中等复杂度跳过LLM记忆召回")] as DegradationEvent[], result: { agentId: agentIdSchema.enum.memoryManagement, status: "degraded" as const, provider: "local" as const, summary: "中等复杂度跳过LLM记忆召回", attempts: [], startedAt: nowIso(), completedAt: nowIso(), governance: { durationMs: 0, retryCount: 0, budgetUsedTokens: 0, manualInterventionAvailable: false }, output: { workingMemoryDigest: input.memoryNotes.length > 0 ? input.memoryNotes.join("；") : "无历史记忆", recalledMemories: this.memoryStore.list(input.userId, 3, input.role) } } as AgentExecutionResult };
-      degradationTrace.push(...memoryBase.degradationTrace);
-
-      const dataGathering = await this.runDataGatheringAgent(input, { skipNBS: true });
-      degradationTrace.push(...dataGathering.degradationTrace);
-
-      const dataUnderstanding = { output: buildDataUnderstandingOutput(input), degradationTrace: [createHeuristicEvent("dataUnderstanding", "中等复杂度跳过LLM数据理解")] as DegradationEvent[], result: { agentId: agentIdSchema.enum.dataUnderstanding, status: "degraded" as const, provider: "local" as const, summary: "中等复杂度跳过LLM数据理解", attempts: [], startedAt: nowIso(), completedAt: nowIso(), governance: { durationMs: 0, retryCount: 0, budgetUsedTokens: 0, manualInterventionAvailable: false }, output: buildDataUnderstandingOutput(input) } as AgentExecutionResult };
-      degradationTrace.push(...dataUnderstanding.degradationTrace);
-
-      const [mathAnalysis, industryRetrieval] = await Promise.all([
-        this.runMathAnalysisAgent(input, dataGathering.output),
-        this.runIndustryRetrievalAgent(input),
-      ]);
+      onProgress?.("retrieval", "计算数学模型", 30, "数学分析");
+      const mathAnalysis = await this.runMathAnalysisAgent(input);
       degradationTrace.push(...mathAnalysis.degradationTrace);
-      degradationTrace.push(...industryRetrieval.degradationTrace);
 
-      onProgress?.("retrieval", "数据采集与行业检索", 30, "数学分析与行业检索并行");
-      const evidenceReview = {
-        output: buildEvidenceReviewOutput(input, dataUnderstanding.output, mathAnalysis.output, industryRetrieval.output, "中等复杂度路径：证据审校使用本地规则。", dataGathering.output),
-        degradationTrace: [createHeuristicEvent("evidenceReview", "中等复杂度跳过LLM证据审校")] as DegradationEvent[],
-        result: {
-          agentId: agentIdSchema.enum.evidenceReview,
-          status: "degraded" as const,
-          provider: "local" as const,
-          summary: `证据可信度为 ${buildEvidenceReviewOutput(input, dataUnderstanding.output, mathAnalysis.output, industryRetrieval.output, "", dataGathering.output).confidence}。`,
-          attempts: [],
-          startedAt: nowIso(),
-          completedAt: nowIso(),
-          governance: { durationMs: 0, retryCount: 0, budgetUsedTokens: 0, manualInterventionAvailable: false },
-          output: buildEvidenceReviewOutput(input, dataUnderstanding.output, mathAnalysis.output, industryRetrieval.output, "中等复杂度路径：证据审校使用本地规则。", dataGathering.output),
-        } as AgentExecutionResult,
-      };
-      degradationTrace.push(...evidenceReview.degradationTrace);
-
-      onProgress?.("evidence", "审校证据", 60, "证据审校");
+      onProgress?.("writing", "生成分析报告", 80, "LLM基于模型结果生成表达");
       const expressionGeneration = await this.runModelBackedAgent({
         agentId: "expressionGeneration",
         input,
-        prompt: input.query,
+        prompt: `请基于以下数学模型计算结果，生成完整的经营诊断报告。\n用户问题：${input.query}\n\n模型计算结果：\n- 综合风险等级：${mathAnalysis.output.combinedRiskLevel}\n- 核心指标：${mathAnalysis.output.combinedInsights.join("；")}${mathAnalysis.output.dqiModel ? `\n\nDQI经营质量指数：${mathAnalysis.output.dqiModel.dqi.toFixed(2)}（${mathAnalysis.output.dqiModel.status}）\n- 主要驱动因素：${mathAnalysis.output.dqiModel.driver}\n- ${mathAnalysis.output.dqiModel.trend}` : ""}${mathAnalysis.output.gmpsModel ? `\n\nGMPS毛利承压指数：${mathAnalysis.output.gmpsModel.gmps.toFixed(2)}（${mathAnalysis.output.gmpsModel.level}）\n- 下季度风险概率：${(mathAnalysis.output.gmpsModel.probabilityNextQuarter * 100).toFixed(2)}%（${mathAnalysis.output.gmpsModel.riskLevel}）\n- 关键发现：${mathAnalysis.output.gmpsModel.keyFindings.slice(0, 2).join("；")}` : ""}`,
         capability: "expression",
         contextExtras: {
-          recalledMemories: memoryBase.output.recalledMemories.map((m) => m.summary),
-          workingMemoryDigest: memoryBase.output.workingMemoryDigest,
+          workingMemoryDigest: input.memoryNotes.length > 0 ? input.memoryNotes.join("；") : "无历史记忆",
         },
-        buildOutput: (text) => buildExpressionGenerationOutput(input, mathAnalysis.output, evidenceReview.output, memoryBase.output, text),
+        buildOutput: (text) => buildExpressionGenerationOutput(
+          input,
+          mathAnalysis.output,
+          { confidence: "medium", confidenceScore: 0.6, verifiedClaims: mathAnalysis.output.combinedInsights.slice(0, 3), challengedClaims: [], citations: [], citationAbstracts: [], reviewSummary: "中等路径：基于DQI/GMPS模型计算结果生成诊断报告。" },
+          { workingMemoryDigest: input.memoryNotes.length > 0 ? input.memoryNotes.join("；") : "无历史记忆", recalledMemories: this.memoryStore.list(input.userId, 3, input.role) },
+          text,
+        ),
         buildSummary: (output) => output.executiveSummary,
-        fallbackOutput: () => buildExpressionGenerationOutput(input, mathAnalysis.output, evidenceReview.output, memoryBase.output, "表达生成已切换到模板输出。"),
+        fallbackOutput: () => buildExpressionGenerationOutput(
+          input,
+          mathAnalysis.output,
+          { confidence: "medium", confidenceScore: 0.6, verifiedClaims: mathAnalysis.output.combinedInsights.slice(0, 3), challengedClaims: [], citations: [], citationAbstracts: [], reviewSummary: "中等路径：基于数学模型结果生成诊断报告。" },
+          { workingMemoryDigest: input.memoryNotes.length > 0 ? input.memoryNotes.join("；") : "无历史记忆", recalledMemories: this.memoryStore.list(input.userId, 3, input.role) },
+          `根据DQI/GMPS模型计算，综合风险等级为${mathAnalysis.output.combinedRiskLevel}。${mathAnalysis.output.combinedInsights.join("；")}`,
+        ),
         fallbackMessage: "表达生成已切换到本地模板。",
       });
       degradationTrace.push(...expressionGeneration.degradationTrace);
 
-      onProgress?.("writing", "生成分析报告", 80, "表达生成");
-      const savedMemory = await this.memoryStore.append({ userId: input.userId, summary: `${input.query}｜${expressionGeneration.output.executiveSummary}`, tags: uniqueStrings([input.role, input.focusMode, mathAnalysis.output.combinedRiskLevel, ...(dataUnderstanding.output.extractedFocus ?? [])]).slice(0, 6), role: input.role, source: "workflow" });
-      const memoryOutput: MemoryManagementOutput = { ...memoryBase.output, savedMemory };
-      const memoryResult: AgentExecutionResult = { ...memoryBase.result, summary: `${memoryBase.result.summary} 已写入新记忆。`, output: memoryOutput };
+      const savedMemory = await this.memoryStore.appendWithFilter({
+        userId: input.userId,
+        summary: `${input.query}｜${expressionGeneration.output.executiveSummary}`,
+        tags: uniqueStrings([input.role, input.focusMode, mathAnalysis.output.combinedRiskLevel]).slice(0, 6),
+        role: input.role,
+        source: "workflow",
+      });
 
-      const agents: AgentExecutionResult[] = [orchestration.result, memoryResult, dataGathering.result, dataUnderstanding.result, mathAnalysis.result, industryRetrieval.result, evidenceReview.result, expressionGeneration.result];
+      const memoryResult: AgentExecutionResult = {
+        agentId: agentIdSchema.enum.memoryManagement,
+        status: "degraded" as const,
+        provider: "local" as const,
+        summary: "中等复杂度跳过LLM记忆召回",
+        attempts: [],
+        startedAt: nowIso(),
+        completedAt: nowIso(),
+        governance: { durationMs: 0, retryCount: 0, budgetUsedTokens: 0, manualInterventionAvailable: false },
+        output: { workingMemoryDigest: input.memoryNotes.length > 0 ? input.memoryNotes.join("；") : "无历史记忆", recalledMemories: this.memoryStore.list(input.userId, 3, input.role), savedMemory: savedMemory.entry ?? undefined },
+      };
+
+      const agents: AgentExecutionResult[] = [
+        orchestration.result,
+        memoryResult,
+        { agentId: agentIdSchema.enum.dataGathering, status: "skipped" as const, provider: "local" as const, summary: "中等任务跳过数据采集", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { gatheredData: {}, status: "skipped", source: "none" } },
+        { agentId: agentIdSchema.enum.dataUnderstanding, status: "skipped" as const, provider: "local" as const, summary: "中等任务跳过数据理解", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { objective: input.query, extractedFocus: [input.focusMode], datasetCompleteness: "medium" as const, missingInputs: [] } },
+        mathAnalysis.result,
+        { agentId: agentIdSchema.enum.industryRetrieval, status: "skipped" as const, provider: "local" as const, summary: "中等任务跳过行业检索", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { query: "", synthesis: "", retrievalSummary: "", referenceAbstract: "", evidence: [], citations: [], indexStats: { searchHits: 0, fetchedPages: 0, chunkCount: 0, rankedChunks: 0, searchProvider: "none", fallbackUsed: false } } },
+        { agentId: agentIdSchema.enum.evidenceReview, status: "skipped" as const, provider: "local" as const, summary: "中等任务跳过证据审校", attempts: [], startedAt: nowIso(), completedAt: nowIso(), output: { confidence: "medium" as const, confidenceScore: 0.6, verifiedClaims: mathAnalysis.output.combinedInsights.slice(0, 3), challengedClaims: [], citations: [], citationAbstracts: [], reviewSummary: "中等路径：基于模型结果审校" } },
+        expressionGeneration.result,
+      ];
       const totalDurationMs = agents.reduce((sum, agent) => sum + (agent.governance?.durationMs ?? getDurationMs(agent.startedAt, agent.completedAt)), 0);
       const usedTokens = agents.reduce((sum, agent) => sum + (agent.governance?.budgetUsedTokens ?? 0), 0);
       const withinBudget = usedTokens <= this.budgetTotalTokens;
@@ -2402,7 +2492,6 @@ export class DiagnosticWorkflowService {
       };
       response.acceptance = evaluateWorkflowAcceptance(input, response);
       this.platformStore?.saveWorkflowSnapshot({ workflowId, userId: input.userId, role: input.role, createdAt: nowIso(), summary: response.summary, finalAnswer: response.finalAnswer, agents, budget: response.governance?.budget, manualTakeoverAvailable: response.governance?.manualTakeoverAvailable ?? false });
-      onProgress?.("completed", "分析完成", 100);
       return response;
     }
 
@@ -2457,7 +2546,7 @@ export class DiagnosticWorkflowService {
 
     onProgress?.("retrieval", "采集外部数据与检索行业信息", 30, "数据采集与行业检索并行");
     const [dataGathering, industryRetrieval] = await Promise.all([
-      this.runDataGatheringAgent(input),
+      this.runDataGatheringAgent(input, { skipNBS: true }),
       this.runIndustryRetrievalAgent(input),
     ]);
     degradationTrace.push(...dataGathering.degradationTrace);
@@ -2550,7 +2639,7 @@ export class DiagnosticWorkflowService {
     });
     degradationTrace.push(...expressionGeneration.degradationTrace);
 
-    const savedMemory = await this.memoryStore.append({
+    const savedMemory = await this.memoryStore.appendWithFilter({
       userId: input.userId,
       summary: `${input.query}｜${expressionGeneration.output.executiveSummary}`,
       tags: uniqueStrings([
@@ -2564,7 +2653,7 @@ export class DiagnosticWorkflowService {
     });
     const memoryOutput: MemoryManagementOutput = {
       ...memoryBase.output,
-      savedMemory,
+      savedMemory: savedMemory.entry ?? undefined,
     };
     const memoryResult: AgentExecutionResult = {
       ...memoryBase.result,
@@ -2633,7 +2722,6 @@ export class DiagnosticWorkflowService {
       manualTakeoverAvailable: workflowGovernance?.manualTakeoverAvailable ?? false,
     });
 
-    onProgress?.("completed", "分析完成", 100);
     return response;
   }
 
@@ -2667,6 +2755,7 @@ export class DiagnosticWorkflowService {
           capability: "conversation",
           prompt: input.query,
           context: { query: input.query, role: input.role, intent },
+          preferredProviders: ["qwen35Plus", "deepseekReasoner", "glm5"],
         });
         conversationText = llmResponse.result.text;
       } catch {
@@ -2679,8 +2768,6 @@ export class DiagnosticWorkflowService {
         ? "我是锂电池企业智能诊断系统，可以帮你分析企业经营质量、毛利承压状况和行业趋势。请输入具体的企业名称或分析问题来开始诊断。"
         : "你好！我是锂电池企业智能诊断系统助手。有什么我可以帮你的吗？你可以输入企业分析相关的问题，也可以直接和我聊天。";
     }
-
-    onProgress?.("completed", "对话完成", 100);
 
     const startedAt = nowIso();
     const completedAt = nowIso();
@@ -2980,6 +3067,77 @@ export class DiagnosticWorkflowService {
           connectedAt: nowIso(),
         };
 
+        if (this.platformStore) {
+          const fetchedFinancials = enterpriseFinancials.status === "fulfilled" ? enterpriseFinancials.value : null;
+          if (fetchedFinancials && !fetchedFinancials.degraded) {
+            const reports = [
+              ...(Array.isArray(fetchedFinancials.exchangeReports) ? fetchedFinancials.exchangeReports : []),
+              ...(Array.isArray(fetchedFinancials.eastmoneyReports) ? fetchedFinancials.eastmoneyReports : []),
+            ];
+            if (reports.length > 0) {
+              this.platformStore.saveIndustryData({
+                recordId: `enterprise_reports_${Date.now()}`,
+                dataDate: new Date().toISOString().slice(0, 10),
+                lithiumPrice: {
+                  priceDate: new Date().toISOString().slice(0, 10),
+                  price: 0,
+                  source: `exchange-reports:${fetchedFinancials.securityProfile?.exchange ?? "unknown"}`,
+                },
+              }).catch((e: unknown) => console.warn("持久化企业报告元数据失败:", e));
+            }
+          }
+          if (input.grossMarginInput && input.operatingQualityInput) {
+            const gmI = input.grossMarginInput;
+            const oqI = input.operatingQualityInput;
+            this.platformStore.saveFinancialData({
+              enterpriseId: input.enterpriseName,
+              periodDate: currentYear,
+              revenue: gmI.currentRevenue,
+              operatingCost: gmI.currentCost,
+              grossProfit: gmI.currentRevenue - gmI.currentCost,
+              grossMargin: gmI.currentGrossMargin,
+              netProfit: gmI.currentRevenue - gmI.currentCost - (oqI.currentManufacturingExpense || 0),
+              totalAssets: oqI.currentTotalAssets,
+              totalLiabilities: oqI.currentTotalLiabilities,
+              beginningEquity: oqI.currentTotalAssets - oqI.currentTotalLiabilities,
+              endingEquity: oqI.currentTotalAssets - oqI.currentTotalLiabilities,
+              inventory: gmI.currentInventoryExpense * 1.15,
+              operatingCashFlow: oqI.currentOperatingCashFlow,
+              salesVolume: gmI.currentSalesVolume,
+              productionVolume: oqI.currentProductionVolume,
+              manufacturingExpense: oqI.currentManufacturingExpense,
+              dataSource: "manual",
+            }).catch((e: unknown) => console.warn("持久化企业财务数据失败:", e));
+          }
+          if (macroResult.status === "fulfilled" && !macroResult.value.degraded) {
+            const macroVal = macroResult.value as Record<string, unknown>;
+            const hasPlaceholder = Array.isArray(macroVal.records) && macroVal.records.some((r: Record<string, unknown>) => r.isPlaceholder);
+            if (!hasPlaceholder) {
+              const hasActualLP = typeof macroVal.lithiumPrice === "number" && macroVal.lithiumPrice > 0;
+              const hasActualIV = typeof macroVal.industryVolatility === "number" && macroVal.industryVolatility > 0;
+              if (hasActualLP || hasActualIV) {
+                this.platformStore.saveIndustryData({
+                  recordId: `industry_${Date.now()}`,
+                  dataDate: new Date().toISOString().slice(0, 10),
+                  lithiumPrice: {
+                    priceDate: new Date().toISOString().slice(0, 10),
+                    price: hasActualLP ? (macroVal.lithiumPrice as number) * 10000 : 0,
+                    source: hasActualLP
+                      ? (typeof macroVal.source === "string" ? macroVal.source : "data-gathering-agent")
+                      : "default-estimate",
+                  },
+                  industryIndex: hasActualIV ? {
+                    indexDate: new Date().toISOString().slice(0, 10),
+                    indexType: "CSI_POWER_BATTERY",
+                    indexValue: typeof macroVal.industryIndexValue === "number" ? macroVal.industryIndexValue : 0,
+                    volatility: macroVal.industryVolatility as number,
+                  } : undefined,
+                }).catch((e: unknown) => console.warn("持久化行业数据失败:", e));
+              }
+            }
+          }
+        }
+
         const hasConnectorFailure =
           enterpriseFinancials.status === "rejected" || macroResult.status === "rejected";
         const hasConnectorDegrade =
@@ -3006,6 +3164,33 @@ export class DiagnosticWorkflowService {
           if (macro.degraded) {
             status = "degraded";
             degradationEvent = createHeuristicEvent("dataGathering", "宏观公开网页证据不足，已降级使用有限宏观数据");
+          }
+          if (this.platformStore && !macro.degraded) {
+            const macroRec = macro as Record<string, unknown>;
+            const hasPlaceholder = Array.isArray(macroRec.records) && macroRec.records.some((r: Record<string, unknown>) => r.isPlaceholder);
+            if (!hasPlaceholder) {
+              const hasActualLP = typeof macroRec.lithiumPrice === "number" && macroRec.lithiumPrice > 0;
+              const hasActualIV = typeof macroRec.industryVolatility === "number" && macroRec.industryVolatility > 0;
+              if (hasActualLP || hasActualIV) {
+                this.platformStore.saveIndustryData({
+                  recordId: `industry_${Date.now()}`,
+                  dataDate: new Date().toISOString().slice(0, 10),
+                  lithiumPrice: {
+                    priceDate: new Date().toISOString().slice(0, 10),
+                    price: hasActualLP ? (macroRec.lithiumPrice as number) * 10000 : 0,
+                    source: hasActualLP
+                      ? (typeof macroRec.source === "string" ? macroRec.source : "data-gathering-agent")
+                      : "default-estimate",
+                  },
+                  industryIndex: hasActualIV ? {
+                    indexDate: new Date().toISOString().slice(0, 10),
+                    indexType: "CSI_POWER_BATTERY",
+                    indexValue: typeof macroRec.industryIndexValue === "number" ? macroRec.industryIndexValue : 0,
+                    volatility: macroRec.industryVolatility as number,
+                  } : undefined,
+                }).catch((e: unknown) => console.warn("持久化行业数据失败:", e));
+              }
+            }
           }
         }
       }
@@ -3051,7 +3236,7 @@ export class DiagnosticWorkflowService {
 
   private runMathAnalysisAgent(input: DiagnosticAgentRequest, dataGatheringOutput?: DataGatheringOutput) {
     const startedAt = nowIso();
-    const { output, degradationTrace } = buildMathAnalysisOutput(input, dataGatheringOutput);
+    const { output, degradationTrace } = buildMathAnalysisOutput(input, dataGatheringOutput, this.platformStore);
     const completedAt = nowIso();
     const hasDegradation = degradationTrace.length > 0;
 

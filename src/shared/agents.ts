@@ -78,6 +78,8 @@ export type DegradationEvent = {
   occurredAt: string;
 };
 
+export type MemoryCategory = "userProfile" | "enterpriseInsight" | "decisionRecord" | "knowledgeDeposit" | "temporaryData" | "intermediateProcess" | "unknown";
+
 export type MemoryEntry = {
   id: string;
   userId: string;
@@ -87,6 +89,8 @@ export type MemoryEntry = {
   role?: DiagnosticRole;
   conversationId?: string;
   source?: "workflow" | "manual";
+  category?: MemoryCategory;
+  categoryConfidence?: number;
   createdAt: string;
 };
 
@@ -107,11 +111,14 @@ export type MathAnalysisOutput = {
   dqiModel?: {
     dqi: number;
     status: "改善" | "稳定" | "恶化";
-    driver: "盈利能力" | "成长能力" | "现金流质量" | "无明显驱动";
+    driver: "盈利能力" | "成长能力" | "现金流质量" | "资产周转效率" | "研发投入强度" | "库存周转效率" | "无明显驱动";
     decomposition: {
       profitabilityContribution: number;
       growthContribution: number;
       cashflowContribution: number;
+      assetTurnoverContribution: number;
+      rdIntensityContribution: number;
+      inventoryTurnoverContribution: number;
     };
     metrics: {
       currentROE: number;
@@ -123,6 +130,12 @@ export type MathAnalysisOutput = {
       currentOCFRatio: number;
       baselineOCFRatio: number;
       ocfRatioChange: number;
+      currentAssetTurnover: number;
+      baselineAssetTurnover: number;
+      currentRdRatio: number;
+      baselineRdRatio: number;
+      currentInventoryDays: number;
+      baselineInventoryDays: number;
     };
     trend: string;
     confidence: number;
@@ -143,6 +156,8 @@ export type MathAnalysisOutput = {
     };
     featureScores: Record<string, number>;
     keyFindings: string[];
+    industrySegment: "powerBattery" | "energyStorage" | "consumerBattery";
+    industryWeights: Record<string, number>;
   };
 
   dataProvenance?: {
@@ -183,6 +198,8 @@ export type ModelRequest = {
     lithiumPrice?: number;
     lithiumPriceBaseline?: number;
     industryVolatility?: number;
+    industryIndex?: number;
+    industryIndexBaseline?: number;
   };
 };
 

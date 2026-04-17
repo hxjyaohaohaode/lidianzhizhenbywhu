@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import type { AgentExecutionResult, DiagnosticRole, FocusMode, MemoryEntry } from "../shared/agents.js";
@@ -104,7 +104,7 @@ export interface PersistedDQIResult {
   // === DQI核心指标 ===
   dqi: number;
   status: "改善" | "稳定" | "恶化";
-  driver: "盈利能力" | "成长能力" | "现金流质量" | "无明显驱动";
+  driver: "盈利能力" | "成长能力" | "现金流质量" | "资产周转效率" | "研发投入强度" | "库存周转效率" | "无明显驱动";
 
   // === 分解结果 ===
   decomposition: DQIDecomposition;
@@ -271,6 +271,15 @@ export type PersistedTaskRecord = {
   result?: unknown;
 };
 
+export type ChatMessage = {
+  id: string;
+  sessionId: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+};
+
 export type PersistedAnalysisRecord = {
   analysisId: string;
   workflowId?: string;
@@ -329,6 +338,9 @@ type PlatformState = {
 
   /** GMPS计算结果（按 resultId 索引） */
   gmpsResults: Record<string, PersistedGMPSResult>;
+
+  /** 聊天消息记录 */
+  chatMessages: ChatMessage[];
 };
 
 function createEmptyState(): PlatformState {
@@ -346,6 +358,7 @@ function createEmptyState(): PlatformState {
     industryData: {},
     dqiResults: {},
     gmpsResults: {},
+    chatMessages: [],
   };
 }
 
@@ -360,6 +373,12 @@ function sortByDateDesc<T extends { createdAt?: string; updatedAt?: string }>(it
 export class PlatformStore {
   private readonly storageFilePath: string;
   private writeLock: Promise<void> = Promise.resolve();
+  private writeBuffer: Array<(state: PlatformState) => unknown> = [];
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private destroyed = false;
+  private readonly exitHandler: () => void;
+  private static readonly FLUSH_INTERVAL_MS = 100;
+  private static readonly FLUSH_THRESHOLD = 10;
 
   private async acquireWriteLock(): Promise<() => void> {
     const previousLock = this.writeLock;
@@ -367,6 +386,25 @@ export class PlatformStore {
     this.writeLock = new Promise<void>((resolve) => { releaseLock = resolve; });
     await previousLock;
     return releaseLock!;
+  }
+
+  private queueWrite(updater: (state: PlatformState) => unknown): void {
+    if (this.destroyed) return;
+    this.writeBuffer.push(updater);
+    if (this.writeBuffer.length >= PlatformStore.FLUSH_THRESHOLD) {
+      this.flushWrites();
+    }
+  }
+
+  flushWrites(): void {
+    if (this.destroyed) return;
+    if (this.writeBuffer.length === 0) return;
+    const pending = this.writeBuffer.splice(0);
+    const state = this.readState();
+    for (const updater of pending) {
+      updater(state);
+    }
+    this.writeState(state);
   }
 
   constructor(storageDir: string) {
@@ -377,6 +415,21 @@ export class PlatformStore {
     if (!existsSync(this.storageFilePath)) {
       this.writeState(createEmptyState());
     }
+
+    this.exitHandler = () => this.flushWrites();
+    this.flushTimer = setInterval(() => this.flushWrites(), PlatformStore.FLUSH_INTERVAL_MS);
+    process.on("exit", this.exitHandler);
+  }
+
+  destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+    this.flushWrites();
+    process.removeListener("exit", this.exitHandler);
   }
 
   getStorageFilePath() {
@@ -398,6 +451,7 @@ export class PlatformStore {
       industryDataRecords: Object.keys(state.industryData).length,
       dqiResults: Object.keys(state.dqiResults).length,
       gmpsResults: Object.keys(state.gmpsResults).length,
+      chatMessages: state.chatMessages.length,
     };
   }
 
@@ -638,16 +692,21 @@ export class PlatformStore {
    */
   getLatestIndustryData(date?: string): IndustryExternalData | undefined {
     const state = this.readState();
-    const records = Object.values(state.industryData);
+    const records = Object.values(state.industryData).filter(
+      (r) => r && typeof r.dataDate === "string" && r.dataDate.length > 0
+    );
 
-    if (date) {
-      // 返回指定日期或之前最近的记录
-      return records
-        .filter((r) => r.dataDate <= date)
-        .sort((a, b) => b.dataDate.localeCompare(a.dataDate))[0];
+    if (records.length === 0) {
+      return undefined;
     }
 
-    // 返回最新记录
+    if (date) {
+      const filtered = records
+        .filter((r) => r.dataDate <= date)
+        .sort((a, b) => b.dataDate.localeCompare(a.dataDate));
+      return filtered[0];
+    }
+
     return records.sort((a, b) => b.dataDate.localeCompare(a.dataDate))[0];
   }
 
@@ -793,6 +852,30 @@ export class PlatformStore {
     });
   }
 
+  // ==================== 新增：聊天消息管理 ====================
+
+  async saveChatMessage(msg: ChatMessage) {
+    this.queueWrite((state) => {
+      state.chatMessages.push(msg);
+    });
+    return msg;
+  }
+
+  getChatMessages(sessionId: string): ChatMessage[] {
+    const state = this.readState();
+    return state.chatMessages
+      .filter((msg) => msg.sessionId === sessionId)
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }
+
+  async deleteChatMessages(sessionId: string) {
+    return await this.updateState((state) => {
+      const deleted = state.chatMessages.filter((msg) => msg.sessionId === sessionId);
+      state.chatMessages = state.chatMessages.filter((msg) => msg.sessionId !== sessionId);
+      return deleted;
+    });
+  }
+
   // ==================== 新增：高级查询方法 ====================
 
   /**
@@ -868,6 +951,50 @@ export class PlatformStore {
     };
   }
 
+  isIndustryDataStale(maxAgeDays: number = 7): boolean {
+    const state = this.readState();
+    const records = Object.values(state.industryData);
+    if (records.length === 0) {
+      return true;
+    }
+    const latest = records.sort((a, b) => b.dataDate.localeCompare(a.dataDate))[0]!;
+    const latestDate = new Date(latest.dataDate);
+    const now = new Date();
+    const diffMs = now.getTime() - latestDate.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    return diffDays > maxAgeDays;
+  }
+
+  isFinancialDataStale(enterpriseId: string): boolean {
+    const state = this.readState();
+    const enterpriseRecords = Object.values(state.financialData)
+      .filter((data) => data.enterpriseId === enterpriseId)
+      .sort((a, b) => b.periodDate.localeCompare(a.periodDate));
+    if (enterpriseRecords.length === 0) {
+      return true;
+    }
+    const latest = enterpriseRecords[0]!;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+    const currentPeriod = `${currentYear}-Q${currentQuarter}`;
+    return latest.periodDate !== currentPeriod;
+  }
+
+  getLatestIndustryDataAge(): number | null {
+    const state = this.readState();
+    const records = Object.values(state.industryData);
+    if (records.length === 0) {
+      return null;
+    }
+    
+    const latest = records.sort((a, b) => b.dataDate.localeCompare(a.dataDate))[0]!;
+    const createdDate = new Date(latest.createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - createdDate.getTime();
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  }
+
   private async updateState<T>(updater: (state: PlatformState) => T): Promise<T> {
     const release = await this.acquireWriteLock();
     try {
@@ -899,6 +1026,9 @@ export class PlatformStore {
       console.error(`[PlatformStore] Failed to read state file: ${this.storageFilePath}`, error);
       try {
         const backupPath = this.storageFilePath + ".bak";
+        if (existsSync(backupPath)) {
+          unlinkSync(backupPath);
+        }
         renameSync(this.storageFilePath, backupPath);
         console.error(`[PlatformStore] Corrupted file backed up to: ${backupPath}`);
       } catch {}
@@ -909,6 +1039,22 @@ export class PlatformStore {
   private writeState(state: PlatformState) {
     const tmpPath = this.storageFilePath + ".tmp";
     writeFileSync(tmpPath, JSON.stringify(state, null, 2), "utf8");
-    renameSync(tmpPath, this.storageFilePath);
+    try {
+      renameSync(tmpPath, this.storageFilePath);
+    } catch {
+      try {
+        if (existsSync(this.storageFilePath)) {
+          unlinkSync(this.storageFilePath);
+        }
+        renameSync(tmpPath, this.storageFilePath);
+      } catch (retryError) {
+        console.error("[PlatformStore] Failed to write state file after retry:", retryError);
+        try {
+          if (existsSync(tmpPath)) {
+            unlinkSync(tmpPath);
+          }
+        } catch {}
+      }
+    }
   }
 }

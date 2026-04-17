@@ -38,6 +38,7 @@ const testEnv: ServerEnv = {
   DEEPSEEK_BASE_URL: "https://api.deepseek.com/v1",
   GLM_BASE_URL: "https://open.bigmodel.cn/api/paas/v4",
   QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  DATA_STALE_THRESHOLD_DAYS: 7,
 };
 
 describe('DQI and GMPS API - Integration Tests', () => {
@@ -51,6 +52,7 @@ describe('DQI and GMPS API - Integration Tests', () => {
   
   /** 标准DQI输入数据 */
   const VALID_DQI_INPUT = {
+    userId: "test-user",
     currentNetProfit: 5000000,
     currentBeginningEquity: 50000000,
     currentEndingEquity: 55000000,
@@ -65,13 +67,14 @@ describe('DQI and GMPS API - Integration Tests', () => {
 
   /** 缺少必填字段的DQI输入 */
   const INCOMPLETE_DQI_INPUT = {
+    userId: "test-user",
     currentNetProfit: 5000000,
     // 缺少其他必填字段
   };
 
   /** 标准GMPS输入数据 */
   const VALID_GMPS_INPUT = {
-    // 企业财务数据（当期）
+    userId: "test-user",
     currentGrossMargin: 18.5,
     currentRevenue: 100000000,
     currentCost: 81500000,
@@ -112,6 +115,7 @@ describe('DQI and GMPS API - Integration Tests', () => {
 
   /** 毛利承压模型向后兼容性测试数据 */
   const GROSS_MARGIN_PRESSURE_INPUT = {
+    userId: "test-user",
     currentGrossMargin: 18,
     baselineGrossMargin: 24,
     currentRevenue: 1350,
@@ -126,6 +130,7 @@ describe('DQI and GMPS API - Integration Tests', () => {
 
   /** 经营质量模型向后兼容性测试数据 */
   const OPERATING_QUALITY_INPUT = {
+    userId: "test-user",
     currentSalesVolume: 104,
     baselineSalesVolume: 96,
     currentProductionVolume: 106,
@@ -355,29 +360,28 @@ describe('DQI and GMPS API - Integration Tests', () => {
   describe('Backward Compatibility Tests', () => {
     
     it('Test 7: GET/POST /api/models/gross-margin-pressure - 仍然可用', async () => {
-      // 测试原有的毛利承压分析接口仍然可以正常工作
       const response = await request(app)
         .post('/api/models/gross-margin-pressure')
         .send(GROSS_MARGIN_PRESSURE_INPUT);
 
-      // 验证原有接口仍然可用
       expect(response.status).toBe(200);
       
-      // 验证返回的是旧格式的DiagnosticResult结构
-      expect(response.body).toHaveProperty('modelId', 'grossMarginPressure');
-      expect(response.body).toHaveProperty('modelName');
-      expect(response.body).toHaveProperty('score', expect.any(Number));
-      expect(response.body).toHaveProperty('riskLevel', expect.any(String));
-      expect(response.body).toHaveProperty('trend');
-      expect(response.body).toHaveProperty('normalizedMetrics');
-      expect(response.body).toHaveProperty('keyFindings');
-      expect(response.body).toHaveProperty('governance');
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('data');
+      const data = response.body.data;
+      expect(data).toHaveProperty('modelId', 'grossMarginPressure');
+      expect(data).toHaveProperty('modelName');
+      expect(data).toHaveProperty('score', expect.any(Number));
+      expect(data).toHaveProperty('riskLevel', expect.any(String));
+      expect(data).toHaveProperty('trend');
+      expect(data).toHaveProperty('normalizedMetrics');
+      expect(data).toHaveProperty('keyFindings');
+      expect(data).toHaveProperty('governance');
 
       // 验证趋势方向有效
-      expect(['improving', 'stable', 'deteriorating']).toContain(response.body.trend.direction);
+      expect(['improving', 'stable', 'deteriorating']).toContain(data.trend.direction);
       
-      // 风险等级有效
-      expect(['low', 'medium', 'high']).toContain(response.body.riskLevel);
+      expect(['low', 'medium', 'high']).toContain(data.riskLevel);
     });
 
     it('Test 8: GET/POST /api/models/operating-quality - 仍然可用', async () => {
@@ -455,6 +459,7 @@ describe('DQI and GMPS API - Integration Tests', () => {
 
     it('should correctly handle DQI calculation with extreme values via API', async () => {
       const extremeDQIInput = {
+        userId: "test-user",
         currentNetProfit: 500000000,          // 5亿净利润
         currentBeginningEquity: 5000000000,   // 50亿净资产
         currentEndingEquity: 5500000000,

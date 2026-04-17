@@ -7,8 +7,23 @@ const salesVolumeAmount = z.coerce.number().min(0.01, "销量不能小于0.01").
 const percentageNumber = z.coerce
   .number()
   .min(-100, "百分比不能低于 -100。")
-  .max(100, "百分比不能高于 100。")
+  .max(200, "百分比不能高于 200。")
   .finite("请输入有效百分比。");
+const leverageRatio = z.coerce
+  .number()
+  .min(0, "杠杆比率不能为负。")
+  .max(2, "杠杆比率超出合理范围（0-2）。")
+  .finite("请输入有效杠杆比率。");
+const netProfitAmount = z.coerce
+  .number()
+  .min(-1e11, "净利润绝对值超出合理范围，请确认单位为万元。")
+  .max(1e12, "净利润超出合理范围，请确认单位为万元。")
+  .finite("请输入有效净利润值。");
+const equityAmount = z.coerce
+  .number()
+  .min(0.01, "净资产不能小于0.01。")
+  .max(1e12, "净资产超出合理范围，请确认单位为万元。")
+  .finite("请输入有效净资产值。");
 
 export const riskLevelSchema = z.enum(["low", "medium", "high"]);
 export const trendDirectionSchema = z.enum(["improving", "stable", "deteriorating"]);
@@ -154,6 +169,9 @@ export const gmpsInputSchema = z
     currentLithiumPrice: positiveNumber,
     baselineLithiumPrice: positiveNumber,
     industryVolatility: z.coerce.number().min(0).max(1),
+
+    // 行业细分
+    industrySegment: z.enum(["powerBattery", "energyStorage", "consumerBattery"]).default("powerBattery"),
   })
   .superRefine((input, context) => {
     if (input.currentManufacturingExpense > input.currentOperatingCost) {
@@ -189,7 +207,7 @@ export const gmpsInputSchema = z
     }
   });
 
-export type GMPSInput = z.infer<typeof gmpsInputSchema>;
+export type GMPSInput = z.output<typeof gmpsInputSchema>;
 
 export type GMPSDimensionScores = {
   A_毛利率结果: number;
@@ -202,6 +220,32 @@ export type GMPSDimensionScores = {
 export type GMPSLevel = "低压" | "中压" | "高压";
 export type GMPSRiskLevel = "低风险" | "中风险" | "高风险";
 
+export type GMPSIndustrySegment = "powerBattery" | "energyStorage" | "consumerBattery";
+
+export const GMPS_INDUSTRY_WEIGHTS: Record<GMPSIndustrySegment, Record<string, number>> = {
+  powerBattery: {
+    A_毛利率结果: 0.25,
+    B_材料成本冲击: 0.25,
+    C_产销负荷: 0.20,
+    D_外部风险: 0.15,
+    E_现金流安全: 0.15,
+  },
+  energyStorage: {
+    A_毛利率结果: 0.20,
+    B_材料成本冲击: 0.15,
+    C_产销负荷: 0.25,
+    D_外部风险: 0.25,
+    E_现金流安全: 0.15,
+  },
+  consumerBattery: {
+    A_毛利率结果: 0.30,
+    B_材料成本冲击: 0.15,
+    C_产销负荷: 0.15,
+    D_外部风险: 0.10,
+    E_现金流安全: 0.30,
+  },
+};
+
 export type GMPSResult = {
   gmps: number;
   level: GMPSLevel;
@@ -212,29 +256,34 @@ export type GMPSResult = {
   normalizedMetrics: Record<string, NormalizedMetric>;
   keyFindings: string[];
   governance: ModelGovernance;
+  industrySegment: GMPSIndustrySegment;
+  industryWeights: Record<string, number>;
 };
 
 // ==================== DQI 经营质量动态评价模型 ====================
 
 export const dqiInputSchema = z
   .object({
-    // 当期数据
-    currentNetProfit: finiteNumber,
-    currentBeginningEquity: positiveNumber,
-    currentEndingEquity: positiveNumber,
+    currentNetProfit: netProfitAmount,
+    currentBeginningEquity: equityAmount,
+    currentEndingEquity: equityAmount,
     currentRevenue: monetaryAmount,
     currentOperatingCashFlow: finiteNumber,
+    currentTotalAssets: monetaryAmount,
+    currentInventoryExpense: monetaryAmount,
+    currentOperatingCost: monetaryAmount,
 
-    // 基期数据
-    baselineNetProfit: finiteNumber,
-    baselineBeginningEquity: positiveNumber,
-    baselineEndingEquity: positiveNumber,
+    baselineNetProfit: netProfitAmount,
+    baselineBeginningEquity: equityAmount,
+    baselineEndingEquity: equityAmount,
     baselineRevenue: monetaryAmount,
     baselineOperatingCashFlow: finiteNumber,
     baselineGrowth: z.coerce.number().optional(),
+    baselineTotalAssets: monetaryAmount,
+    baselineInventoryExpense: monetaryAmount,
+    baselineOperatingCost: monetaryAmount,
   })
   .superRefine((input, context) => {
-    // 验证当期净资产逻辑
     if (input.currentBeginningEquity > input.currentEndingEquity && input.currentNetProfit > 0) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -243,7 +292,6 @@ export const dqiInputSchema = z
       });
     }
 
-    // 验证基期净资产逻辑
     if (input.baselineBeginningEquity > input.baselineEndingEquity && input.baselineNetProfit > 0) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -252,7 +300,6 @@ export const dqiInputSchema = z
       });
     }
 
-    // 验证营收与现金流合理性（经营现金流不应超过营收的2倍）
     if (Math.abs(input.currentOperatingCashFlow) > input.currentRevenue * 2) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -272,7 +319,7 @@ export const dqiInputSchema = z
 
 export type DQIInput = z.infer<typeof dqiInputSchema>;
 
-export type DQIDriver = "盈利能力" | "成长能力" | "现金流质量" | "无明显驱动";
+export type DQIDriver = "盈利能力" | "成长能力" | "现金流质量" | "资产周转效率" | "研发投入强度" | "库存周转效率" | "无明显驱动";
 export type DQIStatus = "改善" | "稳定" | "恶化";
 
 export type DQIMetrics = {
@@ -285,12 +332,21 @@ export type DQIMetrics = {
   currentOCFRatio: number;
   baselineOCFRatio: number;
   ocfRatioChange: number;
+  currentAssetTurnover: number;
+  baselineAssetTurnover: number;
+  currentRdRatio: number;
+  baselineRdRatio: number;
+  currentInventoryDays: number;
+  baselineInventoryDays: number;
 };
 
 export type DQIDecomposition = {
-  profitabilityContribution: number; // w1 * roeRatio
-  growthContribution: number; // w2 * growthRatio
-  cashflowContribution: number; // w3 * ocfRatio
+  profitabilityContribution: number;
+  growthContribution: number;
+  cashflowContribution: number;
+  assetTurnoverContribution: number;
+  rdIntensityContribution: number;
+  inventoryTurnoverContribution: number;
 };
 
 export type DQIResult = {
@@ -301,4 +357,5 @@ export type DQIResult = {
   metrics: DQIMetrics;
   trend: string;
   confidence: number;
+  governance: ModelGovernance;
 };
