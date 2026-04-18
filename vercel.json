@@ -1,17 +1,10 @@
 {
+  "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist/web",
   "installCommand": "npm install",
   "framework": null,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "functions": {
-    "api/index.js": {
-      "memory": 1024,
-      "maxDuration": 60,
-      "includeFiles": "dist/server/**"
-    }
-  }
+    { "source": "/api/(.*)", "destination": "/api/index.ts" }
+  ]
 }
