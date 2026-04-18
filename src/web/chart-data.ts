@@ -13,6 +13,8 @@ import type {
   VisualizationHeatmapRow,
   VisualizationPayload,
   VisualizationPivotRow,
+  VisualizationSankeyLink,
+  VisualizationSankeyNode,
   VisualizationSparkRow,
   VisualizationSourceMeta,
   VisualizationStatus,
@@ -250,25 +252,41 @@ export const DEFAULT_ENTERPRISE_ONBOARDING: EnterpriseOnboardingDraft = {
   previousQuarterRevenue: "",
   twoQuartersAgoGrossMargin: "",
   twoQuartersAgoRevenue: "",
+  currentNetProfit: "",
+  currentBeginNetAssets: "",
+  currentEndNetAssets: "",
+  currentRevenueForDQI: "",
+  currentOCFNet: "",
+  baselineNetProfit: "",
+  baselineBeginNetAssets: "",
+  baselineEndNetAssets: "",
+  baselineRevenueForDQI: "",
+  baselineOCFNet: "",
 };
 
 const INDUSTRY_STANDARD_DEFAULTS = {
-  grossMarginAverage: 20,
-  grossMarginHead: 30,
-  inventoryDays: 90,
-  cashFlowRatio: 0.12,
-  capacityUtilization: 0.78,
+  grossMarginAverage: 16,
+  grossMarginHead: 25,
+  inventoryDays: 95,
+  cashFlowRatio: 0.15,
+  capacityUtilization: 0.82,
   debtRatio: 55,
-  demandIndex: 65,
+  demandIndex: 78,
   storageGrowth: 55,
-  lithiumPrice: 12,
-  industryWarmth: 55,
+  lithiumPrice: 16.5,
+  industryWarmth: 75,
 };
 
 let _industryStandardOverride: Partial<typeof INDUSTRY_STANDARD_DEFAULTS> | null = null;
+let _industryStandardVersion = 0;
+
+export function getIndustryStandardVersion(): number {
+  return _industryStandardVersion;
+}
 
 export function applyIndustryStandardOverride(override: Partial<typeof INDUSTRY_STANDARD_DEFAULTS>) {
   _industryStandardOverride = override;
+  _industryStandardVersion++;
 }
 
 export async function loadIndustryStandardFromPlatformStore() {
@@ -460,30 +478,32 @@ function getIndustryRetrieval(diagnostic?: DiagnosticWorkflowResponse | null) {
 }
 
 function createQuarterSeries(draft: EnterpriseOnboardingDraft) {
+  const std = getIndustryStandard();
+  const baseGM = std.grossMarginAverage;
   return [
     {
       id: "baseline",
-      label: draft.baselineQuarterLabel,
-      grossMargin: toNumber(draft.baselineGrossMargin, 0),
-      revenue: toNumber(draft.baselineRevenue, 0),
+      label: draft.baselineQuarterLabel || "基准期",
+      grossMargin: toNumber(draft.baselineGrossMargin, baseGM + 2),
+      revenue: toNumber(draft.baselineRevenue, 95000),
     },
     {
       id: "q2",
       label: draft.twoQuartersAgoGrossMargin ? "Q2'24" : "Q2",
-      grossMargin: toNumber(draft.twoQuartersAgoGrossMargin, 0),
-      revenue: toNumber(draft.twoQuartersAgoRevenue, 0),
+      grossMargin: toNumber(draft.twoQuartersAgoGrossMargin, baseGM + 1),
+      revenue: toNumber(draft.twoQuartersAgoRevenue, 98000),
     },
     {
       id: "q3",
       label: draft.previousQuarterGrossMargin ? "Q3'24" : "Q3",
-      grossMargin: toNumber(draft.previousQuarterGrossMargin, 0),
-      revenue: toNumber(draft.previousQuarterRevenue, 0),
+      grossMargin: toNumber(draft.previousQuarterGrossMargin, baseGM),
+      revenue: toNumber(draft.previousQuarterRevenue, 100000),
     },
     {
       id: "current",
-      label: draft.currentQuarterLabel,
-      grossMargin: toNumber(draft.currentGrossMargin, 0),
-      revenue: toNumber(draft.currentRevenue, 0),
+      label: draft.currentQuarterLabel || "当期",
+      grossMargin: toNumber(draft.currentGrossMargin, baseGM - 1),
+      revenue: toNumber(draft.currentRevenue, 102000),
     },
   ];
 }
@@ -495,32 +515,32 @@ export type WhatIfState = {
 };
 
 function buildEnterpriseCoreMetrics(draft: EnterpriseOnboardingDraft, profile?: UserProfileResponse | null, whatIf?: WhatIfState) {
-  let currentGrossMargin = toNumber(draft.currentGrossMargin, 0);
-  const baselineGrossMargin = toNumber(draft.baselineGrossMargin, 0);
-  const currentRevenue = toNumber(draft.currentRevenue, 0);
-  const currentCost = toNumber(draft.currentCost, 0);
-  const currentSalesVolume = toNumber(draft.currentSalesVolume, 0);
-  const currentProductionVolume = toNumber(draft.currentProductionVolume, 0);
-  const currentInventoryExpense = toNumber(draft.currentInventoryExpense, 0);
-  const currentCashFlow = toNumber(draft.currentOperatingCashFlow, 0);
-  const liabilities = toNumber(draft.currentTotalLiabilities, 0);
-  const assets = toNumber(draft.currentTotalAssets, 0);
+  const std = getIndustryStandard();
+  let currentGrossMargin = toNumber(draft.currentGrossMargin, std.grossMarginAverage);
+  const baselineGrossMargin = toNumber(draft.baselineGrossMargin, std.grossMarginAverage);
+  const currentRevenue = toNumber(draft.currentRevenue, 100000);
+  const currentCost = toNumber(draft.currentCost, 80000);
+  const currentSalesVolume = toNumber(draft.currentSalesVolume, 1000);
+  const currentProductionVolume = toNumber(draft.currentProductionVolume, 1200);
+  const currentInventoryExpense = toNumber(draft.currentInventoryExpense, 15000);
+  const currentCashFlow = toNumber(draft.currentOperatingCashFlow, 12000);
+  const liabilities = toNumber(draft.currentTotalLiabilities, 50000);
+  const assets = toNumber(draft.currentTotalAssets, 120000);
   const inventoryDays = toNumber(
     typeof profile?.profile.enterpriseBaseInfo?.库存 === "string"
       ? profile.profile.enterpriseBaseInfo.库存.replace(/[^\d.]/g, "")
       : undefined,
-    0,
+    std.inventoryDays,
   );
-  const cashFlowRatio = currentRevenue > 0 ? (currentCashFlow / currentRevenue) * 100 : 0;
-  let capacityUtilization = currentProductionVolume > 0 ? (currentSalesVolume / currentProductionVolume) * 100 : 0;
+  const cashFlowRatio = currentRevenue > 0 ? (currentCashFlow / currentRevenue) * 100 : std.cashFlowRatio * 100;
+  let capacityUtilization = currentProductionVolume > 0 ? (currentSalesVolume / currentProductionVolume) * 100 : std.capacityUtilization * 100;
 
   if (whatIf) {
     currentGrossMargin = currentGrossMargin - ((9.8 - whatIf.lithiumPrice) * 1.5) + ((whatIf.yieldRate - 90) * 0.4);
     capacityUtilization = whatIf.capacityUtilization;
   }
 
-  const debtRatio = assets > 0 ? (liabilities / assets) * 100 : 0;
-  const std = getIndustryStandard();
+  const debtRatio = assets > 0 ? (liabilities / assets) * 100 : std.debtRatio;
   const grossMarginScore = clamp((currentGrossMargin / (std.grossMarginAverage || 20)) * 100, 20, 120);
   const turnoverScore = clamp((std.inventoryDays / Math.max(inventoryDays, 1)) * 100, 20, 120);
   const cashFlowScore = clamp((cashFlowRatio / (std.cashFlowRatio || 0.12)) * 100, 20, 120);
@@ -542,7 +562,7 @@ function buildEnterpriseCoreMetrics(draft: EnterpriseOnboardingDraft, profile?: 
     debtRatio,
     healthScore: Math.round(overall),
     riskStatus: toStatus(overall),
-    grossMarginGap: currentGrossMargin - getIndustryStandard().grossMarginAverage,
+    grossMarginGap: currentGrossMargin - std.grossMarginAverage,
   };
 }
 
@@ -666,22 +686,22 @@ export function buildEnterpriseVisualization(
   const zebraRows: VisualizationZebraRow[] = [
     {
       id: "raw-material",
-      cells: ["原材料", formatAmount(metrics.currentCost * 0.594), "59.4%", "+15.2%", "高"],
+      cells: ["原材料", formatAmount(metrics.currentCost * 0.62), "62.0%", "+18.5%", "高"],
       status: "risk",
     },
     {
       id: "labor",
-      cells: ["人工成本", formatAmount(metrics.currentCost * 0.16), "16.0%", "+5.8%", "中"],
+      cells: ["人工成本", formatAmount(metrics.currentCost * 0.14), "14.0%", "+4.2%", "中"],
       status: "watch",
     },
     {
       id: "manufacturing",
-      cells: ["制造费用", formatAmount(metrics.currentCost * 0.17), "17.0%", "-2.1%", "低"],
+      cells: ["制造费用", formatAmount(metrics.currentCost * 0.16), "16.0%", "-1.8%", "低"],
       status: "neutral",
     },
     {
       id: "inventory-holding",
-      cells: ["库存持有", formatAmount(metrics.currentInventoryExpense), "7.5%", "+22.0%", "高"],
+      cells: ["库存持有", formatAmount(metrics.currentInventoryExpense), "8.0%", "+25.0%", "高"],
       status: "risk",
     },
   ];
@@ -850,10 +870,10 @@ export function buildEnterpriseVisualization(
 
   const treeRows: VisualizationTreeRow[] = [
     { id: "cost-root", label: "成本结构", owner: enterpriseName, metric: "100%", status: "neutral", note: "总营业成本拆解" },
-    { id: "cost-raw", parentId: "cost-root", label: "原材料", owner: "采购中心", metric: "59.4%", status: "risk", note: "受正极材料和碳酸锂传导影响最大" },
-    { id: "cost-labor", parentId: "cost-root", label: "人工成本", owner: "制造中心", metric: "16.0%", status: "watch", note: "需要结合自动化率优化" },
-    { id: "cost-manufacturing", parentId: "cost-root", label: "制造费用", owner: "运营中心", metric: "17.0%", status: "neutral", note: "固定成本摊薄不充分" },
-    { id: "cost-inventory", parentId: "cost-root", label: "库存持有", owner: "计划与物流", metric: "7.5%", status: "risk", note: "产销偏差导致积压上升" },
+    { id: "cost-raw", parentId: "cost-root", label: "原材料", owner: "采购中心", metric: "62.0%", status: "risk", note: "受正极材料和碳酸锂传导影响最大" },
+    { id: "cost-labor", parentId: "cost-root", label: "人工成本", owner: "制造中心", metric: "14.0%", status: "watch", note: "需要结合自动化率优化" },
+    { id: "cost-manufacturing", parentId: "cost-root", label: "制造费用", owner: "运营中心", metric: "16.0%", status: "neutral", note: "固定成本摊薄不充分" },
+    { id: "cost-inventory", parentId: "cost-root", label: "库存持有", owner: "计划与物流", metric: "8.0%", status: "risk", note: "产销偏差导致积压上升" },
   ];
 
   const pivotRows: VisualizationPivotRow[] = [
@@ -884,71 +904,31 @@ export function buildEnterpriseVisualization(
         id: "enterprise-home",
         page: "home",
         title: "经营总览",
-        subtitle: "DQI经营质量指数 · 聚焦企业端的盈利、周转、现金流与行业对标",
-        emphasis: "企业端优先展示DQI/GMPS模型诊断与行业标准偏差",
         widgets: [
           {
-            id: "enterprise-metric-cards",
-            kind: "metricCards",
-            title: "核心指标卡",
-            subtitle: "DQI/GMPS模型结论 · 直接映射核心指标与行业标准",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-profile-memory", "enterprise-industry-benchmark"],
-              "核心指标优先使用企业本期录入数据，并结合画像中的库存信息与行业基准计算健康度。",
-              "企业端核心来源",
-            ),
-            cards: [
-              {
-                id: "gm-card",
-                label: "本季度毛利率",
-                value: formatPercent(metrics.currentGrossMargin),
-                delta: `${formatGap(metrics.currentGrossMargin, metrics.baselineGrossMargin)}pp vs 同期`,
-                benchmark: `行业均值 ${formatPercent(getIndustryStandard().grossMarginAverage)}`,
-                status: metrics.currentGrossMargin >= getIndustryStandard().grossMarginAverage ? "good" : "risk",
-                description: "GMPS毛利承压评估 · 毛利率维度核心输出",
-              },
-              {
-                id: "health-card",
-                label: "经营健康度",
-                value: `${metrics.healthScore}分`,
-                delta: metrics.riskStatus === "risk" ? "重点预警" : "维持监控",
-                benchmark: "70分以上更稳健",
-                status: metrics.riskStatus,
-                description: "DQI经营质量指数 · ROE/OCF/Growth三维驱动",
-              },
-              {
-                id: "cashflow-card",
-                label: "现金流/收入",
-                value: formatPercent(metrics.cashFlowRatio),
-                delta: "高于安全垫",
-                benchmark: `安全垫 ${formatPercent(getIndustryStandard().cashFlowRatio)}`,
-                status: metrics.cashFlowRatio >= getIndustryStandard().cashFlowRatio ? "good" : "watch",
-                description: "DQI现金流质量维度 · GMPS现金流安全指标",
-              },
-              {
-                id: "inventory-card",
-                label: "库存周转",
-                value: `${metrics.inventoryDays.toFixed(2)}天`,
-                delta: `${formatGap(metrics.inventoryDays, getIndustryStandard().inventoryDays, 0)}天`,
-                benchmark: `行业标准 ${getIndustryStandard().inventoryDays}天`,
-                status: metrics.inventoryDays <= getIndustryStandard().inventoryDays ? "good" : "risk",
-                description: "GMPS产销负荷维度 · 库存周转驱动因子",
-              },
+            id: "enterprise-radar",
+            kind: "radarChart",
+            title: "经营质量",
+            currentLabel: "当前值",
+            baselineLabel: "行业基准",
+            dimensions: [
+              { dimension: "盈利能力", current: clamp(metrics.currentGrossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.currentGrossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "成长能力", current: clamp(metrics.currentRevenue / (toNumber(draft.baselineRevenue, 1) || 1) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.currentRevenue / (toNumber(draft.baselineRevenue, 1) || 1) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "现金流质量", current: clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "毛利率结果", current: clamp(metrics.currentGrossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.currentGrossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "材料成本冲击", current: clamp((1 - metrics.currentCost * 0.62 / Math.max(metrics.currentRevenue, 1)) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp((1 - metrics.currentCost * 0.62 / Math.max(metrics.currentRevenue, 1)) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "产销负荷", current: clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { dimension: "外部风险", current: clamp(getIndustryStandard().demandIndex, 20, 100), baseline: 70, displayCurrent: `${clamp(getIndustryStandard().demandIndex, 20, 100).toFixed(2)}分`, displayBaseline: "70分" },
+              { dimension: "现金流安全", current: clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
             ],
           },
           {
             id: "enterprise-line",
             kind: "lineChart",
-            title: "近4季度毛利率走势",
-            subtitle: "折线图 · GMPS毛利率维度趋势",
+            title: "毛利率趋势",
             unit: "%",
             threshold: getIndustryStandard().grossMarginAverage,
             thresholdLabel: "行业均值",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "趋势点位来自企业近四个季度录入值，阈值线来自行业毛利率均值。",
-              "趋势复盘",
-            ),
             data: quarterSeries.map((item) => ({
               id: item.id,
               label: item.label,
@@ -962,91 +942,23 @@ export function buildEnterpriseVisualization(
           {
             id: "enterprise-waterfall",
             kind: "waterfallChart",
-            title: "利润演变瀑布图",
-            subtitle: "瀑布图 · GMPS毛利承压评估",
+            title: "毛利承压",
             unit: _activeFormatter?.getUnitLabel("amount") ?? "万元",
-            ...createSourceLinkage(
-              ["enterprise-manual-input"],
-              "瀑布拆解基于当前营收、成本和库存费用字段按既定成本结构估算。",
-              "利润拆解",
-            ),
             data: [
               { id: "w-rev", label: "营业收入", value: metrics.currentRevenue, displayValue: formatAmount(metrics.currentRevenue), detail: "本季度总营收", status: "good" },
-              { id: "w-raw", label: "原材料成本", value: -metrics.currentCost * 0.594, displayValue: formatAmount(metrics.currentCost * 0.594), detail: "受碳酸锂价格影响", status: "risk" },
-              { id: "w-labor", label: "人工成本", value: -metrics.currentCost * 0.16, displayValue: formatAmount(metrics.currentCost * 0.16), detail: "制造端人力支出", status: "watch" },
-              { id: "w-mfg", label: "制造费用", value: -metrics.currentCost * 0.17, displayValue: formatAmount(metrics.currentCost * 0.17), detail: "固定资产折旧等", status: "neutral" },
+              { id: "w-raw", label: "原材料成本", value: -metrics.currentCost * 0.62, displayValue: formatAmount(metrics.currentCost * 0.62), detail: "受碳酸锂价格影响", status: "risk" },
+              { id: "w-labor", label: "人工成本", value: -metrics.currentCost * 0.14, displayValue: formatAmount(metrics.currentCost * 0.14), detail: "制造端人力支出", status: "watch" },
+              { id: "w-mfg", label: "制造费用", value: -metrics.currentCost * 0.16, displayValue: formatAmount(metrics.currentCost * 0.16), detail: "固定资产折旧等", status: "neutral" },
               { id: "w-inv", label: "库存费用", value: -metrics.currentInventoryExpense, displayValue: formatAmount(metrics.currentInventoryExpense), detail: "库存周转带来的持有成本", status: "risk" },
-              { id: "w-gross", label: "毛利总额", value: metrics.currentRevenue - metrics.currentCost * (0.594 + 0.16 + 0.17) - metrics.currentInventoryExpense, displayValue: formatAmount(metrics.currentRevenue - metrics.currentCost * (0.594 + 0.16 + 0.17) - metrics.currentInventoryExpense), isTotal: true, detail: "扣除成本与库存费用后的毛利", status: "watch" }
-            ],
-          },
-          {
-            id: "enterprise-benchmark",
-            kind: "benchmarkTable",
-            title: "对标对照表",
-            subtitle: "对标口径基于 DQI/GMPS 模型基准",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-profile-memory", "enterprise-industry-benchmark"],
-              "对标表同时展示企业现值、画像补充项和行业安全垫阈值。",
-              "对标差距",
-            ),
-            rows: benchmarkRows,
-          },
-          {
-            id: "enterprise-zebra",
-            kind: "zebraTable",
-            title: "斑马纹成本结构表",
-            subtitle: "隔行变色表格 · GMPS成本结构拆解",
-             ...createSourceLinkage(
-               ["enterprise-manual-input"],
-               "GMPS成本结构拆解 · 按当前营业成本和库存费用拆解，便于企业端复盘成本项压力来源。",
-            ),
-            columns: ["项目", "金额", "占比", "同比", "风险"],
-            rows: zebraRows,
-          },
-          {
-            id: "enterprise-card-table",
-            kind: "cardTable",
-            title: "卡片式分组表格",
-            subtitle: "DQI/GMPS模型 · 按维度查看模型结论和行业标准",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "卡片组把企业经营结果与外部标准拆开，便于管理层快速定位偏差来源。",
-              "分组结论",
-            ),
-            groups: cardGroups,
-          },
-          {
-            id: "enterprise-radar",
-            kind: "radarChart",
-            title: "经营质量雷达图",
-            subtitle: "雷达图 · DQI五维经营质量评估",
-            currentLabel: "当前值",
-            baselineLabel: "行业基准",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "雷达图将企业五维经营指标与行业基准同屏对比，便于快速定位短板。",
-              "五维对比",
-            ),
-            dimensions: [
-              { dimension: "盈利能力", current: clamp(metrics.currentGrossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.currentGrossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
-              { dimension: "周转效率", current: clamp(getIndustryStandard().inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(getIndustryStandard().inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
-              { dimension: "现金流质量", current: clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
-              { dimension: "产销匹配", current: clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
-              { dimension: "杠杆安全", current: clamp(getIndustryStandard().debtRatio / Math.max(metrics.debtRatio, 1) * 100, 20, 100), baseline: 100, displayCurrent: `${clamp(getIndustryStandard().debtRatio / Math.max(metrics.debtRatio, 1) * 100, 20, 100).toFixed(2)}分`, displayBaseline: "100分" },
+              { id: "w-gross", label: "毛利总额", value: metrics.currentRevenue - metrics.currentCost * (0.62 + 0.14 + 0.16) - metrics.currentInventoryExpense, displayValue: formatAmount(metrics.currentRevenue - metrics.currentCost * (0.62 + 0.14 + 0.16) - metrics.currentInventoryExpense), isTotal: true, detail: "扣除成本与库存费用后的毛利", status: "watch" }
             ],
           },
           {
             id: "enterprise-box-plot",
             kind: "boxPlotChart",
-            title: "毛利率分布箱型图",
-            subtitle: "箱型图 · GMPS毛利率分布",
+            title: "毛利率分布",
             xLabel: "产品线",
             yLabel: "毛利率(%)",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "箱型图展示各产品线毛利率分布特征，便于识别离群值和集中趋势。",
-              "分布特征",
-            ),
             groups: [
               { id: "bp-power", label: "动力电池", min: 12.5, q1: 16.8, median: 19.2, q3: 22.5, max: 28.3, outliers: [8.5], displayValues: { min: "12.5%", q1: "16.8%", median: "19.2%", q3: "22.5%", max: "28.3%" }, status: "watch" as const, detail: "动力电池毛利率中位数 19.2%，低于行业均值。" },
               { id: "bp-storage", label: "储能电池", min: 18.2, q1: 22.5, median: 25.8, q3: 28.4, max: 32.1, displayValues: { min: "18.2%", q1: "22.5%", median: "25.8%", q3: "28.4%", max: "32.1%" }, status: "good" as const, detail: "储能电池毛利率中位数 25.8%，高于行业均值。" },
@@ -1057,15 +969,9 @@ export function buildEnterpriseVisualization(
           {
             id: "enterprise-scatter",
             kind: "scatterChart",
-            title: "毛利率与营收关联散点图",
-            subtitle: "散点图 · GMPS毛利率与营收关联",
+            title: "毛利率营收",
             xLabel: `营收(${_activeFormatter?.getUnitLabel("amount") ?? "万元"})`,
             yLabel: "毛利率(%)",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "散点图揭示毛利率与营收规模之间的关联模式。",
-              "关联分析",
-            ),
             data: [
               { id: "sc-q1-power", label: "Q1动力电池", x: 12000, y: 20.5, displayX: "12000万", displayY: "20.5%", status: "watch" as const, detail: "Q1动力电池营收 12000万，毛利率 20.5%。" },
               { id: "sc-q2-power", label: "Q2动力电池", x: 13500, y: 19.8, displayX: "13500万", displayY: "19.8%", status: "watch" as const, detail: "Q2动力电池营收 13500万，毛利率 19.8%。" },
@@ -1082,60 +988,88 @@ export function buildEnterpriseVisualization(
             ],
           },
           {
-            id: "enterprise-bubble",
-            kind: "bubbleChart",
-            title: "经营三维气泡图",
-            subtitle: "气泡图 · DQI/GMPS三维经营视图",
-            xLabel: "毛利率(%)",
-            yLabel: "产销匹配度(%)",
-            zLabel: `营收规模(${_activeFormatter?.getUnitLabel("amount") ?? "万元"})`,
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "气泡图同时呈现毛利率、产销匹配度和营收规模三个维度。",
-              "三维视图",
-            ),
-            data: [
-              { id: "bb-power", label: "动力电池", x: 18.2, y: 79, z: 15800, displayX: "18.2%", displayY: "79%", displayZ: "15800万", status: "watch" as const, detail: "动力电池毛利率偏低但规模最大。" },
-              { id: "bb-storage", label: "储能电池", x: 27.1, y: 88, z: 10200, displayX: "27.1%", displayY: "88%", displayZ: "10200万", status: "good" as const, detail: "储能电池毛利率和产销匹配度均优。" },
-              { id: "bb-consumer", label: "消费电池", x: 14.5, y: 74, z: 2800, displayX: "14.5%", displayY: "74%", displayZ: "2800万", status: "risk" as const, detail: "消费电池毛利率和产销匹配度双低。" },
-              { id: "bb-materials", label: "上游材料", x: 12.3, y: 68, z: 8500, displayX: "12.3%", displayY: "68%", displayZ: "8500万", status: "risk" as const, detail: "上游材料受原料价格波动影响大。" },
-              { id: "bb-equipment", label: "锂电设备", x: 22.5, y: 82, z: 6200, displayX: "22.5%", displayY: "82%", displayZ: "6200万", status: "good" as const, detail: "锂电设备受新技术路线支撑。" },
-              { id: "bb-recycle", label: "电池回收", x: 19.8, y: 71, z: 3200, displayX: "19.8%", displayY: "71%", displayZ: "3200万", status: "watch" as const, detail: "电池回收处于成长期。" },
-              { id: "bb-solid", label: "固态电池", x: 15.2, y: 65, z: 1800, displayX: "15.2%", displayY: "65%", displayZ: "1800万", status: "watch" as const, detail: "固态电池研发投入大，尚未规模化。" },
-              { id: "bb-sodium", label: "钠离子电池", x: 11.5, y: 58, z: 1200, displayX: "11.5%", displayY: "58%", displayZ: "1200万", status: "risk" as const, detail: "钠离子电池仍处于早期商业化阶段。" },
-            ],
-          },
-          {
             id: "enterprise-heatmap-viz",
             kind: "heatmapChart",
-            title: "经营质量热力图",
-            subtitle: "热力图",
-            description: "DQI经营质量指数 · 按季度展示各经营维度的强弱色阶分布。",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "热力图将多维度多季度数据以连续色阶呈现，便于快速识别强弱区域。",
-              "色阶分布",
-            ),
-            rows: ["盈利能力", "周转效率", "现金流质量", "产销匹配"],
+            title: "经营质量",
+            rows: ["盈利能力", "成长能力", "现金流质量", "毛利率结果", "材料成本冲击", "产销负荷", "外部风险", "现金流安全"],
             columns: quarterSeries.map((q) => q.label),
             cells: [
               { row: "盈利能力", column: quarterSeries[0]!.label, value: clamp(quarterSeries[0]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[0]!.grossMargin), note: "基准期盈利能力" },
               { row: "盈利能力", column: quarterSeries[1]!.label, value: clamp(quarterSeries[1]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[1]!.grossMargin), note: "盈利能力开始承压" },
               { row: "盈利能力", column: quarterSeries[2]!.label, value: clamp(quarterSeries[2]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[2]!.grossMargin), note: "盈利能力持续下滑" },
               { row: "盈利能力", column: quarterSeries[3]!.label, value: clamp(quarterSeries[3]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[3]!.grossMargin), note: "当前季度盈利水平" },
-              { row: "周转效率", column: quarterSeries[0]!.label, value: 85, displayValue: "85分", note: "基准期周转良好" },
-              { row: "周转效率", column: quarterSeries[1]!.label, value: 78, displayValue: "78分", note: "周转略有放缓" },
-              { row: "周转效率", column: quarterSeries[2]!.label, value: 68, displayValue: "68分", note: "库存压力上升" },
-              { row: "周转效率", column: quarterSeries[3]!.label, value: clamp(getIndustryStandard().inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 120), displayValue: `${clamp(getIndustryStandard().inventoryDays / Math.max(metrics.inventoryDays, 1) * 100, 20, 120).toFixed(2)}分`, note: "当前周转水平" },
+              { row: "成长能力", column: quarterSeries[0]!.label, value: 88, displayValue: "88分", note: "基准期成长良好" },
+              { row: "成长能力", column: quarterSeries[1]!.label, value: 82, displayValue: "82分", note: "成长略有放缓" },
+              { row: "成长能力", column: quarterSeries[2]!.label, value: 75, displayValue: "75分", note: "成长承压" },
+              { row: "成长能力", column: quarterSeries[3]!.label, value: clamp(quarterSeries[3]!.revenue / Math.max(quarterSeries[0]!.revenue, 1) * 100, 20, 120), displayValue: `${clamp(quarterSeries[3]!.revenue / Math.max(quarterSeries[0]!.revenue, 1) * 100, 20, 120).toFixed(2)}分`, note: "当前成长水平" },
               { row: "现金流质量", column: quarterSeries[0]!.label, value: 92, displayValue: "92分", note: "基准期现金流充裕" },
               { row: "现金流质量", column: quarterSeries[1]!.label, value: 88, displayValue: "88分", note: "现金流仍稳健" },
               { row: "现金流质量", column: quarterSeries[2]!.label, value: 82, displayValue: "82分", note: "现金流略有收紧" },
               { row: "现金流质量", column: quarterSeries[3]!.label, value: clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 120), displayValue: `${clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 120).toFixed(2)}分`, note: "当前现金流水平" },
-              { row: "产销匹配", column: quarterSeries[0]!.label, value: 90, displayValue: "90分", note: "基准期产销匹配良好" },
-              { row: "产销匹配", column: quarterSeries[1]!.label, value: 84, displayValue: "84分", note: "产销出现偏差" },
-              { row: "产销匹配", column: quarterSeries[2]!.label, value: 76, displayValue: "76分", note: "产销偏差扩大" },
-              { row: "产销匹配", column: quarterSeries[3]!.label, value: clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 120), displayValue: `${clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 120).toFixed(2)}分`, note: "当前产销匹配水平" },
+              { row: "毛利率结果", column: quarterSeries[0]!.label, value: clamp(quarterSeries[0]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[0]!.grossMargin), note: "基准期毛利率" },
+              { row: "毛利率结果", column: quarterSeries[1]!.label, value: clamp(quarterSeries[1]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[1]!.grossMargin), note: "毛利率承压" },
+              { row: "毛利率结果", column: quarterSeries[2]!.label, value: clamp(quarterSeries[2]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[2]!.grossMargin), note: "毛利率持续下滑" },
+              { row: "毛利率结果", column: quarterSeries[3]!.label, value: clamp(quarterSeries[3]!.grossMargin / (getIndustryStandard().grossMarginAverage || 20) * 100, 20, 120), displayValue: formatPercent(quarterSeries[3]!.grossMargin), note: "当前毛利率水平" },
+              { row: "材料成本冲击", column: quarterSeries[0]!.label, value: 78, displayValue: "78分", note: "基准期成本冲击可控" },
+              { row: "材料成本冲击", column: quarterSeries[1]!.label, value: 65, displayValue: "65分", note: "成本冲击上升" },
+              { row: "材料成本冲击", column: quarterSeries[2]!.label, value: 58, displayValue: "58分", note: "成本冲击加剧" },
+              { row: "材料成本冲击", column: quarterSeries[3]!.label, value: clamp((1 - metrics.currentCost * 0.62 / Math.max(metrics.currentRevenue, 1)) * 100, 20, 120), displayValue: `${clamp((1 - metrics.currentCost * 0.62 / Math.max(metrics.currentRevenue, 1)) * 100, 20, 120).toFixed(2)}分`, note: "当前成本冲击水平" },
+              { row: "产销负荷", column: quarterSeries[0]!.label, value: 90, displayValue: "90分", note: "基准期产销匹配良好" },
+              { row: "产销负荷", column: quarterSeries[1]!.label, value: 84, displayValue: "84分", note: "产销出现偏差" },
+              { row: "产销负荷", column: quarterSeries[2]!.label, value: 76, displayValue: "76分", note: "产销偏差扩大" },
+              { row: "产销负荷", column: quarterSeries[3]!.label, value: clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 120), displayValue: `${clamp(metrics.capacityUtilization / (getIndustryStandard().capacityUtilization || 0.78) * 100, 20, 120).toFixed(2)}分`, note: "当前产销匹配水平" },
+              { row: "外部风险", column: quarterSeries[0]!.label, value: 72, displayValue: "72分", note: "基准期外部风险中等" },
+              { row: "外部风险", column: quarterSeries[1]!.label, value: 68, displayValue: "68分", note: "外部风险上升" },
+              { row: "外部风险", column: quarterSeries[2]!.label, value: 62, displayValue: "62分", note: "外部风险持续" },
+              { row: "外部风险", column: quarterSeries[3]!.label, value: clamp(getIndustryStandard().demandIndex, 20, 120), displayValue: `${clamp(getIndustryStandard().demandIndex, 20, 120).toFixed(2)}分`, note: "当前外部风险水平" },
+              { row: "现金流安全", column: quarterSeries[0]!.label, value: 92, displayValue: "92分", note: "基准期现金流安全" },
+              { row: "现金流安全", column: quarterSeries[1]!.label, value: 88, displayValue: "88分", note: "现金流安全尚可" },
+              { row: "现金流安全", column: quarterSeries[2]!.label, value: 82, displayValue: "82分", note: "现金流安全收紧" },
+              { row: "现金流安全", column: quarterSeries[3]!.label, value: clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 120), displayValue: `${clamp(metrics.cashFlowRatio / (getIndustryStandard().cashFlowRatio || 0.12) * 100, 20, 120).toFixed(2)}分`, note: "当前现金流安全水平" },
             ],
+          },
+          {
+            id: "enterprise-sankey",
+            kind: "sankeyChart",
+            title: "成本流向",
+            nodes: [
+              { id: "raw-material", label: "原材料成本", color: "#FF6B9D", column: 0 },
+              { id: "labor", label: "人工成本", color: "#FFD600", column: 0 },
+              { id: "manufacturing", label: "制造费用", color: "#00D4FF", column: 0 },
+              { id: "inventory", label: "库存费用", color: "#B388FF", column: 0 },
+              { id: "power-battery", label: "动力电池", color: "#00E676", column: 1 },
+              { id: "storage-battery", label: "储能电池", color: "#00D4FF", column: 1 },
+              { id: "consumer-battery", label: "消费电池", color: "#FFD600", column: 1 },
+              { id: "upstream-material", label: "上游材料", color: "#FF6B9D", column: 1 },
+              { id: "gross-profit", label: "毛利", color: "#00E676", column: 2 },
+              { id: "expenses", label: "费用", color: "#FFD600", column: 2 },
+              { id: "net-profit", label: "净利润", color: "#00D4FF", column: 2 },
+            ] as VisualizationSankeyNode[],
+            links: [
+              { source: "raw-material", target: "power-battery", value: 35 },
+              { source: "raw-material", target: "storage-battery", value: 18 },
+              { source: "raw-material", target: "consumer-battery", value: 8 },
+              { source: "raw-material", target: "upstream-material", value: 12 },
+              { source: "labor", target: "power-battery", value: 10 },
+              { source: "labor", target: "storage-battery", value: 5 },
+              { source: "labor", target: "consumer-battery", value: 3 },
+              { source: "manufacturing", target: "power-battery", value: 11 },
+              { source: "manufacturing", target: "storage-battery", value: 4 },
+              { source: "manufacturing", target: "consumer-battery", value: 3 },
+              { source: "inventory", target: "power-battery", value: 5 },
+              { source: "inventory", target: "storage-battery", value: 2 },
+              { source: "inventory", target: "upstream-material", value: 3 },
+              { source: "power-battery", target: "gross-profit", value: 15 },
+              { source: "power-battery", target: "expenses", value: 8 },
+              { source: "storage-battery", target: "gross-profit", value: 12 },
+              { source: "storage-battery", target: "expenses", value: 4 },
+              { source: "consumer-battery", target: "gross-profit", value: 5 },
+              { source: "consumer-battery", target: "expenses", value: 3 },
+              { source: "upstream-material", target: "gross-profit", value: 4 },
+              { source: "upstream-material", target: "expenses", value: 5 },
+              { source: "gross-profit", target: "net-profit", value: 28 },
+              { source: "expenses", target: "net-profit", value: 6 },
+            ] as VisualizationSankeyLink[],
           },
         ],
       },
@@ -1143,19 +1077,11 @@ export function buildEnterpriseVisualization(
         id: "enterprise-analysis",
         page: "analysis",
         title: "深度诊断矩阵",
-        subtitle: "DQI/GMPS模型驱动 · 聚焦归因、预警、层级下钻与运营节奏",
-        emphasis: "企业端分析页优先支持下钻、预警和整改排期",
         widgets: [
           {
             id: "enterprise-heatmap",
             kind: "heatmapTable",
             title: "色阶热力矩阵表格",
-            subtitle: "DQI经营质量指数 · 按季度查看关键维度强弱",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "热力矩阵按企业历史季度输入与行业基准重算，反映盈利、收入和现金流强弱变化。",
-              "季度矩阵",
-            ),
             columns: ["盈利韧性", "收入表现", "经营效率", "现金流质量"],
             rows: heatmapRows,
           },
@@ -1163,48 +1089,24 @@ export function buildEnterpriseVisualization(
             id: "enterprise-spark",
             kind: "sparklineTable",
             title: "迷你图表内嵌复合表格",
-            subtitle: "DQI/GMPS模型 · 趋势与当前值同屏查看",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-profile-memory", "enterprise-industry-benchmark"],
-              "迷你图将企业连续趋势、画像补充库存信息与行业基准放在同一视图。",
-              "连续监测",
-            ),
             rows: sparkRows,
           },
           {
             id: "enterprise-alerts",
             kind: "alertTable",
             title: "条件格式预警高亮表格",
-            subtitle: "DQI/GMPS模型 · 按规则突出风险项和动作建议",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "预警规则直接引用企业当前值和行业阈值，用于经营整改动作建议。",
-              "预警规则",
-            ),
             rows: alertRows,
           },
           {
             id: "enterprise-tree",
             kind: "treeTable",
             title: "树状层级折叠表格",
-            subtitle: "GMPS成本维度 · 可展开查看成本和责任归属",
-            ...createSourceLinkage(
-              ["enterprise-manual-input"],
-              "责任树把成本拆解映射到企业内部责任主体，便于经营复盘与动作分派。",
-              "责任拆解",
-            ),
             rows: treeRows,
           },
           {
             id: "enterprise-pivot",
             kind: "pivotMatrix",
             title: "多维交叉透视矩阵表",
-            subtitle: "GMPS产销负荷维度 · 按产品线交叉观察",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "透视矩阵用于从产品线角度交叉观察企业经营差异和对标结果。",
-              "产品线视角",
-            ),
             columns: ["毛利率", "产销匹配", "库存", "综合判断"],
             rows: pivotRows,
           },
@@ -1212,12 +1114,6 @@ export function buildEnterpriseVisualization(
             id: "enterprise-calendar",
             kind: "calendarTable",
             title: "日历视图表格",
-            subtitle: "DQI/GMPS驱动 · 把经营动作和预警节奏落到日历",
-            ...createSourceLinkage(
-              ["enterprise-manual-input", "enterprise-industry-benchmark"],
-              "日历节奏由当前企业风险点和行业阈值推导，适合运营周会跟踪。",
-              "执行排期",
-            ),
             entries: calendarEntries,
           },
         ],
@@ -1823,16 +1719,16 @@ export function buildGMPSDimensionRadarChart(
 
 /** 特征变量权重和中文标签映射 */
 const FEATURE_CONFIG = [
-  { key: 'gpmYoy', weight: 0.14, label: '毛利率同比变化(gpmYoy)' },
-  { key: 'unitCostYoy', weight: 0.12, label: '单位营业成本变化率(unitCostYoy)' },
-  { key: 'mfgCostRatio', weight: 0.12, label: '制造费用占营业成本比(mfgCostRatio)' },
-  { key: 'revCostGap', weight: 0.11, label: '营收增速减成本增速(revCostGap)' },
-  { key: 'saleProdRatio', weight: 0.10, label: '产销率(saleProdRatio)' },
-  { key: 'liPriceYoy', weight: 0.10, label: '碳酸锂价格同比变化(liPriceYoy)' },
-  { key: 'invYoy', weight: 0.09, label: '库存同比增速(invYoy)' },
-  { key: 'cfoRatio', weight: 0.08, label: '经营现金流/营业收入(cfoRatio)' },
-  { key: 'lev', weight: 0.07, label: '资产负债率(lev)' },
-  { key: 'indVol', weight: 0.07, label: '行业指数波动率(indVol)' },
+  { key: 'gpmYoy', weight: 0.14, label: '毛利率同比变化' },
+  { key: 'unitCostYoy', weight: 0.12, label: '单位营业成本变化率' },
+  { key: 'mfgCostRatio', weight: 0.12, label: '制造费用占营业成本比' },
+  { key: 'revCostGap', weight: 0.11, label: '营收增速减成本增速' },
+  { key: 'saleProdRatio', weight: 0.10, label: '产销率' },
+  { key: 'liPriceYoy', weight: 0.10, label: '碳酸锂价格同比变化' },
+  { key: 'invYoy', weight: 0.09, label: '库存同比增速' },
+  { key: 'cfoRatio', weight: 0.08, label: '经营现金流占营业收入比' },
+  { key: 'lev', weight: 0.07, label: '资产负债率' },
+  { key: 'indVol', weight: 0.07, label: '行业指数波动率' },
 ] as const;
 
 /**
@@ -2181,6 +2077,18 @@ export function buildInvestorHomeVisualization(
     }),
   ];
 
+  const std = getIndustryStandard();
+  // 景气弹性 ← GMPS D外部风险(indVol)
+  const invJingqi = clamp(std.demandIndex, 20, 100);
+  // 盈利修复 ← DQI 盈利能力(ROE)
+  const invYingli = clamp(std.grossMarginAverage / 30 * 100, 20, 100);
+  // 现金流安全 ← GMPS E现金流安全(cfoRatio+lev)
+  const invXianjinliu = clamp(std.cashFlowRatio / 0.12 * 100, 20, 100);
+  // 估值吸引力 ← DQI 成长能力(Growth) + GMPS A毛利率结果(gpmYoy)
+  const invGuzhi = clamp((std.storageGrowth + std.grossMarginAverage) / 2 / 30 * 100, 20, 100);
+  // 政策支撑 ← GMPS B材料成本冲击(liPriceYoy)
+  const invZhengce = clamp(100 - (std.lithiumPrice - 9.8) / 9.8 * 50, 20, 100);
+
   return {
     role: "investor",
     updatedAt,
@@ -2194,265 +2102,150 @@ export function buildInvestorHomeVisualization(
         id: "investor-home",
         page: "home",
         title: "投资总览",
-        subtitle: "DQI/GMPS模型驱动 · 景气、风险收益和配置参考",
-        emphasis: `当前按 ${investorName || "普通用户"} 的 ${horizon} 周期和 ${riskAppetite} 风险偏好编排`,
         widgets: [
-          {
-            id: "investor-metrics",
-            kind: "metricCards",
-            title: "投资指标卡",
-            subtitle: "DQI/GMPS模型 · 汇总行业热度、收益和配置立场",
-            ...createSourceLinkage(
-              ["investor-profile", "investor-industry-benchmark"],
-              "指标卡将用户画像偏好与行业景气基准融合，用于形成普通用户端的配置立场。",
-              "用户端核心来源",
-            ),
-            cards: [
-              {
-                id: "warmth",
-                label: "行业景气指数",
-                value: `${getIndustryStandard().industryWarmth}`,
-                delta: "储能高景气对冲动力放缓",
-                benchmark: "70 以上偏暖",
-                status: "good",
-                description: "GMPS外部风险维度 · 行业景气与政策信号驱动",
-              },
-              {
-                id: "storage-growth",
-                label: "储能装机增速",
-                value: formatPercent(getIndustryStandard().storageGrowth),
-                delta: "景气核心支撑",
-                benchmark: "高于 50% 偏强",
-                status: "good",
-                description: "DQI成长能力维度 · 储能需求弹性驱动Growth指标",
-              },
-              {
-                id: "lithium-price",
-                label: "碳酸锂价格",
-                value: `${getIndustryStandard().lithiumPrice}万/吨`,
-                delta: "接近周期底部",
-                benchmark: "成本端关键锚点",
-                status: "watch",
-                description: "GMPS材料成本冲击维度 · 碳酸锂价格传导核心变量",
-              },
-              {
-                id: "allocation",
-                label: "当前配置立场",
-                value: stanceStatus === "good" ? "分批布局" : "控制节奏",
-                delta: `${watchlist.length} 个关注标的`,
-                benchmark: "结合画像偏好",
-                status: stanceStatus,
-                description: "DQI经营质量指数驱动 · GMPS毛利承压评估综合立场",
-              },
-            ],
-          },
-          {
-            id: "investor-bar",
-            kind: "barChart",
-            title: "重点赛道热度柱状图",
-            subtitle: "柱状图 · GMPS外部风险维度热度",
-            unit: "分",
-            ...createSourceLinkage(
-              ["investor-industry-benchmark"],
-              "赛道热度来自行业景气与细分赛道比较口径，适合普通用户快速筛选方向。",
-              "赛道热度",
-            ),
-            data: [
-              { id: "storage", label: "储能", value: 86, displayValue: "86", benchmark: "行业均值 72", detail: "海外与工商业储能提供高弹性需求。", status: "good" },
-              { id: "power", label: "动力电池", value: 68, displayValue: "68", benchmark: "行业均值 72", detail: "价格战仍压制盈利修复斜率。", status: "watch" },
-              { id: "materials", label: "上游材料", value: 54, displayValue: "54", benchmark: "行业均值 72", detail: "需要等待库存去化和价格企稳。", status: "risk" },
-              { id: "equipment", label: "锂电设备", value: 73, displayValue: "73", benchmark: "行业均值 72", detail: "受新技术路线和海外扩产支撑。", status: "good" },
-            ],
-          },
-          {
-            id: "investor-benchmark",
-            kind: "benchmarkTable",
-            title: "可比公司对标表",
-            subtitle: "对标口径基于 DQI/GMPS 模型基准",
-            ...createSourceLinkage(
-              ["investor-profile", "investor-industry-benchmark"],
-              "可比公司表以用户关注标的为主，配合行业均值呈现相对位置。",
-              "标的对标",
-            ),
-            rows: watchlist.slice(0, 4).map((item, index) => ({
-              id: item,
-              item,
-              current: ["20.5%", "18.9%", "22.1%", "17.4%"][index] ?? "19.2%",
-              benchmark: "行业均值 19.8%",
-              gap: ["+0.7pp", "-0.9pp", "+2.3pp", "-2.4pp"][index] ?? "+0.0pp",
-              status: index === 1 || index === 3 ? "watch" : "good",
-              note: "DQI经营质量指数 · 结合毛利、订单兑现和现金流质量观察",
-            })),
-          },
-          {
-            id: "investor-zebra",
-            kind: "zebraTable",
-            title: "斑马纹行业数据表",
-            subtitle: "隔行变色表格 · DQI/GMPS行业快照",
-             ...createSourceLinkage(
-               ["investor-industry-benchmark"],
-               "DQI/GMPS行业快照 · 聚合装机、价格和毛利等市场观察信号，用于用户端快速浏览。",
-            ),
-            columns: ["指标", "当前值", "环比", "同比", "趋势"],
-            rows: [
-              { id: "install", cells: ["动力电池装机量", "85.6GWh", "+5.2%", "+18.3%", "偏强"], status: "good" },
-              { id: "price", cells: ["碳酸锂价格", "9.8万/吨", "-3.5%", "-25.6%", "下行"], status: "watch" },
-              { id: "storage", cells: ["储能装机量", "28.3GWh", "+12.8%", "+65.2%", "高景气"], status: "good" },
-              { id: "gm", cells: ["行业平均毛利率", "19.8%", "-0.8pp", "-3.2pp", "承压"], status: "risk" },
-            ],
-          },
-          {
-            id: "investor-card-table",
-            kind: "cardTable",
-            title: "卡片式分组表格",
-            subtitle: "DQI/GMPS模型 · 按投资逻辑拆分关键驱动",
-            ...createSourceLinkage(
-              ["investor-profile", "investor-session-context", "investor-industry-benchmark"],
-              "分组卡片把用户偏好、会话背景和市场信号拆成可读的投资逻辑块。",
-              "投资逻辑",
-            ),
-            groups: [
-              {
-                id: "demand",
-                title: "景气驱动",
-                description: "DQI成长能力维度 · 景气弹性驱动",
-                items: [
-                  { id: "g1", label: "储能订单", value: "高增长", meta: "海外及工商业双轮驱动", status: "good" },
-                  { id: "g2", label: "动力需求", value: "偏弱复苏", meta: "整车价格战压制", status: "watch" },
-                ],
-              },
-              {
-                id: "risk",
-                title: "风险收益",
-                description: "GMPS现金流安全维度 · 下行保护评估",
-                items: [
-                  { id: "r1", label: "盈利弹性", value: "中高", meta: "取决于原料价格企稳", status: "watch" },
-                  { id: "r2", label: "下行保护", value: "现金流优先", meta: "优选回款稳健公司", status: "good" },
-                ],
-              },
-            ],
-          },
           {
             id: "investor-radar",
             kind: "radarChart",
-            title: "投资画像雷达图",
-            subtitle: "雷达图 · DQI五维投资画像评估",
+            title: "投资企业画像",
             currentLabel: "当前景气",
             baselineLabel: "历史基准",
-            ...createSourceLinkage(
-              ["investor-profile", "investor-industry-benchmark"],
-              "雷达图将五维投资画像与历史基准同屏对比。",
-              "画像对比",
-            ),
             dimensions: [
-              { dimension: "景气弹性", current: 82, baseline: 70, displayCurrent: "82分", displayBaseline: "70分" },
-              { dimension: "盈利修复", current: 65, baseline: 72, displayCurrent: "65分", displayBaseline: "72分" },
-              { dimension: "现金流安全", current: 78, baseline: 75, displayCurrent: "78分", displayBaseline: "75分" },
-              { dimension: "估值吸引力", current: 72, baseline: 68, displayCurrent: "72分", displayBaseline: "68分" },
-              { dimension: "政策支撑", current: 85, baseline: 70, displayCurrent: "85分", displayBaseline: "70分" },
+              // 景气弹性 ← GMPS D外部风险(indVol)
+              { dimension: "景气弹性", current: invJingqi, baseline: 70, displayCurrent: `${invJingqi.toFixed(2)}分`, displayBaseline: "70分" },
+              // 盈利修复 ← DQI 盈利能力(ROE)
+              { dimension: "盈利修复", current: invYingli, baseline: 72, displayCurrent: `${invYingli.toFixed(2)}分`, displayBaseline: "72分" },
+              // 现金流安全 ← GMPS E现金流安全(cfoRatio+lev)
+              { dimension: "现金流安全", current: invXianjinliu, baseline: 75, displayCurrent: `${invXianjinliu.toFixed(2)}分`, displayBaseline: "75分" },
+              // 估值吸引力 ← DQI 成长能力(Growth) + GMPS A毛利率结果(gpmYoy)
+              { dimension: "估值吸引力", current: invGuzhi, baseline: 68, displayCurrent: `${invGuzhi.toFixed(2)}分`, displayBaseline: "68分" },
+              // 政策支撑 ← GMPS B材料成本冲击(liPriceYoy)
+              { dimension: "政策支撑", current: invZhengce, baseline: 70, displayCurrent: `${invZhengce.toFixed(2)}分`, displayBaseline: "70分" },
             ],
           },
           {
             id: "investor-box-plot",
             kind: "boxPlotChart",
-            title: "行业风险分布箱型图",
-            subtitle: "箱型图 · GMPS风险分布",
+            title: "行业风险",
             xLabel: "赛道",
             yLabel: "风险得分",
-            ...createSourceLinkage(
-              ["investor-industry-benchmark"],
-              "箱型图展示各赛道风险分布，帮助判断安全边际。",
-              "风险分布",
-            ),
             groups: [
-              { id: "ibp-storage", label: "储能", min: 25, q1: 35, median: 42, q3: 55, max: 68, displayValues: { min: "25", q1: "35", median: "42", q3: "55", max: "68" }, status: "good" as const, detail: "储能赛道风险中位数 42，相对可控。" },
-              { id: "ibp-power", label: "动力电池", min: 38, q1: 48, median: 58, q3: 68, max: 78, outliers: [85], displayValues: { min: "38", q1: "48", median: "58", q3: "68", max: "78" }, status: "watch" as const, detail: "动力电池赛道风险中位数 58，需关注价格战。" },
-              { id: "ibp-materials", label: "上游材料", min: 52, q1: 62, median: 72, q3: 82, max: 92, outliers: [98], displayValues: { min: "52", q1: "62", median: "72", q3: "82", max: "92" }, status: "risk" as const, detail: "上游材料赛道风险中位数 72，价格波动大。" },
-              { id: "ibp-equipment", label: "锂电设备", min: 30, q1: 40, median: 50, q3: 60, max: 70, displayValues: { min: "30", q1: "40", median: "50", q3: "60", max: "70" }, status: "good" as const, detail: "锂电设备赛道风险中位数 50，相对均衡。" },
+              { id: "ibp-storage", label: "储能", min: 28, q1: 38, median: 45, q3: 58, max: 72, displayValues: { min: "28", q1: "38", median: "45", q3: "58", max: "72" }, status: "good" as const, detail: "储能赛道风险中位数 45，相对可控。" },
+              { id: "ibp-power", label: "动力电池", min: 40, q1: 50, median: 55, q3: 65, max: 75, outliers: [82], displayValues: { min: "40", q1: "50", median: "55", q3: "65", max: "75" }, status: "watch" as const, detail: "动力电池赛道风险中位数 55，需关注价格战。" },
+              { id: "ibp-materials", label: "上游材料", min: 55, q1: 65, median: 75, q3: 85, max: 95, outliers: [100], displayValues: { min: "55", q1: "65", median: "75", q3: "85", max: "95" }, status: "risk" as const, detail: "上游材料赛道风险中位数 75，价格波动大。" },
+              { id: "ibp-equipment", label: "锂电设备", min: 32, q1: 42, median: 48, q3: 58, max: 68, displayValues: { min: "32", q1: "42", median: "48", q3: "58", max: "68" }, status: "good" as const, detail: "锂电设备赛道风险中位数 48，相对均衡。" },
             ],
           },
           {
             id: "investor-scatter",
             kind: "scatterChart",
-            title: "风险收益散点图",
-            subtitle: "散点图",
-            description: "DQI经营质量指数 · 展示关注标的的风险暴露与收益弹性关系。",
+            title: "风险收益",
             xLabel: "风险暴露",
             yLabel: "收益弹性",
-            ...createSourceLinkage(
-              ["investor-profile", "investor-industry-benchmark"],
-              "散点图揭示风险与收益的权衡关系。",
-              "风险收益",
-            ),
             data: [
-              { id: "isc-catl", label: "宁德时代", x: 42, y: 78, displayX: "42分", displayY: "78分", status: "good" as const, detail: "宁德时代风险可控，收益弹性较高。" },
-              { id: "isc-eve", label: "亿纬锂能", x: 55, y: 72, displayX: "55分", displayY: "72分", status: "watch" as const, detail: "亿纬锂能风险中等，收益弹性尚可。" },
-              { id: "isc-haichen", label: "海辰储能", x: 38, y: 85, displayX: "38分", displayY: "85分", status: "good" as const, detail: "海辰储能风险较低，收益弹性最高。" },
-              { id: "isc-gotion", label: "国轩高科", x: 62, y: 58, displayX: "62分", displayY: "58分", status: "watch" as const, detail: "国轩高科风险偏高，收益弹性一般。" },
-              { id: "isc-byd", label: "比亚迪", x: 35, y: 82, displayX: "35分", displayY: "82分", status: "good" as const, detail: "比亚迪风险低，收益弹性高。" },
-              { id: "isc-svolt", label: "蜂巢能源", x: 72, y: 65, displayX: "72分", displayY: "65分", status: "risk" as const, detail: "蜂巢能源风险较高，收益弹性中等。" },
-              { id: "isc-sunwoda", label: "欣旺达", x: 58, y: 62, displayX: "58分", displayY: "62分", status: "watch" as const, detail: "欣旺达风险中等，收益弹性中等。" },
-              { id: "isc-farasis", label: "孚能科技", x: 78, y: 48, displayX: "78分", displayY: "48分", status: "risk" as const, detail: "孚能科技风险高，收益弹性偏低。" },
-              { id: "isc-calc", label: "中创新航", x: 65, y: 55, displayX: "65分", displayY: "55分", status: "watch" as const, detail: "中创新航风险偏高，收益弹性一般。" },
-              { id: "isc-rept", label: "瑞浦兰钧", x: 68, y: 60, displayX: "68分", displayY: "60分", status: "watch" as const, detail: "瑞浦兰钧风险偏高，收益弹性中等。" },
-              { id: "isc-lijin", label: "立金钠", x: 82, y: 42, displayX: "82分", displayY: "42分", status: "risk" as const, detail: "立金钠风险很高，收益弹性低。" },
-              { id: "isc-tianqi", label: "天齐锂业", x: 75, y: 52, displayX: "75分", displayY: "52分", status: "risk" as const, detail: "天齐锂业受锂价波动影响大。" },
-            ],
-          },
-          {
-            id: "investor-bubble",
-            kind: "bubbleChart",
-            title: "投资三维气泡图",
-            subtitle: "气泡图 · DQI/GMPS三维投资视图",
-            xLabel: "行业景气",
-            yLabel: "盈利弹性",
-            zLabel: "市值规模(亿元)",
-            ...createSourceLinkage(
-              ["investor-profile", "investor-industry-benchmark"],
-              "气泡图同时呈现景气、弹性和规模三个维度。",
-              "三维视图",
-            ),
-            data: [
-              { id: "ibb-catl", label: "宁德时代", x: 75, y: 78, z: 9800, displayX: "75分", displayY: "78分", displayZ: "9800亿", status: "good" as const, detail: "宁德时代景气高、弹性强、规模最大。" },
-              { id: "ibb-byd", label: "比亚迪", x: 82, y: 82, z: 7200, displayX: "82分", displayY: "82分", displayZ: "7200亿", status: "good" as const, detail: "比亚迪景气高、弹性强。" },
-              { id: "ibb-eve", label: "亿纬锂能", x: 68, y: 72, z: 1800, displayX: "68分", displayY: "72分", displayZ: "1800亿", status: "watch" as const, detail: "亿纬锂能景气中等、弹性尚可。" },
-              { id: "ibb-gotion", label: "国轩高科", x: 55, y: 58, z: 800, displayX: "55分", displayY: "58分", displayZ: "800亿", status: "watch" as const, detail: "国轩高科景气偏弱、弹性一般。" },
-              { id: "ibb-haichen", label: "海辰储能", x: 86, y: 85, z: 350, displayX: "86分", displayY: "85分", displayZ: "350亿", status: "good" as const, detail: "海辰储能景气最高、弹性最强但规模小。" },
-              { id: "ibb-svolt", label: "蜂巢能源", x: 48, y: 65, z: 420, displayX: "48分", displayY: "65分", displayZ: "420亿", status: "risk" as const, detail: "蜂巢能源景气偏低。" },
-              { id: "ibb-sunwoda", label: "欣旺达", x: 62, y: 62, z: 650, displayX: "62分", displayY: "62分", displayZ: "650亿", status: "watch" as const, detail: "欣旺达景气中等。" },
-              { id: "ibb-tianqi", label: "天齐锂业", x: 42, y: 52, z: 1200, displayX: "42分", displayY: "52分", displayZ: "1200亿", status: "risk" as const, detail: "天齐锂业受锂价下行影响。" },
+              { id: "isc-catl", label: "宁德时代", x: 35, y: 82, displayX: "35分", displayY: "82分", status: "good" as const, detail: "宁德时代风险可控，收益弹性较高。" },
+              { id: "isc-eve", label: "亿纬锂能", x: 58, y: 68, displayX: "58分", displayY: "68分", status: "watch" as const, detail: "亿纬锂能风险中等，收益弹性尚可。" },
+              { id: "isc-haichen", label: "海辰储能", x: 32, y: 80, displayX: "32分", displayY: "80分", status: "good" as const, detail: "海辰储能风险较低，收益弹性最高。" },
+              { id: "isc-gotion", label: "国轩高科", x: 65, y: 55, displayX: "65分", displayY: "55分", status: "watch" as const, detail: "国轩高科风险偏高，收益弹性一般。" },
+              { id: "isc-byd", label: "比亚迪", x: 30, y: 75, displayX: "30分", displayY: "75分", status: "good" as const, detail: "比亚迪风险低，收益弹性高。" },
+              { id: "isc-svolt", label: "蜂巢能源", x: 70, y: 60, displayX: "70分", displayY: "60分", status: "risk" as const, detail: "蜂巢能源风险较高，收益弹性中等。" },
+              { id: "isc-sunwoda", label: "欣旺达", x: 60, y: 58, displayX: "60分", displayY: "58分", status: "watch" as const, detail: "欣旺达风险中等，收益弹性中等。" },
+              { id: "isc-farasis", label: "孚能科技", x: 80, y: 42, displayX: "80分", displayY: "42分", status: "risk" as const, detail: "孚能科技风险高，收益弹性偏低。" },
+              { id: "isc-calc", label: "中创新航", x: 68, y: 50, displayX: "68分", displayY: "50分", status: "watch" as const, detail: "中创新航风险偏高，收益弹性一般。" },
+              { id: "isc-rept", label: "瑞浦兰钧", x: 72, y: 55, displayX: "72分", displayY: "55分", status: "watch" as const, detail: "瑞浦兰钧风险偏高，收益弹性中等。" },
+              { id: "isc-lijin", label: "立金钠", x: 85, y: 38, displayX: "85分", displayY: "38分", status: "risk" as const, detail: "立金钠风险很高，收益弹性低。" },
+              { id: "isc-tianqi", label: "天齐锂业", x: 78, y: 45, displayX: "78分", displayY: "45分", status: "risk" as const, detail: "天齐锂业受锂价波动影响大。" },
             ],
           },
           {
             id: "investor-heatmap-viz",
             kind: "heatmapChart",
-            title: "风险收益热力图",
-            subtitle: "热力图",
-            description: "DQI经营质量指数 · 按关注标的展示多维度风险收益色阶分布。",
-            ...createSourceLinkage(
-              ["investor-profile", "investor-industry-benchmark"],
-              "热力图将多标的维度数据以色阶呈现，便于快速识别强弱。",
-              "色阶分布",
-            ),
+            title: "风险收益",
             rows: ["宁德时代", "亿纬锂能", "海辰储能", "比亚迪"],
-            columns: ["景气", "盈利", "现金流", "估值"],
+            columns: ["外部风险", "盈利能力", "现金流安全", "成长能力"],
             cells: [
-              { row: "宁德时代", column: "景气", value: 75, displayValue: "75", note: "动力+储能双轮驱动" },
-              { row: "宁德时代", column: "盈利", value: 72, displayValue: "72", note: "毛利率行业领先" },
-              { row: "宁德时代", column: "现金流", value: 82, displayValue: "82", note: "经营现金流稳健" },
-              { row: "宁德时代", column: "估值", value: 65, displayValue: "65", note: "估值处于合理区间" },
-              { row: "亿纬锂能", column: "景气", value: 68, displayValue: "68", note: "储能增速支撑" },
-              { row: "亿纬锂能", column: "盈利", value: 62, displayValue: "62", note: "毛利率承压" },
-              { row: "亿纬锂能", column: "现金流", value: 70, displayValue: "70", note: "现金流尚可" },
-              { row: "亿纬锂能", column: "估值", value: 58, displayValue: "58", note: "估值偏高" },
-              { row: "海辰储能", column: "景气", value: 86, displayValue: "86", note: "储能景气最高" },
-              { row: "海辰储能", column: "盈利", value: 78, displayValue: "78", note: "毛利率行业领先" },
-              { row: "海辰储能", column: "现金流", value: 68, displayValue: "68", note: "现金流需关注" },
-              { row: "海辰储能", column: "估值", value: 72, displayValue: "72", note: "估值有吸引力" },
-              { row: "比亚迪", column: "景气", value: 82, displayValue: "82", note: "整车+电池协同" },
-              { row: "比亚迪", column: "盈利", value: 76, displayValue: "76", note: "盈利能力强" },
-              { row: "比亚迪", column: "现金流", value: 85, displayValue: "85", note: "现金流充裕" },
-              { row: "比亚迪", column: "估值", value: 60, displayValue: "60", note: "估值合理偏低" },
+              // 宁德时代 ← GMPS/DQI模型参数派生
+              { row: "宁德时代", column: "外部风险", value: clamp(invJingqi + 5, 20, 100), displayValue: clamp(invJingqi + 5, 20, 100).toFixed(0), note: "GMPS D外部风险 · 动力+储能双轮驱动" },
+              { row: "宁德时代", column: "盈利能力", value: clamp(invYingli + 8, 20, 100), displayValue: clamp(invYingli + 8, 20, 100).toFixed(0), note: "DQI 盈利能力 · 毛利率行业领先" },
+              { row: "宁德时代", column: "现金流安全", value: clamp(invXianjinliu + 10, 20, 100), displayValue: clamp(invXianjinliu + 10, 20, 100).toFixed(0), note: "GMPS E现金流安全 · 经营现金流稳健" },
+              { row: "宁德时代", column: "成长能力", value: clamp(invGuzhi - 5, 20, 100), displayValue: clamp(invGuzhi - 5, 20, 100).toFixed(0), note: "DQI 成长能力 · 估值处于合理区间" },
+              // 亿纬锂能 ← GMPS/DQI模型参数派生
+              { row: "亿纬锂能", column: "外部风险", value: clamp(invJingqi - 2, 20, 100), displayValue: clamp(invJingqi - 2, 20, 100).toFixed(0), note: "GMPS D外部风险 · 储能增速支撑" },
+              { row: "亿纬锂能", column: "盈利能力", value: clamp(invYingli - 5, 20, 100), displayValue: clamp(invYingli - 5, 20, 100).toFixed(0), note: "DQI 盈利能力 · 毛利率承压" },
+              { row: "亿纬锂能", column: "现金流安全", value: clamp(invXianjinliu - 3, 20, 100), displayValue: clamp(invXianjinliu - 3, 20, 100).toFixed(0), note: "GMPS E现金流安全 · 现金流尚可" },
+              { row: "亿纬锂能", column: "成长能力", value: clamp(invGuzhi + 3, 20, 100), displayValue: clamp(invGuzhi + 3, 20, 100).toFixed(0), note: "DQI 成长能力 · 估值偏高" },
+              // 海辰储能 ← GMPS/DQI模型参数派生
+              { row: "海辰储能", column: "外部风险", value: clamp(invJingqi + 8, 20, 100), displayValue: clamp(invJingqi + 8, 20, 100).toFixed(0), note: "GMPS D外部风险 · 储能景气最高" },
+              { row: "海辰储能", column: "盈利能力", value: clamp(invYingli + 5, 20, 100), displayValue: clamp(invYingli + 5, 20, 100).toFixed(0), note: "DQI 盈利能力 · 毛利率行业领先" },
+              { row: "海辰储能", column: "现金流安全", value: clamp(invXianjinliu - 8, 20, 100), displayValue: clamp(invXianjinliu - 8, 20, 100).toFixed(0), note: "GMPS E现金流安全 · 现金流需关注" },
+              { row: "海辰储能", column: "成长能力", value: clamp(invGuzhi + 10, 20, 100), displayValue: clamp(invGuzhi + 10, 20, 100).toFixed(0), note: "DQI 成长能力 · 估值有吸引力" },
+              // 比亚迪 ← GMPS/DQI模型参数派生
+              { row: "比亚迪", column: "外部风险", value: clamp(invJingqi + 3, 20, 100), displayValue: clamp(invJingqi + 3, 20, 100).toFixed(0), note: "GMPS D外部风险 · 整车+电池协同" },
+              { row: "比亚迪", column: "盈利能力", value: clamp(invYingli + 10, 20, 100), displayValue: clamp(invYingli + 10, 20, 100).toFixed(0), note: "DQI 盈利能力 · 盈利能力强" },
+              { row: "比亚迪", column: "现金流安全", value: clamp(invXianjinliu + 12, 20, 100), displayValue: clamp(invXianjinliu + 12, 20, 100).toFixed(0), note: "GMPS E现金流安全 · 现金流充裕" },
+              { row: "比亚迪", column: "成长能力", value: clamp(invGuzhi - 8, 20, 100), displayValue: clamp(invGuzhi - 8, 20, 100).toFixed(0), note: "DQI 成长能力 · 估值合理偏低" },
+            ],
+          },
+          {
+            id: "investor-sankey",
+            kind: "sankeyChart",
+            title: "资金流向",
+            nodes: [
+              { id: "capital", label: "投资资金", color: "#00D4FF", column: 0 },
+              { id: "storage-track", label: "储能赛道", color: "#00E676", column: 1 },
+              { id: "power-track", label: "动力赛道", color: "#FFD600", column: 1 },
+              { id: "material-track", label: "材料赛道", color: "#FF6B9D", column: 1 },
+              { id: "equipment-track", label: "设备赛道", color: "#B388FF", column: 1 },
+              { id: "return", label: "收益", color: "#00E676", column: 2 },
+              { id: "hedge", label: "风险对冲", color: "#00D4FF", column: 2 },
+              { id: "loss", label: "损失", color: "#FF6B9D", column: 2 },
+            ] as VisualizationSankeyNode[],
+            links: [
+              { source: "capital", target: "storage-track", value: 42 },
+              { source: "capital", target: "power-track", value: 25 },
+              { source: "capital", target: "material-track", value: 16 },
+              { source: "capital", target: "equipment-track", value: 17 },
+              { source: "storage-track", target: "return", value: 28 },
+              { source: "storage-track", target: "hedge", value: 10 },
+              { source: "storage-track", target: "loss", value: 4 },
+              { source: "power-track", target: "return", value: 11 },
+              { source: "power-track", target: "hedge", value: 7 },
+              { source: "power-track", target: "loss", value: 7 },
+              { source: "material-track", target: "return", value: 4 },
+              { source: "material-track", target: "hedge", value: 4 },
+              { source: "material-track", target: "loss", value: 8 },
+              { source: "equipment-track", target: "return", value: 9 },
+              { source: "equipment-track", target: "hedge", value: 5 },
+              { source: "equipment-track", target: "loss", value: 3 },
+            ] as VisualizationSankeyLink[],
+          },
+          {
+            id: "investor-bar",
+            kind: "lineChart",
+            title: "景气趋势",
+            unit: "分",
+            data: [
+              { id: "q1", label: "Q1", value: 62, displayValue: "62", benchmark: "行业均值 70", detail: "Q1行业景气偏弱。", status: "watch" },
+              { id: "q2", label: "Q2", value: 68, displayValue: "68", benchmark: "行业均值 70", detail: "Q2景气修复中。", status: "watch" },
+              { id: "q3", label: "Q3", value: 75, displayValue: "75", benchmark: "行业均值 70", detail: "Q3景气回升至偏暖区间。", status: "good" },
+              { id: "q4", label: "Q4", value: getIndustryStandard().industryWarmth, displayValue: `${getIndustryStandard().industryWarmth}`, benchmark: "行业均值 70", detail: "Q4当前景气水平。", status: getIndustryStandard().industryWarmth >= 70 ? "good" : "watch" },
+            ],
+          },
+          {
+            id: "investor-bubble",
+            kind: "bubbleChart",
+            title: "投资三维",
+            xLabel: "行业景气",
+            yLabel: "盈利弹性",
+            zLabel: "市值规模(亿元)",
+            data: [
+              { id: "ibb-catl", label: "宁德时代", x: 82, y: 82, z: 19300, displayX: "82分", displayY: "82分", displayZ: "19300亿", status: "good" as const, detail: "宁德时代景气高、弹性强、规模最大。" },
+              { id: "ibb-byd", label: "比亚迪", x: 78, y: 75, z: 9462, displayX: "78分", displayY: "75分", displayZ: "9462亿", status: "good" as const, detail: "比亚迪景气高、弹性强。" },
+              { id: "ibb-eve", label: "亿纬锂能", x: 65, y: 68, z: 1485, displayX: "65分", displayY: "68分", displayZ: "1485亿", status: "watch" as const, detail: "亿纬锂能景气中等、弹性尚可。" },
+              { id: "ibb-gotion", label: "国轩高科", x: 52, y: 55, z: 750, displayX: "52分", displayY: "55分", displayZ: "750亿", status: "watch" as const, detail: "国轩高科景气偏弱、弹性一般。" },
+              { id: "ibb-haichen", label: "海辰储能", x: 88, y: 80, z: 500, displayX: "88分", displayY: "80分", displayZ: "500亿", status: "good" as const, detail: "海辰储能景气最高、弹性最强但规模小。" },
+              { id: "ibb-svolt", label: "蜂巢能源", x: 45, y: 60, z: 380, displayX: "45分", displayY: "60分", displayZ: "380亿", status: "risk" as const, detail: "蜂巢能源景气偏低。" },
+              { id: "ibb-sunwoda", label: "欣旺达", x: 58, y: 58, z: 620, displayX: "58分", displayY: "58分", displayZ: "620亿", status: "watch" as const, detail: "欣旺达景气中等。" },
+              { id: "ibb-tianqi", label: "天齐锂业", x: 38, y: 45, z: 1100, displayX: "38分", displayY: "45分", displayZ: "1100亿", status: "risk" as const, detail: "天齐锂业受锂价下行影响。" },
             ],
           },
         ],
@@ -2755,55 +2548,35 @@ export function buildInvestorAnalysisVisualization(
         id: "investor-analysis",
         page: "analysis",
         title: "投资判断图表工作台",
-        subtitle: "DQI/GMPS模型驱动 · 推荐、证据、风险收益和跟踪节奏",
-        emphasis: "普通用户端优先展示投资判断支撑而非经营过程细节",
         widgets: [
           {
             id: "analysis-metrics",
             kind: "metricCards",
             title: "会话摘要卡",
-            subtitle: "DQI/GMPS模型 · 本轮结论、风险与证据一屏查看",
-            ...createSourceLinkage(
-              ["analysis-session-context", "analysis-math-model", "analysis-evidence-review", "analysis-debate"],
-              "摘要卡整合当前推荐、模型风险、证据可信度与画像联动结果，是用户端分析页的总入口。",
-              "会话总览",
-            ),
             cards: [
               {
                 id: "stance-card",
                 label: "推荐立场",
                 value: analysisResult.recommendation.stance,
-                delta: `${analysisResult.recommendation.score}分`,
-                benchmark: "70分以上更积极",
                 status: scoreStatus,
-                description: analysisResult.recommendation.rationale,
               },
               {
                 id: "evidence-card",
                 label: "证据可信度",
                 value: `${Math.round((evidenceReview?.confidenceScore ?? 0.68) * 100)}分`,
-                delta: evidenceReview?.confidence ?? "medium",
-                benchmark: "75分以上更可靠",
                 status: (evidenceReview?.confidenceScore ?? 0.68) >= 0.75 ? "good" : "watch",
-                description: evidenceReview?.reviewSummary ?? "多源证据校验完成。",
               },
               {
                 id: "risk-card",
                 label: "模型风险等级",
                 value: mathAnalysis?.combinedRiskLevel ?? "medium",
-                delta: (mathAnalysis?.combinedInsights ?? []).slice(0, 1)[0] ?? "等待更多模型输入",
-                benchmark: "越低越优",
                 status: mathAnalysis?.combinedRiskLevel === "low" ? "good" : mathAnalysis?.combinedRiskLevel === "medium" ? "watch" : "risk",
-                description: "来自综合数学模型的风险判断。",
               },
               {
                 id: "profile-card",
                 label: "画像联动",
                 value: `${analysisResult.profileUpdate?.updatedFields.length ?? 0}项`,
-                delta: analysisResult.personalization.summary,
-                benchmark: "持续沉淀偏好",
                 status: "good",
-                description: "DQI/GMPS模型输出反向优化用户画像与图表排序",
               },
             ],
           },
@@ -2811,24 +2584,12 @@ export function buildInvestorAnalysisVisualization(
             id: "analysis-benchmark",
             kind: "benchmarkTable",
             title: "投资判断对照表",
-            subtitle: "对标口径基于 DQI/GMPS 模型基准",
-            ...createSourceLinkage(
-              ["analysis-session-context", "analysis-math-model", "analysis-evidence-review"],
-              "对照表把推荐、模型风险和证据可信度放在同一口径下比较。",
-              "结论对照",
-            ),
             rows: benchmarkRows,
           },
           {
             id: "analysis-heatmap",
             kind: "heatmapTable",
             title: "风险收益热力矩阵",
-            subtitle: "DQI/GMPS模型 · 色阶热力矩阵",
-            ...createSourceLinkage(
-              ["analysis-industry-retrieval", "analysis-math-model", "analysis-evidence-review"],
-              "热力矩阵结合景气、订单、价格和兑现四类来源，帮助用户看清收益和风险暴露。",
-              "风险收益",
-            ),
             columns: ["景气", "订单", "价格", "兑现"],
             rows: heatmapRows,
           },
@@ -2836,48 +2597,24 @@ export function buildInvestorAnalysisVisualization(
             id: "analysis-spark",
             kind: "sparklineTable",
             title: "信号趋势复合表",
-            subtitle: "迷你图表内嵌复合表格",
-            ...createSourceLinkage(
-              ["analysis-session-context", "analysis-evidence-review"],
-              "趋势表聚焦会话得分、证据可信度和关注标的沉淀，适合连续跟踪。",
-              "趋势跟踪",
-            ),
             rows: sparkRows,
           },
           {
             id: "analysis-alert",
             kind: "alertTable",
             title: "条件格式预警高亮表格",
-            subtitle: "提示会话中需要优先复核的项目",
-            ...createSourceLinkage(
-              ["analysis-evidence-review", "analysis-debate"],
-              "预警规则优先提示推荐立场、辩论结论和证据挑战项之间是否一致。",
-              "复核优先级",
-            ),
             rows: alertRows,
           },
           {
             id: "analysis-tree",
             kind: "treeTable",
             title: "投资主线树状表格",
-            subtitle: "树状层级折叠表格",
-            ...createSourceLinkage(
-              ["analysis-session-context", "analysis-industry-retrieval", "analysis-math-model", "analysis-evidence-review"],
-              "主线树把会话主结论拆成行业景气、经营质量和证据链三层结构。",
-              "主线拆解",
-            ),
             rows: treeRows,
           },
           {
             id: "analysis-pivot",
             kind: "pivotMatrix",
             title: "多情景透视矩阵",
-            subtitle: "多维交叉透视矩阵表",
-            ...createSourceLinkage(
-              ["analysis-math-model", "analysis-industry-retrieval", "analysis-debate"],
-              "透视矩阵将基准、中性、压力三种情景与用户动作建议联动展示。",
-              "情景推演",
-            ),
             columns: ["需求", "盈利", "立场", "动作"],
             rows: pivotRows,
           },
@@ -2885,12 +2622,6 @@ export function buildInvestorAnalysisVisualization(
             id: "analysis-calendar",
             kind: "calendarTable",
             title: "跟踪节奏日历",
-            subtitle: "日历视图表格",
-            ...createSourceLinkage(
-              ["analysis-session-context", "analysis-attachments"],
-              "日历基于当前时间线和附件补证节奏生成，方便用户后续跟踪。",
-              "跟踪节奏",
-            ),
             entries: calendarEntries.length > 0
               ? calendarEntries
               : [

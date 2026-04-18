@@ -995,6 +995,23 @@ export class PlatformStore {
     return Math.floor(diffMs / (1000 * 60 * 60 * 24));
   }
 
+  async seedIndustryDataIfEmpty() {
+    const state = this.readState();
+    const records = Object.values(state.industryData);
+    if (records.length > 0) return;
+
+    const now = new Date();
+    const dataDate = now.toISOString().split("T")[0];
+    const recordId = `industry-${dataDate}`;
+
+    await this.saveIndustryData({
+      recordId,
+      dataDate: dataDate!,
+      lithiumPrice: { priceDate: dataDate!, price: 16.5, source: "系统基准值(2026Q1)" },
+      industryIndex: { indexDate: dataDate!, indexType: "CSI_POWER_BATTERY", indexValue: 3200, volatility: 0.22 },
+    });
+  }
+
   private async updateState<T>(updater: (state: PlatformState) => T): Promise<T> {
     const release = await this.acquireWriteLock();
     try {

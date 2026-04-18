@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { CitationConfidence, IndustryCitation, RagDocumentType } from "../shared/agents.js";
 import type { RealtimeRagIndexStats, RealtimeRagRequest, RealtimeRagResponse } from "../shared/rag.js";
 import type { ModelRouter } from "./llm.js";
+import type { DataQualityMetadata, DataQualityFlags, SourceCredibility } from "./data/data-fetcher.js";
 
 type CuratedPage = {
   title: string;
@@ -60,6 +61,8 @@ type ChunkMetadata = {
   isFinancialData: boolean;
   metrics: string[];
   entities: string[];
+  quality?: DataQualityMetadata;
+  qualityFlags?: DataQualityFlags;
 };
 
 type IndexedChunk = {
@@ -488,7 +491,14 @@ function splitFinancialTextIntoChunks(text: string, chunkSize = 300, overlap = 5
   return chunks;
 }
 
-function extractMetadata(text: string): ChunkMetadata {
+function inferSourceCredibility(url: string): SourceCredibility {
+  const hostname = getHostname(url);
+  if (officialSourcePatterns.some((pattern) => pattern.test(hostname))) return "official";
+  if (financialSourcePatterns.some((pattern) => pattern.test(hostname))) return "financial_media";
+  return "social";
+}
+
+function extractMetadata(text: string, url?: string, publishedAt?: string): ChunkMetadata {
   const metrics = [];
   if (text.includes("毛利") || text.includes("利润")) metrics.push("profit");
   if (text.includes("营收") || text.includes("收入")) metrics.push("revenue");
@@ -497,10 +507,31 @@ function extractMetadata(text: string): ChunkMetadata {
   
   const isFinancialData = /\d+(\.\d+)?%|同比|环比|亿元|万元/.test(text);
 
+  const credibility = url ? inferSourceCredibility(url) : "social";
+  const sourceName = url ? inferSourceFromUrl(url) : "未知来源";
+
+  const quality: DataQualityMetadata = {
+    collectedAt: new Date().toISOString(),
+    publishedAt,
+    sourceName,
+    sourceCredibility: credibility,
+  };
+
+  const qualityFlags: DataQualityFlags = {};
+  if (publishedAt) {
+    const publishedTime = new Date(publishedAt).getTime();
+    if (!Number.isNaN(publishedTime)) {
+      const hoursDiff = (Date.now() - publishedTime) / (1000 * 60 * 60);
+      if (hoursDiff > 24) qualityFlags.stalenessWarning = "时效性警告";
+    }
+  }
+
   return {
     isFinancialData,
     metrics,
-    entities: []
+    entities: [],
+    quality,
+    qualityFlags,
   };
 }
 
@@ -1205,7 +1236,7 @@ export class RealtimeIndustryRagService {
           chunkLength: chunkText.length,
           contentHash: createHash("sha1").update(chunkText).digest("hex").slice(0, 16),
           chunkText,
-          metadata: extractMetadata(chunkText),
+          metadata: extractMetadata(chunkText, hit.url, hit.publishedAt),
           lexicalScore: 0,
           metadataScore: 0,
           authorityScore: 0,
@@ -1280,6 +1311,8 @@ export class RealtimeIndustryRagService {
     const rerankedCitations = await this.rerankCitationsWithLLM(citations, request);
     const evidenceEvaluation = await this.evaluateEvidenceWithLLM(rerankedCitations, request);
 
+    const crossValidationWarnings = this.detectCrossValidationConflicts(candidateChunks);
+
     const documentTypes = Array.from(new Set(rerankedCitations.map((item) => item.trace.documentType)));
 
     const indexStats: RealtimeRagIndexStats = {
@@ -1295,10 +1328,10 @@ export class RealtimeIndustryRagService {
       traceableCitations: rerankedCitations.filter((item) => Boolean(item.trace)).length,
       traceableDocuments: new Set(rerankedCitations.map((item) => item.trace.documentId)).size,
       documentTypes,
-      conflictWarnings:
-        staleFilteredChunks > 0
-          ? [`已过滤 ${staleFilteredChunks} 个超出时效窗口的分片。`]
-          : [],
+      conflictWarnings: [
+        ...(staleFilteredChunks > 0 ? [`已过滤 ${staleFilteredChunks} 个超出时效窗口的分片。`] : []),
+        ...crossValidationWarnings,
+      ],
     };
 
     const enhancedRetrievalSummary = `${buildRetrievalSummary(
@@ -1621,5 +1654,44 @@ ${JSON.stringify(citationsInfo, null, 2)}
         recommendations: ["请结合其他信息源进行判断"],
       };
     }
+  }
+
+  private detectCrossValidationConflicts(chunks: IndexedChunk[]): string[] {
+    const warnings: string[] = [];
+    const metricValues = new Map<string, Array<{ source: string; value: number; url: string }>>();
+
+    for (const chunk of chunks) {
+      const numericMatches = chunk.chunkText.matchAll(/([\u4e00-\u9fff]{2,8}(?:价格|指数|增速|增长|利润|毛利|收入))\s*(?:为|达|约|：|:)?\s*([\d.]+)\s*(?:%|亿元|万元|元)/g);
+      for (const match of numericMatches) {
+        const metricName = match[1] ?? "";
+        const value = parseFloat(match[2] ?? "");
+        if (Number.isNaN(value) || !metricName) continue;
+        const existing = metricValues.get(metricName) ?? [];
+        existing.push({ source: chunk.source, value, url: chunk.url });
+        metricValues.set(metricName, existing);
+      }
+    }
+
+    for (const [metricName, sources] of metricValues.entries()) {
+      if (sources.length < 2) continue;
+      const uniqueSources = sources.filter(
+        (item, index, items) => items.findIndex((s) => s.source === item.source) === index,
+      );
+      if (uniqueSources.length < 2) continue;
+      const values = uniqueSources.map((s) => s.value);
+      const minVal = Math.min(...values);
+      const maxVal = Math.max(...values);
+      if (minVal === 0 && maxVal === 0) continue;
+      const reference = Math.max(Math.abs(minVal), Math.abs(maxVal));
+      if (reference === 0) continue;
+      const diffRatio = Math.abs(maxVal - minVal) / reference;
+      if (diffRatio > 0.1) {
+        warnings.push(
+          `数据冲突: "${metricName}" 在多个来源间差异超过10% (${(diffRatio * 100).toFixed(1)}%)，来源: ${uniqueSources.map((s) => `${s.source}=${s.value}`).join(", ")}`,
+        );
+      }
+    }
+
+    return warnings;
   }
 }

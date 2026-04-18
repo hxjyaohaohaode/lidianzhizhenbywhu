@@ -13,7 +13,7 @@ import {
   toFiniteNumber,
   toPositiveNumber,
 } from "./helpers.js";
-import type { EnterpriseOnboardingDraft } from "../chart-data.js";
+import type { EnterpriseOnboardingDraft } from "../../shared/types.js";
 
 export function buildEnterpriseCollectionPayload(
   userId: string,
@@ -53,6 +53,16 @@ export function buildEnterpriseCollectionPayload(
   );
   const currentOperatingCashFlow = toFiniteNumber(draft.currentOperatingCashFlow, 8500);
   const baselineOperatingCashFlow = Number((currentOperatingCashFlow * 1.08).toFixed(2));
+  const currentNetProfit = toFiniteNumber(draft.currentNetProfit, 8200);
+  const baselineNetProfit = toFiniteNumber(draft.baselineNetProfit, 7600);
+  const currentBeginNetAssets = toPositiveNumber(draft.currentBeginNetAssets, 65000);
+  const currentEndNetAssets = toPositiveNumber(draft.currentEndNetAssets, 68000);
+  const baselineBeginNetAssets = toPositiveNumber(draft.baselineBeginNetAssets, 60000);
+  const baselineEndNetAssets = toPositiveNumber(draft.baselineEndNetAssets, 63000);
+  const currentRevenueForDQI = toPositiveNumber(draft.currentRevenueForDQI, currentRevenue);
+  const baselineRevenueForDQI = toPositiveNumber(draft.baselineRevenueForDQI, baselineRevenue);
+  const currentOCFNet = toFiniteNumber(draft.currentOCFNet, currentOperatingCashFlow);
+  const baselineOCFNet = toFiniteNumber(draft.baselineOCFNet, baselineOperatingCashFlow);
   const currentProductionVolume = Math.max(
     toPositiveNumber(draft.currentProductionVolume, currentSalesVolume * 1.06),
     currentSalesVolume,
@@ -99,6 +109,16 @@ export function buildEnterpriseCollectionPayload(
       baselineTotalLiabilities,
       currentTotalAssets,
       baselineTotalAssets,
+      currentNetProfit,
+      baselineNetProfit,
+      currentBeginNetAssets,
+      currentEndNetAssets,
+      baselineBeginNetAssets,
+      baselineEndNetAssets,
+      currentRevenueForDQI,
+      baselineRevenueForDQI,
+      currentOCFNet,
+      baselineOCFNet,
     },
     industryContext: {
       marketDemandIndex: Math.max(55, Math.min(130, Math.round((currentSalesVolume / currentProductionVolume) * 100))),

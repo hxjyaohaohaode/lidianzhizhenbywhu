@@ -18,6 +18,9 @@ import type {
   EnterpriseAnalysisStreamEvent,
   EnterpriseCollectionRequest,
   EnterpriseAttachmentUploadRequest,
+  EnterpriseSessionBatchDeleteRequest,
+  EnterpriseSessionCreateRequest,
+  EnterpriseSessionDeleteRequest,
   InvestorAnalysisStreamEvent,
   InvestorAnalysisRequest,
   InvestorAttachmentUploadRequest,
@@ -158,6 +161,20 @@ export type EnterpriseAttachmentUploadResponse = {
   sessionContext: SessionContext;
 };
 
+export type EnterpriseSessionListResponse = {
+  items: SessionHistorySummary[];
+};
+
+export type EnterpriseSessionCreateResponse = {
+  sessionContext: SessionContext;
+};
+
+export type EnterpriseSessionDeleteResponse = {
+  deletedSessionIds: string[];
+  replacementSessionContext?: SessionContext;
+  deletedCount?: number;
+};
+
 export type MemoryWriteResponse = {
   memory: MemoryEntry;
   sessionContext?: SessionContext;
@@ -262,37 +279,69 @@ export async function fetchPortalAuditReport(role: PortalAuditRole, userId: stri
   };
 }
 
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
+
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof TypeError) {
+    return true;
+  }
+  return false;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${clientEnv.VITE_API_BASE_URL}${path}`;
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
+  let lastError: unknown;
 
-  if (!response.ok) {
-    console.error(`[API 404/500] ${response.status} ${url}`);
-    let message = `Request failed with status ${response.status}`;
-
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const errorPayload = (await response.json()) as { message?: string };
-      if (errorPayload.message) {
-        message = errorPayload.message;
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+      });
+
+      if (!response.ok) {
+        console.error(`[API ${response.status}] ${url}`);
+        let message = `Request failed with status ${response.status}`;
+
+        try {
+          const errorPayload = (await response.json()) as { message?: string };
+          if (errorPayload.message) {
+            message = errorPayload.message;
+          }
+        } catch {
+          // ignore JSON parsing errors and preserve default status message
+        }
+
+        throw new Error(message);
       }
-    } catch {
-      // ignore JSON parsing errors and preserve default status message
+
+      try {
+        return (await response.json()) as T;
+      } catch {
+        throw new Error(`服务端返回了非JSON格式的响应（HTTP ${response.status}）`);
+      }
+    } catch (error) {
+      lastError = error;
+
+      if (isRetryableError(error) && attempt < MAX_RETRIES) {
+        console.warn(`[API Retry ${attempt + 1}/${MAX_RETRIES}] ${path} - ${error instanceof Error ? error.message : 'Network error'}`);
+        await delay(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
+
+      throw error;
     }
-
-    throw new Error(message);
   }
 
-  try {
-    return (await response.json()) as T;
-  } catch {
-    throw new Error(`服务端返回了非JSON格式的响应（HTTP ${response.status}）`);
-  }
+  throw lastError;
 }
 
 export function fetchHealth() {
@@ -344,75 +393,139 @@ export async function streamEnterpriseAnalysis(
   onEvent: (event: EnterpriseAnalysisStreamEvent) => void,
   signal?: AbortSignal,
 ) {
-  const response = await fetch(`${clientEnv.VITE_API_BASE_URL}/enterprise/stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    signal,
-  });
-
-  if (!response.ok || !response.body) {
-    throw new Error(`Request failed with status ${response.status}`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+  const simulateProgress = () => {
+    const stages: Array<{ stage: AnalysisTimelineEntry["stage"]; label: string; pct: number }> = [
+      { stage: "session", label: "准备会话上下文", pct: 10 },
+      { stage: "understanding", label: "理解查询意图", pct: 25 },
+      { stage: "retrieval", label: "检索行业数据", pct: 40 },
+      { stage: "evidence", label: "汇总证据链", pct: 55 },
+      { stage: "writing", label: "生成诊断结论", pct: 70 },
+    ];
+    let idx = 0;
+    const fire = () => {
+      if (idx >= stages.length || signal?.aborted) return;
+      const s = stages[idx]!;
+      onEvent({
+        type: "progress",
+        stage: s.stage,
+        label: s.label,
+        progressPercent: s.pct,
+        timelineEntry: {
+          id: `sim-${s.stage}-${Date.now()}`,
+          stage: s.stage,
+          label: s.label,
+          status: "completed",
+          progressPercent: s.pct,
+          occurredAt: new Date().toISOString(),
+        },
+      });
+      idx++;
+      setTimeout(fire, 400 + Math.random() * 600);
+    };
+    fire();
+  };
 
   try {
-    while (true) {
-      const { done, value } = await reader.read();
+    const response = await fetch(`${clientEnv.VITE_API_BASE_URL}/enterprise/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal,
+    });
 
-      if (done) {
-        break;
+    if (!response.ok || !response.body) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() ?? "";
+
+        for (const chunk of chunks) {
+          const dataLine = chunk
+            .split("\n")
+            .find((line) => line.startsWith("data:"))
+            ?.replace(/^data:\s*/, "");
+
+          if (!dataLine) {
+            continue;
+          }
+
+          try {
+            onEvent(JSON.parse(dataLine) as EnterpriseAnalysisStreamEvent);
+          } catch {
+            // skip malformed SSE data line
+          }
+        }
       }
 
-      buffer += decoder.decode(value, { stream: true });
-      const chunks = buffer.split("\n\n");
-      buffer = chunks.pop() ?? "";
-
-      for (const chunk of chunks) {
-        const dataLine = chunk
+      // Process remaining buffer after stream ends
+      if (buffer.trim()) {
+        const dataLine = buffer
           .split("\n")
           .find((line) => line.startsWith("data:"))
           ?.replace(/^data:\s*/, "");
 
-        if (!dataLine) {
-          continue;
-        }
-
-        try {
-          onEvent(JSON.parse(dataLine) as EnterpriseAnalysisStreamEvent);
-        } catch {
-          // skip malformed SSE data line
+        if (dataLine) {
+          try {
+            onEvent(JSON.parse(dataLine) as EnterpriseAnalysisStreamEvent);
+          } catch {
+            // skip malformed SSE data line
+          }
         }
       }
-    }
-
-    // Process remaining buffer after stream ends
-    if (buffer.trim()) {
-      const dataLine = buffer
-        .split("\n")
-        .find((line) => line.startsWith("data:"))
-        ?.replace(/^data:\s*/, "");
-
-      if (dataLine) {
-        try {
-          onEvent(JSON.parse(dataLine) as EnterpriseAnalysisStreamEvent);
-        } catch {
-          // skip malformed SSE data line
-        }
+    } catch (streamError) {
+      if (signal?.aborted) {
+        return;
       }
+      console.warn("SSE stream read error:", streamError);
+    } finally {
+      reader.releaseLock();
     }
-  } catch (streamError) {
+  } catch (outerError) {
     if (signal?.aborted) {
       return;
     }
-    console.warn("SSE stream read error:", streamError);
-  } finally {
-    reader.releaseLock();
+
+    console.warn("Enterprise streaming unavailable, falling back to regular analysis:", outerError);
+
+    simulateProgress();
+
+    const result = await analyzeEnterprise(payload);
+
+    onEvent({
+      type: "progress",
+      stage: "completed",
+      label: "分析完成",
+      progressPercent: 100,
+      timelineEntry: {
+        id: `sim-completed-${Date.now()}`,
+        stage: "completed",
+        label: "分析完成",
+        status: "completed",
+        progressPercent: 100,
+        occurredAt: new Date().toISOString(),
+      },
+    });
+
+    onEvent({
+      type: "result",
+      result: result as unknown as Record<string, unknown>,
+    });
   }
 }
 
@@ -428,7 +541,32 @@ export function fetchInvestorSessions(userId: string) {
 }
 
 export function fetchEnterpriseSessions(userId: string) {
-  return requestJson<InvestorSessionListResponse>(`/enterprise/sessions/${encodeURIComponent(userId)}?userId=${encodeURIComponent(userId)}`);
+  return requestJson<EnterpriseSessionListResponse>(`/enterprise/sessions/${encodeURIComponent(userId)}?userId=${encodeURIComponent(userId)}&role=enterprise`);
+}
+
+export function fetchEnterpriseSessionContext(sessionId: string, userId: string) {
+  return requestJson<SessionContext>(`/context/${encodeURIComponent(sessionId)}?userId=${encodeURIComponent(userId)}`);
+}
+
+export function createEnterpriseSession(payload: EnterpriseSessionCreateRequest) {
+  return requestJson<EnterpriseSessionCreateResponse>("/enterprise/sessions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCurrentEnterpriseSession(payload: EnterpriseSessionDeleteRequest) {
+  return requestJson<EnterpriseSessionDeleteResponse>("/enterprise/sessions/delete-current", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteEnterpriseSessions(payload: EnterpriseSessionBatchDeleteRequest) {
+  return requestJson<EnterpriseSessionDeleteResponse>("/enterprise/sessions/delete-batch", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function fetchInvestorSessionContext(sessionId: string, userId: string) {

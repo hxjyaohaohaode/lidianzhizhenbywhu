@@ -386,10 +386,9 @@ function buildTimeline(
 
   return [
     createTimelineEntry("session", "加载会话上下文", 8, attachmentCount > 0 ? `已注入 ${attachmentCount} 个附件摘要` : "未附带附件"),
-    createTimelineEntry("debate", "进行第一轮辩论", 30, "GLM 与 DeepSeek 对决，Qwen 裁决"),
-    createTimelineEntry("debate", "进行第二轮辩论", 56, "DeepSeek 与 Qwen 对决，GLM 裁决"),
-    createTimelineEntry("debate", "进行第三轮辩论", 82, "GLM 与 Qwen 对决，DeepSeek 裁决"),
-    createTimelineEntry("writing", "总结最终方案", 93, "综合三轮辩论与现实信息"),
+    createTimelineEntry("debate", "进行第一轮辩论", 35, "GLM 与 DeepSeek 对决，Qwen 裁决"),
+    createTimelineEntry("debate", "进行第二轮辩论", 65, "DeepSeek 与 Qwen 对决，GLM 裁决"),
+    createTimelineEntry("writing", "总结最终方案", 90, "综合两轮辩论与现实信息"),
     ...(hasProfileUpdate ? [createTimelineEntry("profile_update", "沉淀用户画像", 97, "记录目标、偏好与决策习惯")] : []),
     createTimelineEntry("completed", "完成投资建议辩论", 100),
   ];
@@ -672,7 +671,6 @@ async function buildDebate(
   const roundConfigs: Array<{ round: number; debaters: [DebateModel, DebateModel]; judge: DebateModel }> = [
     { round: 1, debaters: ["glm5", "deepseekReasoner"], judge: "qwen35Plus" },
     { round: 2, debaters: ["deepseekReasoner", "qwen35Plus"], judge: "glm5" },
-    { round: 3, debaters: ["glm5", "qwen35Plus"], judge: "deepseekReasoner" },
   ];
   const mathAnalysis = diagnostic.agents.find((agent) => agent.agentId === "mathAnalysis")?.output as { dqiModel?: { dqi: number; status: string; driver: string }; gmpsModel?: { gmps: number; level: string; riskProbability: number }; grossMargin?: { riskLevel: string }; operatingQuality?: { riskLevel: string }; combinedRiskLevel: string; combinedInsights: string[] } | undefined;
   const dqiInfo = mathAnalysis?.dqiModel ? `DQI经营质量指数=${mathAnalysis.dqiModel.dqi.toFixed(3)}，状态="${mathAnalysis.dqiModel.status}"，驱动因素=${mathAnalysis.dqiModel.driver}` : "DQI数据不足";
@@ -722,8 +720,10 @@ async function buildDebate(
           modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterB]}辩手，对立场"${recommendation.stance}"持审慎态度。基于以下信息提出你的质疑：${ctx}${prev}${modelPrompt}。请用2-3句话陈述你的核心质疑，必须引用DQI或GMPS模型的具体计算结果。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterB] }).then((r) => { logger?.info({ round: config.round, debater: debaterB, textLength: r.result.text.length }, "辩手B1响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterB }, "辩论辩手B1调用失败"); return null; }),
         ]);
         if (rA1 && rB1) {
-          const rA2 = await modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterA]}辩手。对方质疑：${rB1}。请回应对方质疑并强化你的支持论点。${modelPrompt}。用2-3句话，必须引用模型数据支撑你的回应。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterA] }).then((r) => { logger?.info({ round: config.round, debater: debaterA, textLength: r.result.text.length }, "辩手A2响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterA }, "辩论辩手A2调用失败"); return null; });
-          const rB2 = await modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterB]}辩手。对方回应：${rA2 ?? "对方坚持原有立场"}。请做最后反驳。${modelPrompt}。用2-3句话，必须引用模型数据支撑你的反驳。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterB] }).then((r) => { logger?.info({ round: config.round, debater: debaterB, textLength: r.result.text.length }, "辩手B2响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterB }, "辩论辩手B2调用失败"); return null; });
+          const [rA2, rB2] = await Promise.all([
+            modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterA]}辩手。对方质疑：${rB1}。请回应对方质疑并强化你的支持论点。${modelPrompt}。用2-3句话，必须引用模型数据支撑你的回应。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterA] }).then((r) => { logger?.info({ round: config.round, debater: debaterA, textLength: r.result.text.length }, "辩手A2响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterA }, "辩论辩手A2调用失败"); return null; }),
+            modelRouter.complete({ agentId: "expressionGeneration", capability: "expression", prompt: `你是${modelLabel[debaterB]}辩手。对方回应：${rA1}。请做反驳。${modelPrompt}。用2-3句话，必须引用模型数据支撑你的反驳。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [debaterB] }).then((r) => { logger?.info({ round: config.round, debater: debaterB, textLength: r.result.text.length }, "辩手B2响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, debater: debaterB }, "辩论辩手B2调用失败"); return null; }),
+          ]);
           const rJ = await modelRouter.complete({ agentId: "expressionGeneration", capability: "review", prompt: `你是${modelLabel[config.judge]}裁判。正方论点：${rA1}，反方质疑：${rB1}，正方回应：${rA2 ?? ""}，反方反驳：${rB2 ?? ""}。${modelPrompt}。请做出裁决，指出双方优劣，给出最终判断。用2-3句话，基于模型数据评估辩论质量。`, context: { query: recommendation.stance, enterpriseName: resolvedEnterpriseName, focusMode: "investmentRecommendation" }, preferredProviders: [config.judge] }).then((r) => { logger?.info({ round: config.round, judge: config.judge, textLength: r.result.text.length }, "裁判响应成功"); return r.result.text; }).catch((err) => { logger?.error({ err, round: config.round, judge: config.judge }, "辩论裁判调用失败"); return null; });
           if (rJ) { msgA1 = rA1; msgB1 = rB1; msgA2 = rA2 ?? `我承认对方指出的局限成立，但优势在于 ${recommendation.fitSignals[1] ?? "证据可信度尚可"}。`; msgB2 = rB2 ?? `我复述对方优势：经营风险并未失控，且存在改善信号；但局限在于外部证据更新仍不足。`; msgJudge = rJ; usedLlm = true; logger?.info({ round: config.round }, "辩论轮次AI调用成功"); }
         } else {
@@ -754,8 +754,8 @@ async function buildDebate(
   }
   return {
     rounds,
-    finalDecision: `总结结果确定方案：${recommendation.stance}。由 DeepSeek 综合三轮辩论与现实信息，建议围绕 ${recommendation.fitSignals.slice(0, 2).join("、") || "证据强度"} 制定后续动作。`,
-    summary: `三轮正式辩论完成，最终结论为 ${recommendation.stance}。`,
+    finalDecision: `总结结果确定方案：${recommendation.stance}。由 DeepSeek 综合两轮辩论与现实信息，建议围绕 ${recommendation.fitSignals.slice(0, 2).join("、") || "证据强度"} 制定后续动作。`,
+    summary: `两轮正式辩论完成，最终结论为 ${recommendation.stance}。`,
   };
 }
 
@@ -773,7 +773,7 @@ function flattenDebateMessages(debate: DebateResult) {
         speakerModel: "system",
         speakerLabel: "系统",
         sequence: (round.messages[0]?.sequence ?? 1) - 1,
-        content: round.round === 2 ? "辩手与裁判换位，进行第二轮辩论" : "辩手与裁判换位，进行最后一轮辩论",
+        content: round.round === 2 ? "辩手与裁判换位，进行第二轮辩论" : "辩手与裁判换位，继续辩论",
         occurredAt: new Date().toISOString(),
       });
     }
@@ -1732,7 +1732,9 @@ export class BusinessPortalService {
     ]).slice(0, 2).join("、") || "景气与现金流"}。`;
     const recommendation = buildRecommendation(profile, diagnostic, userRecord);
     const industryReport = buildIndustryReport(diagnostic, attachments, userRecord);
-    const debate = await buildDebate(recommendation, diagnostic, userRecord, this.modelRouter, undefined, this.logger, enterpriseName);
+    const debate = input.focusMode === "investmentRecommendation"
+      ? await buildDebate(recommendation, diagnostic, userRecord, this.modelRouter, undefined, this.logger, enterpriseName)
+      : { rounds: [], finalDecision: "", summary: "" };
     const evidenceSummary = buildEvidenceSummary(diagnostic);
     const clarificationQuestions = buildClarificationQuestions(input, userRecord);
     const timeline = buildTimeline(
@@ -1767,7 +1769,7 @@ export class BusinessPortalService {
         lastWorkflowId: diagnostic.workflowId,
         attachments,
         latestTimeline: timeline,
-        latestDebate: flattenDebateMessages(debate),
+        latestDebate: input.focusMode === "investmentRecommendation" ? flattenDebateMessages(debate) : [],
         latestEvidenceSummary: evidenceSummary,
         latestProfileUpdate: profileUpdate.receipt,
         pendingClarificationQuestions: clarificationQuestions,
@@ -1912,19 +1914,11 @@ export class BusinessPortalService {
         });
       } else {
         for (const [index, round] of result.debate.rounds.entries()) {
-          if (index === 1) {
+          if (index >= 1) {
             await onEvent({
               type: "delta",
               stage: "debate",
-              chunk: "辩手与裁判换位，进行第二轮辩论",
-            });
-          }
-
-          if (index === 2) {
-            await onEvent({
-              type: "delta",
-              stage: "debate",
-              chunk: "辩手与裁判换位，进行最后一轮辩论",
+              chunk: `辩手与裁判换位，进行第${index + 1}轮辩论`,
             });
           }
 
@@ -2095,7 +2089,9 @@ export class BusinessPortalService {
       throw new AppError({ code: "ABORTED", message: "分析已被用户取消。", statusCode: 499 });
     }
     const isSimpleQuery = input.complexity === "simple" || diagnostic.complexity === "simple";
-    const debate = await buildDebate(recommendation, diagnostic, userRecord, this.modelRouter, signal, this.logger, enterpriseName);
+    const debate = input.focusMode === "investmentRecommendation"
+      ? await buildDebate(recommendation, diagnostic, userRecord, this.modelRouter, signal, this.logger, enterpriseName)
+      : { rounds: [], finalDecision: "", summary: "" };
     const evidenceSummary = buildEvidenceSummary(diagnostic);
     const clarificationQuestions = buildClarificationQuestions(input, userRecord);
 
@@ -2125,7 +2121,7 @@ export class BusinessPortalService {
         lastWorkflowId: diagnostic.workflowId,
         attachments,
         latestTimeline: timelineEntries,
-        latestDebate: flattenDebateMessages(debate),
+        latestDebate: input.focusMode === "investmentRecommendation" ? flattenDebateMessages(debate) : [],
         latestEvidenceSummary: evidenceSummary,
         latestProfileUpdate: profileUpdate.receipt,
         pendingClarificationQuestions: clarificationQuestions,

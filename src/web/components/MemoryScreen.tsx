@@ -21,6 +21,7 @@ import {
   resolveMemoryVisualProfile,
   type MemoryVisualMode,
 } from "../memory-performance.js";
+import { Icon } from "./Icon.js";
 
 const MemoryBackgroundCanvas = React.memo(function MemoryBackgroundCanvas({
   viewportRef,
@@ -269,18 +270,26 @@ const MemoryBackgroundCanvas = React.memo(function MemoryBackgroundCanvas({
 
 const MemoryTreeLayer = React.memo(function MemoryTreeLayer({
   nodes,
+  expandedIds,
+  onToggleExpand,
   onSelect,
 }: {
   nodes: MemoryNode[];
   centerNode: MemoryNode | undefined;
+  expandedIds: Set<string>;
+  onToggleExpand: (nodeId: string) => void;
   onSelect: (node: MemoryNode) => void;
 }) {
+  const centerNodes = nodes.filter((n) => n.c);
+  const level1Nodes = nodes.filter((n) => n.level === 1);
+  const level2Nodes = nodes.filter((n) => n.level === 2);
+
   return (
     <div className="memory-tree">
-      {nodes.map((node) => (
+      {centerNodes.map((node) => (
         <div
           key={node.id}
-          className={`tn ${node.c ? 'ct' : `l${node.level || 1}`} ${node.nodeType || ''}`}
+          className={`tn ${node.c ? 'ct' : ''} ${node.nodeType || ''}`}
           style={{
             left: node.x,
             top: node.y,
@@ -292,6 +301,50 @@ const MemoryTreeLayer = React.memo(function MemoryTreeLayer({
           <div className="tp2">{node.p}</div>
         </div>
       ))}
+      {level1Nodes.map((node) => {
+        const isExpanded = expandedIds.has(node.id);
+        const children = level2Nodes.filter((n) => n.parentId === node.id);
+        return (
+          <React.Fragment key={node.id}>
+            <div
+              className={`tn l1 ${isExpanded ? 'expanded' : ''} ${node.nodeType || ''}`}
+              style={{
+                left: node.x,
+                top: node.y,
+              }}
+              onClick={() => onToggleExpand(node.id)}
+            >
+              <div className="ti">{node.ic}</div>
+              <div className="tt">{node.t}</div>
+              <div className="tp2">{node.p}</div>
+              <div className="expand-hint">{isExpanded ? '收起 ▲' : '展开 ▼'}</div>
+            </div>
+            {isExpanded && children.map((child, index) => (
+              <div
+                key={child.id}
+                className={`tn l2 child-fade-in ${child.nodeType || ''}`}
+                style={{
+                  left: child.x,
+                  top: child.y,
+                  animationDelay: `${index * 60}ms`,
+                }}
+                onClick={() => onSelect(child)}
+              >
+                <div className="ti">{child.ic}</div>
+                <div className="tt">{child.memorySummary || child.t}</div>
+                <div className="tp2 child-content-preview">{child.p}</div>
+                {child.memoryTags && child.memoryTags.length > 0 && (
+                  <div className="child-tags">
+                    {child.memoryTags.map((tag) => (
+                      <span key={tag} className="child-tag">{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 });
@@ -349,11 +402,21 @@ const MemoryNodeDialog = React.memo(function MemoryNodeDialog({
           {isViewMode ? (
             <div className="memory-node-dialog-view">
               <div className="memory-node-dialog-view-item">
-                <strong>标题:</strong> {selectedNode?.t || '无标题'}
+                <strong>标题:</strong> {selectedNode?.memorySummary || selectedNode?.t || '无标题'}
               </div>
               <div className="memory-node-dialog-view-item">
-                <strong>内容:</strong> {selectedNode?.p || '无内容'}
+                <strong>内容:</strong> {selectedNode?.memoryDetails || selectedNode?.p || '无内容'}
               </div>
+              {selectedNode?.memoryTags && selectedNode.memoryTags.length > 0 && (
+                <div className="memory-node-dialog-view-item">
+                  <strong>标签:</strong>
+                  <div className="memory-node-dialog-tags">
+                    {selectedNode.memoryTags.map((tag) => (
+                      <span key={tag} className="memory-node-dialog-tag">{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {selectedNode?.nodeType === 'memory' && (
                 <div className="memory-node-dialog-view-actions">
                   <button className="cd" onClick={onStartEdit}>
@@ -440,6 +503,7 @@ export function MemoryScreen({
   const hasCenteredRef = useRef(false);
   const [selectedNode, setSelectedNode] = useState<MemoryNode | null>(null);
   const [dialogMode, setDialogMode] = useState<"view" | "create" | "edit" | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [draftTitle, setDraftTitle] = useState("");
   const [draftContent, setDraftContent] = useState("");
   const [draftTags, setDraftTags] = useState("");
@@ -585,6 +649,19 @@ export function MemoryScreen({
     setDialogMode("view");
   }, [keepInteractionWarm]);
 
+  const handleToggleExpand = useCallback((nodeId: string) => {
+    keepInteractionWarm();
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  }, [keepInteractionWarm]);
+
   const handleDialogClose = useCallback(() => {
     keepInteractionWarm();
     setSelectedNode(null);
@@ -698,7 +775,7 @@ export function MemoryScreen({
       <MemoryBackgroundCanvas viewportRef={vpRef} isDark={isDark} themeIndex={themeIndex} interactionActiveRef={interactionActiveRef} />
       <div className="mct">
         <div className="mtb">
-          <button className="mbk" onClick={onClose}>← 返回</button>
+          <button className="mbk" onClick={onClose}><Icon name="home" size={16} hoverable /> 返回</button>
           <div className="memory-toolbar-title">
             <span>记忆中的你</span>
             <small>已同步至 {formatAbsoluteTime(lastSyncAt)}</small>
@@ -730,7 +807,7 @@ export function MemoryScreen({
               left: 0,
             }}
           >
-            <MemoryTreeLayer nodes={nodes} centerNode={centerNode} onSelect={handleNodeSelect} />
+            <MemoryTreeLayer nodes={nodes} centerNode={centerNode} expandedIds={expandedIds} onToggleExpand={handleToggleExpand} onSelect={handleNodeSelect} />
           </div>
           {/* Minimap */}
           <div

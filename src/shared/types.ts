@@ -128,4 +128,14 @@ export type EnterpriseOnboardingDraft = {
   previousQuarterRevenue: string;
   twoQuartersAgoGrossMargin: string;
   twoQuartersAgoRevenue: string;
+  currentNetProfit: string;
+  currentBeginNetAssets: string;
+  currentEndNetAssets: string;
+  currentRevenueForDQI: string;
+  currentOCFNet: string;
+  baselineNetProfit: string;
+  baselineBeginNetAssets: string;
+  baselineEndNetAssets: string;
+  baselineRevenueForDQI: string;
+  baselineOCFNet: string;
 };

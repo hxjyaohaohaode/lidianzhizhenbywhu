@@ -55,6 +55,16 @@ const REQUIRED_FIELDS: Array<{ field: string; label: string; models: ("DQI" | "G
   { field: "baselineTotalLiabilities", label: "基期总负债", models: ["DQI", "GMPS"] },
   { field: "currentTotalAssets", label: "当期总资产", models: ["DQI", "GMPS"] },
   { field: "baselineTotalAssets", label: "基期总资产", models: ["DQI", "GMPS"] },
+  { field: "currentNetProfit", label: "当期净利润", models: ["DQI"] },
+  { field: "baselineNetProfit", label: "基期净利润", models: ["DQI"] },
+  { field: "currentBeginNetAssets", label: "当期期初净资产", models: ["DQI"] },
+  { field: "currentEndNetAssets", label: "当期期末净资产", models: ["DQI"] },
+  { field: "baselineBeginNetAssets", label: "基期期初净资产", models: ["DQI"] },
+  { field: "baselineEndNetAssets", label: "基期期末净资产", models: ["DQI"] },
+  { field: "currentRevenueForDQI", label: "当期营业收入(DQI)", models: ["DQI"] },
+  { field: "baselineRevenueForDQI", label: "基期营业收入(DQI)", models: ["DQI"] },
+  { field: "currentOCFNet", label: "当期经营现金流净额", models: ["DQI"] },
+  { field: "baselineOCFNet", label: "基期经营现金流净额", models: ["DQI"] },
 ];
 
 const REASONABLE_RANGES: Array<{
@@ -87,6 +97,16 @@ const REASONABLE_RANGES: Array<{
   { field: "baselineTotalLiabilities", label: "基期总负债", min: 0, max: 1e9, models: ["DQI", "GMPS"], unit: "万元" },
   { field: "currentTotalAssets", label: "当期总资产", min: 1, max: 1e9, models: ["DQI", "GMPS"], unit: "万元" },
   { field: "baselineTotalAssets", label: "基期总资产", min: 1, max: 1e9, models: ["DQI", "GMPS"], unit: "万元" },
+  { field: "currentNetProfit", label: "当期净利润", min: -1e8, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "baselineNetProfit", label: "基期净利润", min: -1e8, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "currentBeginNetAssets", label: "当期期初净资产", min: 1, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "currentEndNetAssets", label: "当期期末净资产", min: 1, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "baselineBeginNetAssets", label: "基期期初净资产", min: 1, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "baselineEndNetAssets", label: "基期期末净资产", min: 1, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "currentRevenueForDQI", label: "当期营业收入(DQI)", min: 1, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "baselineRevenueForDQI", label: "基期营业收入(DQI)", min: 1, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "currentOCFNet", label: "当期经营现金流净额", min: -1e8, max: 1e9, models: ["DQI"], unit: "万元" },
+  { field: "baselineOCFNet", label: "基期经营现金流净额", min: -1e8, max: 1e9, models: ["DQI"], unit: "万元" },
 ];
 
 function checkMissingFields(draft: EnterpriseOnboardingDraft): ValidationIssue[] {

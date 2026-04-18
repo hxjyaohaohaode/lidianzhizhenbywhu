@@ -154,6 +154,25 @@ export const enterpriseAttachmentUploadRequestSchema = z.object({
   content: z.string().min(1).max(40000),
 });
 
+export const enterpriseSessionCreateRequestSchema = z.object({
+  userId: nonEmptyString,
+  role: z.literal("enterprise").default("enterprise"),
+  focusMode: z.enum(["operationalDiagnosis", "deepDive"]).default("operationalDiagnosis"),
+  enterpriseName: nonEmptyString.optional(),
+});
+
+export const enterpriseSessionDeleteRequestSchema = z.object({
+  userId: nonEmptyString,
+  role: z.literal("enterprise").default("enterprise"),
+  sessionId: nonEmptyString,
+});
+
+export const enterpriseSessionBatchDeleteRequestSchema = z.object({
+  userId: nonEmptyString,
+  role: z.literal("enterprise").default("enterprise"),
+  sessionIds: z.array(nonEmptyString).min(1).max(20),
+});
+
 export const privateMemoryWriteRequestSchema = z.object({
   userId: nonEmptyString,
   sessionId: nonEmptyString.optional(),
@@ -244,6 +263,9 @@ export type InvestorSessionDeleteRequest = z.output<typeof investorSessionDelete
 export type InvestorSessionBatchDeleteRequest = z.output<typeof investorSessionBatchDeleteRequestSchema>;
 export type InvestorAttachmentUploadRequest = z.output<typeof investorAttachmentUploadRequestSchema>;
 export type EnterpriseAttachmentUploadRequest = z.output<typeof enterpriseAttachmentUploadRequestSchema>;
+export type EnterpriseSessionCreateRequest = z.output<typeof enterpriseSessionCreateRequestSchema>;
+export type EnterpriseSessionDeleteRequest = z.output<typeof enterpriseSessionDeleteRequestSchema>;
+export type EnterpriseSessionBatchDeleteRequest = z.output<typeof enterpriseSessionBatchDeleteRequestSchema>;
 export type PrivateMemoryWriteRequest = z.output<typeof privateMemoryWriteRequestSchema>;
 export type PrivateMemoryUpdateRequest = z.output<typeof privateMemoryUpdateRequestSchema>;
 export type PrivateMemoryDeleteRequest = z.output<typeof privateMemoryDeleteRequestSchema>;
@@ -464,7 +486,7 @@ export type VisualizationMetricCard = {
   delta?: string;
   benchmark?: string;
   status: VisualizationStatus;
-  description: string;
+  description?: string;
 };
 
 export type VisualizationBarDatum = {
@@ -665,6 +687,19 @@ export type VisualizationSourceMeta = {
   trace: string[];
 };
 
+export type VisualizationSankeyNode = {
+  id: string;
+  label: string;
+  color: string;
+  column: number;
+};
+
+export type VisualizationSankeyLink = {
+  source: string;
+  target: string;
+  value: number;
+};
+
 export type VisualizationWidgetEnhancement = {
   footnote?: string;
   emphasisTag?: string;
@@ -676,7 +711,7 @@ export type VisualizationWidget =
       id: string;
       kind: "metricCards";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       cards: VisualizationMetricCard[];
     })
@@ -684,7 +719,7 @@ export type VisualizationWidget =
       id: string;
       kind: "barChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       unit: string;
       data: VisualizationBarDatum[];
@@ -693,7 +728,7 @@ export type VisualizationWidget =
       id: string;
       kind: "lineChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       unit: string;
       threshold?: number;
@@ -704,7 +739,7 @@ export type VisualizationWidget =
       id: string;
       kind: "waterfallChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       unit: string;
       data: VisualizationWaterfallDatum[];
@@ -713,7 +748,7 @@ export type VisualizationWidget =
       id: string;
       kind: "benchmarkTable";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       rows: VisualizationBenchmarkRow[];
     })
@@ -721,7 +756,7 @@ export type VisualizationWidget =
       id: string;
       kind: "zebraTable";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       columns: string[];
       rows: VisualizationZebraRow[];
@@ -730,7 +765,7 @@ export type VisualizationWidget =
       id: string;
       kind: "heatmapTable";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       columns: string[];
       rows: VisualizationHeatmapRow[];
@@ -739,7 +774,7 @@ export type VisualizationWidget =
       id: string;
       kind: "sparklineTable";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       rows: VisualizationSparkRow[];
     })
@@ -747,7 +782,7 @@ export type VisualizationWidget =
       id: string;
       kind: "alertTable";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       rows: VisualizationAlertRow[];
     })
@@ -755,7 +790,7 @@ export type VisualizationWidget =
       id: string;
       kind: "cardTable";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       groups: VisualizationCardGroup[];
     })
@@ -763,7 +798,7 @@ export type VisualizationWidget =
       id: string;
       kind: "treeTable";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       rows: VisualizationTreeRow[];
     })
@@ -771,7 +806,7 @@ export type VisualizationWidget =
       id: string;
       kind: "pivotMatrix";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       columns: string[];
       rows: VisualizationPivotRow[];
@@ -780,7 +815,7 @@ export type VisualizationWidget =
       id: string;
       kind: "calendarTable";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       entries: VisualizationCalendarEntry[];
     })
@@ -788,7 +823,7 @@ export type VisualizationWidget =
       id: string;
       kind: "boxPlotChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       xLabel: string;
       yLabel: string;
@@ -798,7 +833,7 @@ export type VisualizationWidget =
       id: string;
       kind: "scatterChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       xLabel: string;
       yLabel: string;
@@ -808,7 +843,7 @@ export type VisualizationWidget =
       id: string;
       kind: "bubbleChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       xLabel: string;
       yLabel: string;
@@ -819,7 +854,7 @@ export type VisualizationWidget =
       id: string;
       kind: "heatmapChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       rows: string[];
       columns: string[];
@@ -829,7 +864,7 @@ export type VisualizationWidget =
       id: string;
       kind: "radarChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       currentLabel: string;
       baselineLabel: string;
@@ -839,20 +874,29 @@ export type VisualizationWidget =
       id: string;
       kind: "mulberryChart";
       title: string;
-      subtitle: string;
+      subtitle?: string;
       description?: string;
       categories: string[];
       series: {
         name: string;
         data: { category: string; value: number; subValue?: number }[];
       }[];
+    })
+  | (VisualizationWidgetEnhancement & {
+      id: string;
+      kind: "sankeyChart";
+      title: string;
+      subtitle?: string;
+      description?: string;
+      nodes: VisualizationSankeyNode[];
+      links: VisualizationSankeyLink[];
     });
 
 export type VisualizationSection = {
   id: string;
   page: VisualizationPage;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   emphasis?: string;
   widgets: VisualizationWidget[];
 };

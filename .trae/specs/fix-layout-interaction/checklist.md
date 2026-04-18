@@ -1,0 +1,15 @@
+- [x] 图表容器宽高比约 16:10，宽度大于高度，图表内容清晰可读
+- [x] 中部主图表区行高比例 55%:45%
+- [x] 底部辅助图表区高度 28%
+- [x] 整体间距 12px，图表单元格 padding 8px
+- [x] 首页图表直接使用图表组件渲染，无 VisualizationBoard 嵌套
+- [x] 每个图表单元格仅包含标题和图表组件，无冗余 DOM
+- [x] ChartZoomWrapper 使用容器尺寸缩放而非 CSS transform scale
+- [x] 缩放范围 50%~200%
+- [x] 无 Shift+拖选区域放大功能
+- [x] 手动刷新按钮调用 onRefreshData 触发数据更新
+- [x] 自动刷新定时器调用 onRefreshData 触发数据更新
+- [x] 刷新时间戳在数据更新完成后更新
+- [x] useChartAnimation 使用 setTimeout + CSS transition 而非持续 rAF
+- [x] 动画时长 500ms，stagger 50ms
+- [x] 首页 7 个图表在 1 秒内完成加载，无卡顿

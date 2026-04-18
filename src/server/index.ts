@@ -16,6 +16,23 @@ const server = app.listen(env.PORT, () => {
   );
 });
 
+const INDUSTRY_DATA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
+const industryDataTimer = setInterval(() => {
+  try {
+    const appWithStore = app as unknown as { platformStore?: import("./platform-store.js").PlatformStore };
+    if (appWithStore.platformStore) {
+      const age = appWithStore.platformStore.getLatestIndustryDataAge();
+      if (age === null || age > 10 * 60 * 1000) {
+        logger.info({ ageMs: age }, "industry data stale, triggering refresh");
+        appWithStore.platformStore.seedIndustryDataIfEmpty();
+      }
+    }
+  } catch (error) {
+    logger.error({ err: error }, "industry data refresh failed");
+  }
+}, INDUSTRY_DATA_REFRESH_INTERVAL_MS);
+
 function gracefulShutdown(signal: string) {
   logger.info({ signal }, "received shutdown signal, flushing persisted data");
   const appWithStore = app as unknown as { platformStore?: import("./platform-store.js").PlatformStore };

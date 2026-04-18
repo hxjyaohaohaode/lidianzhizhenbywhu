@@ -11,6 +11,7 @@ import {
   DEFAULT_ENTERPRISE_ONBOARDING,
   applyIndustryStandardOverride,
   loadIndustryStandardFromPlatformStore,
+  getIndustryStandardVersion,
 } from "../chart-data.js";
 import { useUnitPreferences } from "../UnitSelector.js";
 import { DataFormatter, type UnitPreferences, loadUnitPreferences, saveUnitPreferences } from "../data-formatter.js";
@@ -28,6 +29,7 @@ import {
   USER_ROLE_STORAGE_KEY,
   USER_THEME_MODE_STORAGE_KEY,
   USER_THEME_COLOR_STORAGE_KEY,
+  USER_REMEMBER_ROLE_STORAGE_KEY,
   DEFAULT_INVESTOR_ONBOARDING,
   preferenceToRoleKey,
   roleKeyToPreference,
@@ -37,8 +39,10 @@ import {
   splitInputTags,
   dedupeStrings,
   DEFAULT_ENTERPRISE_NAME,
+  isEnterpriseOnboardingComplete,
+  isInvestorOnboardingComplete,
 } from "../utils/helpers.js";
-import type { EnterpriseOnboardingDraft } from "../chart-data.js";
+import type { EnterpriseOnboardingDraft } from "../../shared/types.js";
 
 interface AppContextValue {
   appState: AppState;
@@ -58,6 +62,9 @@ interface AppContextValue {
   userReady: boolean;
   loadingFinished: boolean;
   setLoadingFinished: React.Dispatch<React.SetStateAction<boolean>>;
+  rememberRole: boolean;
+  setRememberRole: React.Dispatch<React.SetStateAction<boolean>>;
+  handleRememberRoleChange: (remember: boolean) => void;
   enterpriseOnboarding: EnterpriseOnboardingDraft;
   setEnterpriseOnboarding: React.Dispatch<React.SetStateAction<EnterpriseOnboardingDraft>>;
   investorOnboarding: typeof DEFAULT_INVESTOR_ONBOARDING;
@@ -67,6 +74,7 @@ interface AppContextValue {
   refreshInterval: number;
   isRefreshing: boolean;
   lastDataRefreshAt: string;
+  industryDataVersion: number;
   unitPrefs: UnitPreferences;
   dataFormatter: DataFormatter;
   onUnitPrefsChange: (prefs: UnitPreferences) => void;
@@ -103,7 +111,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<RoleKey | null>(null);
   const [tab, setTab] = useState<AppTab>('home');
   const [memReturnState, setMemReturnState] = useState<AppState>('app-e');
-  const [isDark, setIsDarkState] = useState(true);
+  const [isDark, setIsDarkState] = useState(false);
   const [themeIndex, setThemeIndexState] = useState(0);
   const [chartThemeKey, setChartThemeKey] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -111,12 +119,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [userReady, setUserReady] = useState(false);
   const [loadingFinished, setLoadingFinished] = useState(false);
   const [hasPersistedRole, setHasPersistedRole] = useState(false);
+  const [rememberRole, setRememberRole] = useState(false);
+  const [onboardingLoaded, setOnboardingLoaded] = useState(false);
   const [enterpriseOnboarding, setEnterpriseOnboarding] = useState<EnterpriseOnboardingDraft>(DEFAULT_ENTERPRISE_ONBOARDING);
   const [investorOnboarding, setInvestorOnboarding] = useState(DEFAULT_INVESTOR_ONBOARDING);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState<number>(60000);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastDataRefreshAt, setLastDataRefreshAt] = useState<string>("");
+  const [industryDataVersion, setIndustryDataVersion] = useState(getIndustryStandardVersion());
   const prefetchedSessionHistoryRef = useRef<SessionHistorySummary[] | null>(null);
   const { preferences: unitPrefs, updatePreferences: updateUnitPrefs } = useUnitPreferences();
   const dataFormatter = useMemo(() => new DataFormatter(unitPrefs), [unitPrefs]);
@@ -192,9 +203,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const persistUserPreferences = useCallback(async (payload: Omit<UserPreferencesUpdateRequest, "userId">) => {
     const resolvedUserId = currentUserId;
     if (!resolvedUserId) return null;
-    const profile = await updateUserPreferences(resolvedUserId, payload);
-    syncUserProfile(profile);
-    return profile;
+    const cleanedPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, v]) => v !== undefined && v !== null && v !== "")
+    );
+    try {
+      const profile = await updateUserPreferences(resolvedUserId, cleanedPayload as Omit<UserPreferencesUpdateRequest, "userId">);
+      syncUserProfile(profile);
+      return profile;
+    } catch (error) {
+      console.warn("Failed to persist preferences:", error);
+      return null;
+    }
   }, [currentUserId, syncUserProfile]);
 
   const handleThemeModeChange = useCallback((nextIsDark: boolean) => {
@@ -246,7 +265,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!currentUserId || isRefreshing) return;
     setIsRefreshing(true);
     try {
-      await refreshUserProfile(currentUserId);
+      await Promise.all([
+        refreshUserProfile(currentUserId),
+        loadIndustryStandardFromPlatformStore(),
+      ]);
+      setIndustryDataVersion(getIndustryStandardVersion());
       setLastDataRefreshAt(new Date().toLocaleTimeString());
     } catch {
       // noop
@@ -369,81 +392,100 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       root.classList.add('theme-light');
       root.classList.remove('theme-dark');
-      root.style.setProperty('--bg', 'radial-gradient(circle at 10% 10%, #7dd3fc 0%, transparent 60%), radial-gradient(circle at 90% 20%, #a78bfa 0%, transparent 60%), radial-gradient(circle at 50% 90%, #818cf8 0%, transparent 60%), radial-gradient(circle at 80% 80%, #34d399 0%, transparent 50%), linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%)');
-      root.style.setProperty('--bg2', '#ffffff');
-      root.style.setProperty('--gl', 'rgba(255,255,255,.4)');
-      root.style.setProperty('--bd', 'rgba(255,255,255,.6)');
-      root.style.setProperty('--line', 'rgba(0,0,0,.1)');
-      root.style.setProperty('--bd-hover', 'rgba(255,255,255,.9)');
-      root.style.setProperty('--t1', '#0f172a');
-      root.style.setProperty('--t2', '#334155');
-      root.style.setProperty('--t3', '#475569');
-      root.style.setProperty('--t4', '#94a3b8');
-      root.style.setProperty('--overlay', 'rgba(200,210,225,.4)');
-      root.style.setProperty('--glass-bg', 'rgba(255,255,255,.3)');
-      root.style.setProperty('--glass', 'rgba(255,255,255,.35)');
-      root.style.setProperty('--glass-soft', 'rgba(255,255,255,.25)');
-      root.style.setProperty('--chat-bg', 'rgba(255,255,255,.4)');
-      root.style.setProperty('--chat-input-bg', 'rgba(255,255,255,.6)');
-      root.style.setProperty('--sidebar-bg', 'rgba(255,255,255,.3)');
-      root.style.setProperty('--panel-bg', 'rgba(255,255,255,.35)');
-      root.style.setProperty('--nav-bg', 'rgba(255,255,255,.25)');
-      root.style.setProperty('--tree-node-bg', 'rgba(255,255,255,.45)');
-      root.style.setProperty('--tree-node-border', 'rgba(255,255,255,.7)');
-      root.style.setProperty('--shadow-color', 'rgba(99,102,241,0.15)');
-      root.style.setProperty('--glass-highlight', 'inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -1px 0 rgba(255,255,255,0.2), inset 1px 0 0 rgba(255,255,255,0.5), inset -1px 0 0 rgba(255,255,255,0.5)');
-      root.style.setProperty('--glass-blur', 'blur(24px) saturate(150%)');
-      root.style.setProperty('--glass-surface', 'linear-gradient(180deg,rgba(255,255,255,.58),rgba(255,255,255,.28))');
-      root.style.setProperty('--glass-surface-strong', 'linear-gradient(180deg,rgba(255,255,255,.68),rgba(255,255,255,.34))');
-      root.style.setProperty('--glass-border-soft', 'rgba(255,255,255,.62)');
-      root.style.setProperty('--glass-border-strong', 'rgba(255,255,255,.88)');
-      root.style.setProperty('--global-noise-opacity', '.06');
+      root.style.setProperty('--bg', 'linear-gradient(135deg, #F8FAFF 0%, #EEF2FF 40%, #F0F9FF 100%)');
+      root.style.setProperty('--bg2', '#FFFFFF');
+      root.style.setProperty('--gl', 'rgba(255,255,255,.6)');
+      root.style.setProperty('--bd', 'rgba(79,107,246,.12)');
+      root.style.setProperty('--line', 'rgba(79,107,246,.08)');
+      root.style.setProperty('--bd-hover', 'rgba(79,107,246,.2)');
+      root.style.setProperty('--t1', '#1E293B');
+      root.style.setProperty('--t2', '#475569');
+      root.style.setProperty('--t3', '#94A3B8');
+      root.style.setProperty('--t4', '#94A3B8');
+      root.style.setProperty('--overlay', 'rgba(148,163,184,.3)');
+      root.style.setProperty('--glass-bg', 'rgba(255,255,255,.7)');
+      root.style.setProperty('--glass', 'rgba(255,255,255,.55)');
+      root.style.setProperty('--glass-soft', 'rgba(255,255,255,.4)');
+      root.style.setProperty('--chat-bg', 'rgba(255,255,255,.5)');
+      root.style.setProperty('--chat-input-bg', 'rgba(255,255,255,.75)');
+      root.style.setProperty('--sidebar-bg', 'rgba(255,255,255,.5)');
+      root.style.setProperty('--panel-bg', 'rgba(255,255,255,.55)');
+      root.style.setProperty('--nav-bg', 'rgba(255,255,255,.6)');
+      root.style.setProperty('--tree-node-bg', 'rgba(255,255,255,.6)');
+      root.style.setProperty('--tree-node-border', 'rgba(79,107,246,.12)');
+      root.style.setProperty('--shadow-color', 'rgba(79,107,246,.08)');
+      root.style.setProperty('--glass-highlight', 'inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(79,107,246,0.04)');
+      root.style.setProperty('--glass-blur', 'blur(20px) saturate(180%)');
+      root.style.setProperty('--glass-surface', 'linear-gradient(180deg,rgba(255,255,255,.72),rgba(255,255,255,.38))');
+      root.style.setProperty('--glass-surface-strong', 'linear-gradient(180deg,rgba(255,255,255,.82),rgba(255,255,255,.48))');
+      root.style.setProperty('--glass-border-soft', 'rgba(79,107,246,.1)');
+      root.style.setProperty('--glass-border-strong', 'rgba(79,107,246,.18)');
+      root.style.setProperty('--global-noise-opacity', '.03');
       root.style.setProperty('--global-noise-blend', 'overlay');
-      root.style.setProperty('--nav-shell', 'rgba(255,255,255,.38)');
-      root.style.setProperty('--toolbar-bg', 'rgba(255,255,255,.28)');
-      root.style.setProperty('--tooltip-bg', 'rgba(255,255,255,.92)');
-      root.style.setProperty('--chat-footer-bg', 'rgba(255,255,255,.45)');
-      root.style.setProperty('--mode-strip-bg', 'rgba(255,255,255,.32)');
-      root.style.setProperty('--workspace-header-bg', 'linear-gradient(180deg,rgba(255,255,255,.56),rgba(255,255,255,.18))');
-      root.style.setProperty('--modal-overlay-strong', 'rgba(148,163,184,.24)');
-      root.style.setProperty('--modal-overlay-soft', 'rgba(148,163,184,.2)');
-      root.style.setProperty('--role-title-start', '#0f172a');
-      root.style.setProperty('--debate-bg', 'linear-gradient(135deg,rgba(255,255,255,.74),rgba(224,231,255,.56))');
-      root.style.setProperty('--live-progress-fg', '#1d4ed8');
-      root.style.setProperty('--live-progress-strong', '#0f172a');
-      root.style.setProperty('--badge-info', '#1e3a8a');
-      root.style.setProperty('--history-check-bg', 'rgba(255,255,255,.5)');
-      root.style.setProperty('--rs', '6px');
-      root.style.setProperty('--border', '#E2E8F0');
+      root.style.setProperty('--nav-shell', 'rgba(255,255,255,.5)');
+      root.style.setProperty('--toolbar-bg', 'rgba(255,255,255,.4)');
+      root.style.setProperty('--tooltip-bg', 'rgba(255,255,255,.95)');
+      root.style.setProperty('--chat-footer-bg', 'rgba(255,255,255,.6)');
+      root.style.setProperty('--mode-strip-bg', 'rgba(255,255,255,.45)');
+      root.style.setProperty('--workspace-header-bg', 'linear-gradient(180deg,rgba(255,255,255,.7),rgba(255,255,255,.2))');
+      root.style.setProperty('--modal-overlay-strong', 'rgba(148,163,184,.3)');
+      root.style.setProperty('--modal-overlay-soft', 'rgba(148,163,184,.15)');
+      root.style.setProperty('--role-title-start', '#1E293B');
+      root.style.setProperty('--debate-bg', 'linear-gradient(135deg,rgba(255,255,255,.8),rgba(238,242,255,.6))');
+      root.style.setProperty('--live-progress-fg', '#4F6BF6');
+      root.style.setProperty('--live-progress-strong', '#1E293B');
+      root.style.setProperty('--badge-info', 'rgba(79,107,246,.12)');
+      root.style.setProperty('--history-check-bg', 'rgba(255,255,255,.6)');
+      root.style.setProperty('--rs', '10px');
+      root.style.setProperty('--border', 'rgba(79,107,246,.1)');
+      root.style.setProperty('--r', '16px');
+      root.style.setProperty('--rl', '16px');
+      root.style.setProperty('--viz-grid-stroke', 'rgba(79,107,246,0.06)');
+      root.style.setProperty('--viz-axis-stroke', 'rgba(71,85,105,0.2)');
+      root.style.setProperty('--viz-axis-text', 'rgba(71,85,105,0.7)');
+      root.style.setProperty('--viz-legend-text', 'rgba(71,85,105,0.65)');
+      root.style.setProperty('--viz-tooltip-bg', 'rgba(255,255,255,0.95)');
+      root.style.setProperty('--viz-tooltip-border', 'rgba(79,107,246,0.1)');
+      root.style.setProperty('--viz-tooltip-title', '#1E293B');
+      root.style.setProperty('--viz-tooltip-text', 'rgba(71,85,105,0.8)');
+      root.style.setProperty('--viz-surface-bg', 'rgba(255,255,255,0.7)');
+      root.style.setProperty('--viz-surface-border', 'rgba(79,107,246,0.08)');
+      root.style.setProperty('--viz-surface-shadow', '0 2px 8px rgba(79,107,246,0.06), 0 8px 24px rgba(79,107,246,0.08)');
     }
   }, [themeIndex, isDark]);
 
   useEffect(() => {
     const storedThemeMode = localStorage.getItem(USER_THEME_MODE_STORAGE_KEY);
     const storedThemeColor = localStorage.getItem(USER_THEME_COLOR_STORAGE_KEY);
-    if (storedThemeMode === "light" || storedThemeMode === "dark") setIsDarkState(storedThemeMode === "dark");
+    if (storedThemeMode === "light") setIsDarkState(false);
     if (storedThemeColor) setThemeIndexState(themeColorKeyToIndex(storedThemeColor));
 
     void (async () => {
       const storedUserId = localStorage.getItem(USER_ID_STORAGE_KEY) ?? undefined;
       const storedRole = localStorage.getItem(USER_ROLE_STORAGE_KEY);
       setHasPersistedRole(storedRole === "enterprise" || storedRole === "investor");
+      const storedRememberRole = localStorage.getItem(USER_REMEMBER_ROLE_STORAGE_KEY);
+      setRememberRole(storedRememberRole === null || storedRememberRole === "true");
 
       if (storedRole === "enterprise") {
         try {
           const savedOnboarding = localStorage.getItem(ENTERPRISE_ONBOARDING_KEY);
           if (savedOnboarding) {
-            setEnterpriseOnboarding(JSON.parse(savedOnboarding));
+            const parsed = JSON.parse(savedOnboarding);
+            setEnterpriseOnboarding(parsed);
           }
         } catch { /* ignore parse errors */ }
       } else if (storedRole === "investor") {
         try {
           const savedOnboarding = localStorage.getItem(INVESTOR_ONBOARDING_KEY);
           if (savedOnboarding) {
-            setInvestorOnboarding(JSON.parse(savedOnboarding));
+            const parsed = JSON.parse(savedOnboarding);
+            setInvestorOnboarding(parsed);
           }
         } catch { /* ignore parse errors */ }
       }
+
+      setOnboardingLoaded(true);
 
       try {
         const profile = storedUserId
@@ -496,24 +538,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [syncUserProfile, themeIndex]);
 
   useEffect(() => {
-    if (appState !== 'loading' || !loadingFinished || !userReady) return;
-    const preferredRole = role ?? preferenceToRoleKey(userProfile?.profile.preferences.preferredRole);
-    if (preferredRole && hasPersistedRole && currentUserId) {
-      setRole(preferredRole);
-      setTab('home');
-      setAppState(preferredRole === 'e' ? 'app-e' : 'app-i');
-      return;
-    }
+    if (appState !== 'loading' || !loadingFinished || !userReady || !onboardingLoaded) return;
     setAppState('role');
-  }, [appState, currentUserId, hasPersistedRole, loadingFinished, role, userProfile, userReady]);
+  }, [appState, loadingFinished, onboardingLoaded, userReady]);
 
   const handleRoleSelect = useCallback((r: RoleKey) => {
     setRole(r);
     localStorage.setItem(USER_ROLE_STORAGE_KEY, roleKeyToPreference(r));
+    if (rememberRole) {
+      localStorage.setItem(USER_REMEMBER_ROLE_STORAGE_KEY, "true");
+    } else {
+      localStorage.setItem(USER_REMEMBER_ROLE_STORAGE_KEY, "false");
+    }
     applyLocalUserProfilePatch({ preferredRole: roleKeyToPreference(r), role: roleKeyToPreference(r) });
     void persistUserPreferences({ preferredRole: roleKeyToPreference(r), role: roleKeyToPreference(r), themeMode: isDark ? "dark" : "light", themeColor: themeIndexToColorKey(themeIndex) });
     setAppState(r === 'e' ? 'collect-e' : 'collect-i');
-  }, [applyLocalUserProfilePatch, isDark, persistUserPreferences, themeIndex]);
+  }, [applyLocalUserProfilePatch, isDark, persistUserPreferences, themeIndex, rememberRole]);
 
   const handleGoApp = useCallback((r: RoleKey) => {
     const nextPreference = roleKeyToPreference(r);
@@ -535,9 +575,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     applyLocalUserProfilePatch(nextPayload);
     void persistUserPreferences(nextPayload);
     setRole(r);
+    if (rememberRole) {
+      localStorage.setItem(USER_REMEMBER_ROLE_STORAGE_KEY, "true");
+    } else {
+      localStorage.setItem(USER_REMEMBER_ROLE_STORAGE_KEY, "false");
+    }
     setAppState(r === 'e' ? 'app-e' : 'app-i');
     setTab('home');
-  }, [applyLocalUserProfilePatch, enterpriseOnboarding, investorOnboarding, isDark, persistUserPreferences, themeIndex]);
+  }, [applyLocalUserProfilePatch, enterpriseOnboarding, investorOnboarding, isDark, persistUserPreferences, themeIndex, rememberRole]);
+
+  const handleRememberRoleChange = useCallback((remember: boolean) => {
+    setRememberRole(remember);
+    localStorage.setItem(USER_REMEMBER_ROLE_STORAGE_KEY, remember ? "true" : "false");
+  }, []);
 
   const saveEnterpriseBaseInfo = useCallback(async (baseInfo: EditableBusinessInfo) => {
     const previousProfile = userProfile;
@@ -582,12 +632,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     userProfile, setUserProfile,
     userReady,
     loadingFinished, setLoadingFinished,
+    rememberRole, setRememberRole, handleRememberRoleChange,
     enterpriseOnboarding, setEnterpriseOnboarding,
     investorOnboarding, setInvestorOnboarding,
     isCommandPaletteOpen, setIsCommandPaletteOpen,
     refreshInterval,
     isRefreshing,
     lastDataRefreshAt,
+    industryDataVersion,
     unitPrefs,
     dataFormatter,
     onUnitPrefsChange: handleUnitPrefsChange,
@@ -608,9 +660,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     closeMem,
   }), [
     appState, role, tab, isDark, themeIndex, chartThemeKey,
-    currentUserId, userProfile, userReady, loadingFinished,
+    currentUserId, userProfile, userReady, loadingFinished, rememberRole, handleRememberRoleChange,
     enterpriseOnboarding, investorOnboarding, isCommandPaletteOpen,
-    refreshInterval, isRefreshing, lastDataRefreshAt,
+    refreshInterval, isRefreshing, lastDataRefreshAt, industryDataVersion,
     unitPrefs, dataFormatter, prefetchedSessionHistoryRef,
     syncUserProfile, applyLocalUserProfilePatch, refreshUserProfile,
     persistUserPreferences, handleThemeModeChange, handleThemeIndexChange,

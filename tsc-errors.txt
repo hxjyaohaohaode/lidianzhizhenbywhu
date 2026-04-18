@@ -1,1 +1,0 @@
-﻿src/web/chart-system.tsx(3424,1): error TS1005: '</' expected.

@@ -19,6 +19,32 @@ type ParsedOfficialPageInput = {
   eastmoneyStockUrl?: string;
 };
 
+export type SourceCredibility = "official" | "financial_media" | "social";
+
+export type DataQualityMetadata = {
+  collectedAt: string;
+  publishedAt?: string;
+  sourceName: string;
+  sourceCredibility: SourceCredibility;
+};
+
+export type DataQualityFlags = {
+  stalenessWarning?: "时效性警告";
+  conflictWarning?: "数据冲突";
+  outlierWarning?: "异常值警告";
+};
+
+export type QualityAnnotatedData<T> = {
+  data: T;
+  quality: DataQualityMetadata;
+  flags: DataQualityFlags;
+};
+
+type CacheEntry<T> = {
+  storedAt: number;
+  data: T;
+};
+
 /**
  * 数据采集代理配置选项
  */
@@ -39,19 +65,139 @@ export class DataGatheringAgent {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
   };
+  private readonly cache = new Map<string, CacheEntry<unknown>>();
+  private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
+  private readonly metricHistory = new Map<string, number[]>();
+  private static readonly MAX_HISTORY_LENGTH = 30;
 
   constructor(options: DataGatheringAgentOptions) {
     this.env = options.env;
     this.logger = options.logger || createLogger(options.env);
   }
 
+  private getCached<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.storedAt > DataGatheringAgent.CACHE_TTL_MS) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data as T;
+  }
+
+  private setCache<T>(key: string, data: T): void {
+    if (this.cache.size >= 500) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) this.cache.delete(oldestKey);
+    }
+    this.cache.set(key, { storedAt: Date.now(), data });
+  }
+
+  private recordMetricHistory(metricKey: string, value: number): void {
+    const history = this.metricHistory.get(metricKey) ?? [];
+    history.push(value);
+    if (history.length > DataGatheringAgent.MAX_HISTORY_LENGTH) {
+      history.shift();
+    }
+    this.metricHistory.set(metricKey, history);
+  }
+
+  private checkStaleness(publishedAt?: string): "时效性警告" | undefined {
+    if (!publishedAt) return undefined;
+    const publishedTime = new Date(publishedAt).getTime();
+    if (Number.isNaN(publishedTime)) return undefined;
+    const hoursDiff = (Date.now() - publishedTime) / (1000 * 60 * 60);
+    return hoursDiff > 24 ? "时效性警告" : undefined;
+  }
+
+  private crossValidate(
+    metricName: string,
+    sources: Array<{ sourceName: string; value: number }>,
+  ): "数据冲突" | undefined {
+    if (sources.length < 2) return undefined;
+    const values = sources.map((s) => s.value);
+    const minVal = Math.min(...values);
+    const maxVal = Math.max(...values);
+    if (minVal === 0 && maxVal === 0) return undefined;
+    const reference = Math.max(Math.abs(minVal), Math.abs(maxVal));
+    if (reference === 0) return undefined;
+    const diffRatio = Math.abs(maxVal - minVal) / reference;
+    if (diffRatio > 0.1) {
+      this.logger.warn(
+        `数据冲突检测: ${metricName} 在多个来源间差异 ${(diffRatio * 100).toFixed(1)}%，来源: ${sources.map((s) => `${s.sourceName}=${s.value}`).join(", ")}`,
+      );
+      return "数据冲突";
+    }
+    return undefined;
+  }
+
+  private detectOutlier(metricKey: string, value: number): "异常值警告" | undefined {
+    const history = this.metricHistory.get(metricKey);
+    if (!history || history.length < 3) return undefined;
+    const mean = history.reduce((sum, v) => sum + v, 0) / history.length;
+    const variance = history.reduce((sum, v) => sum + (v - mean) ** 2, 0) / history.length;
+    const stdDev = Math.sqrt(variance);
+    if (stdDev === 0) return undefined;
+    const zScore = Math.abs(value - mean) / stdDev;
+    if (zScore > 2) {
+      this.logger.warn(
+        `异常值检测: ${metricKey} 当前值 ${value} 偏离均值 ${mean.toFixed(2)} 超过2个标准差 (z=${zScore.toFixed(2)})`,
+      );
+      return "异常值警告";
+    }
+    return undefined;
+  }
+
+  private buildQualityMetadata(
+    sourceName: string,
+    sourceCredibility: SourceCredibility,
+    publishedAt?: string,
+  ): DataQualityMetadata {
+    return {
+      collectedAt: new Date().toISOString(),
+      publishedAt,
+      sourceName,
+      sourceCredibility,
+    };
+  }
+
+  private buildQualityFlags(
+    publishedAt: string | undefined,
+    metricKey: string | undefined,
+    value: number | undefined,
+    crossValidationSources?: Array<{ sourceName: string; value: number }>,
+  ): DataQualityFlags {
+    const flags: DataQualityFlags = {};
+    const staleness = this.checkStaleness(publishedAt);
+    if (staleness) flags.stalenessWarning = staleness;
+    if (crossValidationSources && crossValidationSources.length >= 2) {
+      const conflict = this.crossValidate(metricKey ?? "unknown", crossValidationSources);
+      if (conflict) flags.conflictWarning = conflict;
+    }
+    if (metricKey && value !== undefined) {
+      const outlier = this.detectOutlier(metricKey, value);
+      if (outlier) flags.outlierWarning = outlier;
+    }
+    return flags;
+  }
+
   /**
    * 通用的带错误处理的请求方法
    */
   private async fetchWithRetry(url: string, options: RequestInit, retries = Math.min(this.env.EXTERNAL_FETCH_RETRY_COUNT + 1, 2)): Promise<Response> {
+    const cacheKey = `fetch:${url}:${options.method ?? "GET"}`;
+    const cachedResponse = this.getCached<{ status: number; body: string; headers: Record<string, string> }>(cacheKey);
+    if (cachedResponse && options.method !== "POST" && options.method !== "PUT" && options.method !== "DELETE") {
+      this.logger.debug(`缓存命中: ${url}`);
+      return new Response(cachedResponse.body, {
+        status: cachedResponse.status,
+        headers: cachedResponse.headers,
+      });
+    }
+
     for (let i = 0; i < retries; i++) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), Math.min(this.env.EXTERNAL_FETCH_TIMEOUT_MS, 3000));
+      const timeout = setTimeout(() => controller.abort(), Math.min(this.env.EXTERNAL_FETCH_TIMEOUT_MS, 8000));
       try {
         const response = await fetch(url, {
           ...options,
@@ -59,6 +205,15 @@ export class DataGatheringAgent {
         });
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status} for ${url}`);
+        }
+        if (options.method !== "POST" && options.method !== "PUT" && options.method !== "DELETE") {
+          const cloned = response.clone();
+          try {
+            const body = await cloned.text();
+            const headers: Record<string, string> = {};
+            cloned.headers.forEach((v, k) => { headers[k] = v; });
+            this.setCache(cacheKey, { status: cloned.status, body, headers });
+          } catch { /* cache write failure is non-critical */ }
         }
         return response;
       } catch (error) {
@@ -1350,6 +1505,418 @@ export class DataGatheringAgent {
         period: period,
         records: [{ time: period, value: null, note: "外部接口失败，已返回降级数据", isPlaceholder: true }],
         degraded: true,
+      };
+    }
+  }
+
+  // ==========================================
+  // 4. 东方财富实时行情数据获取
+  // ==========================================
+
+  async fetchEastMoneyQuotes() {
+    this.logger.info("开始获取东方财富实时行情数据（碳酸锂价格及行业指数）");
+    if (!this.shouldUseLiveNetwork()) {
+      return {
+        success: true,
+        degraded: true,
+        data: {
+          lithiumCarbonatePrice: { value: null, unit: "元/吨", date: "" },
+          industryIndex: { value: null, name: "中证新能源电池指数", date: "" },
+        },
+        quality: this.buildQualityMetadata("东方财富", "financial_media"),
+        flags: {},
+      };
+    }
+
+    const cacheKey = "eastmoney-quotes";
+    const cached = this.getCached<QualityAnnotatedData<{
+      lithiumCarbonatePrice: { value: number | null; unit: string; date: string };
+      industryIndex: { value: number | null; name: string; date: string };
+    }>>(cacheKey);
+    if (cached) {
+      this.logger.debug("东方财富行情数据缓存命中");
+      return { success: true, degraded: false, data: cached.data, quality: cached.quality, flags: cached.flags };
+    }
+
+    const lithiumUrl = "https://push2.eastmoney.com/api/qt/stock/get?secid=118.CC0015&fields=f43,f44,f45,f46,f47,f170&ut=fa5fd1943c7b386f172d6893dbfd32";
+    const indexUrl = "https://push2.eastmoney.com/api/qt/stock/get?secid=1.931992&fields=f43,f44,f45,f46,f47,f170&ut=fa5fd1943c7b386f172d6893dbfd32";
+
+    try {
+      const [lithiumResponse, indexResponse] = await Promise.all([
+        this.fetchWithRetry(lithiumUrl, {
+          headers: { ...this.requestHeaders, Referer: "https://quote.eastmoney.com/" },
+        }).catch(() => null),
+        this.fetchWithRetry(indexUrl, {
+          headers: { ...this.requestHeaders, Referer: "https://quote.eastmoney.com/" },
+        }).catch(() => null),
+      ]);
+
+      let lithiumPrice: number | null = null;
+      let lithiumDate = "";
+      let indexValue: number | null = null;
+      let indexDate = "";
+
+      if (lithiumResponse?.ok) {
+        try {
+          const lithiumData = this.parseJsonLikePayload<{ data?: { f43?: number; f44?: number; f45?: number; f46?: number } }>(await lithiumResponse.text());
+          lithiumPrice = lithiumData.data?.f43 != null ? lithiumData.data.f43 / 100 : null;
+          lithiumDate = new Date().toISOString().split("T")[0] ?? "";
+        } catch { /* parse failure */ }
+      }
+
+      if (indexResponse?.ok) {
+        try {
+          const indexData = this.parseJsonLikePayload<{ data?: { f43?: number; f44?: number; f45?: number; f46?: number } }>(await indexResponse.text());
+          indexValue = indexData.data?.f43 != null ? indexData.data.f43 / 100 : null;
+          indexDate = new Date().toISOString().split("T")[0] ?? "";
+        } catch { /* parse failure */ }
+      }
+
+      const data = {
+        lithiumCarbonatePrice: { value: lithiumPrice, unit: "元/吨", date: lithiumDate },
+        industryIndex: { value: indexValue, name: "中证新能源电池指数", date: indexDate },
+      };
+
+      if (lithiumPrice !== null) this.recordMetricHistory("lithium_carbonate_price", lithiumPrice);
+      if (indexValue !== null) this.recordMetricHistory("new_energy_battery_index", indexValue);
+
+      const quality = this.buildQualityMetadata("东方财富", "financial_media", lithiumDate);
+      const flags = this.buildQualityFlags(
+        lithiumDate,
+        "lithium_carbonate_price",
+        lithiumPrice ?? undefined,
+      );
+      const annotated: QualityAnnotatedData<typeof data> = { data, quality, flags };
+      this.setCache(cacheKey, annotated);
+
+      return {
+        success: true,
+        degraded: lithiumPrice === null && indexValue === null,
+        data,
+        quality,
+        flags,
+      };
+    } catch (error) {
+      this.logger.error(error instanceof Error ? error : new Error(String(error)), "获取东方财富实时行情异常");
+      return {
+        success: true,
+        degraded: true,
+        data: {
+          lithiumCarbonatePrice: { value: null, unit: "元/吨", date: "" },
+          industryIndex: { value: null, name: "中证新能源电池指数", date: "" },
+        },
+        quality: this.buildQualityMetadata("东方财富", "financial_media"),
+        flags: {},
+      };
+    }
+  }
+
+  // ==========================================
+  // 5. 巨潮资讯网上市公司公告数据获取
+  // ==========================================
+
+  async fetchCnInfoAnnouncements(companyCode: string, year: string) {
+    this.logger.info(`开始获取巨潮资讯公告数据: 公司 ${companyCode}, 年份 ${year}`);
+    if (!this.shouldUseLiveNetwork()) {
+      return {
+        success: true,
+        degraded: true,
+        reports: [{ title: `${year}年定期报告`, url: "", note: "测试环境禁用外部网络" }],
+        quality: this.buildQualityMetadata("巨潮资讯", "official"),
+        flags: {},
+      };
+    }
+
+    const cacheKey = `cninfo:${companyCode}:${year}`;
+    const cached = this.getCached<QualityAnnotatedData<Array<{ title: string; url: string }>>>(cacheKey);
+    if (cached) {
+      this.logger.debug(`巨潮资讯公告缓存命中: ${companyCode}`);
+      return { success: true, degraded: false, reports: cached.data, quality: cached.quality, flags: cached.flags };
+    }
+
+    const url = "http://www.cninfo.com.cn/new/hisAnnouncement/query";
+    try {
+      const formData = new URLSearchParams();
+      formData.append("stock", companyCode);
+      formData.append("tabName", "fulltext");
+      formData.append("pageSize", "10");
+      formData.append("pageNum", "1");
+      formData.append("column", "szse");
+      formData.append("searchkey", "");
+      formData.append("secid", "");
+      formData.append("category", "category_ndbg_szsh;category_bndbg_szsh;category_yjdbg_szsh;category_sjdbg_szsh");
+      formData.append("seDate", `${year}-01-01~${year}-12-31`);
+      formData.append("sortName", "");
+      formData.append("sortType", "");
+      formData.append("isHLtitle", "true");
+
+      const response = await this.fetchWithRetry(url, {
+        method: "POST",
+        headers: {
+          ...this.requestHeaders,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Referer: "http://www.cninfo.com.cn/new/disclosure",
+          Origin: "http://www.cninfo.com.cn",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: formData,
+      });
+
+      const payload = this.parseJsonLikePayload<{
+        announcements?: Array<{
+          title?: string;
+          adjunctUrl?: string;
+          announcementTime?: number;
+          secName?: string;
+        }>;
+      }>(await response.text());
+
+      const reports = (payload.announcements ?? [])
+        .map((item) => {
+          const title = item.title?.replace(/<[^>]+>/g, "").trim() ?? `${item.secName ?? companyCode}${year}年报告`;
+          const adjunctUrl = item.adjunctUrl ?? "";
+          const urlPath = adjunctUrl ? `http://static.cninfo.com.cn/${adjunctUrl}` : "";
+          const publishedAt = item.announcementTime
+            ? new Date(item.announcementTime).toISOString()
+            : undefined;
+          return { title, url: urlPath, publishedAt };
+        })
+        .filter((item) => /年报|半年报|季报|报告/i.test(item.title))
+        .slice(0, 5);
+
+      const quality = this.buildQualityMetadata("巨潮资讯", "official", reports[0]?.publishedAt);
+      const flags = this.buildQualityFlags(reports[0]?.publishedAt, undefined, undefined);
+      const annotated: QualityAnnotatedData<typeof reports> = { data: reports, quality, flags };
+      this.setCache(cacheKey, annotated);
+
+      return {
+        success: true,
+        degraded: reports.length === 0,
+        reports,
+        quality,
+        flags,
+      };
+    } catch (error) {
+      this.logger.error(error instanceof Error ? error : new Error(String(error)), `获取巨潮资讯公告异常 [${companyCode}]`);
+      return {
+        success: true,
+        degraded: true,
+        reports: [{ title: `${year}年定期报告`, url: "", note: "外部接口失败，已返回降级数据" }],
+        quality: this.buildQualityMetadata("巨潮资讯", "official"),
+        flags: {},
+      };
+    }
+  }
+
+  // ==========================================
+  // 6. 国家统计局 PPI/CPI/工业增加值数据获取
+  // ==========================================
+
+  async fetchNbsMacroData() {
+    this.logger.info("开始获取国家统计局PPI/CPI/工业增加值数据");
+    if (!this.shouldUseLiveNetwork()) {
+      return {
+        success: true,
+        degraded: true,
+        data: {
+          ppi: { value: null, period: "", indicator: "工业生产者出厂价格指数" },
+          cpi: { value: null, period: "", indicator: "居民消费价格指数" },
+          industrialValueAdded: { value: null, period: "", indicator: "工业增加值同比增长" },
+        },
+        quality: this.buildQualityMetadata("国家统计局", "official"),
+        flags: {},
+      };
+    }
+
+    const cacheKey = "nbs-macro-ppi-cpi-iva";
+    const cached = this.getCached<QualityAnnotatedData<{
+      ppi: { value: number | null; period: string; indicator: string };
+      cpi: { value: number | null; period: string; indicator: string };
+      industrialValueAdded: { value: number | null; period: string; indicator: string };
+    }>>(cacheKey);
+    if (cached) {
+      this.logger.debug("国家统计局宏观数据缓存命中");
+      return { success: true, degraded: false, data: cached.data, quality: cached.quality, flags: cached.flags };
+    }
+
+    const indicators = [
+      { key: "ppi", code: "A0101", name: "工业生产者出厂价格指数", metricKey: "nbs_ppi" },
+      { key: "cpi", code: "A0103", name: "居民消费价格指数", metricKey: "nbs_cpi" },
+      { key: "industrialValueAdded", code: "A0201", name: "工业增加值同比增长", metricKey: "nbs_iva" },
+    ];
+
+    const results: Record<string, { value: number | null; period: string; indicator: string }> = {};
+    const crossValidationSources: Array<{ sourceName: string; value: number }> = [];
+
+    for (const indicator of indicators) {
+      try {
+        const nbsResult = await this.fetchNBSMacroData(indicator.code, new Date().getFullYear().toString());
+        const latestRecord = nbsResult.records?.find((r) => r.value !== null && r.value !== "");
+        const parsedValue = latestRecord?.value ? parseFloat(String(latestRecord.value)) : null;
+        results[indicator.key] = {
+          value: parsedValue,
+          period: latestRecord?.time ?? "",
+          indicator: indicator.name,
+        };
+        if (parsedValue !== null) {
+          this.recordMetricHistory(indicator.metricKey, parsedValue);
+          crossValidationSources.push({ sourceName: `NBS_${indicator.key}`, value: parsedValue });
+        }
+      } catch {
+        results[indicator.key] = { value: null, period: "", indicator: indicator.name };
+      }
+    }
+
+    const publishedAt = results.ppi?.period || results.cpi?.period || results.industrialValueAdded?.period || undefined;
+    const quality = this.buildQualityMetadata("国家统计局", "official", publishedAt);
+    const flags = this.buildQualityFlags(publishedAt, undefined, undefined, crossValidationSources);
+
+    const data = {
+      ppi: results.ppi ?? { value: null, period: "", indicator: "工业生产者出厂价格指数" },
+      cpi: results.cpi ?? { value: null, period: "", indicator: "居民消费价格指数" },
+      industrialValueAdded: results.industrialValueAdded ?? { value: null, period: "", indicator: "工业增加值同比增长" },
+    };
+
+    const annotated: QualityAnnotatedData<typeof data> = { data, quality, flags };
+    this.setCache(cacheKey, annotated);
+
+    const allNull = data.ppi.value === null && data.cpi.value === null && data.industrialValueAdded.value === null;
+    return {
+      success: true,
+      degraded: allNull,
+      data,
+      quality,
+      flags,
+    };
+  }
+
+  // ==========================================
+  // 7. 上海有色网价格指数数据获取
+  // ==========================================
+
+  async fetchSmmPriceIndex() {
+    this.logger.info("开始获取上海有色网正极/负极/电解液价格数据");
+    if (!this.shouldUseLiveNetwork()) {
+      return {
+        success: true,
+        degraded: true,
+        data: {
+          cathodeMaterial: { value: null, unit: "元/吨", name: "磷酸铁锂正极材料", date: "" },
+          anodeMaterial: { value: null, unit: "元/吨", name: "人造石墨负极材料", date: "" },
+          electrolyte: { value: null, unit: "元/吨", name: "磷酸铁锂电解液", date: "" },
+        },
+        quality: this.buildQualityMetadata("上海有色网", "financial_media"),
+        flags: {},
+      };
+    }
+
+    const cacheKey = "smm-price-index";
+    const cached = this.getCached<QualityAnnotatedData<{
+      cathodeMaterial: { value: number | null; unit: string; name: string; date: string };
+      anodeMaterial: { value: number | null; unit: string; name: string; date: string };
+      electrolyte: { value: number | null; unit: string; name: string; date: string };
+    }>>(cacheKey);
+    if (cached) {
+      this.logger.debug("上海有色网价格数据缓存命中");
+      return { success: true, degraded: false, data: cached.data, quality: cached.quality, flags: cached.flags };
+    }
+
+    const smmApiUrl = "https://www.smm.cn/metal/api/price/list?category=lithium";
+    try {
+      const response = await this.fetchWithRetry(smmApiUrl, {
+        headers: {
+          ...this.requestHeaders,
+          Referer: "https://www.smm.cn/lithium",
+        },
+      });
+
+      const payload = this.parseJsonLikePayload<{
+        data?: Array<{
+          name?: string;
+          price?: string | number;
+          unit?: string;
+          date?: string;
+          change?: string | number;
+        }>;
+      }>(await response.text());
+
+      const items = payload.data ?? [];
+      const findPrice = (keywords: string[]) =>
+        items.find((item) => keywords.some((kw) => item.name?.includes(kw)));
+
+      const cathodeItem = findPrice(["磷酸铁锂", "正极"]);
+      const anodeItem = findPrice(["负极", "石墨"]);
+      const electrolyteItem = findPrice(["电解液"]);
+
+      const parseNum = (v: string | number | undefined): number | null => {
+        if (v === undefined || v === null) return null;
+        const n = typeof v === "number" ? v : parseFloat(v.replace(/[^\d.-]/g, ""));
+        return Number.isNaN(n) ? null : n;
+      };
+
+      const today = new Date().toISOString().split("T")[0] ?? "";
+
+      const data = {
+        cathodeMaterial: {
+          value: parseNum(cathodeItem?.price),
+          unit: cathodeItem?.unit ?? "元/吨",
+          name: cathodeItem?.name ?? "磷酸铁锂正极材料",
+          date: cathodeItem?.date ?? today,
+        },
+        anodeMaterial: {
+          value: parseNum(anodeItem?.price),
+          unit: anodeItem?.unit ?? "元/吨",
+          name: anodeItem?.name ?? "人造石墨负极材料",
+          date: anodeItem?.date ?? today,
+        },
+        electrolyte: {
+          value: parseNum(electrolyteItem?.price),
+          unit: electrolyteItem?.unit ?? "元/吨",
+          name: electrolyteItem?.name ?? "磷酸铁锂电解液",
+          date: electrolyteItem?.date ?? today,
+        },
+      };
+
+      if (data.cathodeMaterial.value !== null) this.recordMetricHistory("smm_cathode", data.cathodeMaterial.value);
+      if (data.anodeMaterial.value !== null) this.recordMetricHistory("smm_anode", data.anodeMaterial.value);
+      if (data.electrolyte.value !== null) this.recordMetricHistory("smm_electrolyte", data.electrolyte.value);
+
+      const crossValidationSources: Array<{ sourceName: string; value: number }> = [];
+      if (data.cathodeMaterial.value !== null) crossValidationSources.push({ sourceName: "SMM正极", value: data.cathodeMaterial.value });
+      if (data.anodeMaterial.value !== null) crossValidationSources.push({ sourceName: "SMM负极", value: data.anodeMaterial.value });
+      if (data.electrolyte.value !== null) crossValidationSources.push({ sourceName: "SMM电解液", value: data.electrolyte.value });
+
+      const publishedAt = data.cathodeMaterial.date || today;
+      const quality = this.buildQualityMetadata("上海有色网", "financial_media", publishedAt);
+      const flags = this.buildQualityFlags(
+        publishedAt,
+        "smm_cathode",
+        data.cathodeMaterial.value ?? undefined,
+      );
+
+      const annotated: QualityAnnotatedData<typeof data> = { data, quality, flags };
+      this.setCache(cacheKey, annotated);
+
+      const allNull = data.cathodeMaterial.value === null && data.anodeMaterial.value === null && data.electrolyte.value === null;
+      return {
+        success: true,
+        degraded: allNull,
+        data,
+        quality,
+        flags,
+      };
+    } catch (error) {
+      this.logger.error(error instanceof Error ? error : new Error(String(error)), "获取上海有色网价格数据异常");
+      return {
+        success: true,
+        degraded: true,
+        data: {
+          cathodeMaterial: { value: null, unit: "元/吨", name: "磷酸铁锂正极材料", date: "" },
+          anodeMaterial: { value: null, unit: "元/吨", name: "人造石墨负极材料", date: "" },
+          electrolyte: { value: null, unit: "元/吨", name: "磷酸铁锂电解液", date: "" },
+        },
+        quality: this.buildQualityMetadata("上海有色网", "financial_media"),
+        flags: {},
       };
     }
   }

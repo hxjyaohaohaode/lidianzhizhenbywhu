@@ -18,7 +18,7 @@ import {
   buildInvestorAnalysisVisualization,
   buildInvestorHomeVisualization,
 } from "../chart-data.js";
-import { VisualizationBoard } from "../chart-system.js";
+import { VisualizationBoard, renderWidgetByKind, extractTableData, extractMetricCards, type MetricCardData } from "../chart-system.js";
 import { UnitSelector } from "../UnitSelector.js";
 import { DataFormatter, type UnitPreferences } from "../data-formatter.js";
 import {
@@ -26,6 +26,9 @@ import {
   extractMathAnalysisFromResponse,
 } from "../dqi-gmps-panels.js";
 import { MessageWithCharts } from "../chart-renderer.js";
+import { useAppContext } from "../context/AppContext.js";
+import { IdentitySwitcher } from "./IdentitySwitcher.js";
+import { ChartWithInsightPanel } from "./ChartWithInsightPanel.js";
 import type {
   AnalysisTimelineEntry,
   EditableBusinessInfo,
@@ -66,6 +69,7 @@ import {
 import { usePortalAuditReport } from "./CompetitiveBaselinePanel.js";
 import { EditableBaseInfoPanel } from "./EditableBaseInfoPanel.js";
 import { AuditInlineBanner } from "./CompetitiveBaselinePanel.js";
+import { Icon } from "./Icon.js";
 
 type InvestorScreenProps = {
   tab: AppTab;
@@ -262,6 +266,7 @@ export function AppInvestorScreen({
   onRefreshIntervalChange,
   prefetchedSessionHistoryRef,
 }: InvestorScreenProps) {
+  const ctx = useAppContext();
   const titles = { home: '首页', ana: '分析', set: '设置' };
   const investorVisualization = useMemo(
     () => buildInvestorHomeVisualization(
@@ -271,7 +276,7 @@ export function AppInvestorScreen({
       undefined,
       unitPrefs,
     ),
-    [userProfile, investorOnboarding, unitPrefs]
+    [userProfile, investorOnboarding, unitPrefs, ctx.industryDataVersion]
   );
   const auditPanelState = usePortalAuditReport("investor", tab === "home" || tab === "ana", currentUserId);
 
@@ -281,15 +286,17 @@ export function AppInvestorScreen({
         <div className="nl">
           <img src="/images/logo.png" alt="锂智诊断" className="nav-logo-img" width="40" height="40" />
         </div>
-        <div className={`ni ${tab === 'home' ? 'on' : ''}`} onClick={() => setTab('home')}><span>🏠</span><span className="tp">首页</span></div>
-        <div className={`ni ${tab === 'ana' ? 'on' : ''}`} onClick={() => setTab('ana')}><span>💬</span><span className="tp">分析</span></div>
-        <div className={`ni ${tab === 'set' ? 'on' : ''}`} onClick={() => setTab('set')}><span>⚙️</span><span className="tp">设置</span></div>
+        <div className={`ni ${tab === 'home' ? 'on' : ''}`} onClick={() => setTab('home')}><Icon name="home" size={20} hoverable active={tab === 'home'} /><span className="tp">首页</span></div>
+        <div className={`ni ${tab === 'ana' ? 'on' : ''}`} onClick={() => setTab('ana')}><Icon name="analysis" size={20} hoverable active={tab === 'ana'} /><span className="tp">分析</span></div>
+        <div className={`ni ${tab === 'set' ? 'on' : ''}`} onClick={() => setTab('set')}><Icon name="settings" size={20} hoverable active={tab === 'set'} /><span className="tp">设置</span></div>
         <div className="nsp"></div>
-        <div className="nav2"></div>
+        <div className="nav2">
+          <IdentitySwitcher currentRole={ctx.role} onSwitch={ctx.handleRoleSelect} isDark={ctx.isDark} />
+        </div>
       </nav>
       <div className="am">
         <div className="at">
-          <span className="att">{titles[tab as keyof typeof titles]}</span>
+          <span className="system-title">锂电智诊——锂电池企业经营质量与毛利承压智能诊断系统设计</span>
           <div className="atr">
             <UnitSelector onChange={onUnitPrefsChange} />
             <button className="ab" onClick={onRefreshData} disabled={isRefreshing} title={isRefreshing ? "刷新中..." : lastDataRefreshAt ? `上次刷新: ${lastDataRefreshAt}` : "刷新数据"} style={isRefreshing ? { opacity: 0.5, cursor: 'wait' } : undefined}>
@@ -299,11 +306,67 @@ export function AppInvestorScreen({
           </div>
         </div>
         <div className="ac">
-          <InvHome isActive={tab === 'home'} visualization={investorVisualization} dataFormatter={dataFormatter} openWorkbench={() => setTab("ana")} openSettings={() => setTab("set")} />
+          <InvHome isActive={tab === 'home'} visualization={investorVisualization} dataFormatter={dataFormatter} openWorkbench={() => setTab("ana")} openSettings={() => setTab("set")} onRefreshData={onRefreshData} />
           <InvAna isActive={tab === 'ana'} currentUserId={currentUserId} userProfile={userProfile} refreshUserProfile={refreshUserProfile} investorOnboarding={investorOnboarding} openHome={() => setTab("home")} openSettings={() => setTab("set")} auditPanelState={auditPanelState} prefetchedSessionHistoryRef={prefetchedSessionHistoryRef} unitPrefs={unitPrefs} />
           <InvSet isActive={tab === 'set'} openMem={openMem} isDark={isDark} setIsDark={setIsDark} themeIndex={themeIndex} setThemeIndex={setThemeIndex} userProfile={userProfile} saveInvestorBaseInfo={saveInvestorBaseInfo} unitPrefs={unitPrefs} onUnitPrefsChange={onUnitPrefsChange} refreshInterval={refreshInterval} onRefreshIntervalChange={onRefreshIntervalChange} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function ChartDataPanel({ widget }: { widget: NonNullable<ReturnType<typeof buildInvestorHomeVisualization>['sections'][number]>['widgets'][number] }) {
+  const tableData = extractTableData(widget);
+  const metricCards = extractMetricCards(widget);
+  const columns = tableData.length > 0 ? Object.keys(tableData[0] ?? {}).filter(k => k !== '_index') : [];
+  const filteredMetricCards = metricCards.filter(card => card.label !== '样本数');
+
+  return (
+    <div className="chart-data-panel chart-data-panel-split">
+      <div className="chart-data-left">
+        {tableData.length > 0 && (
+          <div>
+            <div className="chart-data-section-title">数据明细</div>
+            <div style={{ overflow: 'auto', maxHeight: '240px' }}>
+              <table>
+                <thead>
+                  <tr>
+                    {columns.map(col => (
+                      <th key={col}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableData.slice(0, 20).map((row, i) => (
+                    <tr key={i}>
+                      {columns.map(col => (
+                        <td key={col}>{String(row[col] ?? '')}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+      {filteredMetricCards.length > 0 && (
+        <div className="chart-data-right">
+          <div className="chart-data-section-title">关键指标</div>
+          <div className="chart-metric-cards">
+            {filteredMetricCards.map((card, i) => (
+              <div key={i} className={`chart-metric-card-item status-${card.status}`}>
+                <span className="metric-label">{card.label}</span>
+                <span className="metric-value">{card.value}</span>
+                <span className="metric-meta">
+                  {card.yoy !== '—' && `同比 ${card.yoy} `}
+                  {card.qoq !== '—' && `环比 ${card.qoq}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -314,29 +377,145 @@ function InvHome({
   dataFormatter,
   openWorkbench,
   openSettings,
+  onRefreshData,
 }: {
   isActive: boolean;
   visualization: ReturnType<typeof buildInvestorHomeVisualization>;
   dataFormatter: DataFormatter;
   openWorkbench: () => void;
   openSettings: () => void;
+  onRefreshData?: () => void;
 }) {
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [refreshSpinning, setRefreshSpinning] = useState(false);
+  const [selectedInsight, setSelectedInsight] = useState<{ widgetId: string; insight: any } | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      onRefreshData?.();
+      setLastRefresh(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [onRefreshData]);
+
+  const formatRefreshTime = (d: Date) => {
+    const h = d.getHours().toString().padStart(2, '0');
+    const m = d.getMinutes().toString().padStart(2, '0');
+    const s = d.getSeconds().toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  };
+
+  const handleManualRefresh = () => {
+    setRefreshSpinning(true);
+    onRefreshData?.();
+    setLastRefresh(new Date());
+    setTimeout(() => setRefreshSpinning(false), 600);
+  };
+
+  const handleInsightChange = useCallback((widgetId: string, insight: any) => {
+    setSelectedInsight(insight ? { widgetId, insight } : null);
+  }, []);
+
+  const homeSection = visualization.sections.find(s => s.page === 'home');
+  const homeWidgets = homeSection?.widgets ?? [];
+
+  const barWidget = homeWidgets.find(w => w.id === 'investor-bar');
+  const warmthValue = barWidget && barWidget.kind === 'lineChart'
+    ? barWidget.data[barWidget.data.length - 1]?.value ?? '--'
+    : '--';
+  const warmthStatus = typeof warmthValue === 'number'
+    ? warmthValue >= 70 ? 'green' : warmthValue >= 50 ? 'yellow' : 'red'
+    : 'yellow';
+
+  const boxWidget = homeWidgets.find(w => w.id === 'investor-box-plot');
+  const pressureProb = boxWidget && boxWidget.kind === 'boxPlotChart'
+    ? (boxWidget.groups.reduce((sum, g) => sum + g.median, 0) / boxWidget.groups.length / 100).toFixed(2)
+    : '--';
+  const pressureNum = typeof pressureProb === 'string' && pressureProb !== '--' ? parseFloat(pressureProb) : NaN;
+  const pressureStatus = !isNaN(pressureNum)
+    ? pressureNum < 0.33 ? 'green' : pressureNum >= 0.66 ? 'red' : 'yellow'
+    : 'yellow';
+
+  const lithiumSource = visualization.sourceMeta.find(s => s.id === 'investor-industry-benchmark');
+  const lithiumTrace = lithiumSource?.trace?.find(t => t.includes('碳酸锂'));
+  const lithiumPrice = lithiumTrace
+    ? lithiumTrace.replace(/[^0-9.]/g, '') || '--'
+    : '--';
+  const lithiumTrend = typeof warmthValue === 'number' && warmthValue >= 70 ? '↑' : '↓';
+
+  const stanceSource = visualization.sourceMeta.find(s => s.id === 'investor-profile');
+  const stanceTrace = stanceSource?.trace?.[0] ?? '';
+  const stanceText = stanceTrace.includes('high') ? '积极' : stanceTrace.includes('low') ? '保守' : '均衡';
+  const stanceSignal = stanceText === '积极' ? 'green' : stanceText === '保守' ? 'red' : 'yellow';
+
+  const allChartIds = ['investor-radar', 'investor-box-plot', 'investor-scatter', 'investor-heatmap-viz', 'investor-bar', 'investor-bubble', 'investor-sankey'];
+
+  const allChartWidgets = allChartIds
+    .map(id => homeWidgets.find(w => w.id === id))
+    .filter((w): w is NonNullable<typeof w> => w != null);
+
   return (
     <div className={`pg ${isActive ? 'on' : ''}`}>
-      <div className="page-viz-stack">
-        <VisualizationBoard payload={visualization} page="home" className="page-viz-board" dataFormatter={dataFormatter} />
-      </div>
-      <div className="home-utility-grid">
-        <WorkbenchShortcutPanel
-          badge="投资端工作台"
-          title="投资分析入口已就绪"
-          description="可从首页一键进入投资工作台，继续切换模式、沉淀会话，并回到设置维护画像偏好。"
-          highlights={["首页总览", "分析工作台", "画像偏好维护"]}
-          primaryLabel="进入投资工作台"
-          secondaryLabel="调整画像偏好"
-          onPrimaryClick={openWorkbench}
-          onSecondaryClick={openSettings}
-        />
+      <div className="homepage-layout">
+        <div className="homepage-refresh-bar">
+          <span className="homepage-refresh-time">最近刷新 {formatRefreshTime(lastRefresh)}</span>
+          <button className={`homepage-refresh-btn${refreshSpinning ? ' spinning' : ''}`} onClick={handleManualRefresh}>↻</button>
+        </div>
+        <div className="homepage-ai-search-box" onClick={openWorkbench}>
+          <span className="ai-search-icon">✨</span>
+          <span className="ai-search-placeholder">点击AI分析师，询问任何关于锂电池企业的经营质量与毛利承压问题...</span>
+          <span className="ai-search-action">点击跳转 →</span>
+        </div>
+        <div className="homepage-metrics-row">
+          <div className="homepage-metric-card">
+            <span className="homepage-metric-label">行业景气</span>
+            <span className="homepage-metric-value">
+              {warmthValue}
+              <span className={`homepage-metric-dot ${warmthStatus}`} />
+            </span>
+          </div>
+          <div className="homepage-metric-card">
+            <span className="homepage-metric-label">承压概率</span>
+            <span className="homepage-metric-value">
+              {pressureProb}
+              <span className={`homepage-metric-dot ${pressureStatus}`} />
+            </span>
+          </div>
+          <div className="homepage-metric-card">
+            <span className="homepage-metric-label">锂价</span>
+            <span className="homepage-metric-value">
+              {lithiumPrice}万/吨
+              <span className={`homepage-metric-dot ${lithiumTrend === '↑' ? 'good' : lithiumTrend === '↓' ? 'risk' : 'watch'}`} />
+            </span>
+          </div>
+          <div className="homepage-metric-card">
+            <span className="homepage-metric-label">配置立场</span>
+            <span className="homepage-metric-value">
+              {stanceText}
+              <span className={`homepage-metric-dot ${stanceSignal}`} />
+            </span>
+          </div>
+        </div>
+
+        <div className="homepage-all-charts">
+          {allChartWidgets.map(widget => {
+            return (
+              <div
+                key={widget.id}
+                className="homepage-chart-cell homepage-chart-with-insight"
+              >
+                <span className="homepage-chart-title">{widget.title}</span>
+                <ChartWithInsightPanel
+                  widget={widget}
+                  selectedInsight={selectedInsight?.widgetId === widget.id ? selectedInsight.insight : null}
+                  onInsightChange={(insight) => handleInsightChange(widget.id, insight)}
+                >
+                  {renderWidgetByKind(widget)}
+                </ChartWithInsightPanel>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

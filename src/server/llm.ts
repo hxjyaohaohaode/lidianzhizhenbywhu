@@ -150,7 +150,7 @@ export class OpenAICompatibleAdapter implements LlmProviderAdapter {
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
+      const timeout = setTimeout(() => controller.abort(), 15000);
       let response;
       try {
         response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -341,7 +341,7 @@ export class ModelRouter {
 
     const primaryPromise = primaryAdapter.complete(request);
     const fallbackTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("primary provider timeout")), 15000)
+      setTimeout(() => reject(new Error("primary provider timeout")), 5000)
     );
 
     try {

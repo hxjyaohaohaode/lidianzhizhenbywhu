@@ -23,6 +23,7 @@ export const USER_ID_STORAGE_KEY = "battery-diagnostic.userId";
 export const USER_ROLE_STORAGE_KEY = "battery-diagnostic.preferredRole";
 export const USER_THEME_MODE_STORAGE_KEY = "battery-diagnostic.themeMode";
 export const USER_THEME_COLOR_STORAGE_KEY = "battery-diagnostic.themeColor";
+export const USER_REMEMBER_ROLE_STORAGE_KEY = "battery-diagnostic.rememberRole";
 
 export type InvestorOnboardingDraft = {
   investorName: string;
@@ -47,6 +48,26 @@ export const DEFAULT_INVESTOR_ONBOARDING: InvestorOnboardingDraft = {
   focusTopic: "",
   notes: "",
 };
+
+export function isEnterpriseOnboardingComplete(draft: import("../../shared/types.js").EnterpriseOnboardingDraft): boolean {
+  const requiredFields: (keyof typeof draft)[] = [
+    "enterpriseName",
+  ];
+  return requiredFields.every((field) => {
+    const value = draft[field];
+    return typeof value === "string" && value.trim().length > 0;
+  });
+}
+
+export function isInvestorOnboardingComplete(draft: InvestorOnboardingDraft): boolean {
+  const requiredFields: (keyof InvestorOnboardingDraft)[] = [
+    "investorName",
+  ];
+  return requiredFields.every((field) => {
+    const value = draft[field];
+    return typeof value === "string" && value.trim().length > 0;
+  });
+}
 
 export const DEFAULT_UPLOAD_DRAFT = {
   fileName: "",
@@ -651,6 +672,8 @@ export type AuditPanelState = {
 
 export type InvestorWorkbenchMode = "industryStatus" | "investmentRecommendation" | "deepDive";
 
+export type EnterpriseWorkbenchMode = "operationalDiagnosis" | "deepDive" | "debate";
+
 export const INVESTOR_MODE_OPTIONS: Array<{
   value: InvestorWorkbenchMode;
   label: string;
@@ -696,6 +719,51 @@ export const INVESTOR_MODE_OPTIONS: Array<{
   },
 ];
 
+export const ENTERPRISE_MODE_OPTIONS: Array<{
+  value: EnterpriseWorkbenchMode;
+  label: string;
+  icon: string;
+  placeholder: string;
+  quickPrompts: Array<{ label: string; value: string }>;
+}> = [
+  {
+    value: "operationalDiagnosis",
+    label: "经营诊断",
+    icon: "🔍",
+    placeholder: "请输入经营诊断问题...",
+    quickPrompts: [
+      { label: "毛利率承压", value: "21.3%" },
+      { label: "产能利用率", value: "72%" },
+      { label: "库存周转天数", value: "52天" },
+      { label: "现金流安全", value: "中高" },
+    ],
+  },
+  {
+    value: "deepDive",
+    label: "深度解析",
+    icon: "🔬",
+    placeholder: "请输入深度解析问题，系统将进行根因拆解...",
+    quickPrompts: [
+      { label: "原材料成本冲击", value: "高" },
+      { label: "毛利修复弹性", value: "低于行业均值" },
+      { label: "库存积压根因", value: "需求端走弱" },
+      { label: "价格战传导路径", value: "中游→下游" },
+    ],
+  },
+  {
+    value: "debate",
+    label: "辩论模式",
+    icon: "⚖️",
+    placeholder: "请输入辩论话题，系统将展开多角度辩论...",
+    quickPrompts: [
+      { label: "毛利率是否见底", value: "正方/反方" },
+      { label: "产能出清节奏", value: "快/慢" },
+      { label: "海外扩张风险", value: "高/可控" },
+      { label: "技术路线选择", value: "铁锂/三元" },
+    ],
+  },
+];
+
 export type WorkbenchMessage = {
   id: string;
   variant: "user" | "assistant" | "system" | "debate";
@@ -712,6 +780,10 @@ export const EMPTY_WORKBENCH_MESSAGE = "请输入信息进行对话";
 
 export function getModeOption(mode: InvestorWorkbenchMode | import("../../shared/business.js").SessionContext["activeMode"]) {
   return INVESTOR_MODE_OPTIONS.find((option) => option.value === mode) ?? INVESTOR_MODE_OPTIONS[0]!;
+}
+
+export function getEnterpriseModeOption(mode: EnterpriseWorkbenchMode | import("../../shared/business.js").SessionContext["activeMode"]) {
+  return ENTERPRISE_MODE_OPTIONS.find((option) => option.value === mode) ?? ENTERPRISE_MODE_OPTIONS[0]!;
 }
 
 export function getSessionTitle(summary: Pick<import("../../shared/business.js").SessionHistorySummary, "enterpriseName" | "investedEnterprises">) {
@@ -920,7 +992,61 @@ export function buildMemoryNodes(
     },
   ];
 
-  return nodes;
+  const l2Nodes: MemoryNode[] = [];
+
+  const roleL2 = [
+    { id: 'role-type', ic: '🏷️', t: '角色类型', p: roleLabel, ms: '角色类型', md: `当前角色定位为「${roleLabel}」，系统将基于此角色提供个性化的诊断分析和服务。`, mt: [preferredRole === 'e' ? '企业' : '投资', '角色'] },
+    { id: 'role-pref', ic: '⚙️', t: '偏好设置', p: `默认: ${roleLabel}`, ms: '偏好角色设置', md: `当前偏好角色设置为「${roleLabel}」，可在设置中修改偏好角色以获得不同视角的分析。`, mt: ['偏好', '设置'] },
+  ];
+  roleL2.forEach((item, i) => {
+    const pos = generateRadialPos(0, 2, pos1, i, roleL2.length);
+    l2Nodes.push({ id: item.id, ic: item.ic, t: item.t, p: item.p, x: pos.x, y: pos.y, level: 2, parentId: 'role', nodeType: 'portrait', memorySummary: item.ms, memoryDetails: item.md, memoryTags: item.mt });
+  });
+
+  const themeL2 = [
+    { id: 'theme-mode', ic: '🌙', t: '显示模式', p: themeModeLabel, ms: '显示模式', md: `当前使用${themeModeLabel}，可在设置中切换深色/浅色模式。`, mt: ['显示', '模式'] },
+    { id: 'theme-color', ic: '🎨', t: '配色方案', p: themeLabel, ms: '配色方案', md: `当前配色方案为「${themeLabel}」，可在设置中切换不同配色方案。`, mt: ['配色', '主题'] },
+  ];
+  themeL2.forEach((item, i) => {
+    const pos = generateRadialPos(1, 2, pos2, i, themeL2.length);
+    l2Nodes.push({ id: item.id, ic: item.ic, t: item.t, p: item.p, x: pos.x, y: pos.y, level: 2, parentId: 'theme', nodeType: 'theme', memorySummary: item.ms, memoryDetails: item.md, memoryTags: item.mt });
+  });
+
+  const focusItems = focusSummary.length > 0 ? focusSummary : ['暂无设置'];
+  focusItems.forEach((item, i) => {
+    const pos = generateRadialPos(2, 2, pos3, i, focusItems.length);
+    l2Nodes.push({ id: `focus-${i}`, ic: '🔍', t: truncateText(item, 12), p: truncateText(item, 20), x: pos.x, y: pos.y, level: 2, parentId: 'focus', nodeType: 'signal', memorySummary: item, memoryDetails: `关注重点: ${item}`, memoryTags: ['关注', '重点'] });
+  });
+
+  const goalItems = goalSummary.length > 0 ? goalSummary : ['暂无设置'];
+  goalItems.forEach((item, i) => {
+    const pos = generateRadialPos(3, 2, pos4, i, goalItems.length);
+    l2Nodes.push({ id: `goals-${i}`, ic: '🎯', t: truncateText(item, 12), p: truncateText(item, 20), x: pos.x, y: pos.y, level: 2, parentId: 'goals', nodeType: 'signal', memorySummary: item, memoryDetails: `决策风格: ${item}`, memoryTags: ['决策', '风格'] });
+  });
+
+  const baseInfoEntries = Object.entries(activeBaseInfo ?? {}).slice(0, 3);
+  if (baseInfoEntries.length > 0) {
+    baseInfoEntries.forEach(([field, value], i) => {
+      const pos = generateRadialPos(4, 2, pos5, i, baseInfoEntries.length);
+      const displayValue = formatEditableBusinessInfoValue(value);
+      l2Nodes.push({ id: `base-info-${i}`, ic: '📝', t: field, p: truncateText(displayValue, 20), x: pos.x, y: pos.y, level: 2, parentId: 'base-info', nodeType: 'portrait', memorySummary: field, memoryDetails: `${field}: ${displayValue}`, memoryTags: ['基础信息', field] });
+    });
+  } else {
+    const pos = generateRadialPos(4, 2, pos5, 0, 1);
+    l2Nodes.push({ id: 'base-info-empty', ic: '📝', t: '暂无数据', p: '尚未填写基础信息', x: pos.x, y: pos.y, level: 2, parentId: 'base-info', nodeType: 'portrait', memorySummary: '暂无数据', memoryDetails: '尚未填写基础信息，可在设置中补充。', memoryTags: ['基础信息'] });
+  }
+
+  const activityL2 = [
+    { id: 'activity-sessions', ic: '💬', t: '历史会话', p: `${stats?.sessionCount ?? 0} 个`, ms: '历史会话', md: `共参与 ${stats?.sessionCount ?? 0} 个诊断会话，涵盖企业经营分析和投资决策支持。`, mt: ['会话', '历史'] },
+    { id: 'activity-memories', ic: '🧠', t: '记忆条目', p: `${stats?.memoryCount ?? 0} 条`, ms: '记忆条目', md: `共保存 ${stats?.memoryCount ?? 0} 条个人记忆，包括偏好、关注点和决策记录。`, mt: ['记忆', '个人'] },
+    { id: 'activity-analysis', ic: '📊', t: '分析报告', p: `${stats?.analysisCount ?? 0} 份`, ms: '分析报告', md: `共生成 ${stats?.analysisCount ?? 0} 份分析报告，覆盖毛利承压诊断和经营质量评估。`, mt: ['分析', '报告'] },
+  ];
+  activityL2.forEach((item, i) => {
+    const pos = generateRadialPos(5, 2, pos6, i, activityL2.length);
+    l2Nodes.push({ id: item.id, ic: item.ic, t: item.t, p: item.p, x: pos.x, y: pos.y, level: 2, parentId: 'activity', nodeType: 'session', memorySummary: item.ms, memoryDetails: item.md, memoryTags: item.mt });
+  });
+
+  return [...nodes, ...l2Nodes];
 }
 
 export function toDebateWorkbenchMessage(message: import("../../shared/business.js").DebateMessage): WorkbenchMessage {

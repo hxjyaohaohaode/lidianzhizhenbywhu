@@ -97,6 +97,16 @@ export const operatingQualityInputSchema = z
     baselineTotalLiabilities: monetaryAmount,
     currentTotalAssets: monetaryAmount,
     baselineTotalAssets: monetaryAmount,
+    currentNetProfit: finiteNumber,
+    baselineNetProfit: finiteNumber,
+    currentBeginNetAssets: monetaryAmount,
+    currentEndNetAssets: monetaryAmount,
+    baselineBeginNetAssets: monetaryAmount,
+    baselineEndNetAssets: monetaryAmount,
+    currentRevenueForDQI: monetaryAmount,
+    baselineRevenueForDQI: monetaryAmount,
+    currentOCFNet: finiteNumber,
+    baselineOCFNet: finiteNumber,
   })
   .superRefine((input, context) => {
     if (input.currentManufacturingExpense > input.currentOperatingCost) {
