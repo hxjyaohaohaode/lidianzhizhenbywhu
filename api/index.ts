@@ -10,9 +10,9 @@ try {
   mkdirSync("/tmp/platform", { recursive: true });
 } catch {}
 
-import { createApp } from "../dist/server/server/app.js";
-import { loadServerEnv } from "../dist/server/server/env.js";
-import { createLogger } from "../dist/server/server/logger.js";
+import { createApp } from "../src/server/app.js";
+import { loadServerEnv } from "../src/server/env.js";
+import { createLogger } from "../src/server/logger.js";
 
 const env = loadServerEnv();
 const logger = createLogger(env);

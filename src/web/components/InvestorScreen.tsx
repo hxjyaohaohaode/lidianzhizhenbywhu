@@ -27,7 +27,6 @@ import {
 } from "../dqi-gmps-panels.js";
 import { MessageWithCharts } from "../chart-renderer.js";
 import { useAppContext } from "../context/AppContext.js";
-import { IdentitySwitcher } from "./IdentitySwitcher.js";
 import { ChartWithInsightPanel } from "./ChartWithInsightPanel.js";
 import type {
   AnalysisTimelineEntry,
@@ -290,9 +289,6 @@ export function AppInvestorScreen({
         <div className={`ni ${tab === 'ana' ? 'on' : ''}`} onClick={() => setTab('ana')}><Icon name="analysis" size={20} hoverable active={tab === 'ana'} /><span className="tp">分析</span></div>
         <div className={`ni ${tab === 'set' ? 'on' : ''}`} onClick={() => setTab('set')}><Icon name="settings" size={20} hoverable active={tab === 'set'} /><span className="tp">设置</span></div>
         <div className="nsp"></div>
-        <div className="nav2">
-          <IdentitySwitcher currentRole={ctx.role} onSwitch={ctx.handleRoleSelect} isDark={ctx.isDark} />
-        </div>
       </nav>
       <div className="am">
         <div className="at">
@@ -391,12 +387,8 @@ function InvHome({
   const [selectedInsight, setSelectedInsight] = useState<{ widgetId: string; insight: any } | null>(null);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      onRefreshData?.();
-      setLastRefresh(new Date());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, [onRefreshData]);
+    setLastRefresh(new Date());
+  }, [visualization]);
 
   const formatRefreshTime = (d: Date) => {
     const h = d.getHours().toString().padStart(2, '0');
@@ -488,11 +480,20 @@ function InvHome({
               <span className={`homepage-metric-dot ${lithiumTrend === '↑' ? 'good' : lithiumTrend === '↓' ? 'risk' : 'watch'}`} />
             </span>
           </div>
-          <div className="homepage-metric-card">
-            <span className="homepage-metric-label">配置立场</span>
+          <div
+            className="homepage-metric-card"
+            title="配置立场说明：积极（风险偏好较高，追求高收益）| 均衡（风险与收益平衡）| 保守（风险厌恶，追求稳健）"
+          >
+            <span className="homepage-metric-label">
+              配置立场
+              <span style={{ fontSize: '11px', color: '#94A3B8', marginLeft: '4px', cursor: 'help' }}>ⓘ</span>
+            </span>
             <span className="homepage-metric-value">
               {stanceText}
               <span className={`homepage-metric-dot ${stanceSignal}`} />
+            </span>
+            <span style={{ fontSize: '10px', color: '#94A3B8', marginTop: '2px', display: 'block' }}>
+              {stanceText === '积极' ? '风险偏好高，追求高收益' : stanceText === '保守' ? '风险厌恶，追求稳健' : '风险与收益平衡'}
             </span>
           </div>
         </div>
@@ -1505,7 +1506,12 @@ function InvAna({
                   }
                 }}
               />
-              <button className="cse" onClick={() => void send()} disabled={!sessionContext || loading || bootstrapping}></button>
+              <button className="cse" onClick={() => void send()} disabled={!sessionContext || loading || bootstrapping}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
             </div>
           </div>
         </div>

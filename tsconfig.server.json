@@ -1,11 +1,11 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"],
-    "rootDir": "./src",
-    "outDir": "./dist/server",
+    "types": ["node", "@vercel/node"],
+    "rootDir": ".",
+    "outDir": "./dist",
     "noEmit": false
   },
-  "include": ["src/server", "src/shared"],
+  "include": ["src/server", "src/shared", "api"],
   "exclude": ["src/web", "node_modules"]
 }

@@ -33,7 +33,6 @@ import type { VisualizationWidget } from "../../shared/business.js";
 import { MessageWithCharts } from "../chart-renderer.js";
 import { DQIGMPSPanelsContainer, extractMathAnalysisFromResponse } from "../dqi-gmps-panels.js";
 import { useAppContext } from "../context/AppContext.js";
-import { IdentitySwitcher } from "./IdentitySwitcher.js";
 import { ChartWithInsightPanel } from "./ChartWithInsightPanel.js";
 import {
   type AuditPanelState,
@@ -162,9 +161,6 @@ export function AppEnterpriseScreen({
         <div className={`ni ${tab === 'ana' ? 'on' : ''}`} onClick={() => setTab('ana')}><Icon name="analysis" size={20} hoverable active={tab === 'ana'} /><span className="tp">分析</span></div>
         <div className={`ni ${tab === 'set' ? 'on' : ''}`} onClick={() => setTab('set')}><Icon name="settings" size={20} hoverable active={tab === 'set'} /><span className="tp">设置</span></div>
         <div className="nsp"></div>
-        <div className="nav2">
-          <IdentitySwitcher currentRole={ctx.role} onSwitch={ctx.handleRoleSelect} isDark={ctx.isDark} />
-        </div>
       </nav>
       <div className="am">
         <div className="at">
@@ -206,12 +202,8 @@ function EntHome({
   const [selectedInsight, setSelectedInsight] = useState<{ widgetId: string; insight: any } | null>(null);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      onRefreshData?.();
-      setLastRefresh(new Date());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, [onRefreshData]);
+    setLastRefresh(new Date());
+  }, [visualization]);
 
   const formatRefreshTime = (d: Date) => {
     const h = d.getHours().toString().padStart(2, '0');
@@ -1483,7 +1475,12 @@ function EntAna({
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
               />
-              <button className="cse" onClick={() => void send()} disabled={!sessionContext || loading || bootstrapping}></button>
+              <button className="cse" onClick={() => void send()} disabled={!sessionContext || loading || bootstrapping}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
             </div>
           </div>
         </div>

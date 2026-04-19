@@ -60,15 +60,50 @@ export function UnitSelector({ onChange, className = "" }: UnitSelectorProps) {
   };
 
   // 计算下拉菜单位置
-  useEffect(() => {
-    if (isOpen && triggerRef.current) {
+  const updatePosition = useCallback(() => {
+    if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
+      const dropdownHeight = 320;
+      const dropdownWidth = 240;
+      
+      let top = rect.bottom + 8;
+      let right = window.innerWidth - rect.right;
+      
+      if (top + dropdownHeight > window.innerHeight) {
+        top = rect.top - dropdownHeight - 8;
+      }
+      
+      if (right + dropdownWidth > window.innerWidth) {
+        right = window.innerWidth - rect.left - dropdownWidth;
+      }
+      
       setDropdownPosition({
-        top: rect.bottom + window.scrollY + 8,
-        right: window.innerWidth - rect.right - window.scrollX,
+        top: Math.max(8, top),
+        right: Math.max(8, right),
       });
     }
-  }, [isOpen]);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+    }
+  }, [isOpen, updatePosition]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleScroll = () => updatePosition();
+    const handleResize = () => updatePosition();
+    
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isOpen, updatePosition]);
 
   // 点击外部关闭下拉菜单
   useEffect(() => {

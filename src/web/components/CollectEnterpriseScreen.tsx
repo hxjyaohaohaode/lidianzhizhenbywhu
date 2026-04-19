@@ -222,6 +222,26 @@ export function CollectEnterpriseScreen({
             <div className="fg"></div>
           </div>
 
+          {sectionHeader('产销负荷与制造费用分摊层对比', 'GMPS-C', '#10B981')}
+          <div className="fr">
+            {inputField('去年同季度产量(万件)', 'baselineProductionVolume', '750')}
+            {inputField('去年同季度制造费用(万元)', 'baselineManufacturingExpense', '25000')}
+          </div>
+          <div className="fr">
+            {inputField('去年同季度营业成本(万元)', 'baselineOperatingCost', '36900')}
+            <div className="fg"></div>
+          </div>
+
+          {sectionHeader('现金流与安全垫层对比', 'GMPS-E', '#F59E0B')}
+          <div className="fr">
+            {inputField('去年同季度营业现金流(万元)', 'baselineOperatingCashFlow', '7800')}
+            {inputField('去年同季度总负债(万元)', 'baselineTotalLiabilities', '32000')}
+          </div>
+          <div className="fr">
+            {inputField('去年同季度总资产(万元)', 'baselineTotalAssets', '110000')}
+            <div className="fg"></div>
+          </div>
+
           {sectionHeader('DQI 对比数据', 'DQI', '#7C5CFC')}
           <div className="fr">
             {inputField('去年同期净利润(万元)', 'baselineNetProfit', '7600')}

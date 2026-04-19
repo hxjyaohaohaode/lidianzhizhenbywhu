@@ -124,6 +124,12 @@ export type EnterpriseOnboardingDraft = {
   baselineCost: string;
   baselineSalesVolume: string;
   baselineInventoryExpense: string;
+  baselineProductionVolume: string;
+  baselineManufacturingExpense: string;
+  baselineOperatingCost: string;
+  baselineOperatingCashFlow: string;
+  baselineTotalLiabilities: string;
+  baselineTotalAssets: string;
   previousQuarterGrossMargin: string;
   previousQuarterRevenue: string;
   twoQuartersAgoGrossMargin: string;
