@@ -71,7 +71,7 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
-        gap: '20px',
+        gap: '12px',
       }}>
         {!videoError && (
           <video
@@ -85,41 +85,41 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
             playsInline
             muted
             style={{
-              width: 'min(60vh, 60vw)',
-              height: 'min(60vh, 60vw)',
+              width: 'min(9vh, 9vw)',
+              height: 'min(9vh, 9vw)',
               objectFit: 'contain',
-              borderRadius: '16px',
-              boxShadow: '0 8px 40px rgba(79,107,246,0.15)',
+              borderRadius: '8px',
+              boxShadow: '0 4px 20px rgba(79,107,246,0.15)',
             }}
           />
         )}
 
         {videoError && (
           <div style={{
-            width: 'min(60vh, 60vw)',
-            height: 'min(60vh, 60vw)',
+            width: 'min(9vh, 9vw)',
+            height: 'min(9vh, 9vw)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '16px',
+            gap: '8px',
           }}>
             <img
               src="/images/logo.png"
               alt="锂电智诊"
               style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '20px',
-                boxShadow: '0 8px 32px rgba(79,107,246,0.2)',
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                boxShadow: '0 4px 16px rgba(79,107,246,0.2)',
                 animation: 'logoPulse 2s ease-in-out infinite',
               }}
             />
             <div style={{
-              fontSize: '18px',
+              fontSize: '12px',
               fontWeight: 600,
               color: 'var(--text-primary)',
-              letterSpacing: '2px',
+              letterSpacing: '1px',
             }}>
               锂电智诊
             </div>
@@ -127,16 +127,16 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
         )}
 
         <div style={{
-          width: 'min(50vh, 50vw)',
-          maxWidth: '360px',
+          width: 'min(12vh, 12vw)',
+          maxWidth: '120px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '8px',
+          gap: '6px',
         }}>
           <div style={{
             width: '100%',
-            height: '4px',
+            height: '3px',
             borderRadius: '2px',
             background: 'rgba(79,107,246,0.12)',
             overflow: 'hidden',
@@ -150,9 +150,9 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
             }} />
           </div>
           <div style={{
-            fontSize: '12px',
+            fontSize: '10px',
             color: 'var(--text-tertiary)',
-            letterSpacing: '1px',
+            letterSpacing: '0.5px',
           }}>
             {progress < 100 ? '系统加载中...' : '加载完成'}
           </div>

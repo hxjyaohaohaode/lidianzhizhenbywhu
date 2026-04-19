@@ -840,34 +840,50 @@ function upgradeRiskLevel(
  * 从上下文中提取DQI所需的输入数据
  */
 function extractDQIInputFromContext(input: DiagnosticAgentRequest): unknown {
-  // 尝试从 operatingQualityInput 中提取DQI所需的数据
-  // DQI需要：净利润、期初/期末净资产、营业收入、经营现金流（当期和基期）
   const oqInput = input.operatingQualityInput;
 
   if (!oqInput) {
-    return null; // 数据不足，无法计算DQI
+    return null;
   }
 
+  const currentNetProfit = oqInput.currentNetProfit ?? oqInput.currentRevenue * 0.08;
+  const baselineNetProfit = oqInput.baselineNetProfit ?? oqInput.baselineRevenue * 0.09;
+  
+  const currentEndingEquity = oqInput.currentEndNetAssets ?? oqInput.currentTotalAssets * 0.48;
+  const currentBeginningEquity = oqInput.currentBeginNetAssets ?? Math.min(currentEndingEquity * 0.95, oqInput.currentTotalAssets * 0.46);
+  
+  const baselineEndingEquity = oqInput.baselineEndNetAssets ?? oqInput.baselineTotalAssets * 0.47;
+  const baselineBeginningEquity = oqInput.baselineBeginNetAssets ?? Math.min(baselineEndingEquity * 0.95, oqInput.baselineTotalAssets * 0.45);
+
   return {
-    currentNetProfit: oqInput.currentRevenue * 0.08,
-    currentBeginningEquity: oqInput.baselineTotalAssets * 0.45,
-    currentEndingEquity: oqInput.currentTotalAssets * 0.44,
+    currentNetProfit,
+    currentBeginningEquity,
+    currentEndingEquity,
     currentRevenue: oqInput.currentRevenue,
     currentOperatingCashFlow: oqInput.currentOperatingCashFlow,
     currentTotalAssets: oqInput.currentTotalAssets,
-    currentInventoryExpense: oqInput.currentRevenue * 0.18,
-    currentOperatingCost: oqInput.currentRevenue * 0.78,
-    baselineNetProfit: oqInput.baselineRevenue * 0.09,
-    baselineBeginningEquity: oqInput.baselineTotalAssets * 0.46,
-    baselineEndingEquity: oqInput.baselineTotalAssets * 0.45,
+    currentInventoryExpense: oqInput.currentInventoryExpense ?? oqInput.currentRevenue * 0.18,
+    currentOperatingCost: oqInput.currentOperatingCost,
+    baselineNetProfit,
+    baselineBeginningEquity,
+    baselineEndingEquity,
     baselineRevenue: oqInput.baselineRevenue,
     baselineOperatingCashFlow: oqInput.baselineOperatingCashFlow,
     baselineTotalAssets: oqInput.baselineTotalAssets,
-    baselineInventoryExpense: oqInput.baselineRevenue * 0.17,
-    baselineOperatingCost: oqInput.baselineRevenue * 0.76,
+    baselineInventoryExpense: oqInput.baselineInventoryExpense ?? oqInput.baselineRevenue * 0.17,
+    baselineOperatingCost: oqInput.baselineOperatingCost,
     dataProvenance: {
-      estimatedFields: ["currentNetProfit", "currentBeginningEquity", "currentEndingEquity", "baselineNetProfit", "baselineBeginningEquity", "baselineEndingEquity", "currentInventoryExpense", "currentOperatingCost", "baselineInventoryExpense", "baselineOperatingCost"],
-      estimationMethod: "净利润率假设8%/9%，净资产占资产比例假设44%-46%，库存费用占营收17%-18%，营业成本占营收76%-78%，研发投入强度按营收4.5%估算",
+      estimatedFields: [
+        ...(typeof oqInput.currentNetProfit === 'undefined' ? ["currentNetProfit"] : []),
+        ...(typeof oqInput.currentBeginNetAssets === 'undefined' ? ["currentBeginningEquity"] : []),
+        ...(typeof oqInput.currentEndNetAssets === 'undefined' ? ["currentEndingEquity"] : []),
+        ...(typeof oqInput.baselineNetProfit === 'undefined' ? ["baselineNetProfit"] : []),
+        ...(typeof oqInput.baselineBeginNetAssets === 'undefined' ? ["baselineBeginningEquity"] : []),
+        ...(typeof oqInput.baselineEndNetAssets === 'undefined' ? ["baselineEndingEquity"] : []),
+        ...(typeof oqInput.currentInventoryExpense === 'undefined' ? ["currentInventoryExpense"] : []),
+        ...(typeof oqInput.baselineInventoryExpense === 'undefined' ? ["baselineInventoryExpense"] : []),
+      ],
+      estimationMethod: "净利润率假设8%/9%；净资产按用户输入或从资产比例估算（确保期末≥期初）；库存费用占营收17%-18%",
     },
   };
 }
@@ -931,6 +947,7 @@ function extractGMPSInputFromContext(
     currentProductionVolume: oqInput.currentProductionVolume,
     currentInventory: gmInput.currentInventoryExpense * 1.15,
     currentManufacturingExpense: oqInput.currentManufacturingExpense,
+    currentOperatingCost: oqInput.currentOperatingCost,
     currentTotalLiabilities: oqInput.currentTotalLiabilities,
     currentTotalAssets: oqInput.currentTotalAssets,
     currentOperatingCashFlow: oqInput.currentOperatingCashFlow,
@@ -942,6 +959,7 @@ function extractGMPSInputFromContext(
     baselineProductionVolume: oqInput.baselineProductionVolume,
     baselineInventory: gmInput.baselineInventoryExpense * 1.15,
     baselineManufacturingExpense: oqInput.baselineManufacturingExpense,
+    baselineOperatingCost: oqInput.baselineOperatingCost,
     baselineTotalLiabilities: oqInput.baselineTotalLiabilities,
     baselineTotalAssets: oqInput.baselineTotalAssets,
     baselineOperatingCashFlow: oqInput.baselineOperatingCashFlow,

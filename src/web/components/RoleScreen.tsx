@@ -94,7 +94,7 @@ export function RoleScreen({ onSelect }: { onSelect: (r: RoleKey) => void }) {
               borderRadius: '20px',
               fontWeight: 500,
             }}>
-              GMPS + DQI 双模型
+              GMPS模型
             </div>
           </div>
         </RippleButton>
@@ -155,7 +155,7 @@ export function RoleScreen({ onSelect }: { onSelect: (r: RoleKey) => void }) {
               borderRadius: '20px',
               fontWeight: 500,
             }}>
-              风险评估 + 投资决策
+              DQI 模型
             </div>
           </div>
         </RippleButton>
