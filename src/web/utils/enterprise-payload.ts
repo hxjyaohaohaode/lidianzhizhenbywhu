@@ -7,7 +7,6 @@ import type {
 } from "../../shared/business.js";
 import type { InvestorOnboardingDraft } from "./helpers.js";
 import {
-  DEFAULT_ENTERPRISE_NAME,
   dedupeStrings,
   splitInputTags,
   toFiniteNumber,
@@ -15,12 +14,15 @@ import {
 } from "./helpers.js";
 import type { EnterpriseOnboardingDraft } from "../../shared/types.js";
 
+export const DEFAULT_ENTERPRISE_FALLBACK = "未命名企业";
+
 export function buildEnterpriseCollectionPayload(
   userId: string,
   draft: EnterpriseOnboardingDraft,
   userProfile?: UserProfileResponse | null,
 ): EnterpriseCollectionRequest {
-  const enterpriseName = draft.enterpriseName.trim() || userProfile?.profile.enterpriseNames[0] || DEFAULT_ENTERPRISE_NAME;
+  const rawName = draft.enterpriseName.trim() || userProfile?.profile.enterpriseNames[0] || "";
+  const enterpriseName = rawName.length > 0 ? rawName : DEFAULT_ENTERPRISE_FALLBACK;
   const currentRevenue = toPositiveNumber(draft.currentRevenue, 52000);
   const baselineRevenue = toPositiveNumber(draft.baselineRevenue, 48000);
   const currentCost = toPositiveNumber(draft.currentCost, 42400);
@@ -201,7 +203,7 @@ export function buildInvestorProfilePayload(
     userId,
     role: "investor" as const,
     investorName: onboarding.investorName.trim() || userProfile?.profile.displayName || "投资用户",
-    investedEnterprises: investedEnterprises.length > 0 ? investedEnterprises : userProfile?.profile.investedEnterprises ?? [DEFAULT_ENTERPRISE_NAME],
+    investedEnterprises: investedEnterprises.length > 0 ? investedEnterprises : userProfile?.profile.investedEnterprises ?? [DEFAULT_ENTERPRISE_FALLBACK],
     capitalCostRate: Number.parseFloat(onboarding.capitalCostRate) || 9.2,
     riskAppetite: onboarding.riskAppetite || storedPreferences?.riskAppetite || "medium",
     investmentHorizon: onboarding.investmentHorizon || storedPreferences?.investmentHorizon || "long",
