@@ -1,0 +1,15 @@
+services:
+  - name: battery-diagnostic
+    type: web
+    source:
+      type: dockerfile
+      path: ./Dockerfile
+    env:
+      NODE_ENV: production
+      CORS_ORIGIN: "*"
+      PERSISTENCE_MODE: file
+      STORAGE_DIR: /tmp/platform
+      VITE_APP_TITLE: 锂电池企业智能诊断系统
+      VITE_API_BASE_URL: /api
+    regions:
+      - sgp

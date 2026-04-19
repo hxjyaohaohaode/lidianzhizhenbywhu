@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm run build
-    startCommand: node dist/server/server/index.js
+    startCommand: node dist/src/server/index.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,7 +15,7 @@ services:
       - key: PERSISTENCE_MODE
         value: file
       - key: STORAGE_DIR
-        value: .runtime/platform
+        value: /tmp/platform
       - key: VITE_APP_TITLE
         value: 锂电池企业智能诊断系统
       - key: VITE_API_BASE_URL
