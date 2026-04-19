@@ -2813,8 +2813,9 @@ function BoxPlotChartWidget({
               {widget.groups.map((group, index) => {
                 const neonColor = NEON_COLORS[index % NEON_COLORS.length] ?? NEON_DEFAULT;
                 const statusColor = getStatusColor(group.status);
+                const gradientId = `bp-iqr-grad-${group.id ?? `group-${index}`}`;
                 return (
-                  <linearGradient key={`bp-iqr-grad-${group.id}`} id={`bp-iqr-grad-${group.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient key={gradientId} id={gradientId} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={statusColor} stopOpacity={0.55} />
                     <stop offset="50%" stopColor={neonColor.glow.replace("0.25", "0.35")} stopOpacity={0.35} />
                     <stop offset="100%" stopColor={statusColor} stopOpacity={0.15} />
@@ -2839,6 +2840,7 @@ function BoxPlotChartWidget({
               const cx = offsetX + slotWidth * index + slotWidth / 2;
               const boxWidth = slotWidth * 0.55;
               const halfBox = boxWidth / 2;
+              const gradientId = `bp-iqr-grad-${group.id ?? `group-${index}`}`;
 
               const yMedian = toY(group.median);
               const yQ1 = toY(group.q1);
@@ -2856,7 +2858,7 @@ function BoxPlotChartWidget({
               const scaleAnim = isAnimating ? itemProgress : 1;
 
               return (
-                <g key={group.id} className={`${bpStyleId}-group`} style={{ opacity, transform: `scale(${scaleAnim})`, transformOrigin: `${cx}px ${yMedian}px` }}
+                <g key={group.id ?? `group-${index}`} className={`${bpStyleId}-group`} style={{ opacity, transform: `scale(${scaleAnim})`, transformOrigin: `${cx}px ${yMedian}px` }}
                   onMouseEnter={() => setHoveredId(group.id)}
                   onMouseLeave={() => setHoveredId("")}
                   onClick={(e) => { setActiveId(group.id); setFocusedId(focusedId === group.id ? "" : group.id); onSelectInsight({ title: group.label, summary: group.detail, source: widget.title }); addRipple(e, statusColor); }}
@@ -2868,7 +2870,7 @@ function BoxPlotChartWidget({
 
                   <rect
                     x={cx - halfBox} y={yQ3} width={boxWidth} height={Math.max(yQ1 - yQ3, 0.5)}
-                    fill={`url(#bp-iqr-grad-${group.id})`} stroke={statusColor} strokeWidth={isActive ? 0.8 : 0.5} rx="1.5"
+                    fill={`url(#${gradientId})`} stroke={statusColor} strokeWidth={isActive ? 0.8 : 0.5} rx="1.5"
                     style={{ transition: "fill-opacity 200ms ease, stroke-width 200ms ease" }}
                   />
 
