@@ -202,11 +202,13 @@ export function splitInputTags(source: string) {
 
 export function toFiniteNumber(value: string | number | undefined, fallback: number) {
   const resolved = typeof value === "number" ? value : Number.parseFloat(value ?? "");
-  return Number.isFinite(resolved) ? resolved : fallback;
+  if (Number.isFinite(resolved)) return resolved;
+  return Number.isFinite(fallback) ? fallback : 0;
 }
 
 export function toPositiveNumber(value: string | number | undefined, fallback: number) {
-  return Math.max(toFiniteNumber(value, fallback), 0.01);
+  const result = toFiniteNumber(value, fallback);
+  return Math.max(result, 0.01);
 }
 
 export function formatEditableBusinessInfoValue(value?: EditableBusinessInfo[string]) {
