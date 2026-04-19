@@ -85,8 +85,8 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
             playsInline
             muted
             style={{
-              width: 'min(9vh, 9vw)',
-              height: 'min(9vh, 9vw)',
+              width: 'min(17vh, 17vw)',
+              height: 'min(17vh, 17vw)',
               objectFit: 'contain',
               borderRadius: '8px',
               boxShadow: '0 4px 20px rgba(79,107,246,0.15)',
@@ -96,8 +96,8 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
 
         {videoError && (
           <div style={{
-            width: 'min(9vh, 9vw)',
-            height: 'min(9vh, 9vw)',
+            width: 'min(17vh, 17vw)',
+            height: 'min(17vh, 17vw)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -108,8 +108,8 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
               src="/images/logo.png"
               alt="锂电智诊"
               style={{
-                width: '40px',
-                height: '40px',
+                width: '75px',
+                height: '75px',
                 borderRadius: '10px',
                 boxShadow: '0 4px 16px rgba(79,107,246,0.2)',
                 animation: 'logoPulse 2s ease-in-out infinite',
@@ -127,8 +127,8 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
         )}
 
         <div style={{
-          width: 'min(12vh, 12vw)',
-          maxWidth: '120px',
+          width: 'min(23vh, 23vw)',
+          maxWidth: '230px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -150,8 +150,12 @@ export function LoadingScreen({ onVideoEnd }: { onVideoEnd: () => void }) {
             }} />
           </div>
           <div style={{
-            fontSize: '10px',
-            color: 'var(--text-tertiary)',
+            fontSize: '16px',
+            fontWeight: 500,
+            background: 'linear-gradient(90deg, #4F6BF6, #7C5CFC)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
             letterSpacing: '0.5px',
           }}>
             {progress < 100 ? '系统加载中...' : '加载完成'}

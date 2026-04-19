@@ -144,15 +144,17 @@ export function buildEnterpriseAnalysisRequestPayload(
   draft: EnterpriseOnboardingDraft,
   userProfile?: UserProfileResponse | null,
   complexity?: string,
+  focusMode?: "operationalDiagnosis" | "deepDive",
 ): EnterpriseAnalysisRequest {
   const collectionPayload = buildEnterpriseCollectionPayload(userId, draft, userProfile);
+  const effectiveFocusMode = focusMode ?? (/深度|拆解|根因|详细|复盘/.test(query) ? "deepDive" : "operationalDiagnosis");
   return {
     userId,
     role: "enterprise" as const,
     sessionId,
     enterpriseName: collectionPayload.enterpriseName,
     query,
-    focusMode: /深度|拆解|根因|详细|复盘/.test(query) ? "deepDive" : "operationalDiagnosis",
+    focusMode: effectiveFocusMode,
     grossMarginInput: collectionPayload.grossMarginInput,
     operatingQualityInput: collectionPayload.operatingQualityInput,
     industryContext: collectionPayload.industryContext,

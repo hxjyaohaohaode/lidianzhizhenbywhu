@@ -312,10 +312,8 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
         let message = `Request failed with status ${response.status}`;
 
         try {
-          const errorPayload = (await response.json()) as { message?: string };
-          if (errorPayload.message) {
-            message = errorPayload.message;
-          }
+          const errorPayload = (await response.json()) as { message?: string; error?: { message?: string } };
+          message = errorPayload.error?.message || errorPayload.message || message;
         } catch {
           // ignore JSON parsing errors and preserve default status message
         }

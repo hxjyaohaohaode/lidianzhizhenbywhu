@@ -1,0 +1,7 @@
+- [x] buildEnterpriseAnalysisRequestPayload 函数增加了可选的 focusMode 参数
+- [x] 当传入 focusMode 时使用传入值，否则使用正则表达式推断
+- [x] focusMode 值符合 enterpriseAnalysisRequestSchema 定义的枚举（"operationalDiagnosis" | "deepDive"）
+- [x] EnterpriseScreen.tsx 中的调用代码正确传递 effectiveFocusMode 参数
+- [x] 代码通过类型检查无编译错误
+- [x] requestJson 函数优先读取 errorPayload.error.message 提取错误信息
+- [x] 错误消息解析保持向后兼容（回退到 errorPayload.message）
