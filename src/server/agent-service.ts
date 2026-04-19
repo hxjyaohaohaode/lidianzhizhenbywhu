@@ -841,6 +841,7 @@ function upgradeRiskLevel(
  */
 function extractDQIInputFromContext(input: DiagnosticAgentRequest): unknown {
   const oqInput = input.operatingQualityInput;
+  const gmInput = input.grossMarginInput;
 
   if (!oqInput) {
     return null;
@@ -855,6 +856,9 @@ function extractDQIInputFromContext(input: DiagnosticAgentRequest): unknown {
   const baselineEndingEquity = oqInput.baselineEndNetAssets ?? oqInput.baselineTotalAssets * 0.47;
   const baselineBeginningEquity = oqInput.baselineBeginNetAssets ?? Math.min(baselineEndingEquity * 0.95, oqInput.baselineTotalAssets * 0.45);
 
+  const currentInventoryExpense = gmInput?.currentInventoryExpense ?? oqInput.currentRevenue * 0.18;
+  const baselineInventoryExpense = gmInput?.baselineInventoryExpense ?? oqInput.baselineRevenue * 0.17;
+
   return {
     currentNetProfit,
     currentBeginningEquity,
@@ -862,7 +866,7 @@ function extractDQIInputFromContext(input: DiagnosticAgentRequest): unknown {
     currentRevenue: oqInput.currentRevenue,
     currentOperatingCashFlow: oqInput.currentOperatingCashFlow,
     currentTotalAssets: oqInput.currentTotalAssets,
-    currentInventoryExpense: oqInput.currentInventoryExpense ?? oqInput.currentRevenue * 0.18,
+    currentInventoryExpense,
     currentOperatingCost: oqInput.currentOperatingCost,
     baselineNetProfit,
     baselineBeginningEquity,
@@ -870,7 +874,7 @@ function extractDQIInputFromContext(input: DiagnosticAgentRequest): unknown {
     baselineRevenue: oqInput.baselineRevenue,
     baselineOperatingCashFlow: oqInput.baselineOperatingCashFlow,
     baselineTotalAssets: oqInput.baselineTotalAssets,
-    baselineInventoryExpense: oqInput.baselineInventoryExpense ?? oqInput.baselineRevenue * 0.17,
+    baselineInventoryExpense,
     baselineOperatingCost: oqInput.baselineOperatingCost,
     dataProvenance: {
       estimatedFields: [
@@ -880,8 +884,8 @@ function extractDQIInputFromContext(input: DiagnosticAgentRequest): unknown {
         ...(typeof oqInput.baselineNetProfit === 'undefined' ? ["baselineNetProfit"] : []),
         ...(typeof oqInput.baselineBeginNetAssets === 'undefined' ? ["baselineBeginningEquity"] : []),
         ...(typeof oqInput.baselineEndNetAssets === 'undefined' ? ["baselineEndingEquity"] : []),
-        ...(typeof oqInput.currentInventoryExpense === 'undefined' ? ["currentInventoryExpense"] : []),
-        ...(typeof oqInput.baselineInventoryExpense === 'undefined' ? ["baselineInventoryExpense"] : []),
+        ...(!gmInput?.currentInventoryExpense ? ["currentInventoryExpense"] : []),
+        ...(!gmInput?.baselineInventoryExpense ? ["baselineInventoryExpense"] : []),
       ],
       estimationMethod: "净利润率假设8%/9%；净资产按用户输入或从资产比例估算（确保期末≥期初）；库存费用占营收17%-18%",
     },
