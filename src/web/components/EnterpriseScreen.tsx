@@ -1333,6 +1333,14 @@ function EntAna({
 
   return (
     <div className={`pg iwb-page ${isActive ? 'on' : ''}`}>
+      {(mathAnalysisForPanel || loading) && (
+        <DQIGMPSPanelsContainer
+          mathAnalysisOutput={mathAnalysisForPanel}
+          isLoading={loading && !mathAnalysisForPanel}
+          displayMode="grid"
+        />
+      )}
+      <AuditInlineBanner state={auditPanelState} />
       <div className={`cly ${splitMode ? 'iwb-split' : ''}`}>
         <div className="cp" style={{ flex: 1, borderRight: splitMode ? '1px solid #E2E8F0' : 'none', borderTopRightRadius: splitMode ? 0 : '12px', borderBottomRightRadius: splitMode ? 0 : '12px' }}>
           <div className="iwb-top">
@@ -1378,16 +1386,6 @@ function EntAna({
             </div>
           )}
           {workspaceNotice && <div className="iwb-alert">{workspaceNotice}</div>}
-
-          {(mathAnalysisForPanel || loading) && (
-            <div style={{ padding: "0 12px", marginBottom: 8 }}>
-              <DQIGMPSPanelsContainer
-                mathAnalysisOutput={mathAnalysisForPanel}
-                isLoading={loading && !mathAnalysisForPanel}
-                displayMode="grid"
-              />
-            </div>
-          )}
 
           <div className="cms">
             {messages.length === 0 && !loading && (
