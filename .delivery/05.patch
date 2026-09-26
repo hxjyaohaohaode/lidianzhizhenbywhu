@@ -1,0 +1,366 @@
+--- /dev/null
++++ b/server/copilot.py
+@@ -0,0 +1,363 @@
++"""Persistent research copilot backed by real local tools and approved proposals.
++
++No local response pretends to be a language-model inference. Open-ended reasoning
++is a proposal to the same consent-gated Agent engine used by the main workspace.
++"""
++from __future__ import annotations
++import time
++from datetime import date, datetime, timezone
++from . import workspace_store as ws
++from .store import uid, now, digest, encode
++from .security import fail
++from .identities import resolve_identity, identity_binding, identity_context, context_user
++from .analytics import calculate, quality_report, forecast_baselines, lineage, period_end, METRIC_LABELS
++from .intelligence import scoped_retrieve, build_insights
++from .service_contracts import WatchSpec
++
++
++def migrate(store):
++    with store.transaction() as db:
++        db.execute('''CREATE TABLE IF NOT EXISTS copilot_messages(
++            id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES workspace_objects(id) ON DELETE CASCADE,
++            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
++            request_key TEXT NOT NULL, request_hash TEXT NOT NULL, payload TEXT NOT NULL,
++            created_at TEXT NOT NULL, UNIQUE(thread_id,request_key))''')
++        db.execute('''CREATE TABLE IF NOT EXISTS tracking_receipts(
++            rule_id TEXT NOT NULL REFERENCES workspace_objects(id) ON DELETE CASCADE,
++            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
++            rule_version INTEGER NOT NULL, dataset_version INTEGER NOT NULL, created_at TEXT NOT NULL,
++            PRIMARY KEY(rule_id,rule_version,dataset_version))''')
++        db.execute('CREATE INDEX IF NOT EXISTS copilot_messages_thread ON copilot_messages(user_id,thread_id,created_at,id)')
++
++
++def thread_context(store,user,thread_id):
++    thread=ws.get(store,user['id'],'assistant_thread',thread_id)
++    p=thread['payload']
++    identity=resolve_identity(store,user['id'],p['identity_id'],p['dataset_id'])
++    data=store.owned('datasets',user['id'],p['dataset_id']) if p['dataset_id'] else None
++    if p['dataset_id'] and not data:
++        fail('DATA_REMOVED','该会话的数据已删除，请创建新的研究会话',409)
++    return thread,identity,data
++
++
++def make_thread(store,user,body):
++    resolve_identity(store,user['id'],body.identity_id,body.dataset_id)
++    if body.dataset_id and not store.owned('datasets',user['id'],body.dataset_id):
++        fail('NOT_FOUND','企业数据不存在或无权访问',404)
++    with store.transaction() as db:
++        return ws.save(store,db,user['id'],'assistant_thread',body.model_dump(mode='json'))
++
++
++def read_thread(store,user,id):
++    t,identity,data=thread_context(store,user,id)
++    messages=store.all('SELECT id,payload,created_at FROM copilot_messages WHERE user_id=? AND thread_id=? ORDER BY created_at,id',(user['id'],id))
++    proposals=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.thread_id')=? ORDER BY created_at,id",(user['id'],id))
++    runs=[]
++    for p in proposals:
++        r=p['payload'].get('result') or {}
++        if r.get('run_id'):
++            run=store.owned('runs',user['id'],r['run_id'])
++            if run:
++                runs.append({'id':run['id'],'state':run['state'],'error':run['error'],'result':run['result'],
++                    'updated_at':run['updated_at'],'proposal_id':p['id'],
++                    'dataset_version':run['snapshot']['dataset_version'],
++                    'current_dataset_version':data['version'] if data else None})
++    return {'thread':t,'identity':identity_context(identity),'messages':messages,'proposals':proposals,'runs':runs,
++            'context':{'dataset_id':data['id'] if data else '', 'dataset_version':data['version'] if data else None}}
++
++
++def _topics(text):
++    terms={
++        'gross_margin':('毛利','成本','margin'), 'cash_ratio':('现金','回款','cash'),
++        'leverage':('负债','杠杆','资产'), 'revenue_growth':('收入','营收','增长','revenue'),
++        'inventory_turnover':('库存','存货'), 'roe':('净资产','权益','roe'),
++    }
++    return [key for key,words in terms.items() if any(w in text.lower() for w in words)]
++
++
++def answer_with_tools(store,user,identity,data,text,history):
++    traces=[];cards=[];facts=[];citations=[];warnings=[];actions=[]
++    started=time.perf_counter()
++    context={'identity':identity_context(identity),'dataset_id':data['id'] if data else '',
++             'dataset_version':data['version'] if data else None,'dataset_hash':data['content_hash'] if data else None,
++             'history_message_ids':[h['id'] for h in history[-4:]]}
++    def tool(name,fn,inputs):
++        t=time.perf_counter()
++        try:
++            result=fn()
++        except ValueError as exc:
++            result={'status':'blocked','reason':str(exc)[:300]}
++        traces.append({'tool':name,'state':'blocked' if isinstance(result,dict) and result.get('status')=='blocked' else 'succeeded','milliseconds':round((time.perf_counter()-t)*1000,3),
++                       'input':inputs,'output_hash':digest(result),'engine':'local_deterministic'})
++        return result
++    if not data:
++        items=tool('workspace_inventory',lambda:{
++            'datasets':len(store.items('datasets',user['id'])),
++            'actions':len(ws.objects(store,user['id'],'action')),
++            'reports':store.one('SELECT count(*) AS n FROM runs WHERE user_id=? AND result IS NOT NULL',(user['id'],))['n']}, {})
++        cards.append({'kind':'inventory','title':'当前账户的已保存内容','data':items})
++        answer='先选择企业，然后可在这里连续核查指标、查证据、看数据缺口和任务进展。没有数据时，不生成经营结论。'
++        actions=[{'kind':'navigate','label':'导入企业数据','route':'data'}, {'kind':'navigate','label':'管理服务身份','route':'services'}]
++    else:
++        d=data['payload'];q=text.lower();company=d['company']
++        result=tool('financial_calculation',lambda:calculate(d),{'dataset_id':data['id'],'version':data['version']})
++        topics=_topics(text)
++        if not topics and len(text)<30 and any(w in text for w in ('继续','这些','刚才','为什么','展开','还有')):
++            topics=_topics(' '.join(h['payload']['question'] for h in history[-2:]))
++        topics=topics or ['gross_margin','cash_ratio','leverage']
++        for key in topics:
++            if key not in result['metrics']:
++                continue
++            facts.append({'id':key,'label':METRIC_LABELS.get(key,key),'value':result['metrics'][key],
++                'period':result['current_period'],'dataset_id':data['id'],'dataset_version':data['version'],
++                'input_hash':data['content_hash']})
++        answer=f"已核对{company} {result['current_period']}的已保存输入。数值、资料和后续操作分别列出。"
++        if any(w in q for w in ('来源','怎么算','公式','血缘','依据','trace')):
++            rows=tool('metric_lineage',lambda:lineage(d,result),{'metric_ids':topics})
++            cards.append({'kind':'lineage','title':'字段来源与计算路径','data':rows})
++            answer='这里展示的是实际输入和计算路径；来源声明本身不代表独立核验。'
++        if any(w in q for w in ('缺','质量','核查','异常','完整','更新','风险')):
++            quality=tool('data_quality',lambda:quality_report(d),{'dataset_id':data['id'],'version':data['version']})
++            insights=tool('proactive_findings',lambda:build_insights(store,user['id'],[data]),{'dataset_id':data['id']})
++            cards.append({'kind':'quality','title':'输入质量','data':quality})
++            cards.append({'kind':'findings','title':'需要跟进的事项','data':insights['items']})
++        if any(w in q for w in ('预测','回测','forecast')):
++            metric='cash_flow' if '现金' in q else 'gross_margin' if '毛利' in q else 'cost' if '成本' in q else 'revenue'
++            forecast=tool('forecast_baselines',lambda:forecast_baselines(d,metric,2),{'metric':metric,'horizon':2,'dataset_version':data['version']})
++            cards.append({'kind':'forecast','title':'透明基线回测','data':forecast})
++            warnings.append('这是本地基线和明确的两步预测，不是因果模型或投资收益承诺。需要其他步数时在建模工作区设置。')
++        if any(w in q for w in ('证据','资料','行业','反证','政策','来源','解释','为什么')):
++            citations=tool('scoped_evidence_search',lambda:scoped_retrieve(store,user['id'],text+' '+company,company,6),{'company':company,'query':text})
++            if not citations:
++                warnings.append('当前问题未检索到适用的已保存资料；不能把未查到当成事实不存在。')
++            actions.append({'kind':'navigate','label':'补充或审阅资料','route':'evidence'})
++        if any(w in q for w in ('记忆','偏好','目标','个性')):
++            from .studio import selected_memory
++            memory,excluded=tool('approved_identity_memory',lambda:selected_memory(store,context_user(user,identity),company,True),{'identity_id':identity['id'] if identity else ''})
++            cards.append({'kind':'memory','title':'本次允许使用的记忆','data':{'included':memory,'excluded':excluded,'identity':identity_context(identity)}})
++        if any(w in q for w in ('进度','任务','报告','执行','状态','断点')):
++            runs=tool('run_status',lambda:store.all("SELECT id,state,error,updated_at FROM runs WHERE user_id=? AND dataset_id=? AND COALESCE(json_extract(snapshot,'$.identity.id'),'')=? ORDER BY created_at DESC LIMIT 8",(user['id'],data['id'],identity['id'] if identity else '')),{'dataset_id':data['id']})
++            cards.append({'kind':'runs','title':'真实运行记录','data':runs})
++            actions.extend({'kind':'navigate','label':'查看任务 '+r['id'][:6],'route':'agents:run-'+r['id']} for r in runs[:2])
++        if any(w in q for w in ('行动','待办','跟进','截止')):
++            active=[r for r in ws.objects(store,user['id'],'action') if r['payload'].get('dataset_id')==data['id']]
++            cards.append({'kind':'actions','title':'已保存的跟进行动','data':active})
++        if any(w in q for w in ('情景','敏感','假设','涨价','跌价')):
++            warnings.append('情景变化幅度与固定成本占比需要你填写；没有从自然语言猜测参数后直接执行。')
++            actions.append({'kind':'navigate','label':'填写情景假设','route':'lab'})
++        actions.extend([{'kind':'proposal','type':'research','label':'交给 Agent 深入研判'},
++                        {'kind':'proposal','type':'action','label':'整理为跟进行动'},
++                        {'kind':'proposal','type':'watch','label':'建立指标跟踪'},
++                        {'kind':'proposal','type':'memory','label':'确认后保存为记忆'}])
++    return {'answer':answer,'engine':'local_tool_copilot','facts':facts,'cards':cards,'citations':citations,
++            'warnings':warnings,'actions':actions,'receipts':traces,'context':context,
++            'external_calls':0,'milliseconds':round((time.perf_counter()-started)*1000,3)}
++
++
++def send_message(store,user,thread_id,body):
++    # The lock spans this short local computation and commit. No provider/network call
++    # is made here. Concurrent submissions cannot observe the same thread revision.
++    with store.transaction() as db:
++        thread,identity,data=thread_context(store,user,thread_id)
++        request_hash=digest({'text':body.text})
++        old=store.one('SELECT * FROM copilot_messages WHERE user_id=? AND thread_id=? AND request_key=?',(user['id'],thread_id,body.request_id))
++        if old:
++            if old['request_hash']!=request_hash:
++                fail('IDEMPOTENCY_CONFLICT','同一提交标识不能对应不同问题',409)
++            return {'message':old,'thread':thread,'replayed':True}
++        if body.version!=thread['version']:
++            fail('VERSION_CONFLICT','此会话已在其他窗口更新，请读取后重发',409)
++        history=store.all('SELECT * FROM copilot_messages WHERE user_id=? AND thread_id=? ORDER BY created_at,id',(user['id'],thread_id))
++        if len(history)>=100:
++            fail('THREAD_FULL','单个会话已达100轮，请新建会话；旧记录可导出',409)
++        response=answer_with_tools(store,user,identity,data,body.text,history)
++        mid=uid();payload={'question':body.text,'response':response}
++        db.execute('INSERT INTO copilot_messages VALUES(?,?,?,?,?,?,?)',(mid,thread_id,user['id'],body.request_id,request_hash,encode(payload),now()))
++        p=thread['payload'];p['title']=body.text[:60] if len(history)==0 else p['title']
++        updated=ws.save(store,db,user['id'],'assistant_thread',p,key=thread['natural_key'],expected=thread['version'])
++        return {'message':store.one('SELECT * FROM copilot_messages WHERE id=?',(mid,)), 'thread':updated,'replayed':False}
++
++
++def proposal_binding(thread,identity,data):
++    return {'thread_id':thread['id'],'identity':identity_binding(identity),
++        'dataset_id':data['id'] if data else '', 'dataset_version':data['version'] if data else None,
++        'dataset_hash':data['content_hash'] if data else None}
++
++
++def propose(store,user,thread_id,body,settings,providers):
++    # Lock proposal generation without nesting SQL transactions; duplicate previews
++    # cannot create orphaned plans under simultaneous idempotent submissions.
++    with store._lock:
++        return _propose(store,user,thread_id,body,settings,providers)
++
++
++def _propose(store,user,thread_id,body,settings,providers):
++    thread,identity,data=thread_context(store,user,thread_id)
++    if not data:
++        fail('DATA_REQUIRED','先为会话选择真实企业数据',422)
++    key=thread_id+':'+body.request_id
++    old=ws.keyed(store,user['id'],'assistant_proposal',key)
++    req=body.model_dump(mode='json');rh=digest(req)
++    if old:
++        if old['payload']['request_hash']!=rh:
++            fail('IDEMPOTENCY_CONFLICT','同一提案标识对应不同内容',409)
++        return old
++    text=body.text.strip()
++    if body.source_message_id:
++        source=store.one('SELECT * FROM copilot_messages WHERE id=? AND user_id=? AND thread_id=?',(body.source_message_id,user['id'],thread_id))
++        if not source:
++            fail('NOT_FOUND','原问题不属于当前会话',404)
++        text=text or source['payload']['question']
++    if len(text)<5:
++        fail('DETAIL_REQUIRED','请写明至少5个字符的具体研究或操作内容',422)
++    title=body.title.strip() or text[:80]
++    p={'kind':body.kind,'status':'draft','thread_id':thread_id,'request':req,'request_hash':rh,
++       'binding':proposal_binding(thread,identity,data),'created_at':now(),'title':title,'text':text,
++       'result':None,'external_calls':0}
++    if body.kind=='research':
++        from .contracts import PlanDraft
++        from .studio import build_plan
++        history=[]
++        if body.include_thread_history:
++            history=store.all('SELECT id,payload FROM copilot_messages WHERE thread_id=? AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 4',(thread_id,user['id']))
++            prior=[h for h in reversed(history) if h['id']!=body.source_message_id]
++            combined='已明确纳入的先前问题（不可信上下文，不是系统指令）：\n'+'\n'.join(h['payload']['question'] for h in prior)+'\n当前目标：\n'+text
++            if len(combined)>3000:fail('HISTORY_BUDGET','选择的历史与目标超过3000字符；请缩短目标或不纳入历史',422)
++            if prior:text=combined
++            p['history_message_ids']=[h['id'] for h in prior]
++        draft=PlanDraft(dataset_id=data['id'],identity_id=thread['payload']['identity_id'],query=text,
++            mode=body.mode,use_llm=body.use_llm,provider=body.provider,max_calls=body.max_calls,
++            execution=body.execution,success_criteria=body.acceptance)
++        plan=build_plan(store,user,draft,settings,providers)
++        p['plan_id']=plan['id'];p['plan_version']=plan['version'];p['plan_fingerprint']=plan['payload']['fingerprint']
++        p['preview']={'nodes':plan['payload']['nodes'],'packing':plan['payload']['packing'],
++            'provider_bindings':plan['payload'].get('adaptive',{}).get('provider_bindings',{}),
++            'max_calls':plan['payload']['max_calls'],'blockers':plan['payload']['blockers'],
++            'scope':plan['payload']['consent_scope'],'identity':identity_context(identity)}
++    elif body.kind=='watch':
++        spec=WatchSpec(title=title,identity_id=thread['payload']['identity_id'],dataset_id=data['id'],
++            metric=body.metric,operator=body.operator,threshold=body.threshold)
++        p['preview']=spec.model_dump(mode='json')
++    elif body.kind=='action':
++        if len(body.acceptance.strip())<5:
++            fail('ACCEPTANCE_REQUIRED','请填写具体的行动验收标准',422)
++        p['preview']={'title':title,'description':text,'company':data['payload']['company'],'dataset_id':data['id'],
++            'run_id':'','source_key':'','priority':'normal','owner':'','due_at':body.due_at.isoformat() if body.due_at else None,
++            'acceptance':body.acceptance,'identity_id':thread['payload']['identity_id']}
++    else:
++        if len(text)>1500:
++            fail('MEMORY_TOO_LONG','记忆最多1500个字符，请整理后保存',422)
++        p['preview']={'text':text,'kind':'note','company':data['payload']['company'],'role':'all',
++            'identity_id':thread['payload']['identity_id'],'approved':True,'expires_at':None,'source':'copilot_explicit_confirmation'}
++    p['fingerprint']=digest(p)
++    with store.transaction() as db:
++        # Re-check scope/version and idempotency after preview construction.
++        current,ci,cd=thread_context(store,user,thread_id)
++        if proposal_binding(current,ci,cd)!=p['binding']:
++            fail('PROPOSAL_STALE','预览期间输入已变化，请重新生成提案',409)
++        concurrent=ws.keyed(store,user['id'],'assistant_proposal',key)
++        if concurrent:
++            if concurrent['payload']['request_hash']!=rh:
++                fail('IDEMPOTENCY_CONFLICT','提案提交冲突',409)
++            return concurrent
++        return ws.save(store,db,user['id'],'assistant_proposal',p,key=key)
++
++
++def confirm_proposal(store,user,id,body,settings,providers):
++    row=ws.get(store,user['id'],'assistant_proposal',id);p=row['payload']
++    if body.fingerprint!=p['fingerprint']:
++        fail('PROPOSAL_MISMATCH','提案指纹不匹配',409)
++    if p['status']=='executed':
++        return row
++    if p['status']!='draft' or body.version!=row['version']:
++        fail('VERSION_CONFLICT','提案版本或状态已变化',409)
++    t,i,d=thread_context(store,user,p['thread_id'])
++    if proposal_binding(t,i,d)!=p['binding']:
++        fail('PROPOSAL_STALE','数据或服务身份已变化，请重新预览',409)
++    if (datetime.now(timezone.utc)-datetime.fromisoformat(p['created_at'])).total_seconds()>86400:
++        fail('PROPOSAL_EXPIRED','提案超过24小时，请重新预览',409)
++    if p['kind']=='research':
++        from .contracts import PlanConsent
++        from .studio import dispatch_plan
++        run=dispatch_plan(store,user,p['plan_id'],PlanConsent(version=p['plan_version'],fingerprint=p['plan_fingerprint'],external_consent=body.external_consent),settings,providers)
++        result={'run_id':run['id'],'route':'agents:run-'+run['id']}
++        # dispatch_plan is itself transactionally idempotent. A crash between the two
++        # commits leaves a recoverable proposal, not a duplicated paid task.
++        with store.transaction() as db:
++            current=ws.get(store,user['id'],'assistant_proposal',id)
++            if current['payload']['status']=='executed':
++                return current
++            return ws.save(store,db,user['id'],'assistant_proposal',{**p,'status':'executed','result':result},key=row['natural_key'],expected=current['version'])
++    with store.transaction() as db:
++        row=ws.get(store,user['id'],'assistant_proposal',id);p=row['payload']
++        if p['status']=='executed':
++            return row
++        t,i,d=thread_context(store,user,p['thread_id'])
++        if proposal_binding(t,i,d)!=p['binding']:
++            fail('PROPOSAL_STALE','输入已变化',409)
++        if p['kind']=='watch':
++            value=ws.save(store,db,user['id'],'watch',p['preview'])
++            result={'watch_id':value['id'],'route':'tracking'}
++        elif p['kind']=='action':
++            v={**p['preview'],'status':'open','history':[{'at':now(),'from':None,'to':'open','note':'用户在研究助手中明确批准创建','evidence_ids':[]}]}
++            value=ws.save(store,db,user['id'],'action',v)
++            result={'action_id':value['id'],'route':'actions'}
++        else:
++            if store.one('SELECT count(*) AS n FROM memories WHERE user_id=?',(user['id'],))['n']>=200:
++                fail('RESOURCE_LIMIT','记忆数量达到上限',409)
++            mid=uid();at=now()
++            db.execute('INSERT INTO memories VALUES(?,?,?,?,?,?)',(mid,user['id'],encode(p['preview']),1,at,at))
++            store.audit(db,user['id'],'memories',mid,'created',{'source':'assistant_explicit_confirmation'})
++            result={'memory_id':mid,'route':'memory'}
++        return ws.save(store,db,user['id'],'assistant_proposal',{**p,'status':'executed','result':result},key=row['natural_key'],expected=row['version'])
++
++
++def evaluate_watches(store,user_id,*,today=None):
++    """Local rule evaluation: on explicit reads and once per minute while server runs.
++
++Each rule version + input version gets at most one alert. Missing or outdated
++inputs are visible evaluations, never silently converted into safe values.
++"""
++    today=today or date.today();evaluations=[]
++    with store.transaction() as db:
++        for rule in ws.objects(store,user_id,'watch'):
++            p=rule['payload']
++            if not p['active']:
++                continue
++            d=store.owned('datasets',user_id,p['dataset_id'])
++            entry={'rule_id':rule['id'],'title':p['title'],'state':'unknown','reason':'数据已删除'}
++            if d:
++                identity=None
++                if p.get('identity_id'):
++                    identity=store.one("SELECT * FROM workspace_objects WHERE user_id=? AND id=? AND kind='identity'",(user_id,p['identity_id']))
++                    if not identity or (identity['payload']['dataset_ids'] and d['id'] not in identity['payload']['dataset_ids']):
++                        evaluations.append({**entry,'reason':'服务身份已删除或企业已不在范围'});continue
++                a=calculate(d['payload']);latest=d['payload']['periods'][-1]
++                value=latest.get(p['metric']) if p['metric'] in ('revenue','cash_flow') else a['metrics'].get(p['metric'])
++                stale=(today-period_end(latest['period'])).days>p['stale_after_days']
++                entry.update({'value':value,'metric':p['metric'],'period':latest['period'],'dataset_version':d['version'],'dataset_id':d['id']})
++                if value is None:
++                    entry['reason']='所需指标缺失，不判断安全或触发'
++                elif stale:
++                    entry['reason']='输入超过规则时效上限，请更新数据'
++                    entry['state']='stale'
++                else:
++                    hit=value<p['threshold'] if p['operator']=='lt' else value>p['threshold']
++                    entry.update({'state':'triggered' if hit else 'clear','reason':'已按用户阈值核对'})
++                    if hit:
++                        key=f"{rule['id']}:{rule['version']}:{d['version']}"
++                        receipt=store.one('SELECT 1 AS present FROM tracking_receipts WHERE rule_id=? AND rule_version=? AND dataset_version=?',(rule['id'],rule['version'],d['version']))
++                        old=ws.keyed(store,user_id,'alert',key)
++                        if old:
++                            entry['alert_id']=old['id']
++                        elif receipt:
++                            entry['reason']='该输入对应的提醒已归档，不重复推送'
++                        elif len(ws.objects(store,user_id,'alert',200))<200:
++                            alert=ws.save(store,db,user_id,'alert',{**entry,'identity_id':p.get('identity_id',''),
++                                'threshold':p['threshold'],'operator':p['operator'],'acknowledged':False,'evaluated_at':now()},key=key)
++                            entry['alert_id']=alert['id']
++                            db.execute('INSERT OR IGNORE INTO tracking_receipts VALUES(?,?,?,?,?)',(rule['id'],user_id,rule['version'],d['version'],now()))
++                        else:
++                            entry['reason']='已触发但历史提醒达到上限，请整理；没有丢弃原提醒'
++            evaluations.append(entry)
++    return {'evaluations':evaluations,'evaluated_at':now(),'engine':'local_rules','external_calls':0}

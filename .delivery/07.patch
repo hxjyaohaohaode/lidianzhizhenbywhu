@@ -1,0 +1,326 @@
+--- a/server/studio.py
++++ b/server/studio.py
+@@ -29,7 +29,10 @@
+     selected=[];excluded=[];today=date.today().isoformat()
+     for row in store.items('memories',user['id']):
+         p=row['payload'];reason=None
+-        if not p['approved']:reason='未批准'
++        identity=user.get('service_identity');identity_id=identity['id'] if identity else ''
++        if p.get('identity_id') and p['identity_id']!=identity_id:reason='服务身份不匹配'
++        elif identity and not identity['payload']['include_shared_memory'] and not p.get('identity_id'):reason='身份不允许共享记忆'
++        elif not p['approved']:reason='未批准'
+         elif p.get('expires_at') and p['expires_at']<today:reason='已过期'
+         elif p.get('company') and p['company']!=company:reason='企业不匹配'
+         elif p.get('role') not in ('all',user['preferences'].get('role')):reason='角色不匹配'
+@@ -46,7 +49,7 @@
+             'review_state':c.get('review_state','unreviewed'),'stance':c.get('stance','context'),'stale':c['stale']} for c in snapshot['citations']],
+         'preferences':snapshot['preferences'],'objective':snapshot['profile'],
+         'approved_memory':[{'id':m['id'],'text':m['text'],'kind':m['kind']} for m in snapshot['memory']],
+-        'history':snapshot.get('history',[]), 'data_limits':a['warnings']}
++        'history':snapshot.get('history',[]), 'data_limits':a['warnings'],'service_identity':snapshot.get('identity')}
+     dropped=[]
+     # Reserve space for reviewer inputs; do not truncate an identifier, JSON or a sentence silently.
+     target=max(0,limit-2400)
+@@ -62,6 +65,11 @@
+ 
+ 
+ def build_plan(store,user,body,settings,providers):
++    from .connections import scoped_providers, provider_binding
++    from .identities import resolve_identity, context_user, identity_context, identity_binding
++    providers=scoped_providers(providers,user['id'])
++    identity=resolve_identity(store,user['id'],body.identity_id,body.dataset_id,external=body.use_llm,max_calls=body.max_calls)
++    user=context_user(user,identity)
+     d=store.owned('datasets',user['id'],body.dataset_id)
+     if not d:fail('NOT_FOUND','数据不存在或无权访问',404)
+     company=d['payload']['company'];profile=profile_for(store,user['id'],company)
+@@ -72,6 +80,7 @@
+     if body.session_id:
+         session=store.owned('conversations',user['id'],body.session_id)
+         if not session:fail('NOT_FOUND','会话不存在或无权访问',404)
++        if session['payload'].get('identity_id','')!=body.identity_id:fail('IDENTITY_SCOPE','会话属于另一服务身份，请新建会话',403)
+         if session['payload'].get('company') not in ('',company):fail('COMPANY_MISMATCH','会话与企业不一致',409)
+         session_version=session['version']
+         if body.include_history:
+@@ -79,9 +88,11 @@
+             history=[{'role':h['role'],'text':h['payload']['text'][:500]} for h in reversed(rows)]
+     snapshot={'dataset':d['payload'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],
+         'citations':citations,'memory':memories,'preferences':user['preferences'],'profile':profile,
+-        'history':history,'comparison':body.comparison}
++        'history':history,'comparison':body.comparison,'identity':identity_context(identity)}
+     context,packing=pack_context(snapshot,body.query,body.mode,settings.max_context_chars)
+     provider=providers.select(body.provider) if body.use_llm else None
++    if provider and not body.provider:
++        body=body.model_copy(update={'provider':provider.id})
+     blockers=[]
+     if body.use_llm and not provider:blockers.append('尚未配置所选模型；可改为本地规则计划，不会模拟AI回答')
+     call_ids=[]
+@@ -101,7 +112,7 @@
+         'evidence':[{'id':c['document_id'],'hash':c['document_hash'],'review_version':c.get('review_version',0)} for c in citations],
+         'memory':[{'id':m['id'],'version':m['version'],'hash':m['payload_hash']} for m in memories],
+         'session_version':session_version if body.include_history else None,
+-        'provider':{'id':provider.id,'model':provider.model} if provider else None}
++        'provider':provider_binding(provider) if provider else None,'identity':identity_binding(identity)}
+     payload={'status':'draft','request':body.model_dump(mode='json'),'snapshot':snapshot,'context':context,
+         'packing':packing,'bindings':bindings,'nodes':nodes,'call_ids':call_ids,
+         'max_calls':len(call_ids),'requested_max_calls':body.max_calls if body.use_llm else 0,
+@@ -115,7 +126,11 @@
+ 
+ 
+ def check_bindings(store,user,plan,providers):
++    from .connections import scoped_providers, provider_binding
++    from .identities import validate_identity_binding
++    providers=scoped_providers(providers,user['id'])
+     p=plan['payload'];b=p['bindings'];r=p['request']
++    validate_identity_binding(store,user,b.get('identity'),b['dataset_id'],external=r['use_llm'],max_calls=r['max_calls'])
+     from .autonomy import validate_extra_bindings
+     validate_extra_bindings(store,user,p,providers)
+     d=store.owned('datasets',user['id'],b['dataset_id'])
+@@ -140,7 +155,7 @@
+         if not s or s['version']!=b['session_version']:fail('PLAN_STALE','会话历史已改变，请重新预览',409)
+     if r['use_llm']:
+         provider=providers.select(r['provider'])
+-        if not provider or {'id':provider.id,'model':provider.model}!=b['provider']:
++        if not provider or provider_binding(provider)!=b['provider']:
+             fail('PROVIDER_CHANGED','模型不可用或配置已变更，请重新选择',409)
+     if (datetime.now(timezone.utc)-datetime.fromisoformat(p['created_at'])).total_seconds()>86400:
+         fail('PLAN_EXPIRED','计划超过24小时，请重新预览',409)
+@@ -165,7 +180,7 @@
+         r=p['request'];session_id=r['session_id']
+         if not session_id:
+             session_id=uid();at=now()
+-            db.execute('INSERT INTO conversations VALUES(?,?,?,?,?,?)',(session_id,user['id'],encode({'title':r['query'][:60],'mode':r['mode'],'company':p['snapshot']['dataset']['company']}),1,at,at))
++            db.execute('INSERT INTO conversations VALUES(?,?,?,?,?,?)',(session_id,user['id'],encode({'title':r['query'][:60],'mode':r['mode'],'company':p['snapshot']['dataset']['company'],'identity_id':r.get('identity_id','')}),1,at,at))
+         else:
+             session=store.owned('conversations',user['id'],session_id)
+             if not session:fail('NOT_FOUND','会话已删除',404)
+--- a/server/workspace_api.py
++++ b/server/workspace_api.py
+@@ -3,6 +3,7 @@
+ import asyncio
+ import json
+ from datetime import date,datetime,timezone
++from .connections import scoped_providers
+ from fastapi import APIRouter,Request,Depends,UploadFile,File,Form,Query
+ from fastapi.responses import Response
+ from .security import require_user,fail
+@@ -49,7 +50,7 @@
+ 
+ @router.get('/agents')
+ def agents(request:Request,user=Depends(require_user)):
+-    return {'items':AGENTS,'providers':request.app.state.providers.status(),
++    return {'items':AGENTS,'providers':scoped_providers(request.app.state.providers,user['id']).status(),
+         'policy':{'external_requires_plan':True,'default_external_calls':0,'max_calls':3,
+             'llm_write_tools':[],'automatic_paid_retry':False,'automatic_provider_fallback':False,
+             'context_character_limit':request.app.state.settings.max_context_chars}}
+@@ -374,6 +375,9 @@
+         'agent_artifacts':store.all('SELECT a.* FROM agent_artifacts a JOIN runs r ON r.id=a.run_id WHERE r.user_id=? ORDER BY a.created_at',(user['id'],)),
+         'event_integrity':store.all('SELECT e.* FROM event_integrity e JOIN runs r ON r.id=e.run_id WHERE r.user_id=? ORDER BY e.event_seq',(user['id'],)),
+         'adaptive':{t:store.all(f'SELECT a.* FROM {t} a JOIN runs r ON r.id=a.run_id WHERE r.user_id=?',(user['id'],)) for t in ('adaptive_graphs','adaptive_controls','adaptive_checkpoints','adaptive_calls')},
++        'assistant_messages':store.all('SELECT id,thread_id,payload,created_at FROM copilot_messages WHERE user_id=? ORDER BY created_at,id',(user['id'],)),
++        'model_connections':store.all('SELECT id,name,host,path,model,version FROM private_connections WHERE user_id=?',(user['id'],)),
++        'tracking_receipts':store.all('SELECT * FROM tracking_receipts WHERE user_id=?',(user['id'],)),
+         'dataset_revisions':store.all('SELECT * FROM dataset_revisions WHERE user_id=? ORDER BY dataset_id,version',(user['id'],)),
+         'notice':'包含个人业务数据、批准记忆及历史快照；不包含密码、会话凭据和模型密钥。不是可直接覆盖数据库的格式。'}
+     return Response(encode(payload),media_type='application/json',headers={'Content-Disposition':'attachment; filename="lidian-workspace.json"'})
+--- a/server/workspace_store.py
++++ b/server/workspace_store.py
+@@ -3,7 +3,7 @@
+ from .store import encode, digest, uid, now, unpack
+ from .security import fail
+ 
+-KINDS = frozenset({'profile','plan','action','experiment','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation'})
++KINDS = frozenset({'profile','plan','action','experiment','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation','identity','assistant_thread','assistant_proposal','watch','alert'})
+ 
+ 
+ def migrate(store):
+--- a/start-windows.cmd
++++ b/start-windows.cmd
+@@ -1,14 +1,50 @@
+ @echo off
+ setlocal
++chcp 65001 >nul
+ cd /d "%~dp0"
+-if not exist ".venv\Scripts\python.exe" (
+-  echo Please create .venv and install requirements.txt first. See README.md.
+-  pause
+-  exit /b 1
++set "PYTHONUTF8=1"
++echo 锂电智诊 - 检查本机解释器与项目环境
++if exist ".venv\Scripts\python.exe" (
++  ".venv\Scripts\python.exe" -c "import sys;sys.exit(sys.version_info[:2] not in [(3,11),(3,12),(3,13),(3,14)])" >nul 2>nul
++  if not errorlevel 1 (
++    ".venv\Scripts\python.exe" scripts\bootstrap.py --start
++    goto finished
++  )
+ )
+-".venv\Scripts\python.exe" scripts\start.py
+-if errorlevel 1 (
+-  echo Startup failed. Review the error above and docs/DEPLOY.md.
+-  pause
+-  exit /b 1
++for %%V in (3.13 3.12 3.11 3.14) do (
++  py -%%V -c "import sys;print(sys.executable)" >nul 2>nul
++  if not errorlevel 1 (
++    py -%%V scripts\bootstrap.py --start
++    goto finished
++  )
+ )
++for %%V in (313 312 311 314) do (
++  if exist "%LOCALAPPDATA%\Programs\Python\Python%%V\python.exe" (
++    "%LOCALAPPDATA%\Programs\Python\Python%%V\python.exe" -c "import sys;print(sys.executable)" >nul 2>nul
++    if not errorlevel 1 (
++      "%LOCALAPPDATA%\Programs\Python\Python%%V\python.exe" scripts\bootstrap.py --start
++      goto finished
++    )
++  )
++)
++for /f "delims=" %%P in ('where python.exe 2^>nul') do (
++  echo %%P | findstr /i /c:"WindowsApps" >nul
++  if errorlevel 1 (
++    "%%P" -c "import sys;sys.exit(sys.version_info[:2] not in [(3,11),(3,12),(3,13),(3,14)])" >nul 2>nul
++    if not errorlevel 1 (
++      "%%P" scripts\bootstrap.py --start
++      goto finished
++    )
++  )
++)
++echo.
++echo 未找到可以实际启动的 Python 3.11-3.14。
++echo 没有删除项目、修改注册表或改变 PowerShell 执行策略。
++echo 请安装官方 Python 3.13 后再双击此文件。
++echo 使用 WinGet 时可在终端执行：winget install --exact --id Python.Python.3.13 --scope user
++echo 官方下载：https://www.python.org/downloads/windows/
++:finished
++echo.
++echo 窗口中的错误不会被跳过。可复制完整错误用于排查。
++pause
++endlocal
+--- /dev/null
++++ b/tests/services.frontend.test.mjs
+@@ -0,0 +1,56 @@
++/** Client unit tests; DOM/process flows are independently exercised by browser scripts. */
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {readFileSync} from 'node:fs';
++const listeners=new Map();
++globalThis.innerWidth=1440;
++globalThis.window={innerWidth:1440,addEventListener(){}};
++globalThis.document={addEventListener(type,fn){listeners.set(type,fn)},querySelector(){return null},querySelectorAll(){return []}};
++globalThis.sessionStorage={getItem(){return null},setItem(){}};
++const interval=globalThis.setInterval;globalThis.setInterval=()=>0;
++const layout=await import('../web/dist/layout.js');
++const views=await import('../web/dist/views-services.js');
++const chat=await import('../web/dist/copilot-ui.js');
++globalThis.setInterval=interval;
++const {state}=await import('../web/dist/state.js');
++const {api,ApiError,invalidateContext}=await import('../web/dist/api.js');
++
++test('layout width clamps malformed and extreme persisted values without squeezing work to zero',()=>{
++ for(const v of [NaN,Infinity,-100,0,9000]){const s=layout.normalizeLayout({width:v},1200);assert(s.width>=320&&s.width<=560);}
++ assert.equal(layout.normalizeLayout({collapsed:true,assistant:true,width:440},1440).width,440);
++ assert.equal(layout.normalizeLayout({collapsed:true,assistant:false},1440).collapsed,true);
++ assert.equal(layout.normalizeLayout({collapsed:1,assistant:'true'},1440).assistant,false);
++});
++test('private connection editor never echoes a server-side secret or ciphertext',()=>{
++ const html=views.connectionForm({id:'u_test',version:2,name:'<script>name',host:'public.example',path:'/v1/chat/completions',model:'x',cipher:'DO_NOT_RENDER',api_key:'DO_NOT_RENDER'});
++ assert(!html.includes('DO_NOT_RENDER'));assert(!html.includes('<script>'));assert(html.includes('autocomplete="current-password"'));
++});
++test('identity and watch forms escape hostile attributes and preserve their expected contracts',()=>{
++ state.datasets=[];state.identities=[];state.identity='';state.active='';
++ const html=views.identityForm({id:'x',version:1,payload:{name:'\"><img src=x>',objective:'</textarea><script>x',perspective:'operator',depth:'balanced',output_style:'structured',dataset_ids:[],allow_external:false,max_calls:3,include_shared_memory:false}});
++ assert(!html.includes('<img src=x>'));assert(!html.includes('</textarea><script>'));assert(html.includes('name="allow_external"'));
++ const watch=views.watchForm();assert(watch.includes('data-service-form="watch"'));assert(watch.includes('name="threshold"'));
++});
++test('assistant turns render actual receipts, not execute untrusted prompts or evidence',()=>{
++ const html=chat.messageView({id:'message',created_at:'2026-01-01',payload:{question:'<script>alert(1)</script>',response:{answer:'<img src=x>',facts:[],cards:[],citations:[],warnings:['<svg onload=x>'],receipts:[{tool:'</details><script>x',milliseconds:1,state:'completed',output_hash:'hash'}],context:{note:'<script>bad'},external_calls:0,actions:[]}}});
++ assert(!html.includes('<script>'));assert(!html.includes('<img src=x>'));assert(!html.includes('<svg onload=x>'));assert(html.includes('hash'));
++});
++test('changing work identity invalidates a pending response instead of updating the new context',async()=>{
++ const original=globalThis.fetch;let respond;
++ try{globalThis.fetch=()=>new Promise(resolve=>respond=resolve);const result=api('/services/threads');invalidateContext();respond(new Response('{"items":[{"id":"old"}]}',{headers:{'Content-Type':'application/json'}}));await assert.rejects(result,e=>e instanceof ApiError&&e.code==='STALE_SESSION');}finally{globalThis.fetch=original;}
++});
++test('every explicit new service form is routed to its real handler',()=>{
++ const source=['views-services','copilot-ui','experience'].map(name=>readFileSync(new URL('../web/'+name+'.ts',import.meta.url),'utf8')).join('\n');
++ const handlers=readFileSync(new URL('../web/experience.ts',import.meta.url),'utf8')+readFileSync(new URL('../web/copilot-ui.ts',import.meta.url),'utf8');
++ for(const name of ['identity','connection','watch','alert-ack','proposal','confirm-proposal'])assert(handlers.includes("'"+name+"'"),'missing form '+name);
++ assert(!source.includes('setTimeout(()=>{void sendCopilot'));assert(source.includes('if(e!==epoch||target!==contextKey)return'));
++});
++test('no chat persistence contains raw business drafts in browser storage',()=>{
++ const source=readFileSync(new URL('../web/copilot-ui.ts',import.meta.url),'utf8');
++ assert(!source.includes('localStorage'));assert(!source.includes('sessionStorage'));assert(source.includes('remembered.clear();drafts.clear()'));
++});
++test('layout collapse does not replace the main form and has a reduced motion alternative',()=>{
++ const source=readFileSync(new URL('../web/layout.ts',import.meta.url),'utf8');
++ assert(!source.includes('innerHTML'));assert(!source.includes('replaceChildren'));assert(source.includes('aria-expanded'));
++ const css=readFileSync(new URL('../web/workbench.css',import.meta.url),'utf8');assert(css.includes('prefers-reduced-motion'));assert(css.includes('minmax(0,1fr)'));
++});
+--- /dev/null
++++ b/tests/test_http_admission.py
+@@ -0,0 +1,30 @@
++"""Raw ASGI admission tests; no outbound socket is involved in rejected paths."""
++import asyncio
++from types import SimpleNamespace
++import pytest
++from server.app import Guard
++
++@pytest.mark.parametrize('path,headers',[
++    ('/assets/\\\\outside.example\\share',[(b'host',b'testserver')]),
++    ('//outside.example/share',[(b'host',b'testserver')]),
++    ('/assets/C:/secrets',[(b'host',b'testserver')]),
++    ('/assets/x\x00.txt',[(b'host',b'testserver')]),
++    ('/api/health',[(b'host',b'testserver/evil')]),
++    ('/api/health',[(b'host',b'testserver@evil')]),
++    ('/api/health',[(b'host',b'testserver'),(b'host',b'other')]),
++    ('/api/health',[(b'host',b'testserver\r\nx-header:x')]),
++])
++def test_rejected_before_app_and_filesystem(path,headers):
++    called=[];messages=[]
++    async def application(*args):called.append(True)
++    async def receive():return {'type':'http.request','body':b''}
++    async def send(message):messages.append(message)
++    guard=Guard(application,SimpleNamespace(production=False))
++    asyncio.run(guard({'type':'http','headers':headers,'path':path,'method':'GET','client':('127.0.0.1',1)},receive,send))
++    assert not called and messages[0]['status']==400
++    assert (b'x-content-type-options',b'nosniff') in messages[0]['headers']
++
++
++def test_trustedhost_rejection_retains_admission_security_headers(actor):
++    r=actor.client.get('/api/health',headers={'Host':'untrusted.example'})
++    assert r.status_code==400 and r.headers['X-Content-Type-Options']=='nosniff'
+--- /dev/null
++++ b/tests/test_publish.py
+@@ -0,0 +1,34 @@
++"""Actual local Git staging contracts, with no network or credential access."""
++import importlib.util
++from pathlib import Path
++import shutil
++import subprocess
++import pytest
++ROOT=Path(__file__).resolve().parents[1]
++spec=importlib.util.spec_from_file_location('publisher',ROOT/'scripts/publish.py');pub=importlib.util.module_from_spec(spec);spec.loader.exec_module(pub)
++def source(p):
++    p.mkdir()
++    for name in ('web/dist/app.js','web/brand/logo.png','web/brand/loading-video.mp4','scripts/bootstrap.py'):
++        f=p/name;f.parent.mkdir(parents=True,exist_ok=True);f.write_bytes(b'fixture\r\n')
++    return p
++
++def test_sources_include_compiled_frontend_exclude_keys_and_broken_venvs(tmp_path):
++    p=source(tmp_path/'source')
++    for name in ('.env','.runtime/credentials.key','.venv-backup/token.txt','backup.sqlite3','backup.credentials.key','private.pem','web/dist/app.js.map'):
++        f=p/name;f.parent.mkdir(parents=True,exist_ok=True);f.write_text('SECRET_TEST_ONLY')
++    f=p/'.env.example';f.write_text('APP_ENV=development')
++    names={f.relative_to(p).as_posix() for f in pub.source_files(p)}
++    assert names=={'web/dist/app.js','web/brand/logo.png','web/brand/loading-video.mp4','scripts/bootstrap.py','.env.example'}
++
++def test_staged_bytes_equal_source_with_windows_line_endings(tmp_path):
++    p=source(tmp_path/'source');repo=tmp_path/'isolated';repo.mkdir()
++    subprocess.run(['git','init',str(repo)],check=True,capture_output=True)
++    (repo/'old.txt').write_text('old');subprocess.run(['git','add','.'],cwd=repo,check=True)
++    subprocess.run(['git','config','core.autocrlf','true'],cwd=repo,check=True)
++    actual=pub.stage_release(p,repo)
++    assert 'web/dist/app.js' in actual and not (repo/'old.txt').exists()
++    assert subprocess.check_output(['git','show',':web/dist/app.js'],cwd=repo)==b'fixture\r\n'
++
++def test_publisher_refuses_original_checkout_as_destination(tmp_path):
++    p=source(tmp_path/'source')
++    with pytest.raises(ValueError,match='原项目'):pub.stage_release(p,p)
