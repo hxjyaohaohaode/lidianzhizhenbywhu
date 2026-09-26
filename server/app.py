@@ -19,7 +19,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import ValidationError
 from . import __version__
 from .config import Settings
-from .schemas import Register,Login,Preferences,Dataset,DatasetUpdate,Conversation,RunRequest,Evidence,FetchEvidence,Memory,MemoryUpdate,Feedback,PasswordChange,Scenario,CompareRequest,SearchRequest,BatchDelete
+from .schemas import Register,Login,Preferences,RoleSwitch,Dataset,DatasetUpdate,Conversation,RunRequest,Evidence,FetchEvidence,Memory,MemoryUpdate,Feedback,PasswordChange,Scenario,CompareRequest,SearchRequest,BatchDelete
 from .store import Store,encode,digest,uid,now
 from .security import require_user,fail,password_hash,password_matches,public_user,issue_session,COOKIE,DUMMY_HASH,RateLimiter
 from .models import normalize,calculate,scenario,MODEL_VERSION
@@ -231,6 +231,17 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             count=conn.execute('UPDATE users SET preferences=?,name=?,version=version+1,updated_at=? WHERE id=? AND version=?',(encode(data),body.name,now(),user['id'],body.version)).rowcount
             if not count:fail('VERSION_CONFLICT','资料已在其他窗口更新，请刷新后重新修改。',409)
             db.audit(conn,user['id'],'preferences',user['id'],'updated',{'version':body.version+1})
+        return {'user':public_user(db.one('SELECT * FROM users WHERE id=?',(user['id'],)))}
+
+    @app.put('/api/preferences/role')
+    def switch_role(body: RoleSwitch,request: Request,user=Depends(require_user)):
+        db=store(request)
+        with db.transaction() as conn:
+            updated={**user['preferences'],'role':body.role}
+            count=conn.execute('UPDATE users SET preferences=?,version=version+1,updated_at=? WHERE id=? AND version=?',
+                               (encode(updated),now(),user['id'],body.version)).rowcount
+            if not count:fail('VERSION_CONFLICT','工作视角已在其他窗口更新，请刷新后重试。',409)
+            db.audit(conn,user['id'],'preferences',user['id'],'role_changed',{'role':body.role,'version':body.version+1})
         return {'user':public_user(db.one('SELECT * FROM users WHERE id=?',(user['id'],)))}
 
     @app.get('/api/datasets')

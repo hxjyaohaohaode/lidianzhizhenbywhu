@@ -3,6 +3,7 @@ export const state:{user:Json;caps:Json;identities:Json[];identity:string;datase
   user:null,caps:null,identities:[],identity:'',datasets:[],active:'',brief:null,route:'brief',id:'',cache:{},query:'',dirty:false,busy:false,cursor:0
 };
 export function activeDataset(){return state.datasets.find(d=>d.id===state.active)??null;}
+export const roleNames:Record<string,string>={enterprise:'企业经营',investor:'投资研究',analyst:'财务分析',advisor:'顾问服务'};
 export const routes:Record<string,{label:string;icon:string;section:string}>={
  brief:{label:'我的工作',icon:'overview',section:'工作空间'},
  copilot:{label:'研究助手',icon:'spark',section:'工作空间'},

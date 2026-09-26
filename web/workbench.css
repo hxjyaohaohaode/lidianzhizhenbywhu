@@ -22,3 +22,22 @@ body{background:var(--bg)}h1{font-size:clamp(23px,2.1vw,31px);line-height:1.3}h2
 .skip-link{position:fixed!important;left:16px;top:0;transform:translateY(-120%);margin:0;max-width:calc(100vw - 32px)}.skip-link:focus{top:12px;transform:translateY(0)}
 #main[data-page=copilot]{padding-top:24px;padding-bottom:18px}.copilot-full{height:calc(100dvh - 216px);min-height:430px}.copilot-full .result-card>details{padding-top:9px;padding-bottom:9px}.copilot-full .result-card>h4{margin-bottom:12px}.copilot-messages{scroll-padding:14px}.copilot-context>strong{max-width:100%;text-overflow:ellipsis}.getting-started{max-width:1050px}.getting-started .core-entry{padding:20px 0}
 @media(max-width:900px){#main[data-page=copilot]{padding-top:20px;padding-bottom:12px}.copilot-full{height:calc(100dvh - 230px);min-height:410px}.workspace-shell[data-nav=compact]{--nav-width:0}.sidebar .brand-word,.sidebar .nav-item span{display:initial}}
+
+/* Context preference is distinct from owner-scoped service identity. */
+.sidebar-role{display:grid;gap:4px;margin:12px 2px 0;padding:10px 9px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.sidebar-role select{min-width:0;width:100%;border:1px solid var(--line);border-radius:8px;background:var(--panel-soft);color:var(--text);padding:7px 8px;font-size:12px}
+[data-nav=compact] .sidebar-role{display:none}
+.trace-container{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.trace-container .assistant-user{display:none}
+.trace-container .assistant-reply{font-size:12px}
+.trace-container .assistant-section{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.trace-container .assistant-fact{padding:12px;border:1px solid var(--line);border-radius:10px;margin:9px 0;background:var(--panel-soft)}
+.trace-container .assistant-fact-head{display:flex;justify-content:space-between;gap:10px}
+.trace-container .assistant-fact small,.trace-container .assistant-scope-note{display:block;font-size:11px;color:var(--muted);margin-top:5px}
+.trace-container .trace-list{list-style:none;padding:0;margin:7px 0}
+.trace-container .trace-list li{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);font-size:11px;padding:4px 0}
+.trace-container .trace-list code{overflow-wrap:anywhere}
+.trace-container .trend-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:10px 0}
+.trace-container .trend-list>span{display:flex;justify-content:space-between;gap:7px;background:var(--paper);border-radius:6px;padding:5px}
+.trace-container .assistant-evidence p{white-space:pre-wrap}
+@media(max-width:900px){[data-nav=compact] .sidebar-role{display:grid}}

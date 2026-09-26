@@ -6,7 +6,7 @@ import { showBrandIntro, restoreMotion, motionSetting } from './brand.js';
 import { evolutionPage, strategyForm, assessmentForm, graphCanvas, runtimeRibbon } from './views-orchestrator.js';
 import { RunLive } from './live.js';
 import { api, workspace, setCsrf, ApiError } from './api.js';
-import { state, routes, activeDataset, activeIdentity, scopedDatasets } from './state.js';
+import { state, routes, activeDataset, activeIdentity, scopedDatasets, roleNames } from './state.js';
 import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricNames, metricValue } from './components.js';
 import { briefPage, settingsPage, opsPage } from './pages.js';
 import { dataPage, datasetEditor, periodRow, financialFields, importForm, stageView, qualityPanel, evidencePage, evidenceForm, reviewEvidenceForm, memoryPage, memoryForm } from './views-data.js';
@@ -41,9 +41,9 @@ function navigate(path, force = false) { if (!force && !safeToLeave())
     void render();
     return;
 } location.hash = path; }
-function auth() { live?.dispose(); live = null; renderEpoch++; root.innerHTML = `<main class="auth-page"><section class="auth-intro"><a class="brand" href="#"><img src="/assets/brand/logo.png" alt="">锂电智诊</a><div><span class="eyebrow">企业研究与经营诊断</span><h1>让每一个判断，<br>有据可循。</h1><p>连接经营数据、原始证据与协作分析。<br>从可核验的输入，走向可执行的行动。</p><div class="auth-principles"><span>${icon('database')} 数据有来源</span><span>${icon('network')} 执行可追溯</span><span>${icon('lock')} 授权有边界</span></div></div><small>你的数据仅在账户工作区内使用；外部模型按次授权。</small></section><section class="auth-panel"><div class="auth-box"><span class="eyebrow">${signingUp ? '建立独立工作区' : '进入你的工作区'}</span><h2>${signingUp ? '创建账户' : '欢迎回来'}</h2><form id="auth-form" class="stack">${field('邮箱', input('email', '', 'type="email" autocomplete="username" required maxlength="180"'))}${field('密码', input('password', '', 'type="password" autocomplete="' + (signingUp ? 'new-password' : 'current-password') + '" minlength="' + (signingUp ? 12 : 1) + '" maxlength="128" required'), signingUp ? '至少 12 个字符，建议使用独立长密码' : '')}${signingUp ? field('称呼', input('name', '', 'autocomplete="nickname" required maxlength="200"')) + field('工作视角', select('role', { enterprise: '企业经营', investor: '投资研究' })) + field('邀请码（部署方启用时填写）', input('invitation', '', 'autocomplete="off"')) : ''}${formFooter(signingUp ? '创建工作区' : '登录')}</form><div class="auth-switch">${button(signingUp ? '已有账户，返回登录' : '没有账户？创建独立工作区', 'auth-toggle', 'text-button')}</div></div></section></main>`; }
+function auth() { live?.dispose(); live = null; renderEpoch++; root.innerHTML = `<main class="auth-page"><section class="auth-intro"><a class="brand" href="#"><img src="/assets/brand/logo.png" alt="">锂电智诊</a><div><span class="eyebrow">企业研究与经营诊断</span><h1>让每一个判断，<br>有据可循。</h1><p>连接经营数据、原始证据与协作分析。<br>从可核验的输入，走向可执行的行动。</p><div class="auth-principles"><span>${icon('database')} 数据有来源</span><span>${icon('network')} 执行可追溯</span><span>${icon('lock')} 授权有边界</span></div></div><small>你的数据仅在账户工作区内使用；外部模型按次授权。</small></section><section class="auth-panel"><div class="auth-box"><span class="eyebrow">${signingUp ? '建立独立工作区' : '进入你的工作区'}</span><h2>${signingUp ? '创建账户' : '欢迎回来'}</h2><form id="auth-form" class="stack">${field('邮箱', input('email', '', 'type="email" autocomplete="username" required maxlength="180"'))}${field('密码', input('password', '', 'type="password" autocomplete="' + (signingUp ? 'new-password' : 'current-password') + '" minlength="' + (signingUp ? 12 : 1) + '" maxlength="128" required'), signingUp ? '至少 12 个字符，建议使用独立长密码' : '')}${signingUp ? field('称呼', input('name', '', 'autocomplete="nickname" required maxlength="200"')) + field('工作视角', select('role', roleNames)) + field('邀请码（部署方启用时填写）', input('invitation', '', 'autocomplete="off"')) : ''}${formFooter(signingUp ? '创建工作区' : '登录')}</form><div class="auth-switch">${button(signingUp ? '已有账户，返回登录' : '没有账户？创建独立工作区', 'auth-toggle', 'text-button')}</div></div></section></main>`; }
 function assistantShell() { return state.route === 'copilot' ? '' : copilotShell(); }
-function shell() { theme(); loadLayout(state.user.id); let section = ''; root.innerHTML = `<div class="workspace-shell"><aside class="sidebar" id="sidebar"><a class="brand" href="#brief"><img src="/assets/brand/logo.png" alt=""><span class="brand-word">锂电智诊</span></a>${button(icon('close'), 'close-menu', 'icon-button menu-close', 'aria-label="收起导航"')}<button class="command-button" data-action="command">${icon('search')}<span>快速前往</span><kbd>Ctrl K</kbd></button><nav aria-label="主导航">${Object.entries(routes).map(([id, r]) => { const h = r.section !== section ? `<div class="nav-section">${esc(r.section)}</div>` : ''; section = r.section; return h + `<button data-route="${id}" title="${esc(r.label)}" aria-label="${esc(r.label)}" class="nav-item ${state.route === id ? 'active' : ''}" ${state.route === id ? 'aria-current="page"' : ''}>${icon(r.icon)}<span>${r.label}</span></button>`; }).join('')}</nav><div class="sidebar-footer"><span class="avatar">${esc(state.user.name.slice(0, 1))}</span><div><strong>${esc(state.user.name)}</strong><small>${esc(activeIdentity()?.payload.name ?? '默认工作身份')}</small></div>${button(icon('logout'), 'logout', 'icon-button', 'aria-label="退出登录"')}</div></aside><div class="main-shell"><header class="topbar"><div class="topbar-start">${button(icon('menu'), 'menu', 'icon-button menu-button', 'aria-label="展开导航"')}<span class="breadcrumb">工作空间 <span>/</span> <strong>${esc(routes[state.route]?.label ?? '工作简报')}</strong></span></div><div class="topbar-controls"><label class="identity-select"><span class="sr-only">当前服务身份</span>${icon('memory')}<select id="active-identity"><option value="">默认身份</option>${state.identities.map(i => `<option value="${esc(i.id)}" ${state.identity === i.id ? 'selected' : ''}>${esc(i.payload.name)}</option>`).join('')}</select></label><label class="company-select"><span class="sr-only">当前企业数据集</span>${icon('database')}<select id="active-dataset"><option value="">${state.datasets.length ? '所有企业 / 未选择' : '尚未添加企业'}</option>${scopedDatasets().map(d => `<option value="${esc(d.id)}" ${state.active === d.id ? 'selected' : ''}>${esc(d.payload.company)} · ${esc(d.payload.name)}</option>`).join('')}</select></label>${button(icon('spark'), 'show-assistant', 'icon-button', 'aria-label="打开研究助手"')}</div></header><div id="sync-notice" hidden></div><main id="main" tabindex="-1"><div class="loading" role="status"><span class="spinner"></span> 正在读取工作区…</div></main></div>${assistantShell()}<button type="button" id="drawer-backdrop" class="drawer-backdrop" aria-label="关闭抽屉" hidden></button></div>`; applyLayout(); }
+function shell() { theme(); loadLayout(state.user.id); let section = ''; root.innerHTML = `<div class="workspace-shell"><aside class="sidebar" id="sidebar"><a class="brand" href="#brief"><img src="/assets/brand/logo.png" alt=""><span class="brand-word">锂电智诊</span></a>${button(icon('close'), 'close-menu', 'icon-button menu-close', 'aria-label="收起导航"')}<button class="command-button" data-action="command">${icon('search')}<span>快速前往</span><kbd>Ctrl K</kbd></button><nav aria-label="主导航">${Object.entries(routes).map(([id, r]) => { const h = r.section !== section ? `<div class="nav-section">${esc(r.section)}</div>` : ''; section = r.section; return h + `<button data-route="${id}" title="${esc(r.label)}" aria-label="${esc(r.label)}" class="nav-item ${state.route === id ? 'active' : ''}" ${state.route === id ? 'aria-current="page"' : ''}>${icon(r.icon)}<span>${r.label}</span></button>`; }).join('')}</nav><label class="sidebar-role"><span>当前工作视角</span><select id="role-switch" aria-label="切换工作视角">${Object.entries(roleNames).map(([key, label]) => `<option value="${key}" ${state.user.preferences.role === key ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label><div class="sidebar-footer"><span class="avatar">${esc(state.user.name.slice(0, 1))}</span><div><strong>${esc(state.user.name)}</strong><small>${esc(activeIdentity()?.payload.name ?? '默认工作身份')}</small></div>${button(icon('logout'), 'logout', 'icon-button', 'aria-label="退出登录"')}</div></aside><div class="main-shell"><header class="topbar"><div class="topbar-start">${button(icon('menu'), 'menu', 'icon-button menu-button', 'aria-label="展开导航"')}<span class="breadcrumb">工作空间 <span>/</span> <strong>${esc(routes[state.route]?.label ?? '工作简报')}</strong></span></div><div class="topbar-controls"><label class="identity-select"><span class="sr-only">当前服务身份</span>${icon('memory')}<select id="active-identity"><option value="">默认身份</option>${state.identities.map(i => `<option value="${esc(i.id)}" ${state.identity === i.id ? 'selected' : ''}>${esc(i.payload.name)}</option>`).join('')}</select></label><label class="company-select"><span class="sr-only">当前企业数据集</span>${icon('database')}<select id="active-dataset"><option value="">${state.datasets.length ? '所有企业 / 未选择' : '尚未添加企业'}</option>${scopedDatasets().map(d => `<option value="${esc(d.id)}" ${state.active === d.id ? 'selected' : ''}>${esc(d.payload.company)} · ${esc(d.payload.name)}</option>`).join('')}</select></label>${button(icon('spark'), 'show-assistant', 'icon-button', 'aria-label="打开研究助手"')}</div></header><div id="sync-notice" hidden></div><main id="main" tabindex="-1"><div class="loading" role="status"><span class="spinner"></span> 正在读取工作区…</div></main></div>${assistantShell()}<button type="button" id="drawer-backdrop" class="drawer-backdrop" aria-label="关闭抽屉" hidden></button></div>`; applyLayout(); }
 async function bootstrap() { const me = await api('/auth/me'); setCsrf(me.csrf); state.user = me.user; const [ds, caps, ids] = await Promise.all([api('/datasets'), api('/capabilities'), api('/services/identities')]); state.datasets = ds.items; state.caps = caps; state.identities = ids.items; restoreIdentity(); state.cursor = (await api('/sync?head=true')).cursor; syncPending = false; if (state.active && !ds.items.some((d) => d.id === state.active))
     state.active = ''; if (state.active && !scopedDatasets().some(d => d.id === state.active))
     state.active = ''; if (!state.active && scopedDatasets().length === 1)
@@ -684,12 +684,9 @@ document.addEventListener('click', async (event) => {
                 await ask(el.dataset.query ?? '');
                 break;
             case 'assistant-route': {
-                const a = state.cache.answer.actions[Number(el.dataset.index)];
-                if (a.query)
-                    state.query = a.query;
-                if (a.dataset_id)
-                    state.active = a.dataset_id;
-                navigate(a.route);
+                const route = el.dataset.route;
+                if (route && route in routes)
+                    navigate(route);
                 break;
             }
             case 'review-claim': {
@@ -734,6 +731,24 @@ document.addEventListener('change', async (event) => { const el = event.target; 
         state.active = el.value;
         state.dirty = false;
         await render();
+    }
+    if (el.id === 'role-switch') {
+        if (!safeToLeave()) {
+            el.value = state.user.preferences.role;
+            return;
+        }
+        try {
+            const r = await api('/preferences/role', 'PUT', { role: el.value, version: state.user.version });
+            state.user = r.user;
+            state.cache = {};
+            state.dirty = false;
+            await render();
+            toast('工作视角已切换');
+        }
+        catch (e) {
+            el.value = state.user.preferences.role;
+            throw e;
+        }
     }
     if (el.id === 'extra-fields')
         document.querySelector('.editor-table')?.classList.toggle('expanded', el.checked);

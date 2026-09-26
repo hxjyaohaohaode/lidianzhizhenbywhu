@@ -35,8 +35,8 @@ def source_files(root:Path=ROOT)->list[Path]:
         if any(x in EXCLUDE or x.startswith('.venv-') for x in rel.parts):continue
         if p.is_symlink():raise ValueError('拒绝发布符号链接：'+rel.as_posix())
         if not p.is_file():continue
-        if p.name in ('.env','.coverage') or (p.name.startswith('.env.') and p.name!='.env.example'):continue
-        if p.suffix.lower() in ('.db','.sqlite','.sqlite3','.key','.pem','.p12','.pyc','.map') or p.name.endswith(('-wal','-shm')):continue
+        if p.name in ('.env','.coverage','publish-receipt.json') or (p.name.startswith('.env.') and p.name!='.env.example'):continue
+        if p.suffix.lower() in ('.db','.sqlite','.sqlite3','.key','.pem','.p12','.pyc','.map','.ttf','.otf','.woff','.woff2') or p.name.endswith(('-wal','-shm')):continue
         if rel.parts[0]=='evidence' and p.suffix.lower() in ('.png','.log','.xml'):continue
         # web/dist/*.js are intentional: clone + bootstrap must work without Node.
         files.append(p)

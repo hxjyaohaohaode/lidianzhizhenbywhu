@@ -1,0 +1,668 @@
+{
+  "transport": "native Chromium + loopback HTTP",
+  "native_network_e2e": true,
+  "mode": "native",
+  "all_checks_passed": true,
+  "checks": [
+    "原生浏览器会话 HttpOnly/SameSite 与禁止 unsafe-eval 的实际 CSP",
+    "注册后零业务数据，真实冷启动与登录",
+    "桌面侧栏真实折叠，中央可用宽度增加，ARIA状态同步",
+    "助手独立展开/收起与键盘调宽，不占用隐藏空间",
+    "服务身份创建、选择、顶部上下文同步",
+    "上传真实CSV：暂存不写正式库，确认后入库",
+    "持久会话调用财务、血缘、质量及证据工具，有真实返回与输入修订",
+    "同一研究会话可追踪实际公式、季度输入及证据范围",
+    "同一账户切换研究视角，原会话按上下文隔离后恢复",
+    "连续追问保留会话，不是覆盖单条固定回复",
+    "助手提案显示实际Agent依赖和上下文，确认前没有运行或模型调用",
+    "助手批准→真实Agent运行→数学工具与报告回到原会话",
+    "原生 EventSource 带浏览器会话读取真实任务全部事件并正常结束",
+    "原生同源写请求缺少CSRF时被拒绝，不影响现有登录会话",
+    "助手行动提案→明确验收标准→确认入库",
+    "助手记忆确认与身份作用域持久化",
+    "切换服务身份不混入前身份的研究会话",
+    "切回身份恢复原会话与独立任务结果",
+    "跟踪规则真实触发、核对归档、相同输入不重复提醒",
+    "私有连接界面保存与重新鉴权，密钥不回显",
+    "编辑连接不把既有凭据发回浏览器",
+    "原协同研判、数学与策略工作区继续可访问",
+    "调节侧栏不重建主表单，不丢失未保存研究问题",
+    "15个工作区390px真实渲染，无文档级水平溢出",
+    "移动抽屉真正打开、遮罩、Escape关闭与焦点恢复",
+    "移动助手抽屉可单独收起",
+    "全部上述流程零捕获JavaScript异常、零HTTP5xx"
+  ],
+  "count": 27,
+  "js_errors": [],
+  "responses": [
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/sync?head=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=&dataset_id=",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=&dataset_id=",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/security",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=&dataset_id=",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/identities",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/security",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=&dataset_id=",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/security",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa&dataset_id=",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa&dataset_id=",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/imports/file",
+      "status": 201
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/imports/eb4946765632465896df7c25447fdff6/commit",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa&dataset_id=86006724e5d44e269c7572c482599dbf",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa&dataset_id=86006724e5d44e269c7572c482599dbf",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/threads",
+      "status": 201
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387/messages",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/assistant",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/preferences/role",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa&dataset_id=86006724e5d44e269c7572c482599dbf",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/preferences/role",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387/messages",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/connections",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387/proposals",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/plans/4a19e98a6ab9402fb9fd41711ca1d1d4",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/proposals/672c997c55ee498ba31d0b7685abc775/confirm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/runs/c9b4a7e182084d86813bf3e9eb7cbeee/events",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/threads",
+      "status": 403
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387/proposals",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/proposals/5976361d697742a7a521bef2a33273ce/confirm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387/proposals",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/proposals/b746a8de593e4ea9a6b22a0b80263aa3/confirm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads?identity_id=&dataset_id=86006724e5d44e269c7572c482599dbf",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/threads/0363d9c6319b434f9f656f36664d5387",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/tracking?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/watches",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/tracking?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/alerts/4b01b1d29e5f475796b814c194a67630/acknowledge",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/tracking?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa",
+      "status": 200
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/services/alerts/4b01b1d29e5f475796b814c194a67630",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/tracking?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/86006724e5d44e269c7572c482599dbf/analysis",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/tracking?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/security",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/sync?after=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/connections",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/security",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/sync?after=25&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/86006724e5d44e269c7572c482599dbf/analysis",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/experiments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/evolution",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/evidence",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/reports",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/tracking?identity_id=c9f3bf3a5c194d80bf2c0aace3c480aa",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/actions",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/memories",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/security",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/identities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/connections",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/runs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/86006724e5d44e269c7572c482599dbf/analysis",
+      "status": 200
+    }
+  ],
+  "screenshots": [
+    "ui-current-empty.png",
+    "ui-current-copilot.png",
+    "ui-current-approval.png",
+    "ui-current-services.png",
+    "ui-current-mobile.png"
+  ],
+  "policy_modified": false,
+  "data": "isolated synthetic test account and input"
+}

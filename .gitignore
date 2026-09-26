@@ -18,3 +18,5 @@ credentials.key
 *.backup.json
 *.sqlite
 *.db
+evidence/*.log
+evidence/*.xml

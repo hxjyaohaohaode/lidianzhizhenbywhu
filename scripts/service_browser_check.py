@@ -135,6 +135,17 @@ def main():
             submit('#assistant-form');page.locator('.chat-turn').wait_for();assert page.locator('.fact-tile').count()>=2
             assert '数据质量' in page.locator('#assistant-answer').inner_text();assert page.locator('.tool-receipts').count()==1
             record('持久会话调用财务、血缘、质量及证据工具，有真实返回与输入修订')
+            page.locator('[data-x-action="chat-trace"]').first.click()
+            page.locator('.trace-container .assistant-fact').first.wait_for()
+            assert page.locator('.trace-container .trace-list li').count()>0
+            record('同一研究会话可追踪实际公式、季度输入及证据范围')
+            page.locator('#role-switch').select_option('advisor')
+            page.locator('.chat-turn').first.wait_for(state='detached')
+            assert page.locator('#role-switch').input_value()=='advisor'
+            page.locator('#role-switch').select_option('enterprise')
+            page.locator('.chat-turn').first.wait_for()
+            assert page.locator('#role-switch').input_value()=='enterprise'
+            record('同一账户切换研究视角，原会话按上下文隔离后恢复')
             page.locator('#assistant-query').fill('继续展开刚才的现金流依据');submit('#assistant-form')
             assert page.locator('.chat-turn').count()==2;record('连续追问保留会话，不是覆盖单条固定回复')
             snap('ui-current-copilot.png')

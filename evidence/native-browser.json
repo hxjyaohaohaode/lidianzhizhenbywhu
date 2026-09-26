@@ -1,6 +1,0 @@
-{
-  "passed": false,
-  "stage": "native_navigation",
-  "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:8000/\nCall log:\n  - navigating to \"http://127.0.0.1:8000/\", waiting until \"domcontentloaded\"\n",
-  "policy_modified": false
-}
