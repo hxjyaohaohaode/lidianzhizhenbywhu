@@ -1,6 +1,8 @@
-"""Real Chromium rendering with explicitly limited local HTTP transport bridge.
-This is NOT native cookie/CSP/module network/SSE end-to-end certification.
-Run only against an isolated local database, never a production workspace.
+"""Dual-mode Chromium acceptance against an isolated local workspace.
+
+--native uses genuine browser navigation, cookies, CSP and EventSource.
+Default mode is explicitly a DOM + fixed HTTPX bridge, not native acceptance.
+No browser policy or application security header is weakened for either mode.
 """
 from __future__ import annotations
 import argparse
@@ -18,7 +20,7 @@ ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--native',action='store_true');args=parser.parse_args();native=args.native
-    checks=[];errors=[];responses=[];screens=[]
+    checks=[];errors=[];responses=[];screens=[];completed=False
     def record(label):checks.append(label);print('PASS',label,flush=True)
     with httpx.Client(base_url='http://127.0.0.1:8000',trust_env=False,timeout=30) as client,sync_playwright() as p:
         launch={'headless':True};executable=os.getenv('CHROMIUM_PATH')
@@ -41,7 +43,8 @@ def main():
             return {'status':r.status_code,'body':r.text,'headers':dict(r.headers)}
         if native:
             page.on('response',lambda r:responses.append({'method':r.request.method,'path':r.url.split('127.0.0.1:8000')[-1],'status':r.status}) if '/api/' in r.url else None)
-            page.goto('http://127.0.0.1:8000',wait_until='domcontentloaded')
+            landing=page.goto('http://127.0.0.1:8000',wait_until='domcontentloaded')
+            assert landing and landing.status==200
         else:
             page.expose_function('__localApi',call)
             html=re.sub(r'<script[^>]*>.*?</script>','',(ROOT/'web/index.html').read_text(),flags=re.S);html=re.sub(r'<link[^>]*>','',html)
@@ -73,6 +76,18 @@ def main():
             page.wait_for_timeout(250)
             page.screenshot(path=str(OUT/name),full_page=True);screens.append(name)
         def overflow():return page.evaluate('document.documentElement.scrollWidth > innerWidth + 1')
+        def wait_box(selector, min_x=-1, max_x=None):
+            # Poll geometry through Playwright's native locator, outside page eval.
+            # wait_for_function compiles a string in page context and is correctly
+            # rejected by this application's CSP (no unsafe-eval). Keep that CSP.
+            deadline=time.monotonic()+5
+            last=None
+            while time.monotonic()<deadline:
+                last=page.locator(selector).bounding_box()
+                if last and last['x']>=min_x and (max_x is None or last['x']<max_x):
+                    return last
+                page.wait_for_timeout(50)
+            raise AssertionError(f'{selector} did not enter expected viewport bounds: {last}')
         try:
             page.locator('#auth-form').wait_for(timeout=12000)
             if page.locator('[data-intro-skip]').count():page.locator('[data-intro-skip]').click()
@@ -84,6 +99,11 @@ def main():
             submit('#auth-form');page.locator('#main[data-page="brief"]').wait_for()
             if native:
                 for cookie in page.context.cookies():client.cookies.set(cookie['name'],cookie['value'])
+                session=next(c for c in page.context.cookies() if c['name']=='lidian_session')
+                assert session['httpOnly'] and session['sameSite']=='Strict'
+                assert "'unsafe-eval'" not in landing.headers.get('content-security-policy','')
+                assert "script-src 'self'" in landing.headers.get('content-security-policy','')
+                record('原生浏览器会话 HttpOnly/SameSite 与禁止 unsafe-eval 的实际 CSP')
             assert client.get('/api/datasets').json()['items']==[]
             record('注册后零业务数据，真实冷启动与登录');snap('ui-current-empty.png')
             initial=page.locator('#sidebar').bounding_box()['width']
@@ -126,6 +146,26 @@ def main():
             snap('ui-current-approval.png')
             submit('form[data-service-form="confirm-proposal"]');page.locator('.chat-run-result').wait_for(timeout=25000)
             assert '未调用模型' in page.locator('#assistant-answer').inner_text();record('助手批准→真实Agent运行→数学工具与报告回到原会话')
+            if native:
+                run_id=client.get('/api/runs').json()['items'][0]['id']
+                stream=page.evaluate("""id => new Promise((resolve,reject)=>{
+                    const entries=[];let opened=false;
+                    const source=new EventSource('/api/runs/'+encodeURIComponent(id)+'/events',{withCredentials:true});
+                    const timer=setTimeout(()=>{source.close();reject(new Error('Native SSE did not finish'));},10000);
+                    source.onopen=()=>{opened=true;};
+                    source.addEventListener('trace',event=>entries.push(JSON.parse(event.data).seq));
+                    source.addEventListener('end',()=>{clearTimeout(timer);source.close();resolve({opened,entries});});
+                    source.onerror=()=>{clearTimeout(timer);source.close();reject(new Error('Native SSE failed'));};
+                })""",run_id)
+                expected=[e['seq'] for e in client.get('/api/runs/'+run_id+'/trace').json()['items']]
+                assert stream['opened'] and stream['entries']==expected and expected
+                record('原生 EventSource 带浏览器会话读取真实任务全部事件并正常结束')
+                rejected=page.evaluate("""async()=>{const response=await fetch('/api/services/threads',{
+                    method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({title:'native rejected CSRF test'})});
+                    return {status:response.status,body:await response.json()};}""")
+                assert rejected['status']==403 and rejected['body']['error']['code']=='CSRF_REJECTED'
+                record('原生同源写请求缺少CSRF时被拒绝，不影响现有登录会话')
             page.locator('[data-x-action="chat-propose"][data-kind="action"]').last.click()
             f='form[data-service-form="proposal"]';page.locator(f+' [name="acceptance"]').fill('核对原始财务表，记录输入口径和复核证据');submit(f);submit('form[data-service-form="confirm-proposal"]')
             assert client.get('/api/workspace/actions').json()['items'];record('助手行动提案→明确验收标准→确认入库')
@@ -161,18 +201,19 @@ def main():
                 go(route);page.wait_for_timeout(80);assert not overflow(),route+' horizontal overflow'
             record('15个工作区390px真实渲染，无文档级水平溢出')
             go('copilot');snap('ui-current-mobile.png')
-            page.locator('[data-action="menu"]').click();page.wait_for_function("document.querySelector('#sidebar').getBoundingClientRect().x>=-1");assert page.locator('#sidebar').bounding_box()['x']>=-1
+            page.locator('[data-action="menu"]').click();wait_box('#sidebar');assert page.locator('#sidebar').bounding_box()['x']>=-1
             assert page.locator('#drawer-backdrop').is_visible();page.keyboard.press('Escape');page.wait_for_timeout(250)
             assert not page.locator('#drawer-backdrop').is_visible();record('移动抽屉真正打开、遮罩、Escape关闭与焦点恢复')
-            go('brief');page.locator('[data-action="show-assistant"]').click();page.wait_for_function("document.querySelector('#assistant-rail').getBoundingClientRect().x>=-1 && document.querySelector('#assistant-rail').getBoundingClientRect().x<390");assert page.locator('#assistant-rail').bounding_box()['x']>=-1
+            go('brief');page.locator('[data-action="show-assistant"]').click();wait_box('#assistant-rail',max_x=390);assert page.locator('#assistant-rail').bounding_box()['x']>=-1
             page.locator('[data-action="close-assistant"]').click();record('移动助手抽屉可单独收起')
             assert not errors,errors
             assert not [r for r in responses if r['status']>=500],responses
             record('全部上述流程零捕获JavaScript异常、零HTTP5xx')
+            completed=True
         except Exception as exc:
             snap('ui-current-failure.png');print('FAIL',type(exc).__name__,str(exc),flush=True)
             raise
         finally:
-            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native,'checks':checks,'count':len(checks),'js_errors':errors,'responses':responses,'screenshots':screens,'policy_modified':False,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
+            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'responses':responses,'screenshots':screens,'policy_modified':False,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
             b.close()
 if __name__=='__main__':main()
