@@ -13,7 +13,7 @@
         "scripts"
       ],
       "exit_code": 0,
-      "seconds": 0.219
+      "seconds": 0.25
     },
     {
       "check": "typecheck",
@@ -25,7 +25,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 0.844
+      "seconds": 0.828
     },
     {
       "check": "pytest",
@@ -37,7 +37,7 @@
         "--junitxml=evidence/pytest.xml"
       ],
       "exit_code": 0,
-      "seconds": 101.297
+      "seconds": 98.125
     },
     {
       "check": "frontend-tests",
@@ -48,7 +48,7 @@
         "tests/services.frontend.test.mjs"
       ],
       "exit_code": 0,
-      "seconds": 0.234
+      "seconds": 0.25
     },
     {
       "check": "source-guard",
@@ -57,7 +57,7 @@
         "scripts/source_guard.py"
       ],
       "exit_code": 0,
-      "seconds": 0.297
+      "seconds": 0.312
     },
     {
       "check": "full-chain-http",
@@ -66,7 +66,7 @@
         "scripts/full_chain_check.py"
       ],
       "exit_code": 0,
-      "seconds": 6.281
+      "seconds": 6.563
     }
   ],
   "all_executed_checks_pass": true,

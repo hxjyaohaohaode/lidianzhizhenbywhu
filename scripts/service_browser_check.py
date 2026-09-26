@@ -139,13 +139,19 @@ def main():
             page.locator('.trace-container .assistant-fact').first.wait_for()
             assert page.locator('.trace-container .trace-list li').count()>0
             record('同一研究会话可追踪实际公式、季度输入及证据范围')
+            previous=page.locator('#role-switch').element_handle()
             page.locator('#role-switch').select_option('advisor')
-            page.locator('.chat-turn').first.wait_for(state='detached')
+            previous.wait_for_element_state('hidden')
             assert page.locator('#role-switch').input_value()=='advisor'
-            page.locator('#role-switch').select_option('enterprise')
+            assert client.get('/api/auth/me').json()['user']['preferences']['role']=='advisor'
             page.locator('.chat-turn').first.wait_for()
+            previous=page.locator('#role-switch').element_handle()
+            page.locator('#role-switch').select_option('enterprise')
+            previous.wait_for_element_state('hidden')
             assert page.locator('#role-switch').input_value()=='enterprise'
-            record('同一账户切换研究视角，原会话按上下文隔离后恢复')
+            assert client.get('/api/auth/me').json()['user']['preferences']['role']=='enterprise'
+            page.locator('.chat-turn').first.wait_for()
+            record('同一账户切换研究视角并持久化；已有会话仍可读取')
             page.locator('#assistant-query').fill('继续展开刚才的现金流依据');submit('#assistant-form')
             assert page.locator('.chat-turn').count()==2;record('连续追问保留会话，不是覆盖单条固定回复')
             snap('ui-current-copilot.png')
@@ -225,6 +231,8 @@ def main():
             snap('ui-current-failure.png');print('FAIL',type(exc).__name__,str(exc),flush=True)
             raise
         finally:
-            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'responses':responses,'screenshots':screens,'policy_modified':False,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
+            status_counts={str(status):sum(row['status']==status for row in responses) for status in sorted({row['status'] for row in responses})}
+            http={'requests':len(responses),'status_counts':status_counts,'server_errors':[row for row in responses if row['status']>=500]}
+            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'policy_modified':False,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
             b.close()
 if __name__=='__main__':main()
