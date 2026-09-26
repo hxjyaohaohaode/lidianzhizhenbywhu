@@ -135,7 +135,7 @@ def test_provider_wire_request_usage_contract(monkeypatch):
     assert captured['body']['stream'] is False and captured['body']['max_tokens']==1000 and captured['body']['messages'][0]['role']=='system'
     assert captured['closed'] and r['output']==output and r['usage']=={'prompt_tokens':11,'completion_tokens':7,'total_tokens':18}
     assert asyncio.run(p.complete(provider,'system','{}'))['model']=='test-model'
-@pytest.mark.parametrize('response',[b'x'*500001,b'not json',b'{"choices":[]}',b'{"choices":[{"message":{"content":[]}}]}'])
+@pytest.mark.parametrize('response',[b'x'*500001,b'not json',b'{"choices":[]}',b'{"choices":[{"message":{"content":[]}}]}'],ids=['oversized','invalid-json','missing-choice','invalid-content'])
 def test_malformed_provider_wire_rejected(monkeypatch,response):
     import server.providers as m
     class Conn:

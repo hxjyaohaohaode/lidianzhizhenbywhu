@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64,json,re,uuid,time,os
 from pathlib import Path
 import httpx
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright,expect
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence';OUT.mkdir(exist_ok=True)
 
 def main(native=False):
@@ -40,7 +40,7 @@ def main(native=False):
             brand={'/assets/brand/logo.png':'data:image/png;base64,'+base64.b64encode((ROOT/'web/brand/logo.png').read_bytes()).decode(),'/assets/brand/loading-video.mp4':'data:video/mp4;base64,'+base64.b64encode((ROOT/'web/brand/loading-video.mp4').read_bytes()).decode()}
             page.evaluate("assets=>new MutationObserver(()=>document.querySelectorAll('img,video').forEach(el=>{const src=el.getAttribute('src');if(assets[src])el.src=assets[src]})).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['src']})",brand)
             modules=[]
-            for name in ['api','state','components','views-data','views-orchestrator','views-studio','views-analysis','pages','brand','live','app']:
+            for name in ['api','state','components','assistant','views-data','views-orchestrator','views-studio','views-analysis','pages','brand','live','app']:
                 code=(ROOT/f'web/dist/{name}.js').read_text();code=re.sub(r'^import[^;]+;','',code,flags=re.M);code=re.sub(r'^export ','',code,flags=re.M);modules.append(code)
             page.add_script_tag(content='\n'.join(modules),type='module')
         def record(name):checks.append(name);print('PASS',name,flush=True)
@@ -57,7 +57,7 @@ def main(native=False):
             err=page.locator(form+' .form-error')
             if err.count() and err.is_visible():raise AssertionError(err.inner_text())
         def shot(name):
-            page.wait_for_function("document.querySelectorAll('#notifications .toast').length===0",timeout=12000)
+            page.locator('#notifications .toast').first.wait_for(state='hidden',timeout=12000)
             page.screenshot(path=str(OUT/name),full_page=True)
         try:
             page.locator('#auth-form').wait_for();page.locator('.brand-intro [data-intro-skip]').click();assert page.locator('.brand-intro').count()==0;record('原始开场视频可直接跳过，不依赖动画完成才能登录');shot('ui-login.png')
@@ -77,6 +77,9 @@ def main(native=False):
             page.locator('[data-action="commit-stage"]').click();page.locator('#dataset-editor').wait_for();d=client.get('/api/datasets').json()['items'][0];record('明确提交后持久化归一化数据')
             goto('brief');page.locator('.chart').wait_for();shot('ui-test-workspace.png');record('已保存数据驱动趋势、指标与主动核查')
             page.locator('[data-action="assistant-query"]').nth(1).click();page.locator('.assistant-fact').first.wait_for();assert '模型调用 0' in page.locator('#assistant-answer').inner_text();record('助手读取真实保存指标；明确标记本地路由而非模型聊天')
+            page.locator('.assistant-fact details summary').first.click();assert page.locator('.trace-list li').count()>0;assert '数据修订' in page.locator('#assistant-answer').inner_text();record('助手显示计算输入、季度追踪与数据修订')
+            page.locator('[data-action="collapse-menu"]').click();expect(page.locator('#sidebar')).to_have_css('width','70px');shot('ui-collapsed-navigation.png');page.locator('[data-action="collapse-menu"]').click();expect(page.locator('#sidebar')).to_have_css('width','224px');record('桌面导航真实收缩与展开')
+            page.locator('#role-switch').select_option('advisor');expect(page.locator('#sidebar .sidebar-footer small')).to_have_text('顾问服务');page.locator('[data-action="assistant-query"]').first.click();page.get_by_text('当前最值得跟进的行动是什么？',exact=True).first.wait_for();page.locator('#role-switch').select_option('enterprise');expect(page.locator('#sidebar .sidebar-footer small')).to_have_text('企业经营');record('同一账户切换研究视角并收到对应追问')
             goto('settings');page.locator('#company-profile-form [name="margin_floor"]').fill('40');page.locator('#company-profile-form [name="objective"]').fill('验收专用：核查毛利与现金回流差异');submit('#company-profile-form');record('企业自定目标保存并绑定企业范围')
             goto('brief');assert page.get_by_text('毛利率低于自定目标',exact=True).count()>0;page.locator('#main [data-action="insight-action"]').first.click()
             submit('#action-form');goto('actions');page.locator('.action-card').first.click();page.locator('#action-transition-form [name="note"]').fill('验收测试：开始核对原始财务表');submit('#action-transition-form');page.locator('.action-card').first.click();page.locator('#action-transition-form [name="status"]').select_option('done');page.locator('#action-transition-form [name="note"]').fill('验收测试：已完成原始财务表核对');submit('#action-transition-form');assert page.locator('.kanban-column').nth(3).locator('.action-card').count()==1;record('核查建议→行动→处理中→说明验收→已完成全链路')

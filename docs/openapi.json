@@ -1988,6 +1988,42 @@
         }
       }
     },
+    "/api/preferences/role": {
+      "put": {
+        "summary": "Switch Role",
+        "operationId": "switch_role_api_preferences_role_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleSwitch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/datasets": {
       "get": {
         "summary": "Datasets",
@@ -3573,7 +3609,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           },
           "company": {
@@ -3598,7 +3634,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           }
         },
@@ -3612,7 +3648,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           },
           "company": {
@@ -4503,7 +4539,9 @@
                 "type": "string",
                 "enum": [
                   "enterprise",
-                  "investor"
+                  "investor",
+                  "analyst",
+                  "advisor"
                 ]
               },
               {
@@ -4575,7 +4613,9 @@
                 "type": "string",
                 "enum": [
                   "enterprise",
-                  "investor"
+                  "investor",
+                  "analyst",
+                  "advisor"
                 ]
               },
               {
@@ -4970,7 +5010,9 @@
             "type": "string",
             "enum": [
               "enterprise",
-              "investor"
+              "investor",
+              "analyst",
+              "advisor"
             ],
             "title": "Role",
             "default": "enterprise"
@@ -5084,7 +5126,9 @@
             "type": "string",
             "enum": [
               "enterprise",
-              "investor"
+              "investor",
+              "analyst",
+              "advisor"
             ],
             "title": "Role",
             "default": "enterprise"
@@ -5125,6 +5169,32 @@
           "target_revision"
         ],
         "title": "RevisionRestore"
+      },
+      "RoleSwitch": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "enterprise",
+              "investor",
+              "analyst",
+              "advisor"
+            ],
+            "title": "Role"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "version"
+        ],
+        "title": "RoleSwitch"
       },
       "RollbackStrategy": {
         "properties": {

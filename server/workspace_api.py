@@ -361,7 +361,7 @@ def report_compare(request:Request,left:str=Query(...,max_length=80),right:str=Q
 
 @router.post('/assistant')
 def assistant(body:AssistantRequest,request:Request,user=Depends(require_user)):
-    return assistant_answer(dbof(request),user['id'],body.query,body.dataset_id)
+    return assistant_answer(dbof(request),user,body.query,body.dataset_id)
 
 
 @router.get('/export')

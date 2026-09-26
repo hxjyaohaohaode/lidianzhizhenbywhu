@@ -1,6 +1,1134 @@
 {
-  "passed": false,
-  "stage": "native_navigation",
-  "error": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:8000/\nCall log:\n  - navigating to \"http://127.0.0.1:8000/\", waiting until \"domcontentloaded\"\n",
-  "policy_modified": false
+  "transport": "native HTTP/ESM/cookie integration",
+  "test_data": "synthetic acceptance only; isolated runtime; not packaged as product data",
+  "passed": true,
+  "checks": [
+    "原始开场视频可直接跳过，不依赖动画完成才能登录",
+    "独立注册后，财务、企业、报告均为空；无演示数据按钮",
+    "CSV解析预览不直接写入财务库",
+    "明确提交后持久化归一化数据",
+    "已保存数据驱动趋势、指标与主动核查",
+    "助手读取真实保存指标；明确标记本地路由而非模型聊天",
+    "助手显示计算输入、季度追踪与数据修订",
+    "桌面导航真实收缩与展开",
+    "同一账户切换研究视角并收到对应追问",
+    "企业自定目标保存并绑定企业范围",
+    "核查建议→行动→处理中→说明验收→已完成全链路",
+    "证据标题与原文按文本显示，XSS未执行",
+    "企业作用域检索、资料审阅与引用片段联动",
+    "记忆默认未批准，明确批准才可召回",
+    "生成计划展示分工和边界，不发出外部调用或后台运行",
+    "批准后按目标执行真实依赖图与本地复盘，未授权模型不会调用",
+    "报告摘要、Agent轨迹、证据上下文与逐字段血缘均可展开",
+    "已完成节点有实际产物、事件链和原始输入散列",
+    "真实DAG缩放、清单切换和键盘节点详情可用",
+    "报告验收与本地回放授权分别保存",
+    "由人工验收缺口生成并回放候选；样本不足时不能激活",
+    "减少动效、原始品牌重播与Escape退出，不阻断业务页面",
+    "同一Agent任务实际完成序列回测与已批准情景，并归档真实产物",
+    "固定/变动成本拆分、单因素与二维敏感性实验保存",
+    "四种时间基线滚动回测、逐折训练边界和预测区间披露",
+    "恢复旧内容新增修订，不覆盖历史",
+    "修改数据后报告标记过期，冻结结果不自动重写",
+    "主题与个人设置持久同步",
+    "快捷导航、检索过滤、原生对话框退出",
+    "12个工作区及运行详情390px无文档级横向溢出",
+    "移动端导航与上下文助手独立展开收起",
+    "独立快照整理入口展示已有记录，删除明确披露保留边界",
+    "会话历史可显式选择，默认不纳入上下文",
+    "变更游标触发被动提醒，不覆盖未保存的问题",
+    "全流程未捕获JavaScript异常或HTTP5xx"
+  ],
+  "errors": [],
+  "http": [
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 401
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/loading-video.mp4",
+      "status": 206
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/register",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/capabilities",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/sync?head=true",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/imports/file",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/imports/6525dedcbfe34af584bab7ca59313d0b/commit",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets/70cfea439b8d48488b73b72a533ef9d0/analysis",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/assistant",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/preferences/role",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets/70cfea439b8d48488b73b72a533ef9d0/analysis",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/assistant",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/preferences/role",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets/70cfea439b8d48488b73b72a533ef9d0/analysis",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets/70cfea439b8d48488b73b72a533ef9d0/analysis",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/actions",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets/70cfea439b8d48488b73b72a533ef9d0/analysis",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/actions",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/actions/094552e459b44fa4ad0e5631df7a4aa1/status",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/actions",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/actions/094552e459b44fa4ad0e5631df7a4aa1/status",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/actions",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evidence",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/evidence",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evidence",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evidence/1aa7c5e27cca4c43834de0f44ec514f9/review",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evidence",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evidence/1aa7c5e27cca4c43834de0f44ec514f9/review",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evidence",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/retrieval?q=%E6%AF%9B%E5%88%A9%E7%8E%87%E9%87%87%E8%B4%AD%E6%88%90%E6%9C%AC&company=%E9%AA%8C%E6%94%B6%E4%B8%93%E7%94%A8%E4%BC%81%E4%B8%9A%EF%BC%88%E5%90%88%E6%88%90%E6%B5%8B%E8%AF%95%EF%BC%89",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/memories",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/memories",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/memories",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/memories/206659192d3b4f148bcdab00100fc597",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/memories",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans/aac2798486954f56bcd42de3e45550b7",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/sync?after=0&limit=100",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans/aac2798486954f56bcd42de3e45550b7/execute",
+      "status": 202
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/0ff218bee6944a8f8b2a190f6bde98c2",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/reviews",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/audit",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/runtime",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/0ff218bee6944a8f8b2a190f6bde98c2",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/audit",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/audit",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/assessment",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/assessment",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/0ff218bee6944a8f8b2a190f6bde98c2",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/reviews",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/audit",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/runtime",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evolution",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evolution/propose",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evolution",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans/1cdcc5bcd0994c86a7bb83050c599ad0",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans/1cdcc5bcd0994c86a7bb83050c599ad0/execute",
+      "status": 202
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/audit",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/7500b77b62a44cf09848a465ea1d862b",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/reviews",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/runtime",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/7500b77b62a44cf09848a465ea1d862b/events?after=0",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/runtime",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/7500b77b62a44cf09848a465ea1d862b/trace",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/runtime",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/7500b77b62a44cf09848a465ea1d862b/trace",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/runtime",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/7500b77b62a44cf09848a465ea1d862b/trace",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/7500b77b62a44cf09848a465ea1d862b",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/audit",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/reviews",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/7500b77b62a44cf09848a465ea1d862b/runtime",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments/c89a20327d8b47b38690eaab00bf5266",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments",
+      "status": 201
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments/a9509f14dbae4f31acd3ed8dbafb3905",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/datasets/70cfea439b8d48488b73b72a533ef9d0/revisions",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/datasets/70cfea439b8d48488b73b72a533ef9d0/restore",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/reports",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/preferences",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets/70cfea439b8d48488b73b72a533ef9d0/analysis",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/sync?after=15&limit=100",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/preferences",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/auth/me",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/datasets/70cfea439b8d48488b73b72a533ef9d0/analysis",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evidence",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/experiments",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/reports",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/actions",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/memories",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/evolution",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/health",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/runs/0ff218bee6944a8f8b2a190f6bde98c2",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/reviews",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/audit",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/runs/0ff218bee6944a8f8b2a190f6bde98c2/runtime",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/profiles",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/archive",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/assets/brand/logo.png",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/plans",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/conversations",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/orchestration/catalog",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/workspace/templates",
+      "status": 200
+    },
+    {
+      "path": "http://127.0.0.1:8000/api/sync?after=30&limit=100",
+      "status": 200
+    }
+  ],
+  "mobile_overflow": []
 }

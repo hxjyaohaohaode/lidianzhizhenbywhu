@@ -1,44 +1,22 @@
-# 本轮验收记录：自主协同与交互加固
+# 2026-09-27 本机验收记录
 
-## 对象与环境
+本记录对应当前源码及本机重新构建的 `web/dist`。环境为 Windows、Python 3.12.13、Node 24.15.0、TypeScript 5.8.3。运行库使用隔离目录；UI 与自动测试中的企业均为明确标记的合成数据。原始 PNG 和 MP4 的 SHA-256 与 `evidence/brand-integrity.json` 一致。
 
-对象是本轮实际修改的源代码与由其TypeScript编译产生的前端，不沿用上一包的通过标记。Linux、Python3.13.5、Node22.16.0、TypeScript5.8.3；依赖是本机已安装固定版本。未将这些结果推广为Windows/macOS或全新联网安装结果。
-
-## 当前执行结果
-
-|检查|实际结果|证据|
+|实际执行|结果|记录|
 |---|---|---|
-|Python正向/反向/故障注入回归|384 passed，无跳过；保留原307例并新增77例|pytest.log、pytest.xml|
-|Python语句覆盖|2915/3090 = 94.34%|coverage.json|
-|Python分支覆盖|804/982 = 81.87%|coverage.json|
-|前端函数、协议、事件竞争与渲染合同|33项通过|frontend-tests.log|
-|TypeScript严格检查/构建、Python编译、限定源码守卫|通过；守卫不是漏洞审计|typecheck.log、frontend-build.log、python-compile.log、source-guard.json|
-|独立服务真实HTTP联动|12组检查通过|full-chain-http.json、full-chain-http.log|
-|Chromium真实DOM+本地API桥接|32流程通过；12工作区+运行详情390px无文档级溢出|dom-check.json、dom-final.log、ui-*.png|
-|原始品牌素材|PNG及MP4字节相同；HTTP路径与Range通过|brand-integrity.json、full-chain-http.json|
-|原生浏览器导航|ERR_BLOCKED_BY_ADMINISTRATOR，未通过；未修改策略|native-browser.json、native-browser.log|
-|15项运行依赖联网元数据检查|全部连接失败，not_checked，不是零漏洞|current-dependency-advisories.json|
+|`npm ci`、`npm run build`、TypeScript 严格检查、Python 编译|通过|`evidence/frontend-build.log`、`evidence/typecheck.log`、`evidence/python-compile.log`|
+|`python scripts/verify.py --full-chain`|所有列出的检查通过|`evidence/verification.json`|
+|后端正向、逆向及故障注入回归|387 passed，2 个上游弃用警告|`evidence/pytest.log`、`evidence/pytest.xml`|
+|前端渲染、转义、事件竞争及传输合同|34 passed|`evidence/frontend-tests.log`|
+|后端覆盖率回归|387 passed；语句 2958/3128，分支 816/990|`evidence/coverage.json`、`evidence/coverage-test.log`|
+|真实 Uvicorn HTTP、SSE、强制退出重启、人工演进与在线备份|12 组检查通过|`evidence/full-chain-http.json`、`evidence/full-chain-http.log`|
+|原生 Chromium 经真实本机网络、ESM、Cookie、CSP 运行|35 个业务检查通过；390px 页面无文档级横向溢出|`evidence/native-browser.json`、`evidence/native-browser.log`；源码仓库保留 4 张当前界面截图|
+|Chromium 渲染与显式本地 HTTPX API 桥接|35 个业务检查通过；单独记录，不能替代原生浏览器|`evidence/dom-check.json`、`evidence/dom-final.log`|
+|限定源码守卫|51 个文件；0 项规则发现|`evidence/source-guard.json`|
+|`pip-audit -r requirements.txt --strict`|17 项解析依赖、当次 0 项已知漏洞|`evidence/dependency-audit.json`|
 
-Python覆盖率保留parse_worker子进程未采集的0%，未排除未覆盖模块；语句或分支覆盖不是需求穷举或安全证明。测试含参数化，不把384例说成384个不同功能。前端静态扫描只是一部分；新增异步终态/网络故障/销毁后迟到响应有实际Promise和EventSource测试驱动。
+浏览器检查实测桌面导航从 224px 收缩至 70px 并恢复；研究助手展示当前修订的公式、输入路径和季度轨迹；同一账户切换顾问及企业视角后得到不同追问。角色切换的 API 使用所有者会话和版本条件写入；无效角色及旧版本请求分别被拒绝。助手越权数据集请求返回 404，用户资料片段按企业范围检索。前端对查询、证据文本、路径和链接进行转义或安全协议限制。
 
-## 真实协议链路
+真实供应商模型及公网搜索调用为 0。测试替身只验证协议、失败处理与授权边界，不能说明任何真实账户、额度或外部模型效果。未在本轮验证 Docker 构建、公网 HTTPS 部署、跨设备兼容、长期负载、完整联网依赖漏洞审计、可选 PDF 解析器或领域预测的外部校准。系统默认在本机单进程运行；生产部署仍需按 `docs/DEPLOY.md` 完成独立验收。
 
-full_chain_check.py使用随机本机端口、独立Uvicorn进程、隔离临时数据库与真实HTTP请求，无前端桥接：原资源→认证/CSRF→multipart暂存→正式数据→证据/批准记忆→计划→动态DAG→数学工具→报告/事件/快照→导出；真实流式SSE并按Last-Event-ID续读；暂停后SIGKILL进程、启动同一数据库、显式继续并验证无重复节点产物；人工验收→候选→回放→激活→旧计划失效→回滚；SQLite在线备份副本完整性。4并发64次读取只构成小负载探针，延迟保留在JSON，不是生产吞吐或长期SLA。
-
-浏览器路径真实运行本项目编译JS和CSS，但因原生导航被阻止而用显式本地HTTPX桥接业务API；品牌图像/视频使用相同原始字节的显式测试装载。未绕过管理员策略，不能据此声称原生网络模块加载、Cookie/SameSite、CSP或浏览器SSE完整通过。后端HTTP与SSE的真实通过也不能替代这一浏览器边界。
-
-## 测试中发现并回归的缺陷
-
-真实联动暴露了证据立场未带入冻结片段的问题；动态分工验证发现规划建议只记录但依赖未真正改变的问题；成本边界测试发现完全重复解释导致多付费修订；UI暴露节点详情缓存过旧和运行/运行时两接口跨越终态后页面停留；异步测试覆盖终止事件与在途读取竞争、失败后不降级、旧账户迟到响应。演进门禁补上重命名输入去重、保持显式研究深度、评估案例集合变化时禁止旧评估激活。
-
-这些失败与修复不是将失败用例删除。中途一次覆盖率调用达执行时限，没有完整结果；之后完整重复执行通过，早先不完整调用不计成功。最终以当前日志、清单和ZIP重新解压后的独立记录为准。
-
-## 不在通过结论内
-
-真实付费模型/搜索供应商调用0；供应商边界用明确测试替身和严格解析测试，不代表真实模型服务可用。未完成目标Windows/macOS、Docker构建、公网HTTPS、长时间压力、分布式运行、全量依赖漏洞联网审计、可选PDF修复版本安装联调、领域预测经验校准、获奖TypeScript数据库无损迁移。本轮没有向GitHub主分支写入或形成远程提交。
-
-## 复现
-
-先构建前端：npm ci --ignore-scripts && npm run build；已有编译发布包可直接运行。安装requirements-dev.txt后，python scripts/verify.py --full-chain；另运行python -m pytest --cov=server --cov-branch --cov-report=json:evidence/coverage.json。UI检查需要隔离运行库和Playwright浏览器：python scripts/browser_check.py（原生）；python scripts/dom_check.py（明确桥接）。不要对真实业务库运行会创建测试账户的UI脚本。
-
-发布包清单记录每个文件的SHA256与字节数（不包含清单自身）；包外最终复验在重新解压目录核对清单、再次测试和独立HTTP链。打包前记录不替代包后验证。
+全量回归最初在 Windows 因 Pytest 把超长参数写入环境变量而产生 2 个准备阶段错误；给该参数添加短测试 ID 后，原测试输入保持不变且全量通过。真实 HTTP 链最初在退出时因测试脚本未关闭备份数据库连接而失败；显式关闭连接后 12 组检查通过。原生浏览器脚本最初使用受 CSP 禁止的 `eval` 式等待；改用 Playwright locator 等待后通过，没有放宽产品 CSP。

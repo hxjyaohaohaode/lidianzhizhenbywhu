@@ -9,6 +9,9 @@
     "明确提交后持久化归一化数据",
     "已保存数据驱动趋势、指标与主动核查",
     "助手读取真实保存指标；明确标记本地路由而非模型聊天",
+    "助手显示计算输入、季度追踪与数据修订",
+    "桌面导航真实收缩与展开",
+    "同一账户切换研究视角并收到对应追问",
     "企业自定目标保存并绑定企业范围",
     "核查建议→行动→处理中→说明验收→已完成全链路",
     "证据标题与原文按文本显示，XSS未执行",
@@ -71,7 +74,7 @@
       "status": 201
     },
     {
-      "path": "/api/workspace/imports/7d17f2f7b09b4781b5252f8f1c94bc03/commit",
+      "path": "/api/workspace/imports/0449d689b6104341ab507ec97717b05c/commit",
       "status": 201
     },
     {
@@ -87,7 +90,7 @@
       "status": 200
     },
     {
-      "path": "/api/datasets/1f7be6a9fcb648a78933629ec36bf837/analysis",
+      "path": "/api/datasets/67f4fda758a54c0399da9c64ecc988bc/analysis",
       "status": 200
     },
     {
@@ -95,6 +98,34 @@
       "status": 200
     },
     {
+      "path": "/api/preferences/role",
+      "status": 200
+    },
+    {
+      "path": "/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "/api/datasets/67f4fda758a54c0399da9c64ecc988bc/analysis",
+      "status": 200
+    },
+    {
+      "path": "/api/workspace/assistant",
+      "status": 200
+    },
+    {
+      "path": "/api/preferences/role",
+      "status": 200
+    },
+    {
+      "path": "/api/workspace/brief",
+      "status": 200
+    },
+    {
+      "path": "/api/datasets/67f4fda758a54c0399da9c64ecc988bc/analysis",
+      "status": 200
+    },
+    {
       "path": "/api/workspace/profiles",
       "status": 200
     },
@@ -119,7 +150,7 @@
       "status": 200
     },
     {
-      "path": "/api/datasets/1f7be6a9fcb648a78933629ec36bf837/analysis",
+      "path": "/api/datasets/67f4fda758a54c0399da9c64ecc988bc/analysis",
       "status": 200
     },
     {
@@ -139,7 +170,7 @@
       "status": 200
     },
     {
-      "path": "/api/datasets/1f7be6a9fcb648a78933629ec36bf837/analysis",
+      "path": "/api/datasets/67f4fda758a54c0399da9c64ecc988bc/analysis",
       "status": 200
     },
     {
@@ -147,7 +178,7 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/actions/97a48c01ccda4ffebf3c584a2cf6f1bb/status",
+      "path": "/api/workspace/actions/df06f189b3544eb680e2633177c9561c/status",
       "status": 200
     },
     {
@@ -163,7 +194,7 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/actions/97a48c01ccda4ffebf3c584a2cf6f1bb/status",
+      "path": "/api/workspace/actions/df06f189b3544eb680e2633177c9561c/status",
       "status": 200
     },
     {
@@ -191,7 +222,7 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/evidence/c045966a397d4c43ad20041c9160bdc6/review",
+      "path": "/api/workspace/evidence/23e38939db154e47abac93f092b40269/review",
       "status": 200
     },
     {
@@ -207,7 +238,7 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/evidence/c045966a397d4c43ad20041c9160bdc6/review",
+      "path": "/api/workspace/evidence/23e38939db154e47abac93f092b40269/review",
       "status": 200
     },
     {
@@ -247,7 +278,7 @@
       "status": 200
     },
     {
-      "path": "/api/memories/05e3a742632044478bfc3eec809b776b",
+      "path": "/api/memories/cf849fdf9fa74e229d521b4bbb74f8d5",
       "status": 200
     },
     {
@@ -291,11 +322,15 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/plans/918a6655d71d44c4a6637465caf3fc3c",
+      "path": "/api/workspace/plans/41ad29ec30c844c0aca21fad81960d2c",
       "status": 200
     },
     {
-      "path": "/api/workspace/plans/918a6655d71d44c4a6637465caf3fc3c/execute",
+      "path": "/api/sync?after=0&limit=100",
+      "status": 200
+    },
+    {
+      "path": "/api/workspace/plans/41ad29ec30c844c0aca21fad81960d2c/execute",
       "status": 202
     },
     {
@@ -315,43 +350,31 @@
       "status": 200
     },
     {
-      "path": "/api/runs/20fd1fef4233443d88dd36e539b88d2e",
+      "path": "/api/runs/4a9e3fde9f32477fa5a73bb2089ad6f1",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/audit",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/audit",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/reviews",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/reviews",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/runtime",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/runtime",
       "status": 200
     },
     {
-      "path": "/api/runs/20fd1fef4233443d88dd36e539b88d2e",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/audit",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/audit",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/assessment",
       "status": 200
     },
     {
-      "path": "/api/sync?after=0&limit=100",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/audit",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/assessment",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/assessment",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/assessment",
       "status": 200
     },
     {
@@ -379,19 +402,19 @@
       "status": 200
     },
     {
-      "path": "/api/runs/20fd1fef4233443d88dd36e539b88d2e",
+      "path": "/api/runs/4a9e3fde9f32477fa5a73bb2089ad6f1",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/audit",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/audit",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/reviews",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/reviews",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/runtime",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/runtime",
       "status": 200
     },
     {
@@ -447,11 +470,11 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/plans/3e3c42f8db324b3fa6b49806c1b74cb7",
+      "path": "/api/workspace/plans/087b665f8d6c4d94b76065cabf0ba052",
       "status": 200
     },
     {
-      "path": "/api/workspace/plans/3e3c42f8db324b3fa6b49806c1b74cb7/execute",
+      "path": "/api/workspace/plans/087b665f8d6c4d94b76065cabf0ba052/execute",
       "status": 202
     },
     {
@@ -471,59 +494,19 @@
       "status": 200
     },
     {
-      "path": "/api/runs/02d4ad53e9ce41719950e3cfd920db07",
+      "path": "/api/runs/bcbcad4dc735467f97f977598a1fd46e",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/02d4ad53e9ce41719950e3cfd920db07/audit",
+      "path": "/api/workspace/runs/bcbcad4dc735467f97f977598a1fd46e/audit",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/02d4ad53e9ce41719950e3cfd920db07/reviews",
+      "path": "/api/workspace/runs/bcbcad4dc735467f97f977598a1fd46e/reviews",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/02d4ad53e9ce41719950e3cfd920db07/runtime",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/runs/02d4ad53e9ce41719950e3cfd920db07/runtime",
-      "status": 200
-    },
-    {
-      "path": "/api/runs/02d4ad53e9ce41719950e3cfd920db07/trace",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/orchestration/catalog",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/plans",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/templates",
-      "status": 200
-    },
-    {
-      "path": "/api/conversations",
-      "status": 200
-    },
-    {
-      "path": "/api/runs/02d4ad53e9ce41719950e3cfd920db07",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/runs/02d4ad53e9ce41719950e3cfd920db07/audit",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/runs/02d4ad53e9ce41719950e3cfd920db07/reviews",
-      "status": 200
-    },
-    {
-      "path": "/api/workspace/runs/02d4ad53e9ce41719950e3cfd920db07/runtime",
+      "path": "/api/workspace/runs/bcbcad4dc735467f97f977598a1fd46e/runtime",
       "status": 200
     },
     {
@@ -539,7 +522,7 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/experiments/1eb56d71e5774a88aa91a9eaf71ec847",
+      "path": "/api/workspace/experiments/9808372c1a9a42a3ade05028acb091bb",
       "status": 200
     },
     {
@@ -555,15 +538,15 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/experiments/4e99c0417d22499e9ec586821cf412f7",
+      "path": "/api/workspace/experiments/67742a3ff8c34dcda6a161326c6f1c18",
       "status": 200
     },
     {
-      "path": "/api/workspace/datasets/1f7be6a9fcb648a78933629ec36bf837/revisions",
+      "path": "/api/workspace/datasets/67f4fda758a54c0399da9c64ecc988bc/revisions",
       "status": 200
     },
     {
-      "path": "/api/workspace/datasets/1f7be6a9fcb648a78933629ec36bf837/restore",
+      "path": "/api/workspace/datasets/67f4fda758a54c0399da9c64ecc988bc/restore",
       "status": 200
     },
     {
@@ -571,11 +554,11 @@
       "status": 200
     },
     {
-      "path": "/api/workspace/reports",
+      "path": "/api/auth/me",
       "status": 200
     },
     {
-      "path": "/api/auth/me",
+      "path": "/api/workspace/reports",
       "status": 200
     },
     {
@@ -607,11 +590,11 @@
       "status": 200
     },
     {
-      "path": "/api/datasets/1f7be6a9fcb648a78933629ec36bf837/analysis",
+      "path": "/api/datasets/67f4fda758a54c0399da9c64ecc988bc/analysis",
       "status": 200
     },
     {
-      "path": "/api/sync?after=92&limit=100",
+      "path": "/api/sync?after=47&limit=100",
       "status": 200
     },
     {
@@ -639,7 +622,7 @@
       "status": 200
     },
     {
-      "path": "/api/datasets/1f7be6a9fcb648a78933629ec36bf837/analysis",
+      "path": "/api/datasets/67f4fda758a54c0399da9c64ecc988bc/analysis",
       "status": 200
     },
     {
@@ -715,19 +698,19 @@
       "status": 200
     },
     {
-      "path": "/api/runs/20fd1fef4233443d88dd36e539b88d2e",
+      "path": "/api/runs/4a9e3fde9f32477fa5a73bb2089ad6f1",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/audit",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/audit",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/reviews",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/reviews",
       "status": 200
     },
     {
-      "path": "/api/workspace/runs/20fd1fef4233443d88dd36e539b88d2e/runtime",
+      "path": "/api/workspace/runs/4a9e3fde9f32477fa5a73bb2089ad6f1/runtime",
       "status": 200
     },
     {
@@ -755,7 +738,7 @@
       "status": 200
     },
     {
-      "path": "/api/sync?after=104&limit=100",
+      "path": "/api/sync?after=62&limit=100",
       "status": 200
     }
   ],

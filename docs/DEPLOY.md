@@ -2,9 +2,9 @@
 
 ## 本机
 
-README是主启动入口。首次安装依赖后运行scripts/start.py；发布包已含编译前端。默认localhost8000，DATA_DIR默认.runtime/workbench。端口占用用--port8001，不要随意结束其他程序。虚拟环境缺依赖时安装到同一解释器，不修改系统Python或PowerShell策略。
+README是主启动入口。GitHub 源码需先运行 `npm ci --ignore-scripts` 和 `npm run build`，再安装 Python 依赖并运行 scripts/start.py；独立发布包可包含编译前端。默认localhost8000，DATA_DIR默认.runtime/workbench。端口占用用--port8001，不要随意结束其他程序。虚拟环境缺依赖时安装到同一解释器，不修改系统Python或PowerShell策略。
 
-启动脚本不自动读.env，不替你安装未知软件、不提升管理员权限、不修改防火墙、不创建隧道。Windows批处理第一次仍需按README安装环境。本次已在Linux/Python3.13验证；Windows启动脚本与文件锁分支需目标实机验收。
+启动脚本不自动读.env，不替你安装未知软件、不提升管理员权限、不修改防火墙、不创建隧道。Windows批处理第一次仍需按README安装环境。2026-09-27 在 Windows/Python3.12 验证了实际启动、在线备份和文件句柄关闭后的隔离测试目录清理；其他操作系统仍需各自验证。
 
 ## 备份
 
@@ -34,4 +34,4 @@ Dockerfile是构建说明，本次未实际构建；CI文件是复现矩阵，�
 
 ## 仓库
 
-保留比赛原提交，不强推main。已有本机发布脚本为自助操作工具，完整远程过程未验收。本次会话未再次提交GitHub代码，不以分支存在/本地commit冒充上传成功。正式申请材料须来自最终核定的程序版本，不混用旧截图或过往测试结论。
+保留比赛原提交，不强推 main。远程状态以实际 Git 推送回执和提交 SHA 为准；本机通过不代表 GitHub CI 或生产部署通过。正式申请材料须来自最终核定的程序版本，不混用旧截图或过往测试结论。

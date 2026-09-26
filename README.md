@@ -4,9 +4,11 @@
 
 ## 直接运行
 
-发布包已经包含编译前端。安装 Python 3.11+，在解压后的 `lidian-workbench` 文件夹打开 PowerShell：
+GitHub 源码需要先编译前端；独立发布包若已包含 `web/dist` 则可跳过前两行。安装 Node.js 22+ 与 Python 3.11+，在项目文件夹打开 PowerShell：
 
 ```powershell
+npm ci --ignore-scripts
+npm run build
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe scripts/start.py
@@ -26,7 +28,7 @@ py -3 -m venv .venv
 6. **跟进行动**：将核查或报告转为行动，记录负责人、期限、验收标准；通过状态机推进，完成时提交说明和证据。
 7. **情景与预测 / 企业对照**：固定与变动成本情景、二维敏感性、四种透明时间序列基线的滚动回测；选择真实数据、写明假设并保存冻结实验。跨企业比较使用共同季度。
 
-12 个工作区：工作简报、协同研判、经营数据、证据资料、情景与预测、企业对照、研判报告、跟进行动、长期记忆、策略实验室、执行记录、偏好与设置。右侧研究助手读取当前工作区事实并导向真实操作，明确标识本地路由，**不冒充已调用的大模型聊天**。
+12 个工作区：工作简报、协同研判、经营数据、证据资料、情景与预测、企业对照、研判报告、跟进行动、长期记忆、策略实验室、执行记录、偏好与设置。桌面导航可收缩；研究助手按当前企业展示原始字段、计算公式、季度轨迹、数据修订、质量警告及有企业范围的资料候选，并导向真实操作。企业经营、投资研究、财务分析和顾问服务是同一账户内可切换的研究视角，影响追问与已批准记忆的适用范围，**不提供额外数据权限，也不冒充已调用的大模型聊天**。
 
 ## 自主协同、数学建模与受控演进
 
@@ -78,10 +80,10 @@ python -m pytest --cov=server --cov-branch --cov-report=term-missing
 
 默认只监听本机、单进程SQLite。运行数据位于 `.runtime/workbench`；不要将它提交Git或与源码一起公开。旧V3工作台数据库可在备份后的副本上执行新增表/触发器迁移；原获奖TypeScript版本数据库**不兼容**，不能直接覆盖或自动导入旧密钥。
 
-已验证独立Uvicorn进程上的本机HTTP/SSE、暂停后强制终止与重启恢复、数据库备份。原生浏览器网络、真实外部供应商、Windows实机、Docker、公网HTTPS、多天负载和完整联网依赖漏洞审计未在本次验收完成。默认PDF解析关闭：危险旧解析器已从核心依赖移除；可选解析器需单独安装、审计与验收。不要把本地功能验收当作公网生产安全认证。
+已在 Windows 实机验证独立 Uvicorn 进程上的本机 HTTP/SSE、暂停后强制终止与重启恢复、数据库备份，以及原生 Chromium 的网络、Cookie、CSP 与完整业务界面流程。真实外部供应商、Docker、公网 HTTPS、多天负载和完整联网依赖漏洞审计尚未验证。默认 PDF 解析关闭；可选解析器需单独安装、审计与验收。不要把本地功能验收当作公网生产安全认证。
 
 手册 `docs/USER_MANUAL.md`；实现与数据合同 `docs/ARCHITECTURE.md`；方法 `docs/METHODS.md`；安全 `SECURITY.md`；部署/备份 `docs/DEPLOY.md`；实际升级差异 `docs/FEATURE_MATRIX.md`；技术材料 `docs/COPYRIGHT_PREPARATION.md`。启动后 `/api/docs` 为同源接口文档，`/api/openapi.json` 为运行时合同。
 
 ## GitHub
 
-本次交付为代码ZIP，没有完成远程提交，没有覆盖原仓库主分支。包内保留本机发布脚本供仓库所有者自行审阅；其远程执行未验收，不绕过此前写入安全拦截，不要求提供token。原比赛提交应保留在Git历史中。
+本仓库保留原比赛提交历史。GitHub 源码不跟踪 `web/dist`、虚拟环境、依赖目录和运行数据库；克隆后按上面的命令构建。发布包与源码仓库的文件范围不同，部署前应核对当前提交及 `docs/VALIDATION.md` 中的实际验收边界。

@@ -1,29 +1,18 @@
 # 依赖与构建环境
 
-核心依赖固定本次实测版本，不称最新版本或零漏洞。原有TypeScript5.9.3联网安装未成功，最终package/lock已对齐实际编译器5.8.3，并核对官方npm的完整性字段。重新在线npm ci尚未成功验收；ZIP内编译前端已用5.8.3实际编译和执行，无需用户先安装Node。
+2026-09-27 在 Windows/Python 3.12.13/Node 24.15.0 上从锁定清单安装并构建。GitHub 源码不包含 `node_modules`、虚拟环境或已编译的 `web/dist`；首次克隆需按 README 执行 `npm ci --ignore-scripts`、`npm run build`、Python 依赖安装。前端运行无 CDN 或运行时框架依赖。
 
-|包|实际版本|用途|许可证元信息|
-|---|---|---|---|
-|fastapi|0.128.2|runtime|MIT|
-|starlette|0.50.0|runtime|BSD-3-Clause|
-|pydantic|2.13.4|runtime|MIT|
-|pydantic_core|2.46.4|runtime|MIT|
-|uvicorn|0.48.0|runtime|BSD-3-Clause|
-|python-multipart|0.0.29|runtime|Apache-2.0|
-|openpyxl|3.1.5|runtime|MIT|
-|defusedxml|0.7.1|runtime|PSFL|
-|anyio|4.13.0|runtime|MIT|
-|h11|0.16.0|runtime|MIT|
-|typing-extensions|4.16.0|runtime|PSF-2.0|
-|pytest|9.0.2|test-only|MIT|
-|pytest-cov|7.0.0|test-only|MIT|
-|coverage|7.13.3|test-only|Apache-2.0|
-|httpx|0.28.1|test-only|BSD-3-Clause|
-|playwright|1.57.0|test-only|Apache-2.0|
-|pypdf|5.9.0|optional-blocked|BSD-3-Clause|
+|核心包|锁定版本|用途|
+|---|---|---|
+|FastAPI|0.141.1|HTTP API 与请求合同|
+|Starlette|1.3.1|ASGI 与安全中间件|
+|Pydantic|2.13.4|严格数据验证|
+|Uvicorn|0.48.0|单进程服务|
+|python-multipart|0.0.32|受限文件上传解析|
+|openpyxl|3.1.5|受限 XLSX 解析|
+|defusedxml|0.7.1|XML 解析边界|
+|TypeScript|5.8.3|前端构建，仅开发依赖|
 
-前端编译器TypeScript5.8.3：Apache-2.0，编译后的项目代码不携带TypeScript编译器文件。项目没有附第三方字体文件或node_modules/site-packages。依赖许可元信息不等于对整个项目权属的认定。更完整运行环境见evidence/environment.json；官方版本链接与安全资料见SECURITY.md。
+最初的锁定版本 Starlette 0.50.0 与 python-multipart 0.0.29 在当前 `pip-audit --strict` 中被报告存在已知问题；升级后重新执行全量回归、真实 HTTP 链、原生 Chromium 和显式 DOM/API 桥接。`evidence/dependency-audit.json` 记录 17 项解析依赖、0 项当次已知漏洞；这只覆盖 `requirements.txt` 的供应链元数据，不是源码审计、全部可选依赖或未来安全保证。GitHub CI 在 Ubuntu 与 Windows 重新安装并运行同一依赖审计。
 
-PDF不再列为核心依赖；检测到旧pypdf时拒绝解析。requirements-pdf.txt是单独安装和验收路径，不能将此环境的5.9.0当作受支持解析器。
-
-失败探针：evidence/dependency-network.json、npm-install-online.log。没有生成伪造的pip-audit通过报告。正式环境应联网更新并跑安全审计、兼容回归；锁定旧版本本身不是安全保证。
+PDF 解析不属于核心依赖；`requirements-pdf.txt` 是独立可选路径，需要额外安装与安全验收。项目不打包第三方字体文件。实际环境与执行范围见 `evidence/environment-current.json` 和 `docs/VALIDATION.md`。

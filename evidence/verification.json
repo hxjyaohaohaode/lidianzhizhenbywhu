@@ -1,11 +1,11 @@
 {
-  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
-  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "python": "3.12.13 (main, Apr 14 2026, 14:31:26) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
   "checks": [
     {
       "check": "python-compile",
       "command": [
-        "/opt/pyvenv/bin/python",
+        "D:\\项目文件\\比赛文件\\计算机设计大赛\\lidian-workbench\\.venv\\Scripts\\python.exe",
         "-m",
         "compileall",
         "-q",
@@ -13,30 +13,31 @@
         "scripts"
       ],
       "exit_code": 0,
-      "seconds": 0.642
+      "seconds": 0.188
     },
     {
       "check": "typecheck",
       "command": [
-        "tsc",
+        "node",
+        "D:\\项目文件\\比赛文件\\计算机设计大赛\\lidian-workbench\\node_modules\\typescript\\bin\\tsc",
         "--noEmit",
         "-p",
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 0.903
+      "seconds": 0.687
     },
     {
       "check": "pytest",
       "command": [
-        "/opt/pyvenv/bin/python",
+        "D:\\项目文件\\比赛文件\\计算机设计大赛\\lidian-workbench\\.venv\\Scripts\\python.exe",
         "-m",
         "pytest",
         "-q",
         "--junitxml=evidence/pytest.xml"
       ],
       "exit_code": 0,
-      "seconds": 29.269
+      "seconds": 74.235
     },
     {
       "check": "frontend-tests",
@@ -46,25 +47,25 @@
         "tests/frontend.test.mjs"
       ],
       "exit_code": 0,
-      "seconds": 0.137
+      "seconds": 0.234
     },
     {
       "check": "source-guard",
       "command": [
-        "/opt/pyvenv/bin/python",
+        "D:\\项目文件\\比赛文件\\计算机设计大赛\\lidian-workbench\\.venv\\Scripts\\python.exe",
         "scripts/source_guard.py"
       ],
       "exit_code": 0,
-      "seconds": 0.704
+      "seconds": 0.266
     },
     {
       "check": "full-chain-http",
       "command": [
-        "/opt/pyvenv/bin/python",
+        "D:\\项目文件\\比赛文件\\计算机设计大赛\\lidian-workbench\\.venv\\Scripts\\python.exe",
         "scripts/full_chain_check.py"
       ],
       "exit_code": 0,
-      "seconds": 4.409
+      "seconds": 6.218
     }
   ],
   "all_executed_checks_pass": true,

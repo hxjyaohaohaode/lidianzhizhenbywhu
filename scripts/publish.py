@@ -18,6 +18,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 REPOSITORY='https://github.com/hxjyaohaohaode/lidianzhizhenbywhu.git'
 EXCLUDE={'.git','.venv','node_modules','.runtime','.pytest_cache','__pycache__','backups'}
+PUBLIC_SCREENSHOTS={'ui-empty-workspace.png','ui-test-workspace.png','ui-collapsed-navigation.png','ui-mobile.png'}
 
 def run(args: list[str],cwd: Path) -> str:
     result=subprocess.run(args,cwd=cwd,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=300)
@@ -32,10 +33,10 @@ def source_files() -> list[Path]:
         if p.is_symlink():raise ValueError('Refusing to publish symlink: '+str(rel))
         if not p.is_file():continue
         if p.name in ('.env','.coverage') or (p.name.startswith('.env.') and p.name!='.env.example'):continue
-        if p.suffix in ('.sqlite3','.pyc') or p.name.endswith(('-wal','-shm')):continue
+        if p.suffix.lower() in ('.sqlite3','.sqlite','.db','.pyc','.ttf','.otf','.woff','.woff2','.pem','.key','.p12','.pfx') or p.name.endswith(('-wal','-shm')):continue
         # Remote repository contains source and compact reports; release ZIP carries binaries/screenshots.
         if rel.parts[:2]==('web','dist'):continue
-        if rel.parts[0]=='evidence' and p.suffix in ('.png','.log','.xml'):continue
+        if rel.parts[0]=='evidence' and p.suffix in ('.png','.log','.xml') and p.name not in PUBLIC_SCREENSHOTS:continue
         files.append(p)
     return files
 
@@ -49,7 +50,7 @@ def main() -> int:
     if not shutil.which('git'):raise RuntimeError('Git is not installed. Use the official Git client and sign in locally first.')
     # Execute the complete Python suite again before any network write.
     run([sys.executable,'-m','pytest','-q'],ROOT)
-    branch='refactor/lidian-workspace-'+datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
+    branch='new/lidian-workspace-'+datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
     with tempfile.TemporaryDirectory(prefix='lidian-publish-') as tmp:
         clone=Path(tmp)/'repo'
         run(['git','clone','--single-branch','--branch','main',REPOSITORY,str(clone)],Path(tmp))
@@ -69,7 +70,7 @@ def main() -> int:
         for name,sha in expected.items():
             if hashlib.sha256((clone/name).read_bytes()).hexdigest()!=sha:raise RuntimeError('Copy hash mismatch: '+name)
         run(['git','add','-A'],clone)
-        run(['git','commit','-m','refactor: rebuild lithium enterprise evidence workbench v4'],clone)
+        run(['git','commit','-m','feat: traceable research assistant and workspace controls'],clone)
         commit=run(['git','rev-parse','HEAD'],clone)
         run(['git','push','origin','HEAD:refs/heads/'+branch],clone)
         remote=run(['git','ls-remote','origin','refs/heads/'+branch],clone)

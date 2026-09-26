@@ -1,7 +1,7 @@
 """Evidence-scoped proactive rules and explicit assistant routing, not simulated LLM chat."""
 from __future__ import annotations
 from datetime import date
-from .analytics import calculate, quality_report, period_end, METRIC_LABELS
+from .analytics import calculate, quality_report, period_end, lineage, METRIC_LABELS
 from .store import digest
 from . import workspace_store as ws
 
@@ -87,23 +87,80 @@ def build_insights(store,user,datasets=None,today=None):
         'evaluated_datasets':len(datasets),'autonomous_external_calls':0}
 
 
+ASSISTANT_TOPICS=(
+    ('gross_margin',('毛利','成本','margin')),
+    ('cash_ratio',('现金','回款','cash')),
+    ('leverage',('负债','杠杆','偿债')),
+    ('revenue_growth',('增长','增速','同比','growth')),
+    ('revenue',('收入','营收','销售额','revenue')),
+    ('net_margin',('净利率','盈利能力')),
+    ('net_profit',('净利润','利润额')),
+    ('inventory_turnover',('库存','存货','周转')),
+    ('rd_ratio',('研发','rd')),
+)
+
+ROLE_QUESTIONS={
+    'enterprise':['哪些经营指标偏离自定目标？','现金流和毛利的变化依据是什么？'],
+    'investor':['收入增长与现金回流是否一致？','有哪些相反证据需要核查？'],
+    'analyst':['哪些指标缺少输入或基期？','请展示毛利率的计算血缘。'],
+    'advisor':['当前最值得跟进的行动是什么？','现有证据能支持哪些判断？'],
+}
+
+
 def assistant_answer(store,user,query,dataset_id=''):
-    datasets=store.items('datasets',user)
+    owner=user['id'];datasets=store.items('datasets',owner)
     d=next((x for x in datasets if x['id']==dataset_id),None) if dataset_id else (datasets[0] if len(datasets)==1 else None)
     if dataset_id and d is None:
         from .security import fail
         fail('NOT_FOUND','数据不存在或无权访问',404)
+    role=user['preferences'].get('role','enterprise')
     if not d:
-        return {'engine':'local_navigation','answer':'先选择企业数据，我再根据已保存内容列出可执行的核查步骤。不会自动导入或编造经营数据。',
-            'facts':[],'actions':[{'label':'添加经营数据','route':'data'}]}
-    analysis=calculate(d['payload']);q=query.lower();facts=[]
-    topics=[('cash_ratio',['现金','回款','cash']),('gross_margin',['毛利','成本','margin']),('leverage',['负债','杠杆']),('revenue_growth',['收入','营收','growth'])]
-    selected=[field for field,words in topics if any(w in q for w in words)] or ['gross_margin','cash_ratio']
+        has_data=bool(datasets)
+        return {'engine':'local_navigation','answer':('请选择一家企业；多个数据集不会被助手擅自合并。' if has_data else '先添加真实企业数据，助手才能核查指标与来源。'),
+            'facts':[],'insights':[],'evidence_matches':[],'quality':[],'followups':ROLE_QUESTIONS.get(role,ROLE_QUESTIONS['enterprise']),
+            'actions':[{'label':'选择企业数据' if has_data else '添加经营数据','route':'data'}], 'external_calls':0}
+    data=d['payload'];analysis=calculate(data);q=query.lower()
+    selected=[field for field,words in ASSISTANT_TOPICS if any(w in q for w in words)]
+    if not selected:selected=['gross_margin','cash_ratio']
+    selected=selected[:5];latest=data['periods'][-1];links={x['id']:x for x in lineage(data,analysis)}
+    baseline=next((p for p in data['periods'] if p['period']==analysis['baseline_period']),None)
+    facts=[]
     for f in selected:
-        facts.append({'id':f,'label':METRIC_LABELS[f],'value':analysis['metrics'].get(f),'period':analysis['current_period'],
-            'dataset_id':d['id'],'dataset_version':d['version'],'input_hash':d['content_hash']})
-    tasks=build_insights(store,user,[d])['items']
-    return {'engine':'local_grounded_router','answer':f"已读取{d['payload']['company']}的已保存财务指标。下面是可核验事实和待办入口；需要开放式解释时，请在协同工作台确认模型计划。",
-        'facts':facts,'insights':tasks[:4], 'actions':[{'label':'创建针对性诊断','route':'agents','query':query,'dataset_id':d['id']},
-            {'label':'查看数据与计算口径','route':'data','dataset_id':d['id']},
-            {'label':'打开情景实验','route':'lab','dataset_id':d['id']}], 'external_calls':0}
+        link=links.get(f)
+        if f in ('revenue','cost','net_profit','cash_flow'):
+            value=latest.get(f);formula='原始季度录入值';inputs=[{'path':f"periods/{latest['period']}/{f}",'value':value}]
+        elif f=='revenue_growth':
+            value=analysis['metrics'][f];formula='本期收入 ÷ 去年同季收入 − 1'
+            inputs=[{'path':f"periods/{latest['period']}/revenue",'value':latest['revenue']}]
+            if baseline:inputs.append({'path':f"periods/{baseline['period']}/revenue",'value':baseline['revenue']})
+        elif link:
+            value=link['value'];formula=link['formula'];inputs=[{'path':x['path'],'value':x['value']} for x in link['inputs']]
+        else:
+            value=analysis['metrics'].get(f);formula='由季度财务字段计算；详情见数据与计算口径';inputs=[]
+        trend=[]
+        for period in analysis['series'][-8:]:
+            prior=next((p for p in data['periods'] if p['period']==f"{int(period['period'][:4])-1}{period['period'][4:]}"),None)
+            point=(period['revenue']/prior['revenue']-1 if prior and prior['revenue']>0 else None) if f=='revenue_growth' else period.get(f)
+            trend.append({'period':period['period'],'value':point})
+        facts.append({'id':f,'label':METRIC_LABELS[f],'value':value,'period':analysis['current_period'],
+            'dataset_id':d['id'],'dataset_version':d['version'],'input_hash':d['content_hash'],
+            'formula':formula,'inputs':inputs,'trend':trend,'source_url':data.get('source_url',''),
+            'verification':data.get('verification','unverified_user_input')})
+    quality=quality_report(data)
+    evidence=scoped_retrieve(store,owner,query,data['company'],3)
+    tasks=build_insights(store,owner,[d])['items']
+    causal=any(w in q for w in ('为什么','原因','归因','导致','证明'))
+    answer=(f"已核对{data['company']}的{analysis['current_period']}已保存输入与计算口径。"
+            +(' 指标和检索片段不能单独证明原因；请在协同研判中提出假设并核对反向证据。' if causal else ' 指标来自用户录入，资料片段仅是待核实候选。'))
+    return {'engine':'local_grounded_router','answer':answer,'scope':{'company':data['company'],'dataset_id':d['id'],
+            'dataset_version':d['version'],'input_hash':d['content_hash'],'source_state':quality['source_state'],
+            'role':role,'objective':profile_for(store,owner,data['company']).get('objective','')},
+        'facts':facts,'insights':tasks[:4],'evidence_matches':[{'document_id':x['document_id'],'title':x['title'],
+            'excerpt':x['excerpt'][:300],'source_url':x['url'],'verification':x['verification'],
+            'review_state':x['review_state'],'stance':x['stance'],'content_hash':x['content_hash']} for x in evidence],
+        'quality':quality['findings'][:5],'quality_total':len(quality['findings']),
+        'followups':ROLE_QUESTIONS.get(role,ROLE_QUESTIONS['enterprise']),
+        'actions':[{'label':'按此问题创建诊断计划','route':'agents','query':query,'dataset_id':d['id']},
+            {'label':'核对原始数据与公式','route':'data','dataset_id':d['id']},
+            {'label':'审阅资料及来源','route':'evidence','dataset_id':d['id']},
+            {'label':'设定情景假设','route':'lab','dataset_id':d['id']}], 'external_calls':0}

@@ -6,6 +6,7 @@ not real supplier credentials. Native browser Cookie/CSP behavior is a separate 
 """
 from __future__ import annotations
 import concurrent.futures,contextlib,copy,hashlib,json,os,socket,sqlite3,subprocess,sys,tempfile,time,uuid
+from contextlib import closing
 from pathlib import Path
 import httpx
 ROOT=Path(__file__).resolve().parents[1]
@@ -166,7 +167,7 @@ def main():
             target=Path(temp)/'backup.sqlite';proc=subprocess.run([sys.executable,'scripts/backup.py','--source',str(dbpath),'--output',str(target)],cwd=ROOT,env={**os.environ,'DATA_DIR':str(srv.dir)},capture_output=True,text=True)
             # backup CLI contract is checked below, not inferred from a file name.
             if proc.returncode!=0:raise AssertionError(proc.stdout+proc.stderr)
-            with sqlite3.connect(target) as db:assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+            with closing(sqlite3.connect(target)) as db:assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
             record('运行中的SQLite一致性备份与副本完整性检查')
         finally:srv.stop()
       evidence.update({'passed':True,'checks':checks,'load_probe':timings,'elapsed_seconds':round(time.time()-start,2)})
