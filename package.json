@@ -1,0 +1,21 @@
+{
+  "name": "lidian-insight",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Native TypeScript client; no runtime frontend dependencies",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "python -m pytest",
+    "start": "python scripts/start.py",
+    "verify": "python scripts/verify.py",
+    "test:frontend": "node --test tests/frontend.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

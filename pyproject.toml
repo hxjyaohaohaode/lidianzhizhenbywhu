@@ -1,0 +1,9 @@
+[project]
+name = "lidian-evidence-workbench"
+version = "4.0.0"
+requires-python = ">=3.11"
+description = "Evidence-first lithium enterprise diagnostics"
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -1,0 +1,2 @@
+# Optional PDF parser. Not installed or tested in this offline build.
+pypdf>=6.13.2,<7

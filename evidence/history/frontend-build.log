@@ -1,0 +1,4 @@
+
+> lidian-insight@4.0.0 build
+> tsc -p tsconfig.json
+

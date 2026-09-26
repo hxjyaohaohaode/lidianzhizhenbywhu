@@ -1,0 +1,81 @@
+{
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "checks": [
+    {
+      "check": "python-compile",
+      "command": [
+        "/opt/pyvenv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.642
+    },
+    {
+      "check": "typecheck",
+      "command": [
+        "tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 0.903
+    },
+    {
+      "check": "pytest",
+      "command": [
+        "/opt/pyvenv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--junitxml=evidence/pytest.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 29.269
+    },
+    {
+      "check": "frontend-tests",
+      "command": [
+        "node",
+        "--test",
+        "tests/frontend.test.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 0.137
+    },
+    {
+      "check": "source-guard",
+      "command": [
+        "/opt/pyvenv/bin/python",
+        "scripts/source_guard.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.704
+    },
+    {
+      "check": "full-chain-http",
+      "command": [
+        "/opt/pyvenv/bin/python",
+        "scripts/full_chain_check.py"
+      ],
+      "exit_code": 0,
+      "seconds": 4.409
+    }
+  ],
+  "all_executed_checks_pass": true,
+  "not_covered": [
+    "Live model API credentials",
+    "Live public sources",
+    "Windows runtime",
+    "Public HTTPS deployment",
+    "Long-duration production load",
+    "Native browser navigation/Cookie/CSP integration",
+    "Complete live dependency audit",
+    "Optional patched PDF integration"
+  ]
+}

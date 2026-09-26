@@ -1,0 +1,111 @@
+{
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "os": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "node": "v22.16.0",
+  "typescript": "Version 5.8.3",
+  "packages": [
+    {
+      "name": "fastapi",
+      "version": "0.128.2",
+      "license": "MIT",
+      "role": "runtime"
+    },
+    {
+      "name": "starlette",
+      "version": "0.50.0",
+      "license": "BSD-3-Clause",
+      "role": "runtime"
+    },
+    {
+      "name": "pydantic",
+      "version": "2.13.4",
+      "license": "MIT",
+      "role": "runtime"
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.46.4",
+      "license": "MIT",
+      "role": "runtime"
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.48.0",
+      "license": "BSD-3-Clause",
+      "role": "runtime"
+    },
+    {
+      "name": "python-multipart",
+      "version": "0.0.29",
+      "license": "Apache-2.0",
+      "role": "runtime"
+    },
+    {
+      "name": "openpyxl",
+      "version": "3.1.5",
+      "license": "MIT",
+      "role": "runtime"
+    },
+    {
+      "name": "defusedxml",
+      "version": "0.7.1",
+      "license": "PSFL",
+      "role": "runtime"
+    },
+    {
+      "name": "anyio",
+      "version": "4.13.0",
+      "license": "MIT",
+      "role": "runtime"
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "license": "MIT",
+      "role": "runtime"
+    },
+    {
+      "name": "typing-extensions",
+      "version": "4.16.0",
+      "license": "PSF-2.0",
+      "role": "runtime"
+    },
+    {
+      "name": "pytest",
+      "version": "9.0.2",
+      "license": "MIT",
+      "role": "test-only"
+    },
+    {
+      "name": "pytest-cov",
+      "version": "7.0.0",
+      "license": "MIT",
+      "role": "test-only"
+    },
+    {
+      "name": "coverage",
+      "version": "7.13.3",
+      "license": "Apache-2.0",
+      "role": "test-only"
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "license": "BSD-3-Clause",
+      "role": "test-only"
+    },
+    {
+      "name": "playwright",
+      "version": "1.57.0",
+      "license": "Apache-2.0",
+      "role": "test-only"
+    },
+    {
+      "name": "pypdf",
+      "version": "5.9.0",
+      "license": "BSD-3-Clause",
+      "role": "optional-blocked"
+    }
+  ],
+  "not_a_dependency_vulnerability_audit": true
+}

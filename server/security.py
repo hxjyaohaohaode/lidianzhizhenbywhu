@@ -1,0 +1,65 @@
+from __future__ import annotations
+import hashlib
+import hmac
+import secrets
+import time
+from collections import OrderedDict,deque
+from fastapi import HTTPException,Request,Response
+from .store import digest
+
+COOKIE='lidian_session'
+
+def fail(code,message,status=400):
+    raise HTTPException(status_code=status,detail={'code':code,'message':message})
+
+def password_hash(password):
+    salt=secrets.token_hex(16)
+    value=hashlib.scrypt(password.encode(),salt=bytes.fromhex(salt),n=16384,r=8,p=1,dklen=32).hex()
+    return f'scrypt${salt}${value}'
+
+def password_matches(password,stored):
+    try:
+        algorithm,salt,expected=stored.split('$')
+        if algorithm!='scrypt':return False
+        actual=hashlib.scrypt(password.encode(),salt=bytes.fromhex(salt),n=16384,r=8,p=1,dklen=32).hex()
+        return hmac.compare_digest(actual,expected)
+    except (ValueError,TypeError):return False
+
+DUMMY_HASH=password_hash('dummy-unavailable-account-password')
+
+def public_user(user):
+    return {k:user[k] for k in ('id','email','name','preferences','version','created_at','updated_at')}
+
+def issue_session(request: Request,response: Response,user):
+    token,csrf=secrets.token_urlsafe(40),secrets.token_urlsafe(32)
+    config,store=request.app.state.settings,request.app.state.store
+    with store.transaction() as db:
+        db.execute('DELETE FROM auth_sessions WHERE expires<?',(time.time(),))
+        db.execute('INSERT INTO auth_sessions VALUES(?,?,?,?)',(digest(token),user['id'],csrf,time.time()+config.session_hours*3600))
+        db.execute('DELETE FROM auth_sessions WHERE user_id=? AND token_hash NOT IN (SELECT token_hash FROM auth_sessions WHERE user_id=? ORDER BY expires DESC LIMIT 10)',(user['id'],user['id']))
+    response.set_cookie(COOKIE,token,httponly=True,secure=config.production,samesite='strict',max_age=config.session_hours*3600,path='/')
+    response.headers['Cache-Control']='no-store'
+    return {'user':public_user(user),'csrf':csrf}
+
+def require_user(request: Request):
+    token=request.cookies.get(COOKIE,'')
+    if not token or len(token)>200:fail('UNAUTHORIZED','请先登录。',401)
+    store=request.app.state.store
+    session=store.one('SELECT * FROM auth_sessions WHERE token_hash=? AND expires>?',(digest(token),time.time()))
+    if not session:fail('UNAUTHORIZED','登录已过期，请重新登录。',401)
+    if request.method not in ('GET','HEAD','OPTIONS') and not hmac.compare_digest(request.headers.get('x-csrf-token','').encode(),session['csrf'].encode()):
+        fail('CSRF_REJECTED','安全校验失败，请刷新页面。',403)
+    user=store.one('SELECT * FROM users WHERE id=?',(session['user_id'],))
+    if not user:fail('UNAUTHORIZED','账户不存在。',401)
+    request.state.user_id=user['id'];request.state.csrf=session['csrf']
+    return user
+
+class RateLimiter:
+    def __init__(self,maximum_keys=10000):self.keys=OrderedDict();self.maximum_keys=maximum_keys
+    def allow(self,key,limit,window=60):
+        at=time.monotonic();q=self.keys.setdefault(key,deque());self.keys.move_to_end(key)
+        while q and q[0]<=at-window:q.popleft()
+        allowed=len(q)<limit
+        if allowed:q.append(at)
+        while len(self.keys)>self.maximum_keys:self.keys.popitem(last=False)
+        return allowed

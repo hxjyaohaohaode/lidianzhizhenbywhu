@@ -1,0 +1,423 @@
+{
+  "baseline_source": "user uploaded previous ZIP, extracted copy; excludes dependencies/runtime/evidence/compiled files",
+  "added": [
+    "docs/METHODS.md",
+    "examples/financial-template.csv",
+    "requirements-pdf.txt",
+    "scripts/http_check.py",
+    "server/analytics.py",
+    "server/contracts.py",
+    "server/intelligence.py",
+    "server/studio.py",
+    "server/workspace_api.py",
+    "server/workspace_store.py",
+    "tests/fixtures/synthetic-financial.json",
+    "tests/frontend.test.mjs",
+    "tests/test_workspace_analytics.py",
+    "tests/test_workspace_api.py",
+    "web/views-analysis.ts",
+    "web/views-data.ts",
+    "web/views-studio.ts"
+  ],
+  "removed": [
+    "examples/demo-dataset.json"
+  ],
+  "changed": [
+    ".env.example",
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "README.md",
+    "SECURITY.md",
+    "docs/ARCHITECTURE.md",
+    "docs/AUDIT.md",
+    "docs/COPYRIGHT_PREPARATION.md",
+    "docs/DEPENDENCIES.md",
+    "docs/DEPLOY.md",
+    "docs/FEATURE_MATRIX.md",
+    "docs/USER_MANUAL.md",
+    "docs/VALIDATION.md",
+    "docs/openapi.json",
+    "examples/template.csv",
+    "package-lock.json",
+    "package.json",
+    "pyproject.toml",
+    "requirements.txt",
+    "scripts/backup.py",
+    "scripts/browser_check.py",
+    "scripts/dom_check.py",
+    "scripts/publish.py",
+    "scripts/start.py",
+    "scripts/verify.py",
+    "server/__init__.py",
+    "server/app.py",
+    "server/config.py",
+    "server/imports.py",
+    "server/retrieval.py",
+    "server/store.py",
+    "server/workflows.py",
+    "tests/conftest.py",
+    "tests/test_research.py",
+    "tests/test_security_api.py",
+    "web/api.ts",
+    "web/app.ts",
+    "web/components.ts",
+    "web/index.html",
+    "web/pages.ts",
+    "web/state.ts",
+    "web/styles.css"
+  ],
+  "unchanged": [
+    ".dockerignore",
+    ".github/workflows/ci.yml",
+    ".gitignore",
+    "Dockerfile",
+    "publish-windows.cmd",
+    "requirements-dev.txt",
+    "scripts/source_guard.py",
+    "server/models.py",
+    "server/network.py",
+    "server/parse_worker.py",
+    "server/providers.py",
+    "server/research.py",
+    "server/schemas.py",
+    "server/security.py",
+    "start-windows.cmd",
+    "tests/test_domain.py",
+    "tests/test_import_retrieval_network.py",
+    "tests/test_workflows.py",
+    "tsconfig.json",
+    "web/api-docs.html",
+    "web/docs.ts",
+    "web/mark.svg"
+  ],
+  "hashes": {
+    ".dockerignore": {
+      "before": "20dba8d0bcb7f381904c48bede1692076bd4056238ade544438d225d01aca049",
+      "after": "20dba8d0bcb7f381904c48bede1692076bd4056238ade544438d225d01aca049"
+    },
+    ".env.example": {
+      "before": "a0ba38e0d11b9f184cbeb9f9058c105224af71cc97dbc1bd8f59a16ebd587dbb",
+      "after": "39050a1489b8abd9fc423b31426c0a4840169ea6798746aead95c26fb5cbfeb5"
+    },
+    ".github/workflows/ci.yml": {
+      "before": "dd7e2f7f553fb281249302ad31432e615a8d47cb45da0f9459ce0c3493074b9d",
+      "after": "dd7e2f7f553fb281249302ad31432e615a8d47cb45da0f9459ce0c3493074b9d"
+    },
+    ".gitignore": {
+      "before": "5d6286d9f54f7952b18b9232666d293d7f6fbd9bfabcff0b9ca9a4bc3f9232b8",
+      "after": "5d6286d9f54f7952b18b9232666d293d7f6fbd9bfabcff0b9ca9a4bc3f9232b8"
+    },
+    "AGENTS.md": {
+      "before": "7050956159c0e8ccc78a9a71177aeb18cd18b44851b0a2268f58544b9d2fc846",
+      "after": "737ca85b58f4ba6e17dc0a73a07e64c69eb6d66ab86ef1a1e132f0543216e57e"
+    },
+    "CHANGELOG.md": {
+      "before": "f1e37c98df1fb4d1ceaa27a1d625703c9b64580a1b67c33d70d22b766fbf355e",
+      "after": "f9fe44979408d89b00d5e3c62fcaa1133a300a84693d730061dc88bbadc85fab"
+    },
+    "Dockerfile": {
+      "before": "ae6febc7e8d8706f8b346665177416f5e6fefa1f223a4d7202122291a69c64d8",
+      "after": "ae6febc7e8d8706f8b346665177416f5e6fefa1f223a4d7202122291a69c64d8"
+    },
+    "README.md": {
+      "before": "dc3a7b4dd6650009e31effb52f2cd0ad48d24306242721c166c1aa52a10873c3",
+      "after": "d6682af5971155a963031143a108d39b94b98be28e307ee34daed5e5c9fa2300"
+    },
+    "SECURITY.md": {
+      "before": "c4465d2afdeeffe9a72bf84decc239811e1356c95ca8375b23abc24e5e768673",
+      "after": "ade9108d6c49dce5b641f5f21c02165fbe2bd8727267be139fd38902fe8687c9"
+    },
+    "docs/ARCHITECTURE.md": {
+      "before": "82f6483c2b603f1bd7281245d5866116a847138365069ad132239cc819a7a11d",
+      "after": "cfccea4c92a3359da6406001d43082df854727c518d095c8271c3cb150845bab"
+    },
+    "docs/AUDIT.md": {
+      "before": "f4a74eaeb0d8da489713864f97fd4ad9decbac0f9df542ce06d92cc2097ab722",
+      "after": "412aad1e1facc6499951785e1191e3ae41a6d88b5ee5b20d163c82f50c6ace89"
+    },
+    "docs/COPYRIGHT_PREPARATION.md": {
+      "before": "d32944e3edcda50f7f938e2c26b7191334f1e53ee5bf68814744986825917c7f",
+      "after": "13e3f09524c332bdaf5357359fab282cbe4522464d2f6eb9cabea795bc472645"
+    },
+    "docs/DEPENDENCIES.md": {
+      "before": "b2cf1bd36d660e459647f2b8b20a90b2cc204a1856ee5e738a6581d41c9e39cd",
+      "after": "d5566ec64864d41345d8d52924555a21d56a16f338cfcf0351c895b5a2033676"
+    },
+    "docs/DEPLOY.md": {
+      "before": "6f7d3db6900dbb9c32fb3475686eaafd571d4c27ea7b5684235156ac78562b2a",
+      "after": "52ad97efe0680722bd3594e0b8c29e0a726c76dd91464e2c43c4aa9d2c778508"
+    },
+    "docs/FEATURE_MATRIX.md": {
+      "before": "5f184c2d580e7ffc0fd5974719feb343711e51d8160146900832f43d18670687",
+      "after": "d2268093cc1b40b55716598b7ef014ca4519041b49cba92962ce3e738ef20fd6"
+    },
+    "docs/METHODS.md": {
+      "before": null,
+      "after": "4282c74b8f2925b98b40219cb698a0c2c00d0ed27222c20878c41ece13f3c2d4"
+    },
+    "docs/USER_MANUAL.md": {
+      "before": "1ae13c5461dd21526bfd4ba03fa844ea7904d66b28d6a9e85c2c4936c07d7927",
+      "after": "ba33e1a287bd4facef41aff483429f49c14f6df3e29c84742fae5f71284129f3"
+    },
+    "docs/VALIDATION.md": {
+      "before": "4d2fd545d6dda1060d6268e8514766bde5d0917137289b0384ddf44004c23d8e",
+      "after": "e5d85e5eb195cfc93c3defa790e21ba1d7b13cfe0d996ae6f54dcac3772bea20"
+    },
+    "docs/openapi.json": {
+      "before": "d21809078902b1868a72fd82015442c34d6d6f60cd81cc3be4626b7dfdad13b5",
+      "after": "a460860b947a45de8314ca07c4e71fb2899d2ff3776c78d03f7e2ba775e0eaed"
+    },
+    "examples/demo-dataset.json": {
+      "before": "205d7f1dd42d02df07f21bb3d898d1594c6bc3a7ab0dcd4475de188b103a6233",
+      "after": null
+    },
+    "examples/financial-template.csv": {
+      "before": null,
+      "after": "e9ee3176ca0fbc9a26b1888776bcbc0774883afbce6b218d3672eab00e7b081a"
+    },
+    "examples/template.csv": {
+      "before": "f8e6f90ad85f316b51383a06e1d5b1a2ea2b9d0a91633afc062e35731cb88634",
+      "after": "e9ee3176ca0fbc9a26b1888776bcbc0774883afbce6b218d3672eab00e7b081a"
+    },
+    "package-lock.json": {
+      "before": "fd26dc89afac373e4f3ab7c35868b129119ee422795ed22f046a408c9d45727f",
+      "after": "8ff7a2d001b30fc852858fa256b9b423f0bc055b810d149b00ab151e6602f868"
+    },
+    "package.json": {
+      "before": "fcce34bcc240a0dedb542002687049b392bb684738caf8c254907e7b527ec280",
+      "after": "aff43858ad0dbd5fd8d60d1faee436690cb409d77cb2d2d6fcadc70b4f39742d"
+    },
+    "publish-windows.cmd": {
+      "before": "884845eb8a0fae802f9ec710314c88fed457f0c8e7ec4de0ea493c6bd53a2c0a",
+      "after": "884845eb8a0fae802f9ec710314c88fed457f0c8e7ec4de0ea493c6bd53a2c0a"
+    },
+    "pyproject.toml": {
+      "before": "ea9108e38f95c32892f30cc5b3af808c689ebb68e41d1b55b53fbcc4d5e9a097",
+      "after": "95895c9217d98cdc83a5ee649bc11d5ea2a0e42176e9c42539cb3c51358d7da0"
+    },
+    "requirements-dev.txt": {
+      "before": "d04d9ddd4e47b3d08c2075071ff58985493ec59245edbff74ecc6cf2d38340f9",
+      "after": "d04d9ddd4e47b3d08c2075071ff58985493ec59245edbff74ecc6cf2d38340f9"
+    },
+    "requirements-pdf.txt": {
+      "before": null,
+      "after": "a76f7a35a98aa4e46e96f691d010c62cc2fe901df4295536bcdd148192390015"
+    },
+    "requirements.txt": {
+      "before": "bb3e91197340a7c0a3cb84e65226cf594cec3bd6d7ad1dc1c4cc58bb79cddcb0",
+      "after": "fdd240c4942dccb98757050d77ed8f808d5925312674e37cac93fb50d343b4da"
+    },
+    "scripts/backup.py": {
+      "before": "4a5db81a8a908d8134593854b7a7f0f5b8e76b217af75753d61aab62696ac669",
+      "after": "afd34ba0e6b9e5354fecf8d3575edeb56849b7069bdf9a462facf4e6ac1c69d6"
+    },
+    "scripts/browser_check.py": {
+      "before": "b8f4ff82d3f2b427106c3fa10774088bea7888344706fc678c6223fd598dbe4b",
+      "after": "62abf02e1b00264fb0e19c678d4f658c0d5ecc25f110b4cfa577073a83ec54cc"
+    },
+    "scripts/dom_check.py": {
+      "before": "9e20c65ab047df1a92857d3e92c7671e8387abf7e4ce6832a30af8e9955aa5c6",
+      "after": "d30033d637afb4c52323c39a11c62e1bd0c04650f4e4324e5522af259fca73c3"
+    },
+    "scripts/http_check.py": {
+      "before": null,
+      "after": "6ae3797b87e1c6e1d1d937e07f133e673480dd78eda6d9a4df12266d7c767eeb"
+    },
+    "scripts/publish.py": {
+      "before": "86c001f235c8f568c6f935523f6776fdd3c48df04f0426d9a263fe1efaa1a120",
+      "after": "9143e78b025465f47e2a9eb3008b27375b104bc81bc75b55d8d1c2aebef5f989"
+    },
+    "scripts/source_guard.py": {
+      "before": "98cb744959c1accde1958aecb3a970a33bead26593d5f72e0f11080e28058c89",
+      "after": "98cb744959c1accde1958aecb3a970a33bead26593d5f72e0f11080e28058c89"
+    },
+    "scripts/start.py": {
+      "before": "b663bc0ae5c2d8cf4826c0663a5886ca24912786fcacf571a37459a3b90af0f3",
+      "after": "8f5523f7587a8e4708d6256a9b5c59722e1570d62c2370a3bc31c7c3544fa7ce"
+    },
+    "scripts/verify.py": {
+      "before": "99e287b395a6b200a6cf361125f47ddfa86c80a447d7ba7b38fc6cdcaf3a9a97",
+      "after": "26b57fd6b1ce790745a5a2858a0ce6dd1b7c8dd66df1ec5f6e785169bf29e76f"
+    },
+    "server/__init__.py": {
+      "before": "74f0bd59223c0a86826b6c318d6817e0eb259067ae49c49a1e0f854a8edcdfa8",
+      "after": "1b0aa93f42d5e77b8e9c4ea53bef18607a058976c58ac7b72685516f619d46ef"
+    },
+    "server/analytics.py": {
+      "before": null,
+      "after": "525fbc63286ba4783e263c7ecaf7e61bdc7b43de379aa4fd89ca4907f20e314a"
+    },
+    "server/app.py": {
+      "before": "357cd644259ef11074f66db032e38454ef58f63a17a698bfc809ebf865c18c62",
+      "after": "deb3cc99070be9971383eb79236e28cc4320990ca6dafbaac066813767169eba"
+    },
+    "server/config.py": {
+      "before": "c72b5701d855a470bc3fd84a90df254bee5f0f480ebffa9b26f7a83e402ed37b",
+      "after": "b9c7b34f236233eb1ecfe2a94f5f77a67f11315b4bf92eb8f5c391c6bd7e6df3"
+    },
+    "server/contracts.py": {
+      "before": null,
+      "after": "bed0d9ad2f74cef04089bd0aedf3c4f7fac81be958e5bb74c670a3ce46e5d23a"
+    },
+    "server/imports.py": {
+      "before": "b0fc241329421f9441270906a8406dd48c5dc6b179ada8ea53144f2682a915e6",
+      "after": "80dda248dcad6226353503bd09f6e98f39169c0c21efac809ff3dc8e99887793"
+    },
+    "server/intelligence.py": {
+      "before": null,
+      "after": "7cecd66bdae7c07a7b670aba773a04b624c52360193ae9e5e57d8d4c437a1704"
+    },
+    "server/models.py": {
+      "before": "d94fb34ac6c8684c30d053f362a8913efb09ba898f130a910195f5622326b9c9",
+      "after": "d94fb34ac6c8684c30d053f362a8913efb09ba898f130a910195f5622326b9c9"
+    },
+    "server/network.py": {
+      "before": "cfa7b7ed5f3d0235d59189971348634d90a7cca6801e62497d408523e34a81eb",
+      "after": "cfa7b7ed5f3d0235d59189971348634d90a7cca6801e62497d408523e34a81eb"
+    },
+    "server/parse_worker.py": {
+      "before": "9b34f569b2b6bde523a3fa71be4bda7c88391c810e9e8486eaa2f764082ab797",
+      "after": "9b34f569b2b6bde523a3fa71be4bda7c88391c810e9e8486eaa2f764082ab797"
+    },
+    "server/providers.py": {
+      "before": "8577b5f63ee353b88ee1f7315185bc3c216572f9eca8451e741e885cbb12a477",
+      "after": "8577b5f63ee353b88ee1f7315185bc3c216572f9eca8451e741e885cbb12a477"
+    },
+    "server/research.py": {
+      "before": "e58803f7ee5e7b63a96dac112b37d871766a5d6ede37e874dddb145f58611106",
+      "after": "e58803f7ee5e7b63a96dac112b37d871766a5d6ede37e874dddb145f58611106"
+    },
+    "server/retrieval.py": {
+      "before": "bad1f40d71b9791631ab9933cc96c1e3c8288291b97631f035c93d81a01701c8",
+      "after": "99add57be6658a4e52f95df022fda97cf063a65a326e372d2ef3b0683c0aee2f"
+    },
+    "server/schemas.py": {
+      "before": "ba748957b66dc7224aee8a1445faea821f860306f7d9daab9f2bf1179f0d9651",
+      "after": "ba748957b66dc7224aee8a1445faea821f860306f7d9daab9f2bf1179f0d9651"
+    },
+    "server/security.py": {
+      "before": "8683a214a31b71ba80506e5f7e9e49a201f14cd3c9e0427ae3246ef165eb759a",
+      "after": "8683a214a31b71ba80506e5f7e9e49a201f14cd3c9e0427ae3246ef165eb759a"
+    },
+    "server/store.py": {
+      "before": "be20d8371bfc313a33458888e0088e8a8b3548cb003ed207205ce2a98a9f740c",
+      "after": "0a66aec685fdd217ed275b523fdf44ee3a7415d6f47f2b94128deb63035a84cd"
+    },
+    "server/studio.py": {
+      "before": null,
+      "after": "1da687b37ef08a93f147b25103876c5fd0098f4be2b2431e19b06d18a7b11f28"
+    },
+    "server/workflows.py": {
+      "before": "ea9e73f3c285dbeb3dfa8e11fee8b256c2c7b2b129074ada73c0dcd69ee2ef12",
+      "after": "582ff42c6fb6d7607ed8b28fd4640e727f0cd47902d75f9dd5e0f762bd65d507"
+    },
+    "server/workspace_api.py": {
+      "before": null,
+      "after": "d573a223bdb1f8d635fe81c073f9b9efe590f19634a2de632607fcd41aed75e7"
+    },
+    "server/workspace_store.py": {
+      "before": null,
+      "after": "5a678655039edfb396666191034b0d126ff1afebfe8f141660df3bd3ef524b6d"
+    },
+    "start-windows.cmd": {
+      "before": "556828c2c35cb8580d36c0ebba02dd64f8c63fa43445550b5aee7856082c285a",
+      "after": "556828c2c35cb8580d36c0ebba02dd64f8c63fa43445550b5aee7856082c285a"
+    },
+    "tests/conftest.py": {
+      "before": "a05eff87e44113b395a004699343aea0f2426d9d2e66470c4fc240452b9268dd",
+      "after": "829ded6697abf66ce5c0737f70d95875a564931df17571c708af04359ff1dccf"
+    },
+    "tests/fixtures/synthetic-financial.json": {
+      "before": null,
+      "after": "205d7f1dd42d02df07f21bb3d898d1594c6bc3a7ab0dcd4475de188b103a6233"
+    },
+    "tests/frontend.test.mjs": {
+      "before": null,
+      "after": "45194bd63da87f79cdc744bf1062917d4a3a742cc5bd076b32afb2999946372e"
+    },
+    "tests/test_domain.py": {
+      "before": "6e0e3cae73c76e8ad3dcd394717d7cd92a503c7847b9ef662319ebb128036c78",
+      "after": "6e0e3cae73c76e8ad3dcd394717d7cd92a503c7847b9ef662319ebb128036c78"
+    },
+    "tests/test_import_retrieval_network.py": {
+      "before": "99d117e43f15452f0860d72738a330dd0d1f892d372d712937fefc77b2b7fbfe",
+      "after": "99d117e43f15452f0860d72738a330dd0d1f892d372d712937fefc77b2b7fbfe"
+    },
+    "tests/test_research.py": {
+      "before": "79d71d38a066861a28c4b3cc58418f163dda4f99616d6e1955195f008a7e0978",
+      "after": "1f4cb94363dfd5f5ca10a0b347ee8a7588e7330fcf824aa98228b456e117af2d"
+    },
+    "tests/test_security_api.py": {
+      "before": "1503e51e2a46030d5082cea4850304db284b58c78d96232ea24debbbb7d60fb6",
+      "after": "05ab2ffdf65c1a18735350bb6ab9396333ff24dd9d95b3ba3ec240cd1b75882e"
+    },
+    "tests/test_workflows.py": {
+      "before": "1160de00a1e2fbd7bada35e60dc9c70c471701417fbfdd7a8c698197f63875ad",
+      "after": "1160de00a1e2fbd7bada35e60dc9c70c471701417fbfdd7a8c698197f63875ad"
+    },
+    "tests/test_workspace_analytics.py": {
+      "before": null,
+      "after": "bc141b36f1ce231f9ed70a7b1504d44f1254549abf6b32c5cb76a93a49aa2f9b"
+    },
+    "tests/test_workspace_api.py": {
+      "before": null,
+      "after": "7641a11065872f6a5d10ace7e9590ec7bfaa9a6a72ebdd2c4d1d6448a068ddd2"
+    },
+    "tsconfig.json": {
+      "before": "e1cb5a11863cc32d65a2be206bb4c96ccc97b3485585c6a4855d1b2a04620631",
+      "after": "e1cb5a11863cc32d65a2be206bb4c96ccc97b3485585c6a4855d1b2a04620631"
+    },
+    "web/api-docs.html": {
+      "before": "67e6d509a56739d71c448f4d0d6bd716971f9cc3e3d712e4e5bbb62c6c24f44c",
+      "after": "67e6d509a56739d71c448f4d0d6bd716971f9cc3e3d712e4e5bbb62c6c24f44c"
+    },
+    "web/api.ts": {
+      "before": "9c83e54d193f6324014f5d976e12794c368f9713630442f468f8d164c294e1c8",
+      "after": "665b6b7e00b2f5ae6ddf3833d859588c03ec932771c4d93c6a5609676d220af1"
+    },
+    "web/app.ts": {
+      "before": "63c119fd330a0ff875a0c46ffe92f491e8439036f06fbdd339d84451fc5e1198",
+      "after": "93f4575f6692cefb2351952c2b299c14cdb23c85e1b5909eaca6f859dcd00c44"
+    },
+    "web/components.ts": {
+      "before": "1d12889b028f4753aca122f238d5afbd4b0050e488692faf333238bfc13a2ba7",
+      "after": "41f13d86db82ef2b9d32ce7b22c4570e3869d7277f5e0a471a7bc50aa41c30f3"
+    },
+    "web/docs.ts": {
+      "before": "857e87ec928df33c6b884d2b97e68a849400c32a7b7a02a992fb19f0f786fb92",
+      "after": "857e87ec928df33c6b884d2b97e68a849400c32a7b7a02a992fb19f0f786fb92"
+    },
+    "web/index.html": {
+      "before": "10f3c3ad7906dc73c766599422e87c9b68b61cbc14752f1cd676c5ae68b7d5f7",
+      "after": "721c699eb487c11cff28779cc5018dfcc45bcf0f880965b56d9c5f94664b4f90"
+    },
+    "web/mark.svg": {
+      "before": "c6341a5ff837f9914a7b91f3343737a6e9af04eefb149c69386b4f0e630ec51e",
+      "after": "c6341a5ff837f9914a7b91f3343737a6e9af04eefb149c69386b4f0e630ec51e"
+    },
+    "web/pages.ts": {
+      "before": "725c3e2ba7e8b9b31dd6389261dc79c4160acbcd63c5cc10b8356578ce4fd0aa",
+      "after": "53c1ba2529fa25a3fcb5955cdaa23dfd65135df11e8c24fd6767ccffb3f9ab51"
+    },
+    "web/state.ts": {
+      "before": "56feb07ab3353f4c96fb074e436676c4f3c6139b2d6434264ef85991d77e534c",
+      "after": "5e1c0f26816c649d27fe5b04d9d6145f102aa02d59601e8cef54853370c70c2f"
+    },
+    "web/styles.css": {
+      "before": "da20706d65baccf51ed69263f79a632a19444db735ab5042d7b9785490f25cab",
+      "after": "24a90e8e8413424ac96c3838687fb2fc9be61e262dc0d00151012564646371a0"
+    },
+    "web/views-analysis.ts": {
+      "before": null,
+      "after": "1ab2eff8e7263af167ea0b116a3d6642044789bf4ae35b056cdbd3d7696b25fe"
+    },
+    "web/views-data.ts": {
+      "before": null,
+      "after": "ecd5f6c7adfec966982fedd1121e5a14c3fabae7adfa5531adb622c773d5d397"
+    },
+    "web/views-studio.ts": {
+      "before": null,
+      "after": "fd493ad3a06b218dee1ec08f6b623e04caa35a7c563b802206d8224d282c98f7"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "assets": [
+    {
+      "file": "web/brand/logo.png",
+      "original_source": "锂电智诊.zip/public/images/logo.png",
+      "original_sha256": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+      "delivered_sha256": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+      "identical": true,
+      "size_bytes": 302922
+    },
+    {
+      "file": "web/brand/loading-video.mp4",
+      "original_source": "锂电智诊.zip/public/loading-video.mp4",
+      "original_sha256": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd",
+      "delivered_sha256": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd",
+      "identical": true,
+      "size_bytes": 361447
+    }
+  ],
+  "note": "原始素材来源与字节保留，不是知识产权认证；5.04s H264 960×960视频，PNG原图"
+}

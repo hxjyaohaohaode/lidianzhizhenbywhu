@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/opt/pyvenv/bin/python",
+    "-m",
+    "pip",
+    "index",
+    "versions",
+    "pypdf",
+    "--retries",
+    "0",
+    "--timeout",
+    "4",
+    "--disable-pip-version-check"
+  ],
+  "exit_code": 1,
+  "output": "WARNING: The directory '/home/oai/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.\nERROR: No matching distribution found for pypdf\n",
+  "seconds": 1.2160445280001113
+}

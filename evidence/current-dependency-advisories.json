@@ -1,0 +1,82 @@
+{
+  "source": "PyPI version JSON vulnerability metadata",
+  "scope": "named runtime packages only, not exhaustive SBOM or source scan",
+  "checked_at": "2026-09-26T14:56:21Z",
+  "packages": [
+    {
+      "name": "fastapi",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "uvicorn",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "pydantic",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "pydantic-core",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "starlette",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "python-multipart",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "openpyxl",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "httpx",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "anyio",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "h11",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "typing-extensions",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "annotated-types",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "typing-inspection",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "idna",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    },
+    {
+      "name": "certifi",
+      "status": "not_checked",
+      "error_class": "ConnectError"
+    }
+  ]
+}

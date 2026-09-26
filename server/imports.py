@@ -1,0 +1,104 @@
+from __future__ import annotations
+import csv
+import io
+import json
+import os
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+from .schemas import Dataset,Period
+
+ALIASES={'季度':'period','营业收入':'revenue','营业成本':'cost','净利润':'net_profit','经营现金流':'cash_flow','总资产':'assets','总负债':'liabilities','期初净资产':'equity_begin','期末净资产':'equity_end','库存金额':'inventory','销量':'sales_volume','产量':'production_volume','制造费用':'manufacturing_cost','研发费用':'rd_expense','碳酸锂价格':'lithium_price','行业波动率':'industry_volatility'}
+
+def safe_zip(data):
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        if len(z.infolist())>2000 or sum(i.file_size for i in z.infolist())>20_000_000:raise ValueError('解压规模超限')
+        for i in z.infolist():
+            if i.file_size>5_000_000 or '..' in Path(i.filename).parts or i.filename.startswith('/'):raise ValueError('压缩内容不安全')
+            if i.compress_size and i.file_size/i.compress_size>1000:raise ValueError('压缩比异常')
+
+def parse_rows(rows):
+    if len(rows)<2:raise ValueError('需要表头和至少一行数据')
+    if len(rows)>41 or len(rows[0])>20:raise ValueError('最多40季度、20列')
+    header=[ALIASES.get(str(v).strip(),str(v).strip()) for v in rows[0]]
+    if len(header)!=len(set(header)):raise ValueError('表头重复')
+    if set(header)-set(Period.model_fields):raise ValueError('未知列名：'+','.join(sorted(set(header)-set(Period.model_fields))))
+    result=[]
+    for index,row in enumerate(rows[1:],2):
+        if not any(v not in ('',None) for v in row):continue
+        if len(row)>len(header):raise ValueError(f'第{index}行列数超过表头')
+        item={}
+        for key,value in zip(header,row):
+            if value is None or (isinstance(value,str) and not value.strip()):
+                if key in ('period','revenue','cost'):raise ValueError(f'第{index}行{key}不能为空')
+                continue
+            if isinstance(value,bool):raise ValueError(f'第{index}行不允许布尔数字')
+            if key=='period':item[key]=str(value).strip();continue
+            if isinstance(value,str) and value.lstrip().startswith(('=','@','+')):raise ValueError(f'第{index}行包含公式或不支持前缀')
+            try:item[key]=float(value)
+            except (ValueError,TypeError):raise ValueError(f'第{index}行{key}必须为纯数值，不支持千分位或百分号') from None
+        result.append(Period.model_validate(item).model_dump(mode='json'))
+    if not result:raise ValueError('没有有效数据行')
+    return result
+
+def import_dataset(filename,data,company,unit='yuan'):
+    if len(data)>2_000_000:raise ValueError('文件不得超过2MB')
+    ext=Path(filename).suffix.lower()
+    if ext=='.json':
+        obj=json.loads(data.decode('utf-8-sig'),parse_constant=lambda v:(_ for _ in ()).throw(ValueError('不允许NaN/Infinity')))
+        return Dataset.model_validate(obj)
+    if ext=='.csv':rows=list(csv.reader(io.StringIO(data.decode('utf-8-sig'))))
+    elif ext=='.xlsx':
+        safe_zip(data)
+        from openpyxl import load_workbook
+        wb=load_workbook(io.BytesIO(data),read_only=True,data_only=False,keep_links=False)
+        try:
+            if len(wb.sheetnames)!=1:raise ValueError('请只保留一个数据工作表，避免隐式选错表')
+            ws=wb.active
+            if ws.max_row>41 or ws.max_column>20:raise ValueError('工作表规模超过40季度、20列')
+            rows=[list(row) for row in ws.iter_rows(values_only=True)]
+        finally:wb.close()
+    else:raise ValueError('结构化数据只支持JSON、CSV、XLSX；文本证据请使用证据库')
+    return Dataset.model_validate({'name':Path(filename).stem,'company':company,'amount_unit':unit,'periods':parse_rows(rows)})
+
+def document_text(filename,data):
+    if len(data)>2_000_000:raise ValueError('文件不得超过2MB')
+    ext=Path(filename).suffix.lower()
+    if ext in ('.txt','.md'):text=data.decode('utf-8-sig')
+    elif ext=='.pdf':
+        if not pdf_status()['enabled']:
+            raise ValueError('PDF解析未启用：需要安装requirements-pdf.txt中经单独验收的解析器；当前请上传TXT/MD文本')
+        from pypdf import PdfReader
+        reader=PdfReader(io.BytesIO(data),strict=True)
+        if reader.is_encrypted or len(reader.pages)>60:raise ValueError('不支持加密PDF或超过60页的PDF')
+        text='\n'.join((p.extract_text() or '')[:20000] for p in reader.pages)
+    else:raise ValueError('证据文件只支持TXT、Markdown、文本型PDF')
+    text=text.replace('\x00','').strip()
+    if len(text)<20:raise ValueError('文本不足20字符，扫描件请先在可信环境转为文本')
+    if len(text)>120000:raise ValueError('提取文本超过120000字符，请拆分文档')
+    return text
+
+def parse_document_isolated(filename,data):
+    """No untrusted PDF parsing in the long-lived API process; omit secrets from its environment."""
+    if len(data)>2_000_000:raise ValueError('文件超过2MB')
+    env={k:v for k,v in os.environ.items() if k in ('PATH','SYSTEMROOT','WINDIR','VIRTUAL_ENV','LANG','LC_ALL')};env['PYTHONIOENCODING']='utf-8'
+    try:result=subprocess.run([sys.executable,'-m','server.parse_worker',Path(filename).name],input=data,capture_output=True,timeout=12,cwd=Path(__file__).resolve().parent.parent,env=env)
+    except subprocess.TimeoutExpired:raise ValueError('文档解析超过12秒，已终止隔离进程') from None
+    if len(result.stdout)>800000:raise ValueError('解析输出超限')
+    try:obj=json.loads(result.stdout)
+    except (ValueError,UnicodeError):raise ValueError('解析进程失败或达到资源限制') from None
+    if result.returncode:raise ValueError(obj.get('error','文档解析失败'))
+    return obj['text']
+
+
+def pdf_status():
+    from importlib.metadata import version, PackageNotFoundError
+    try:
+        installed=version('pypdf')
+        parts=tuple(int(p) for p in installed.split('.')[:3])
+        enabled=parts>=(6,13,2)
+    except (PackageNotFoundError,ValueError):
+        installed=None;enabled=False
+    return {'enabled':enabled,'installed':installed,'minimum':'6.13.2',
+        'status':'optional_dependency_available_not_live_verified' if enabled else 'blocked_until_safe_optional_dependency'}

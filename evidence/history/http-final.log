@@ -1,0 +1,75 @@
+{
+  "passed": true,
+  "http_smoke": [
+    {
+      "endpoint": "http://127.0.0.1:8000/",
+      "status": 200,
+      "bytes": 813
+    },
+    {
+      "endpoint": "http://127.0.0.1:8000/assets/styles.css",
+      "status": 200,
+      "bytes": 38614
+    },
+    {
+      "endpoint": "http://127.0.0.1:8000/assets/dist/app.js",
+      "status": 200,
+      "bytes": 51881
+    },
+    {
+      "endpoint": "http://127.0.0.1:8000/api/docs",
+      "status": 200,
+      "bytes": 951
+    },
+    {
+      "endpoint": "http://127.0.0.1:8000/api/openapi.json",
+      "status": 200,
+      "bytes": 58679
+    }
+  ],
+  "reads": 32,
+  "read_concurrency": 4,
+  "median_ms": 6.348,
+  "p95_ms": 12.496,
+  "max_ms": 14.39,
+  "individual_ms": [
+    4.209,
+    11.643,
+    14.39,
+    12.496,
+    7.431,
+    7.828,
+    4.302,
+    8.208,
+    2.596,
+    9.815,
+    6.08,
+    3.129,
+    7.05,
+    2.08,
+    3.244,
+    5.239,
+    5.667,
+    3.567,
+    3.849,
+    5.649,
+    5.741,
+    6.2,
+    7.746,
+    6.896,
+    6.93,
+    6.496,
+    9.215,
+    8.201,
+    8.057,
+    8.01,
+    3.352,
+    2.072
+  ],
+  "backup": {
+    "copy_integrity": "ok",
+    "refuses_overwrite": true,
+    "scope": "synthetic SQLite backup only; not a production disaster recovery certification"
+  },
+  "scope": "loopback API, tiny empty workspace, no network or long-duration SLO claim"
+}
