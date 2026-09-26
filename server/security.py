@@ -5,7 +5,7 @@ import secrets
 import time
 from collections import OrderedDict,deque
 from fastapi import HTTPException,Request,Response
-from .store import digest
+from .store import digest, uid, now
 
 COOKIE='lidian_session'
 
@@ -36,6 +36,7 @@ def issue_session(request: Request,response: Response,user):
     with store.transaction() as db:
         db.execute('DELETE FROM auth_sessions WHERE expires<?',(time.time(),))
         db.execute('INSERT INTO auth_sessions VALUES(?,?,?,?)',(digest(token),user['id'],csrf,time.time()+config.session_hours*3600))
+        db.execute('INSERT INTO session_details VALUES(?,?,?,?,?)',(uid(),digest(token),user['id'],request.headers.get('user-agent','')[:250],now()))
         db.execute('DELETE FROM auth_sessions WHERE user_id=? AND token_hash NOT IN (SELECT token_hash FROM auth_sessions WHERE user_id=? ORDER BY expires DESC LIMIT 10)',(user['id'],user['id']))
     response.set_cookie(COOKIE,token,httponly=True,secure=config.production,samesite='strict',max_age=config.session_hours*3600,path='/')
     response.headers['Cache-Control']='no-store'

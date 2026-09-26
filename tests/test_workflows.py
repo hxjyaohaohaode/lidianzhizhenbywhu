@@ -162,7 +162,7 @@ def test_index_owner_delete_and_migration_backfill(actor,client,tmp_path):
     backup=tmp_path/'migrate.sqlite3';db.backup(backup);reloaded=Store(backup)
     try:
         assert retrieve_indexed(reloaded,actor.user['id'],'碳酸锂成本毛利率')
-        assert reloaded.one('SELECT MAX(version) AS n FROM schema_version')['n']==2
+        assert reloaded.one('SELECT MAX(version) AS n FROM schema_version')['n']==3
     finally:reloaded.close()
     actor.delete('/evidence/'+ev['id']);assert db.one('SELECT count(*) AS n FROM evidence_fts')['n']==0 and db.one('SELECT count(*) AS n FROM evidence_chunks')['n']==0
 def test_future_schema_refused_without_mutation(tmp_path):

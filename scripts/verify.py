@@ -6,7 +6,7 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('--tsc',help='Path to TypeScript tsc.js');p.add_argument('--full-chain',action='store_true',help='Run isolated real HTTP/SSE/restart/backup chain (no external suppliers)');a=p.parse_args();os.chdir(ROOT)
     out=ROOT/'evidence';out.mkdir(exist_ok=True);tsc=a.tsc or str(ROOT/'node_modules/typescript/bin/tsc')
     tc=['node',tsc,'--noEmit','-p','tsconfig.json'] if Path(tsc).is_file() else ['tsc','--noEmit','-p','tsconfig.json']
-    commands=[('python-compile',[sys.executable,'-m','compileall','-q','server','scripts']),('typecheck',tc),('pytest',[sys.executable,'-m','pytest','-q','--junitxml=evidence/pytest.xml']),('frontend-tests',['node','--test','tests/frontend.test.mjs']),('source-guard',[sys.executable,'scripts/source_guard.py'])];results=[]
+    commands=[('python-compile',[sys.executable,'-m','compileall','-q','server','scripts']),('typecheck',tc),('pytest',[sys.executable,'-m','pytest','-q','--junitxml=evidence/pytest.xml']),('frontend-tests',['node','--test','tests/frontend.test.mjs','tests/services.frontend.test.mjs']),('source-guard',[sys.executable,'scripts/source_guard.py'])];results=[]
     if a.full_chain:commands.append(('full-chain-http',[sys.executable,'scripts/full_chain_check.py']))
     for name,cmd in commands:
         t=time.monotonic()

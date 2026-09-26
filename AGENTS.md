@@ -11,3 +11,11 @@ All writes require owner/version checks. External requests originate from a fing
 Evolution uses consenting human-assessed completed cases, deduplicated financial inputs and actual local replay. Respect original explicit depth and assumptions. Never self-grade a fake score; never activate without current-case/baseline/candidate gates and explicit human confirmation. Historical reports and mathematical formulas stay unchanged.
 
 Before delivery run compile/typecheck/build, backend positive/adverse regression, frontend tests including event races, real Uvicorn HTTP/SSE/restart/backup chain and current rendered UI. Separate native browser checks from explicit DOM/API bridge checks; do not bypass administrator policy or relabel blocked checks as passed. Record external supplier calls accurately (test stubs are not live providers). Package no secrets, business DBs, caches, node_modules or font files.
+
+## Service workbench invariants
+- Never fabricate external-model calls or business data.
+- Keep service identities separate from account authorization.
+- Proposal previews must not write business objects; confirmations recheck ownership, versions, and consent.
+- Private provider keys must never appear in API output, logs, exports or Git.
+- Keep original brand bytes and include compiled JS in releases.
+- Treat protocol tests, bridge-rendering tests and native browser tests as separate evidence.

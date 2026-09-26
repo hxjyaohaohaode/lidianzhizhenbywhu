@@ -128,6 +128,7 @@ class FetchEvidence(StrictModel):
     published_at: date | None = None
 
 class Memory(StrictModel):
+    identity_id: str = Field(default='', max_length=80)
     text: str = Field(min_length=1,max_length=1500)
     kind: Literal['preference','fact','note'] = 'note'
     company: str = Field(default='',max_length=200)

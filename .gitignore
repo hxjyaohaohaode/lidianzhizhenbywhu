@@ -9,7 +9,12 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .coverage
-web/dist/
+web/dist/*.map
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+*.credentials.key
+credentials.key
+*.backup.json
+*.sqlite
+*.db

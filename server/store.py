@@ -41,7 +41,7 @@ class Store:
         self.db.row_factory=sqlite3.Row
         if self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_version'").fetchone():
             version=self.db.execute('SELECT MAX(version) FROM schema_version').fetchone()[0]
-            if version and version>2:self.db.close();raise RuntimeError('数据库版本高于此程序；拒绝降级写入。')
+            if version and version>3:self.db.close();raise RuntimeError('数据库版本高于此程序；拒绝降级写入。')
         self.db.execute('PRAGMA foreign_keys=ON');self.db.execute('PRAGMA journal_mode=WAL')
         self.db.execute('PRAGMA synchronous=FULL');self.db.execute('PRAGMA busy_timeout=5000')
         self.db.executescript('''
@@ -80,6 +80,11 @@ class Store:
         migrate(self)
         from .autonomy import migrate as migrate_adaptive
         migrate_adaptive(self)
+        from .connections import migrate as migrate_connections
+        migrate_connections(self)
+        from .copilot import migrate as migrate_copilot
+        migrate_copilot(self)
+        with self.transaction() as db:db.execute('INSERT OR IGNORE INTO schema_version VALUES(3)')
         for private in (path,Path(str(path)+'-wal'),Path(str(path)+'-shm')):
             try:os.chmod(private,0o600)
             except OSError:pass

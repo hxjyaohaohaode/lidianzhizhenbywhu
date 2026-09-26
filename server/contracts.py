@@ -20,6 +20,7 @@ class CompanyProfile(StrictModel):
 
 
 class PlanDraft(StrictModel):
+    identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(min_length=1, max_length=80)
     query: str = Field(min_length=5, max_length=3000)
     mode: Mode = 'operational'

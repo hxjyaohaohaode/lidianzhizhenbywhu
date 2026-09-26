@@ -3,7 +3,7 @@ from __future__ import annotations
 from .store import encode, digest, uid, now, unpack
 from .security import fail
 
-KINDS = frozenset({'profile','plan','action','experiment','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation'})
+KINDS = frozenset({'profile','plan','action','experiment','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation','identity','assistant_thread','assistant_proposal','watch','alert'})
 
 
 def migrate(store):

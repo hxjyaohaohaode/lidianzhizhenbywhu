@@ -43,3 +43,11 @@ FastAPI官方变更记录：https://fastapi.tiangolo.com/release-notes/ 。本�
 本次实际新增本机TCP/HTTP原始资源、认证、CSRF、导入、冻结报告、真实SSE续读、暂停后SIGKILL与恢复、策略激活回滚、在线备份检查。浏览器原生导航仍遭管理员策略阻止，未修改策略；DOM/API桥接记录单独列出，不伪装同源Cookie/CSP/SSE浏览器验收。
 
 当前联网依赖元数据检查15项均因连接失败标记not_checked，见evidence/current-dependency-advisories.json。它不是15项无漏洞，不替代完整依赖与源码安全审计。
+
+## Current security update
+
+Runtime constraints are FastAPI 0.141.1, Starlette 1.3.1, python-multipart 0.0.32 and cryptography 50.0.1. Official package metadata and advisories were checked; historical local pins are not advertised as safe. GitHub dependency-audit installs and resolves the release constraints independently. A successful audit reflects the advisories available at that run, not proof of zero vulnerabilities.
+
+Service connections are owner-scoped and encrypted with a separate local Fernet key. Same-machine administrators can read both: this is not protection against a compromised host. Missing keys fail closed. Backup keys must remain private. Sensitive operations reauthenticate and limit password-hash concurrency. Work identities do not add organizational permissions.
+
+Raw ambiguous Host authorities, control characters and Windows UNC/drive-style paths are rejected before URL construction or static-file resolution. This is defense in depth, not a substitute for patched dependencies.

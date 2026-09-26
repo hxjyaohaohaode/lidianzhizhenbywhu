@@ -1,0 +1,2 @@
+# Preserve release bytes; TypeScript emits LF and Windows entrypoints use CRLF.
+* -text

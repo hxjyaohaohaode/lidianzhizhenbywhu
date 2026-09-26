@@ -1,0 +1,866 @@
+import { loadLayout, applyLayout, toggleNav, toggleAssistant, clearLayout } from './layout.js';
+import { copilotShell, copilotPage, mountCopilot, sendCopilot, resetCopilot } from './copilot-ui.js';
+import { servicesPage, trackingPage } from './views-services.js';
+import { setupExperience, restoreIdentity } from './experience.js';
+import { showBrandIntro, restoreMotion, motionSetting } from './brand.js';
+import { evolutionPage, strategyForm, assessmentForm, graphCanvas, runtimeRibbon } from './views-orchestrator.js';
+import { RunLive } from './live.js';
+import { api, workspace, setCsrf, ApiError } from './api.js';
+import { state, routes, activeDataset, activeIdentity, scopedDatasets } from './state.js';
+import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricNames, metricValue } from './components.js';
+import { briefPage, settingsPage, opsPage } from './pages.js';
+import { dataPage, datasetEditor, periodRow, financialFields, importForm, stageView, qualityPanel, evidencePage, evidenceForm, reviewEvidenceForm, memoryPage, memoryForm } from './views-data.js';
+import { agentsPage, templateForm } from './views-studio.js';
+import { labPage, comparePage, comparisonOutput, reportsPage, reportCompareForm, actionsPage, actionForm, actionDetail } from './views-analysis.js';
+const root = document.querySelector('#app');
+const modal = document.querySelector('#modal');
+const inspector = document.querySelector('#inspector');
+let live = null;
+let renderEpoch = 0;
+let signingUp = false;
+let currentHash = '';
+let polling = false;
+let syncing = false;
+let syncPending = false;
+const split = (v) => v.split(/[,，\n]/).map(x => x.trim()).filter(Boolean);
+function toast(message, error = false) { const host = document.querySelector('#notifications'); for (const n of [...host.children])
+    if (n.textContent === message)
+        n.remove(); while (host.children.length >= 2)
+    host.firstElementChild?.remove(); const e = document.createElement('div'); e.className = 'toast' + (error ? ' error' : ''); e.textContent = message; host.append(e); setTimeout(() => e.remove(), error ? 10000 : 4000); }
+function theme() { const t = state.user?.preferences.theme ?? 'light'; document.documentElement.dataset.theme = t === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t; }
+function dialog(title, body, wide = false) { modal.classList.toggle('wide', wide); modal.innerHTML = `<div class="dialog-head"><h2 id="modal-title">${esc(title)}</h2>${button(icon('close'), 'close-modal', 'icon-button', 'aria-label="关闭窗口"')}</div><div class="dialog-body">${body}</div>`; if (!modal.open)
+    modal.showModal(); }
+function inspect(title, body) { inspector.innerHTML = `<div class="dialog-head"><h2 id="inspector-title">${esc(title)}</h2>${button(icon('close'), 'close-inspector', 'icon-button', 'aria-label="关闭详情"')}</div><div class="dialog-body">${body}</div>`; if (!inspector.open)
+    inspector.showModal(); }
+function download(name, data) { const b = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
+function safeToLeave() { return !state.dirty || window.confirm('当前输入尚未保存。离开后这些修改将丢失，是否继续？'); }
+function navigate(path, force = false) { if (!force && !safeToLeave())
+    return; state.dirty = false; if (modal.open)
+    modal.close(); if (inspector.open)
+    inspector.close(); if (location.hash.slice(1) === path) {
+    void render();
+    return;
+} location.hash = path; }
+function auth() { live?.dispose(); live = null; renderEpoch++; root.innerHTML = `<main class="auth-page"><section class="auth-intro"><a class="brand" href="#"><img src="/assets/brand/logo.png" alt="">锂电智诊</a><div><span class="eyebrow">企业研究与经营诊断</span><h1>让每一个判断，<br>有据可循。</h1><p>连接经营数据、原始证据与协作分析。<br>从可核验的输入，走向可执行的行动。</p><div class="auth-principles"><span>${icon('database')} 数据有来源</span><span>${icon('network')} 执行可追溯</span><span>${icon('lock')} 授权有边界</span></div></div><small>你的数据仅在账户工作区内使用；外部模型按次授权。</small></section><section class="auth-panel"><div class="auth-box"><span class="eyebrow">${signingUp ? '建立独立工作区' : '进入你的工作区'}</span><h2>${signingUp ? '创建账户' : '欢迎回来'}</h2><form id="auth-form" class="stack">${field('邮箱', input('email', '', 'type="email" autocomplete="username" required maxlength="180"'))}${field('密码', input('password', '', 'type="password" autocomplete="' + (signingUp ? 'new-password' : 'current-password') + '" minlength="' + (signingUp ? 12 : 1) + '" maxlength="128" required'), signingUp ? '至少 12 个字符，建议使用独立长密码' : '')}${signingUp ? field('称呼', input('name', '', 'autocomplete="nickname" required maxlength="200"')) + field('工作视角', select('role', { enterprise: '企业经营', investor: '投资研究' })) + field('邀请码（部署方启用时填写）', input('invitation', '', 'autocomplete="off"')) : ''}${formFooter(signingUp ? '创建工作区' : '登录')}</form><div class="auth-switch">${button(signingUp ? '已有账户，返回登录' : '没有账户？创建独立工作区', 'auth-toggle', 'text-button')}</div></div></section></main>`; }
+function assistantShell() { return state.route === 'copilot' ? '' : copilotShell(); }
+function shell() { theme(); loadLayout(state.user.id); let section = ''; root.innerHTML = `<div class="workspace-shell"><aside class="sidebar" id="sidebar"><a class="brand" href="#brief"><img src="/assets/brand/logo.png" alt=""><span class="brand-word">锂电智诊</span></a>${button(icon('close'), 'close-menu', 'icon-button menu-close', 'aria-label="收起导航"')}<button class="command-button" data-action="command">${icon('search')}<span>快速前往</span><kbd>Ctrl K</kbd></button><nav aria-label="主导航">${Object.entries(routes).map(([id, r]) => { const h = r.section !== section ? `<div class="nav-section">${esc(r.section)}</div>` : ''; section = r.section; return h + `<button data-route="${id}" title="${esc(r.label)}" aria-label="${esc(r.label)}" class="nav-item ${state.route === id ? 'active' : ''}" ${state.route === id ? 'aria-current="page"' : ''}>${icon(r.icon)}<span>${r.label}</span></button>`; }).join('')}</nav><div class="sidebar-footer"><span class="avatar">${esc(state.user.name.slice(0, 1))}</span><div><strong>${esc(state.user.name)}</strong><small>${esc(activeIdentity()?.payload.name ?? '默认工作身份')}</small></div>${button(icon('logout'), 'logout', 'icon-button', 'aria-label="退出登录"')}</div></aside><div class="main-shell"><header class="topbar"><div class="topbar-start">${button(icon('menu'), 'menu', 'icon-button menu-button', 'aria-label="展开导航"')}<span class="breadcrumb">工作空间 <span>/</span> <strong>${esc(routes[state.route]?.label ?? '工作简报')}</strong></span></div><div class="topbar-controls"><label class="identity-select"><span class="sr-only">当前服务身份</span>${icon('memory')}<select id="active-identity"><option value="">默认身份</option>${state.identities.map(i => `<option value="${esc(i.id)}" ${state.identity === i.id ? 'selected' : ''}>${esc(i.payload.name)}</option>`).join('')}</select></label><label class="company-select"><span class="sr-only">当前企业数据集</span>${icon('database')}<select id="active-dataset"><option value="">${state.datasets.length ? '所有企业 / 未选择' : '尚未添加企业'}</option>${scopedDatasets().map(d => `<option value="${esc(d.id)}" ${state.active === d.id ? 'selected' : ''}>${esc(d.payload.company)} · ${esc(d.payload.name)}</option>`).join('')}</select></label>${button(icon('spark'), 'show-assistant', 'icon-button', 'aria-label="打开研究助手"')}</div></header><div id="sync-notice" hidden></div><main id="main" tabindex="-1"><div class="loading" role="status"><span class="spinner"></span> 正在读取工作区…</div></main></div>${assistantShell()}<button type="button" id="drawer-backdrop" class="drawer-backdrop" aria-label="关闭抽屉" hidden></button></div>`; applyLayout(); }
+async function bootstrap() { const me = await api('/auth/me'); setCsrf(me.csrf); state.user = me.user; const [ds, caps, ids] = await Promise.all([api('/datasets'), api('/capabilities'), api('/services/identities')]); state.datasets = ds.items; state.caps = caps; state.identities = ids.items; restoreIdentity(); state.cursor = (await api('/sync?head=true')).cursor; syncPending = false; if (state.active && !ds.items.some((d) => d.id === state.active))
+    state.active = ''; if (state.active && !scopedDatasets().some(d => d.id === state.active))
+    state.active = ''; if (!state.active && scopedDatasets().length === 1)
+    state.active = scopedDatasets()[0].id; }
+async function refreshData() { const [ds, caps, ids] = await Promise.all([api('/datasets'), api('/capabilities'), api('/services/identities')]); state.datasets = ds.items; state.caps = caps; state.identities = ids.items; if (state.identity && !ids.items.some((x) => x.id === state.identity))
+    state.identity = ''; const me = await api('/auth/me'); state.user = me.user; setCsrf(me.csrf); if (state.active && !state.datasets.find(d => d.id === state.active))
+    state.active = ''; }
+async function render() { live?.dispose(); live = null; if (!state.user)
+    return auth(); const seq = ++renderEpoch; const [r, ...rest] = (location.hash.slice(1) || 'brief').split(':'); state.route = r in routes ? r : 'brief'; state.id = rest.join(':'); currentHash = location.hash; shell(); showSyncNotice(); const main = document.querySelector('#main'); try {
+    const views = { brief: briefPage, copilot: copilotPage, services: servicesPage, tracking: trackingPage, agents: () => agentsPage(state.id), data: dataPage, evidence: evidencePage, lab: () => labPage(state.id), compare: comparePage, reports: reportsPage, actions: actionsPage, memory: memoryPage, ops: opsPage, settings: settingsPage, evolution: evolutionPage };
+    const html = await views[state.route]();
+    if (seq !== renderEpoch)
+        return;
+    main.innerHTML = html;
+    main.dataset.page = state.route;
+    applyLayout();
+    void mountCopilot();
+    document.title = routes[state.route].label + ' · 锂电智诊';
+    main.querySelector('h1')?.setAttribute('tabindex', '-1');
+    setupLive();
+    if (state.route === 'settings')
+        main.insertAdjacentHTML('beforeend', appearancePanel());
+}
+catch (e) {
+    if (seq !== renderEpoch)
+        return;
+    if (e instanceof ApiError && e.status === 401) {
+        resetAuth();
+        return;
+    }
+    main.innerHTML = heading('读取未完成', '没有使用缓存或模拟数据替代失败的结果。') + notice(e instanceof Error ? e.message : '读取失败', 'danger') + button('重新读取', 'refresh', 'primary');
+} }
+function resetAuth() { resetCopilot(); clearLayout(); state.identity = ''; state.identities = []; live?.dispose(); live = null; state.user = null; state.cache = {}; state.cursor = 0; syncPending = false; state.datasets = []; state.active = ''; state.query = ''; state.dirty = false; setCsrf(''); if (modal.open)
+    modal.close(); if (inspector.open)
+    inspector.close(); modal.replaceChildren(); inspector.replaceChildren(); document.querySelector('#notifications').replaceChildren(); auth(); }
+function read(form) { const f = new FormData(form); const str = (k) => String(f.get(k) ?? '').trim(); const val = (k, optional = false) => { const s = str(k); if (optional && !s)
+    return null; const n = Number(s); if (!s || !Number.isFinite(n))
+    throw new Error('请填写有效数值：' + k); return n; }; return { f, str, val, check: (k) => f.has(k), list: (k) => f.getAll(k).map(String) }; }
+async function showStage(stage) { state.cache.stage = stage; dialog('保存前核对', stageView(stage), true); }
+function rawDataset(d) { const p = { ...d }; delete p.verification; delete p.input_amount_unit; return p; }
+async function createEvidence(data, company) { const result = await api('/evidence', 'POST', data); if (company) {
+    const all = await workspace('/evidence');
+    const old = all.items.find((v) => v.id === result.id);
+    if (old?.review.company && old.review.company !== company) {
+        toast('相同原文已存在，保留原有企业范围。请到资料审阅中核对。', true);
+    }
+    else if (old?.review.company !== company) {
+        try {
+            await workspace('/evidence/' + result.id + '/review', 'PUT', { ...old.review, company, version: old.review_version });
+        }
+        catch {
+            throw new Error('原始资料已保存，但企业范围未更新。请前往证据资料审阅，勿重复上传。');
+        }
+    }
+} return result; }
+async function ask(query) { await sendCopilot(query); }
+// All writes share a visible error boundary. Network failures are never automatically retried.
+document.addEventListener('submit', async (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement))
+        return;
+    event.preventDefault();
+    if (form.dataset.submitting === 'true')
+        return;
+    if (!form.reportValidity())
+        return;
+    const submit = form.querySelector('button[type="submit"],button:not([type])');
+    const error = form.querySelector('.form-error');
+    if (error)
+        error.textContent = '';
+    form.dataset.submitting = 'true';
+    if (submit)
+        submit.disabled = true;
+    try {
+        const { f, str, val, check, list } = read(form);
+        let changed = false;
+        switch (form.id) {
+            case 'strategy-form':
+                await workspace('/strategies', 'POST', { name: str('name'), depth: str('depth'), require_counterevidence: check('require_counterevidence'), require_gap_analysis: check('require_gap_analysis'), note: str('note') });
+                changed = true;
+                break;
+            case 'assessment-form':
+                await workspace('/runs/' + state.cache.run.id + '/assessment', 'POST', { version: Number(form.dataset.version), verdict: str('verdict'), note: str('note'), expected_capabilities: list('expected_capabilities'), consent_replay: check('consent_replay') });
+                changed = true;
+                break;
+            case 'appearance-form':
+                motionSetting(str('motion'));
+                toast('已应用动效偏好');
+                state.dirty = false;
+                break;
+            case 'auth-form': {
+                const r = await api('/auth/' + (signingUp ? 'register' : 'login'), 'POST', signingUp ? { email: str('email'), password: str('password'), name: str('name'), role: str('role'), invitation: str('invitation') } : { email: str('email'), password: str('password') });
+                state.user = r.user;
+                setCsrf(r.csrf);
+                await bootstrap();
+                state.dirty = false;
+                await render();
+                break;
+            }
+            case 'dataset-editor': {
+                const periods = [...form.querySelectorAll('[data-period-row]')].map(row => { const p = { period: row.querySelector('[name="period"]').value.trim() }; for (const [k] of financialFields) {
+                    const v = row.querySelector(`[name="${k}"]`).value;
+                    p[k] = v === '' ? null : Number(v);
+                    if (v !== '' && !Number.isFinite(p[k]))
+                        throw new Error('不能填写非有限数值');
+                } return p; });
+                if (!periods.length)
+                    throw new Error('至少需要一个季度');
+                const data = { company: str('company'), name: str('name'), amount_unit: str('amount_unit'), source_kind: 'user_provided', source_url: str('source_url'), notes: str('notes'), periods };
+                state.cache.editorDraft = { id: form.dataset.id, payload: data, version: Number(form.dataset.version), basis: str('basis') };
+                const req = { dataset: data, basis: str('basis') };
+                if (form.dataset.id) {
+                    req.target_id = form.dataset.id;
+                    req.target_version = Number(form.dataset.version);
+                }
+                await showStage(await workspace('/imports/preview', 'POST', req));
+                break;
+            }
+            case 'import-file-form':
+                state.cache.editorDraft = null;
+                await showStage(await workspace('/imports/file', 'POST', f));
+                break;
+            case 'evidence-form':
+                await createEvidence({ title: str('title'), source_url: str('source_url'), published_at: str('published_at') || null, text: str('text') }, str('company'));
+                changed = true;
+                break;
+            case 'evidence-review-form':
+                await workspace('/evidence/' + form.dataset.id + '/review', 'PUT', { version: Number(form.dataset.version), company: str('company'), expires_at: str('expires_at') || null, status: str('status'), stance: str('stance'), tags: split(str('tags')), note: str('note') });
+                changed = true;
+                break;
+            case 'evidence-search': {
+                const r = await workspace('/retrieval?q=' + encodeURIComponent(str('q')) + '&company=' + encodeURIComponent(activeDataset()?.payload.company ?? ''));
+                document.querySelector('#evidence-search-results').innerHTML = `<section class="panel"><div class="section-heading row-between"><h2>原文检索结果</h2>${badge(r.items.length + ' 条')}</div>${r.items.map(citationCard).join('') || notice('当前企业作用域内没有匹配的有效资料。')}</section>`;
+                break;
+            }
+            case 'document-form': {
+                const r = await api('/evidence/import', 'POST', f);
+                toast('文档已保存，请审阅企业范围与适用边界。');
+                changed = true;
+                break;
+            }
+            case 'fetch-evidence-form':
+                await api('/evidence/fetch', 'POST', { url: str('url'), title: str('title'), published_at: str('published_at') || null });
+                changed = true;
+                break;
+            case 'public-search-form': {
+                const r = await api('/research/search', 'POST', { query: str('query'), consent: check('consent') });
+                state.cache.search = r;
+                document.querySelector('#public-search-results').innerHTML = (r.items ?? []).map((v, i) => `<article class="citation"><h3>${esc(v.title)}</h3><p>${esc(v.text ?? '')}</p><p class="micro">${esc(v.source_url)}</p>${button('确认保存此摘要', 'save-search-result', 'secondary', `data-index="${i}"`)}</article>`).join('') || notice('没有通过过滤的结果。');
+                break;
+            }
+            case 'memory-form': {
+                const old = state.cache.memories?.find((m) => m.id === form.dataset.id);
+                const payload = { identity_id: old?.payload.identity_id ?? state.identity, text: str('text'), kind: str('kind'), company: str('company'), role: str('role'), expires_at: str('expires_at') || null, approved: check('approved'), source: 'user' };
+                if (form.dataset.id)
+                    await api('/memories/' + form.dataset.id, 'PUT', { ...payload, version: Number(form.dataset.version) });
+                else
+                    await api('/memories', 'POST', payload);
+                changed = true;
+                break;
+            }
+            case 'plan-form': {
+                const execution = { depth: str('depth') || 'balanced', parallelism: val('parallelism'), model_planning: check('model_planning') && check('use_llm'), local_recovery: check('local_recovery'), max_revisions: val('max_revisions'), total_context_chars: val('total_context_chars'), forecast: check('forecast'), forecast_metric: str('forecast_metric') || 'revenue', horizon: Number(str('forecast_horizon') || 2), role_providers: Object.fromEntries(['analyst', 'researcher', 'challenger', 'planner', 'revision'].map(k => [k, str('route_' + k)]).filter(([, v]) => v)), fallback_providers: str('fallback_provider') ? [str('fallback_provider')] : [] };
+                if (check('with_scenario')) {
+                    if (str('scenario_note').length < 5)
+                        throw new Error('启用情景需说明至少5个字符的假设依据');
+                    execution.scenario = { price_change: Number(val('scenario_price')) / 100, cost_change: Number(val('scenario_cost')) / 100, volume_change: Number(val('scenario_volume')) / 100, fixed_cost_share: Number(val('scenario_fixed')) / 100, note: str('scenario_note') };
+                }
+                const payload = { execution, identity_id: state.identity, dataset_id: str('dataset_id'), query: str('query'), mode: str('mode'), comparison: str('comparison'), use_llm: check('use_llm'), provider: str('provider'), max_calls: Number(str('max_calls') || 2), include_memory: check('include_memory'), include_history: check('include_history'), session_id: str('session_id'), success_criteria: str('success_criteria') };
+                state.query = payload.query;
+                const row = await workspace('/plans', 'POST', payload);
+                navigate('agents:plan-' + row.id, true);
+                break;
+            }
+            case 'execute-plan-form': {
+                const p = state.cache.plan;
+                const r = await workspace('/plans/' + p.id + '/execute', 'POST', { version: p.version, fingerprint: p.payload.fingerprint, external_consent: check('external_consent') });
+                navigate('agents:run-' + r.id, true);
+                break;
+            }
+            case 'template-form':
+                await workspace('/templates', 'POST', { name: str('name'), query: str('query'), mode: str('mode'), success_criteria: str('success_criteria') });
+                changed = true;
+                break;
+            case 'experiment-form': {
+                const payload = { dataset_id: str('dataset_id'), name: str('name'), kind: str('kind'), price_change: val('price_change') / 100, cost_change: val('cost_change') / 100, volume_change: val('volume_change') / 100, fixed_cost_share: val('fixed_cost_share') / 100, metric: str('metric'), horizon: val('horizon'), assumptions: str('assumptions') };
+                const r = await workspace('/experiments', 'POST', payload);
+                navigate('lab:' + r.id, true);
+                break;
+            }
+            case 'compare-form': {
+                const ids = list('dataset_ids');
+                if (ids.length < 2 || ids.length > 8)
+                    throw new Error('请选择 2–8 份数据集');
+                const r = await api('/compare', 'POST', { dataset_ids: ids });
+                document.querySelector('#comparison-output').innerHTML = comparisonOutput(r);
+                break;
+            }
+            case 'report-compare-form': {
+                if (str('left') === str('right'))
+                    throw new Error('请选择两份不同的报告');
+                const r = await workspace('/reports/compare?left=' + encodeURIComponent(str('left')) + '&right=' + encodeURIComponent(str('right')));
+                document.querySelector('#report-comparison').innerHTML = `<section class="panel"><h3>${esc(r.left_period)} → ${esc(r.right_period)}</h3>${notice(r.warning, r.same_period ? 'neutral' : 'warm')}${!r.same_rule_version ? notice('规则版本不同，不可直接将得分变化解释为经营变化。', 'warm') : ''}${table(['指标', '基准', '对照', '变化'], r.changes.map((c) => [esc(metricNames[c.metric] ?? c.metric), metricValue(c.metric, c.before), metricValue(c.metric, c.after), metricValue(c.metric, c.delta)]))}<details><summary>输入修订差异</summary>${jsonView(r.input_diff)}</details></section>`;
+                break;
+            }
+            case 'action-form':
+                await workspace('/actions', 'POST', { title: str('title'), company: str('company'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), source_key: form.dataset.sourceKey ?? '', run_id: form.dataset.runId ?? '', dataset_id: form.dataset.datasetId ?? '' });
+                changed = true;
+                break;
+            case 'action-transition-form':
+                await workspace('/actions/' + form.dataset.id + '/status', 'PUT', { version: Number(form.dataset.version), status: str('status'), note: str('note'), evidence_ids: split(str('evidence_ids')) });
+                changed = true;
+                break;
+            case 'preferences-form': {
+                const r = await api('/preferences', 'PUT', { name: str('name'), role: str('role'), theme: str('theme'), amount_unit: str('amount_unit'), risk_appetite: str('risk_appetite'), horizon: str('horizon'), memory_enabled: check('memory_enabled'), interests: split(str('interests')), watchlist: split(str('watchlist')), version: state.user.version });
+                state.user = r.user;
+                changed = true;
+                break;
+            }
+            case 'company-profile-form':
+                await workspace('/profiles', 'POST', { company: form.dataset.company, version: Number(form.dataset.version), sector: str('sector'), objective: str('objective'), focus: list('focus'), margin_floor: val('margin_floor', true) == null ? null : val('margin_floor') / 100, cash_floor: val('cash_floor', true) == null ? null : val('cash_floor') / 100, leverage_ceiling: val('leverage_ceiling', true) == null ? null : val('leverage_ceiling') / 100, stale_after_days: val('stale_after_days') });
+                changed = true;
+                break;
+            case 'password-form':
+                await api('/auth/password', 'POST', { current_password: str('current_password'), new_password: str('new_password') });
+                resetAuth();
+                toast('密码已修改，所有会话已退出，请重新登录。');
+                break;
+            case 'delete-account-form':
+                if (str('confirmation') !== '删除全部数据')
+                    throw new Error('请完整输入确认短语');
+                await api('/account', 'DELETE', { email: state.user.email, password: str('password') });
+                resetAuth();
+                toast('账户与所属数据已删除。');
+                break;
+            case 'assistant-form':
+                await ask(str('query'));
+                break;
+            case 'claim-review-form':
+                await workspace('/runs/' + state.cache.run.id + '/reviews', 'POST', { claim_id: form.dataset.id, version: Number(form.dataset.version), verdict: str('verdict'), note: str('note') });
+                changed = true;
+                break;
+            case 'dismiss-insight-form':
+                await workspace('/insights/dismiss', 'POST', { key: form.dataset.key, note: str('reason') });
+                changed = true;
+                break;
+            default: throw new Error('未识别的表单，未执行任何写入。');
+        }
+        if (changed) {
+            state.dirty = false;
+            if (modal.open)
+                modal.close();
+            if (inspector.open)
+                inspector.close();
+            await refreshData();
+            await render();
+            toast('已保存。');
+        }
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : '操作失败';
+        if (error && error.isConnected)
+            error.textContent = msg;
+        else
+            toast(msg, true);
+        if (e instanceof ApiError && e.status === 401 && form.id !== 'auth-form' && form.id !== 'password-form')
+            toast('会话已失效。当前输入未自动丢弃，请保存内容后重新登录。', true);
+    }
+    finally {
+        form.dataset.submitting = 'false';
+        if (submit)
+            submit.disabled = false;
+    }
+});
+document.addEventListener('click', async (event) => {
+    const el = event.target.closest('[data-action],[data-route]');
+    if (!el)
+        return;
+    if (el.dataset.route) {
+        event.preventDefault();
+        document.querySelector('#sidebar')?.classList.remove('open');
+        navigate(el.dataset.route);
+        return;
+    }
+    const act = el.dataset.action;
+    const id = el.dataset.id ?? '';
+    if (el.dataset.pending === 'true' || el instanceof HTMLButtonElement && el.disabled)
+        return;
+    el.dataset.pending = 'true';
+    el.setAttribute('aria-busy', 'true');
+    try {
+        switch (act) {
+            case 'close-modal':
+                modal.close();
+                break;
+            case 'close-inspector':
+                inspector.close();
+                break;
+            case 'auth-toggle':
+                signingUp = !signingUp;
+                auth();
+                break;
+            case 'logout':
+                if (!safeToLeave())
+                    return;
+                await api('/auth/logout', 'POST', {});
+                resetAuth();
+                break;
+            case 'go-ops':
+                navigate('ops');
+                break;
+            case 'sync-refresh':
+                if (!safeToLeave())
+                    return;
+                state.dirty = false;
+                await refreshData();
+                syncPending = false;
+                await render();
+                break;
+            case 'archive-dialog':
+                await showArchive();
+                break;
+            case 'archive-delete':
+                if (confirm('删除该条记录？独立保存的报告、计划或实验快照不会被连带删除。')) {
+                    await workspace('/archive/' + el.dataset.kind + '/' + id, 'DELETE');
+                    await showArchive();
+                    toast('所选记录已删除。');
+                }
+                break;
+            case 'menu':
+                toggleNav();
+                break;
+            case 'close-menu':
+                toggleNav(false);
+                break;
+            case 'show-assistant':
+                toggleAssistant();
+                void mountCopilot();
+                break;
+            case 'close-assistant':
+                toggleAssistant(false);
+                break;
+            case 'refresh':
+                if (!state.user) {
+                    await bootstrap();
+                    await render();
+                    break;
+                }
+                if (!safeToLeave())
+                    return;
+                state.dirty = false;
+                await refreshData();
+                await render();
+                break;
+            case 'command':
+                dialog('快速前往', `<input id="command-filter" placeholder="搜索工作区…" aria-label="搜索工作区" autofocus><div id="command-results" class="command-results">${Object.entries(routes).map(([k, r]) => `<button class="list-link" data-route="${k}">${icon(r.icon)}<span>${r.label}</span>${icon('chevron')}</button>`).join('')}</div>`);
+                break;
+            case 'new-dataset':
+                if (!safeToLeave())
+                    return;
+                state.dirty = false;
+                dialog('新建经营数据', datasetEditor(null), true);
+                break;
+            case 'select-dataset':
+                if (!safeToLeave())
+                    return;
+                state.active = id;
+                state.dirty = false;
+                await render();
+                break;
+            case 'import-dialog':
+                dialog('导入自己的经营数据', importForm());
+                break;
+            case 'add-period':
+                document.querySelector('#period-rows')?.insertAdjacentHTML('beforeend', periodRow({}, document.querySelectorAll('[data-period-row]').length));
+                state.dirty = true;
+                break;
+            case 'remove-period':
+                el.closest('tr')?.remove();
+                state.dirty = true;
+                break;
+            case 'stage-back':
+                if (state.cache.editorDraft) {
+                    dialog('继续编辑数据', datasetEditor(state.cache.editorDraft), true);
+                    modal.querySelector('[name="basis"]').value = state.cache.editorDraft.basis;
+                }
+                else
+                    dialog('重新选择导入文件', importForm());
+                break;
+            case 'commit-stage': {
+                const p = state.cache.stage;
+                el.setAttribute('disabled', '');
+                try {
+                    const d = await workspace('/imports/' + p.id + '/commit', 'POST', { version: p.version, fingerprint: p.payload.fingerprint });
+                    state.active = d.id;
+                    state.dirty = false;
+                    modal.close();
+                    await refreshData();
+                    navigate('data', true);
+                    toast('已保存标准化数据和修订记录。');
+                }
+                finally {
+                    el.removeAttribute('disabled');
+                }
+                break;
+            }
+            case 'data-quality':
+                inspect('数据质量与缺项', qualityPanel(await workspace('/datasets/' + state.active + '/quality')));
+                break;
+            case 'data-lineage': {
+                const r = await workspace('/datasets/' + state.active + '/lineage');
+                inspect('指标血缘', r.items.map((l) => `<details><summary>${esc(l.label)} · ${metricValue(l.id, l.value)}</summary><code>${esc(l.formula)}</code>${jsonView(l.inputs)}</details>`).join(''));
+                break;
+            }
+            case 'data-revisions': {
+                const r = await workspace('/datasets/' + state.active + '/revisions');
+                dialog('数据修订记录', notice('恢复历史内容会创建新的修订，不会修改或抹除旧报告。') + r.items.slice().reverse().map((v) => `<details><summary>修订 ${v.version} · ${timeText(v.created_at)}</summary>${v.diff.length ? table(['路径', '原值', '新值'], v.diff.map((c) => [esc(c.path), esc(c.before), esc(c.after)])) : '<p>初始保存的内容。</p>'}${button('以此内容创建新修订', 'restore-revision', 'secondary', `data-revision="${v.version}"`)}<p class="micro">${esc(v.content_hash)}</p></details>`).join(''), true);
+                break;
+            }
+            case 'restore-revision':
+                if (!confirm('确认恢复此历史内容并创建新的数据修订？'))
+                    return;
+                await workspace('/datasets/' + state.active + '/restore', 'POST', { version: activeDataset().version, target_revision: Number(el.dataset.revision) });
+                state.dirty = false;
+                modal.close();
+                await refreshData();
+                await render();
+                toast('已恢复为新的修订。');
+                break;
+            case 'export-dataset':
+                location.href = '/api/datasets/' + state.active + '/export';
+                break;
+            case 'delete-dataset':
+                if (!confirm('删除数据集及修订历史？被运行引用的数据需先清理对应会话。'))
+                    return;
+                await api('/datasets/' + id, 'DELETE');
+                await refreshData();
+                await render();
+                break;
+            case 'evidence-dialog':
+                dialog('添加原始资料', evidenceForm(), true);
+                break;
+            case 'review-evidence':
+                dialog('审阅与适用范围', reviewEvidenceForm(state.cache.evidence.find((d) => d.id === id)), true);
+                break;
+            case 'evidence-detail': {
+                const d = state.cache.evidence.find((v) => v.id === id);
+                inspect(d.payload.title, `<p class="micro">资料 ID：<code>${esc(d.id)}</code></p><p class="micro">内容 SHA-256：${esc(d.content_hash)}</p><p>${esc(d.payload.source_url || '未提供来源链接')}</p>${status(d.review.status)}<pre class="source-text">${esc(d.payload.text)}</pre>${button('审阅此资料', 'review-evidence', 'primary', `data-id="${id}"`)}`);
+                break;
+            }
+            case 'delete-evidence':
+                if (!confirm('删除原始资料？历史报告仍保留当时的引用快照；新任务将不再使用。'))
+                    return;
+                await api('/evidence/' + id, 'DELETE');
+                await render();
+                break;
+            case 'document-dialog':
+                dialog('上传原始文档', `<form id="document-form" class="stack">${field('标题', input('title', '', 'required'))}<label class="upload-box">${icon('upload')}<strong>选择文本资料</strong><span>TXT / MD${state.caps.pdf.enabled ? ' / 文本型 PDF' : ''} · 最大 2 MB</span><input type="file" name="file" accept=".txt,.md${state.caps.pdf.enabled ? ',.pdf' : ''}" required></label>${state.caps.pdf.enabled ? '' : notice('当前 PDF 解析依赖未通过版本门禁。请使用 TXT / MD；不静默调用外部 OCR。', 'warm')}${formFooter('解析并保存')}</form>`);
+                break;
+            case 'public-search-dialog':
+                dialog('公开资料检索', `<form id="public-search-form" class="stack">${field('检索内容', input('query', activeDataset()?.payload.company ?? '', 'required minlength="2" maxlength="500"'))}<label class="check-label consent"><input type="checkbox" name="consent" required>同意将此查询词发送给已配置的公开搜索服务，不发送财务表和记忆。</label>${formFooter('发起公开检索')}</form><div id="public-search-results"></div><details><summary>按已知公开 URL 获取原文</summary><form id="fetch-evidence-form" class="stack">${field('标题', input('title', '', 'required'))}${field('白名单来源 URL', input('url', '', 'required type="url" placeholder="https://…"'))}${field('发布日期', input('published_at', '', 'type="date"'))}${formFooter('获取公开原文')}</form></details>`, true);
+                break;
+            case 'save-search-result': {
+                const r = state.cache.search.items[Number(el.dataset.index)];
+                await createEvidence({ title: r.title, source_url: r.source_url, text: r.text, published_at: null }, activeDataset()?.payload.company ?? '');
+                el.setAttribute('disabled', '');
+                el.textContent = '已保存，待审阅';
+                break;
+            }
+            case 'memory-dialog':
+                dialog('添加长期记忆', memoryForm());
+                break;
+            case 'edit-memory':
+                dialog('修改记忆', memoryForm(state.cache.memories.find((v) => v.id === id)));
+                break;
+            case 'toggle-memory': {
+                const m = state.cache.memories.find((v) => v.id === id);
+                await api('/memories/' + id, 'PUT', { ...m.payload, version: m.version, approved: !m.payload.approved });
+                await render();
+                break;
+            }
+            case 'delete-memory':
+                if (!confirm('删除记忆？今后不再召回，历史运行中已冻结的内容仍保留。'))
+                    return;
+                await api('/memories/' + id, 'DELETE');
+                await render();
+                break;
+            case 'fill-query': {
+                const q = el.dataset.query ?? el.textContent ?? '';
+                const area = document.querySelector('#plan-form [name="query"]');
+                if (area) {
+                    area.value = q;
+                    area.focus();
+                    state.dirty = true;
+                }
+                break;
+            }
+            case 'replay-intro':
+                showBrandIntro(true);
+                break;
+            case 'graph-toggle': {
+                const host = el.closest('.graph-shell');
+                const list = host.querySelector('.graph-list');
+                list.hidden = !list.hidden;
+                host.querySelector('.graph-scroll').hidden = !list.hidden;
+                break;
+            }
+            case 'graph-minus':
+            case 'graph-plus': {
+                const e = el.closest('.graph-shell')?.querySelector('.graph-scroll');
+                if (e) {
+                    const classes = ['zoom-small', 'zoom-normal', 'zoom-large'];
+                    let i = classes.findIndex(c => e.classList.contains(c));
+                    i = Math.min(2, Math.max(0, i + (act === 'graph-plus' ? 1 : -1)));
+                    classes.forEach(c => e.classList.remove(c));
+                    e.classList.add(classes[i]);
+                }
+                break;
+            }
+            case 'pause-run':
+            case 'resume-run': {
+                const rt = await workspace('/runs/' + id + '/runtime');
+                await workspace('/runs/' + id + '/control', 'POST', { version: rt.control.version, action: act === 'pause-run' ? 'pause' : 'resume' });
+                await render();
+                break;
+            }
+            case 'assessment-dialog': {
+                const r = await workspace('/runs/' + state.cache.run.id + '/assessment');
+                dialog('报告验收与回放授权', assessmentForm(r.item));
+                break;
+            }
+            case 'strategy-propose':
+                await workspace('/evolution/propose', 'POST', {});
+                await render();
+                break;
+            case 'strategy-dialog':
+                dialog('建立编排策略候选', strategyForm());
+                break;
+            case 'strategy-evaluate':
+                await workspace('/strategies/' + id + '/evaluate', 'POST', {});
+                await render();
+                break;
+            case 'evaluation-detail': {
+                const r = state.cache.evolution.evaluations.find((x) => x.id === id);
+                inspect('逐例回放与门槛依据', jsonView(r.payload));
+                break;
+            }
+            case 'strategy-activate': {
+                if (!confirm('仅对未来计划激活该策略？既有报告保持不变，未执行旧计划需要重新生成。'))
+                    return;
+                const latest = await workspace('/evolution');
+                await workspace('/strategies/' + id + '/activate', 'POST', { evaluation_id: el.dataset.evaluation, expected_active_version: latest.active?.version ?? 0 });
+                await render();
+                break;
+            }
+            case 'strategy-rollback': {
+                if (!confirm('回滚到上一策略？旧报告不变，未执行计划需要重新核对。'))
+                    return;
+                await workspace('/strategies/rollback', 'POST', { expected_active_version: state.cache.evolution.active.version });
+                await render();
+                break;
+            }
+            case 'cancel-plan':
+                await workspace('/plans/' + id + '/cancel', 'POST', {});
+                await render();
+                break;
+            case 'cancel-run':
+                await api('/runs/' + id + '/cancel', 'POST', {});
+                await render();
+                break;
+            case 'node-details': {
+                if (state.route === 'agents' && state.id.startsWith('run-'))
+                    state.cache.audit = await workspace('/runs/' + state.id.slice(4) + '/audit');
+                const n = state.cache.nodes?.find((x) => x.id === id);
+                if (!n)
+                    throw new Error('节点不在当前执行计划中');
+                const artifacts = state.cache.audit?.artifacts?.filter((a) => a.node === id) ?? [];
+                inspect(n.label ?? n.name, `<p>${esc(n.purpose)}</p>${badge(n.engine === 'optional_llm' ? '模型专家' : '确定性工具')}<h3>依赖与工具边界</h3>${jsonView({ capability: n.capability, depends_on: n.depends_on, tools: n.tools, enabled: n.enabled, reason: n.skip_reason ?? n.reason })}<h3>实际执行产物</h3>${artifacts.length ? artifacts.map((a) => `<details open><summary>可核验产物 · ${timeText(a.created_at)}</summary>${jsonView(a.payload)}<small class="micro">${esc(a.content_hash)}</small></details>`).join('') : notice('当前没有已保存的节点产物。不会显示模型隐藏思考过程或虚构执行日志。')}`);
+                break;
+            }
+            case 'run-tab': {
+                document.querySelectorAll('.run-tab').forEach(p => p.hidden = p.id !== 'run-tab-' + el.dataset.tab);
+                document.querySelectorAll('[data-action="run-tab"]').forEach(b => { const on = b === el; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); b.setAttribute('tabindex', on ? '0' : '-1'); });
+                break;
+            }
+            case 'export-audit':
+                download('execution-audit.json', state.cache.audit);
+                break;
+            case 'save-template-dialog':
+                dialog('保存任务模板', templateForm());
+                break;
+            case 'apply-template': {
+                const t = state.cache.templates.find((v) => v.id === id).payload;
+                const form = document.querySelector('#plan-form');
+                if (form) {
+                    for (const key of ['query', 'mode', 'success_criteria']) {
+                        const e = form.elements.namedItem(key);
+                        if (e)
+                            e.value = t[key];
+                    }
+                    state.dirty = true;
+                    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                break;
+            }
+            case 'delete-template':
+                if (!confirm('删除此模板？已生成的计划不受影响。'))
+                    return;
+                await workspace('/templates/' + id, 'DELETE');
+                await render();
+                break;
+            case 'export-experiment':
+                download('analysis-experiment.json', state.cache.experiment);
+                break;
+            case 'report-compare-dialog':
+                dialog('报告与输入修订对比', reportCompareForm(), true);
+                break;
+            case 'action-dialog':
+                dialog('创建跟进行动', actionForm());
+                break;
+            case 'action-from-report': {
+                const r = state.cache.run;
+                dialog('从诊断报告创建行动', actionForm({ run_id: r.id, dataset_id: r.dataset_id, company: r.snapshot.dataset.company, title: '跟进：' + r.payload.query.slice(0, 100), message: r.result.findings.join('\n') }));
+                break;
+            }
+            case 'action-detail':
+                inspect('行动与验收', actionDetail(state.cache.actions.find((a) => a.id === id)));
+                break;
+            case 'insight-action':
+                dialog('把核查项转为行动', actionForm(state.cache.insights.find((i) => i.key === id)));
+                break;
+            case 'insight-details': {
+                const i = state.cache.insights.find((v) => v.key === id);
+                inspect(i.title, `<p>${esc(i.message)}</p><h3>触发依据</h3>${jsonView(i.proof)}<p class="micro">数据修订 ${i.dataset_version} · 本地确定性规则，不是模型预测。</p><div class="inline-actions">${button('转为行动', 'insight-action', 'primary', `data-id="${esc(id)}"`)}${routeButton('打开相关工作区', i.target)}</div><details><summary>本次不再提示</summary><form id="dismiss-insight-form" data-key="${esc(id)}">${field('搁置原因', textarea('reason', '', 'required minlength="5" rows="2"'))}${formFooter('仅对当前数据修订关闭提示')}</form></details>`);
+                break;
+            }
+            case 'assistant-query':
+                await ask(el.dataset.query ?? '');
+                break;
+            case 'assistant-route': {
+                const a = state.cache.answer.actions[Number(el.dataset.index)];
+                if (a.query)
+                    state.query = a.query;
+                if (a.dataset_id)
+                    state.active = a.dataset_id;
+                navigate(a.route);
+                break;
+            }
+            case 'review-claim': {
+                const old = state.cache.reviews.find((r) => r.payload.claim_id === id);
+                dialog('人工复核模型解释', `<form id="claim-review-form" class="stack" data-id="${esc(id)}" data-version="${old?.version ?? 0}">${field('复核结论', select('verdict', { accepted: '接受，依据已记录', rejected: '不接受', needs_evidence: '需要补充证据' }, old?.payload.verdict ?? 'needs_evidence'))}${field('核对依据 / 反向证据', textarea('note', old?.payload.note ?? '', 'rows="5" required minlength="5"'))}${formFooter('记录人工复核')}</form>`);
+                break;
+            }
+            case 'password-dialog':
+                dialog('修改密码', `<form id="password-form" class="stack">${field('当前密码', input('current_password', '', 'type="password" autocomplete="current-password" required'))}${field('新密码', input('new_password', '', 'type="password" autocomplete="new-password" required minlength="12" maxlength="128"'))}${notice('修改后将吊销全部登录会话，包括当前会话。')}${formFooter('修改并退出所有会话')}</form>`);
+                break;
+            case 'delete-account-dialog':
+                dialog('删除账户与全部数据', `<form id="delete-account-form" class="stack">${notice('永久删除账户、数据、证据、记忆、报告及审计记录，无法在应用内撤销。先导出重要数据。', 'danger')}${field('当前密码', input('password', '', 'type="password" autocomplete="current-password" required'))}${field('输入“删除全部数据”确认', input('confirmation', '', 'required'))}${formFooter('永久删除')}</form>`);
+                break;
+            case 'delete-conversation':
+                if (!confirm('永久删除此会话、关联报告与执行记录？进行中的任务会被取消。'))
+                    return;
+                await api('/conversations/' + id, 'DELETE');
+                await render();
+                break;
+            default: throw new Error('此操作尚未识别，没有执行任何写入：' + act);
+        }
+    }
+    catch (e) {
+        toast(e instanceof Error ? e.message : '操作失败', true);
+    }
+    finally {
+        delete el.dataset.pending;
+        el.removeAttribute('aria-busy');
+    }
+});
+document.addEventListener('input', (event) => { const el = event.target; if (el.id === 'command-filter') {
+    document.querySelectorAll('#command-results button').forEach(b => b.hidden = !b.textContent.includes(el.value));
+    return;
+} const form = el.closest('form'); if (form && !['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'public-search-form'].includes(form.id))
+    state.dirty = true; });
+document.addEventListener('change', async (event) => { const el = event.target; try {
+    if (el.id === 'active-dataset') {
+        if (!safeToLeave()) {
+            el.value = state.active;
+            return;
+        }
+        state.active = el.value;
+        state.dirty = false;
+        await render();
+    }
+    if (el.id === 'extra-fields')
+        document.querySelector('.editor-table')?.classList.toggle('expanded', el.checked);
+    if (el.id === 'use-llm') {
+        const e = document.querySelector('#model-options');
+        if (e)
+            e.hidden = !el.checked;
+    }
+    if (el.id === 'experiment-kind') {
+        document.querySelector('#scenario-fields').hidden = el.value !== 'scenario';
+        document.querySelector('#forecast-fields').hidden = el.value !== 'forecast';
+    }
+}
+catch (e) {
+    toast(String(e), true);
+} });
+window.addEventListener('hashchange', () => { if (state.dirty && !safeToLeave()) {
+    history.replaceState(null, '', currentHash || '#brief');
+    return;
+} state.dirty = false; void render(); });
+window.addEventListener('beforeunload', e => { if (state.dirty) {
+    e.preventDefault();
+    e.returnValue = '';
+} });
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && state.user) {
+    e.preventDefault();
+    document.querySelector('[data-action="command"]')?.click();
+} if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && e.target.getAttribute('role') === 'tab') {
+    e.preventDefault();
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const i = tabs.indexOf(e.target);
+    const t = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    t.click();
+    t.focus();
+} });
+// Poll only the currently viewed run. No periodic paid requests, no overwrite of draft forms.
+setInterval(async () => { if (polling || document.hidden || !state.user || state.route !== 'agents' || !state.id.startsWith('run-') || state.dirty || modal.open || inspector.open)
+    return; const r = state.cache.run; if (!r || r.snapshot?.studio?.adaptive || !['queued', 'running'].includes(r.state))
+    return; polling = true; try {
+    const latest = await api('/runs/' + r.id);
+    if (state.id !== 'run-' + r.id)
+        return;
+    if (latest.state !== r.state || latest.result) {
+        await render();
+    }
+    else {
+        const audit = await workspace('/runs/' + r.id + '/audit');
+        state.cache.audit = audit;
+        const node = document.querySelector('#live-run-status');
+        if (node)
+            node.textContent = `已记录 ${audit.trace.length} 个执行事件；最新更新 ${timeText(latest.updated_at)}`;
+    }
+}
+catch (e) {
+    const node = document.querySelector('#live-run-status');
+    if (node)
+        node.textContent = '状态同步暂时失败；不会将连接中断视为任务成功。';
+}
+finally {
+    polling = false;
+} }, 1500);
+setupExperience({ dialog, inspect, toast, navigate, render, refresh: refreshData, reset: resetAuth });
+restoreMotion();
+showBrandIntro();
+(async () => { try {
+    await bootstrap();
+    await render();
+}
+catch (e) {
+    if (e instanceof ApiError && e.status === 401)
+        auth();
+    else {
+        root.innerHTML = `<main class="startup-error">${heading('暂时无法连接服务', '输入和账户不会被模拟状态替代。')}${notice(e instanceof Error ? e.message : '连接失败', 'danger')}${button('重新连接', 'refresh', 'primary')}</main>`;
+    }
+} })();
+function showSyncNotice() { const el = document.querySelector('#sync-notice'); if (!el)
+    return; el.hidden = !syncPending; if (syncPending)
+    el.innerHTML = `<div class="sync-bar"><span>工作区有已保存的变更。当前未保存输入不会自动覆盖。</span>${button('核对并刷新', 'sync-refresh', 'text-button')}</div>`; }
+async function checkSync() { if (syncing || !state.user || document.hidden)
+    return; const owner = state.user.id; syncing = true; try {
+    const r = await api('/sync?after=' + state.cursor + '&limit=100');
+    if (state.user?.id !== owner)
+        return;
+    state.cursor = r.cursor;
+    if (r.items.length) {
+        syncPending = true;
+        showSyncNotice();
+    }
+}
+catch (e) {
+    if (e instanceof ApiError && e.status === 401)
+        resetAuth();
+}
+finally {
+    syncing = false;
+} }
+async function showArchive() { const r = await workspace('/archive'); dialog('管理已保存记录', notice(r.notice) + Object.entries(r.collections).map(([kind, collection]) => `<details><summary>${esc({ plan: '执行计划', experiment: '研究实验', action: '行动记录', import_stage: '导入预览', dismissal: '忽略的核查项' }[kind])} · ${collection.total}</summary>${collection.items.length ? table(['记录', '状态', '操作'], collection.items.map((v) => [esc(v.label), status(v.status), button('删除', 'archive-delete', 'text-button danger-text', `data-kind="${esc(kind)}" data-id="${esc(v.id)}"`)])) : '<p class="muted">暂无记录。</p>'}${collection.has_more ? notice('仅显示最近100条，删除后可继续整理较早记录。') : ''}</details>`).join(''), true); }
+setInterval(() => void checkSync(), 15000);
+window.addEventListener('online', () => void checkSync());
+function appearancePanel() { return `<section class="panel motion-settings"><div class="row-between"><h2>品牌与动效</h2>${button('重播原始开场', 'replay-intro')}</div><p class="micro">保留原始标识与视频。动画可跳过；无法播放、减少动效或存储不可用都不影响登录与工作。</p><form id="appearance-form" class="stack">${field('动效偏好', select('motion', { system: '跟随系统', reduce: '减少动效', full: '完整动效' }, document.documentElement.dataset.motion ?? 'system'))}${formFooter('应用动效偏好')}</form></section>`; }
+function setupLive() {
+    const rt = state.cache.runtime, run = state.cache.run;
+    if (state.route !== 'agents' || !state.id.startsWith('run-') || !run?.snapshot?.studio?.adaptive || !rt || (!['queued', 'running', 'pause_requested'].includes(rt.state) && !['queued', 'running'].includes(run.state)))
+        return;
+    const runId = run.id, owner = state.user.id;
+    live = new RunLive(runId, (runtime, trace) => {
+        if (state.user?.id !== owner || state.id !== 'run-' + runId)
+            return;
+        state.cache.runtime = runtime;
+        state.cache.nodes = runtime.graph.payload.nodes;
+        state.cache.audit.trace = trace;
+        const focused = document.activeElement?.dataset?.node;
+        const scrolls = [...document.querySelectorAll('[data-live-graph]')].map(e => e.querySelector('.graph-scroll')?.scrollTop ?? 0);
+        document.querySelectorAll('[data-live-graph]').forEach((e, i) => { e.innerHTML = graphCanvas(runtime.graph.payload.nodes, trace, runtime.state); const sc = e.querySelector('.graph-scroll'); if (sc)
+            sc.scrollTop = scrolls[i]; });
+        const ribbon = document.querySelector('#runtime-ribbon');
+        if (ribbon)
+            ribbon.innerHTML = runtimeRibbon(runtime);
+        if (focused)
+            document.querySelector('[data-node="' + CSS.escape(focused) + '"]')?.focus();
+    }, () => { if (state.user?.id === owner && state.id === 'run-' + runId && !state.dirty)
+        void render(); }, label => { const e = document.querySelector('#live-transport'); if (e)
+        e.textContent = label; });
+    live.start();
+}
+document.addEventListener('keydown', e => { const t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t.matches('.dag-node')) {
+    e.preventDefault();
+    t.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+} });
+window.addEventListener('offline', () => { toast('网络已断开。正在编辑的内容保留；未确认成功的写入不会自动重试。', true); });
