@@ -1,0 +1,10 @@
+{
+  "exit_code": 0,
+  "command": [
+    "python",
+    "scripts/service_browser_check.py"
+  ],
+  "bridge": true,
+  "isolated": true,
+  "policy_changed": false
+}

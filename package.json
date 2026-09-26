@@ -10,7 +10,7 @@
     "test": "python -m pytest",
     "start": "python scripts/start.py",
     "verify": "python scripts/verify.py",
-    "test:frontend": "node --test tests/frontend.test.mjs"
+    "test:frontend": "node --test tests/frontend.test.mjs tests/services.frontend.test.mjs"
   },
   "devDependencies": {
     "typescript": "5.8.3"

@@ -33,9 +33,11 @@ class ProviderService:
     def __init__(self,timeout=20):
         self.timeout=timeout
         self.providers={id:Provider(id,host,path,os.getenv(model_env,model),os.getenv(key_env,'')) for id,host,path,model,key_env,model_env in DEFAULTS}
-        self.failures={};self.open_until={}
+        self.failures={};self.open_until={};self.vault=None
     def status(self):return [{'id':p.id,'model':p.model,'configured':bool(p.key and not p.key.startswith('your_')),'connectivity':'not_tested'} for p in self.providers.values()]
     def select(self,id=''):
+        if id.startswith('u_') and self.vault:
+            return self.vault.select(id)
         ids=[id] if id else list(self.providers)
         return next((self.providers[i] for i in ids if i in self.providers and self.providers[i].key and not self.providers[i].key.startswith('your_')),None)
     def _request(self,p,system,context,output_schema=ModelOutput):

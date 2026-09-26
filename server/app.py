@@ -19,7 +19,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import ValidationError
 from . import __version__
 from .config import Settings
-from .schemas import Register,Login,Preferences,Dataset,DatasetUpdate,Conversation,RunRequest,Evidence,FetchEvidence,Memory,MemoryUpdate,Feedback,PasswordChange,Scenario,CompareRequest,SearchRequest,BatchDelete
+from .schemas import Register,Login,Preferences,RoleSwitch,Dataset,DatasetUpdate,Conversation,RunRequest,Evidence,FetchEvidence,Memory,MemoryUpdate,Feedback,PasswordChange,Scenario,CompareRequest,SearchRequest,BatchDelete
 from .store import Store,encode,digest,uid,now
 from .security import require_user,fail,password_hash,password_matches,public_user,issue_session,COOKIE,DUMMY_HASH,RateLimiter
 from .models import normalize,calculate,scenario,MODEL_VERSION
@@ -27,6 +27,7 @@ from .imports import import_dataset,parse_document_isolated
 from .retrieval import retrieve_indexed
 from .network import fetch_public
 from .providers import ProviderService
+from .connections import ConnectionVault, scoped_providers
 from .research import PublicResearch
 from .workflows import Worker,TERMINAL,STEPS
 
@@ -60,6 +61,13 @@ class Guard:
                'Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'"}
             if self.settings.production:h['Strict-Transport-Security']='max-age=31536000'
             return await JSONResponse({'error':{'code':code,'message':message},'request_id':request_id},status_code=status,headers=h)(scope,receive,send)
+        # Reject ambiguous authorities and Windows UNC/drive paths before routing,
+        # URL construction, filesystem resolution, or credential-bearing network I/O.
+        hosts=[v for k,v in scope['headers'] if k.lower()==b'host']
+        if len(hosts)!=1 or any(c<=32 or c==127 for c in hosts[0]) or any(c in hosts[0] for c in (b'/',b'\\',b'@')):
+            return await reject(400,'INVALID_AUTHORITY','请求地址格式无效。')
+        if not path.startswith('/') or path.startswith('//') or '\\' in path or any(ord(c)<32 or ord(c)==127 for c in path) or any(':' in part for part in path.split('/')):
+            return await reject(400,'INVALID_PATH','请求路径格式无效。')
         if path.startswith('/api/'):
             ip=(scope.get('client') or ('unknown',))[0];auth=path.startswith('/api/auth/');key=ip+(':login' if auth else ':api')
             if not self.limiter.allow(key,30 if auth else 600):return await reject(429,'RATE_LIMITED','请求过于频繁，请稍后重试。')
@@ -114,12 +122,30 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         try:
             store=Store(settings.data_dir/'lidian.sqlite3');app.state.store=store
             app.state.providers=providers or ProviderService(settings.provider_timeout)
+            if isinstance(app.state.providers,ProviderService):
+                app.state.providers.vault=ConnectionVault(store,settings.data_dir)
             app.state.worker=Worker(store,app.state.providers,settings)
             app.state.hash_slots=asyncio.Semaphore(4);app.state.research=PublicResearch(settings.allowed_hosts)
             app.state.search_limiter=RateLimiter()
-            if worker_enabled:await app.state.worker.start()
+            async def local_tracking_loop():
+                from .copilot import evaluate_watches
+                while True:
+                    await asyncio.sleep(60)
+                    owners=store.all("SELECT DISTINCT user_id FROM workspace_objects WHERE kind='watch'")
+                    for owner in owners:
+                        try:await asyncio.to_thread(evaluate_watches,store,owner['user_id'])
+                        except Exception as exc:
+                            print(encode({'event':'tracking_check_failed','class':type(exc).__name__}),flush=True)
+            tracking_task=None
+            if worker_enabled:
+                await app.state.worker.start()
+                tracking_task=asyncio.create_task(local_tracking_loop())
             try:yield
             finally:
+                if tracking_task:
+                    tracking_task.cancel()
+                    try:await tracking_task
+                    except asyncio.CancelledError:pass
                 if worker_enabled:await app.state.worker.stop()
         finally:
             if store:store.close()
@@ -129,9 +155,12 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     app.include_router(router)
     from .autonomy_api import router as autonomy_router
     app.include_router(autonomy_router)
-    app.state.settings=settings;app.add_middleware(Guard,settings=settings)
+    from .service_api import router as service_router
+    app.include_router(service_router)
+    app.state.settings=settings
     host=urlsplit(settings.origin).hostname
     app.add_middleware(TrustedHostMiddleware,allowed_hosts=[host] if settings.production else list(set([host,'localhost','127.0.0.1','testserver'])))
+    app.add_middleware(Guard,settings=settings)
 
     @app.exception_handler(HTTPException)
     async def http_error(request,exc):
@@ -160,12 +189,12 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     def api_reference():return FileResponse(ROOT/'web/api-docs.html',headers={'Cache-Control':'no-cache'})
     @app.get('/api/health')
     def health(request: Request):
-        store(request).one('SELECT 1 AS ok');return {'status':'ready','version':__version__,'database':'ready','mode':'single_process','time':now()}
+        store(request).one('SELECT 1 AS ok');return {'application':'lidian-workbench','status':'ready','version':__version__,'database':'ready','mode':'single_process','time':now()}
     @app.get('/api/capabilities')
     def capabilities(request: Request,user=Depends(require_user)):
         from .studio import AGENTS
         from .imports import pdf_status
-        return {'pdf':pdf_status(),'studio_agents':AGENTS,'version':__version__,'models_version':MODEL_VERSION,'providers':app.state.providers.status(),'public_search':app.state.research.status(),'agent_plan':STEPS,'external_hosts':settings.allowed_hosts,'network':'opt_in','live_market_feed':'not_connected','model_calibration':'not_validated','deployed_as':'single_process_sqlite','limits':{'upload_bytes':2000000,'context_characters':settings.max_context_chars,'external_calls_per_run':3,'concurrent_runs':settings.concurrency},'data_rules':['产品不预置演示业务数据','来源不等于独立核验','未配置模型时不伪造AI回答']}
+        return {'pdf':pdf_status(),'studio_agents':AGENTS,'version':__version__,'models_version':MODEL_VERSION,'providers':scoped_providers(app.state.providers,user['id']).status(),'public_search':app.state.research.status(),'agent_plan':STEPS,'external_hosts':settings.allowed_hosts,'network':'opt_in','live_market_feed':'not_connected','model_calibration':'not_validated','deployed_as':'single_process_sqlite','limits':{'upload_bytes':2000000,'context_characters':settings.max_context_chars,'external_calls_per_run':8,'concurrent_runs':settings.concurrency},'data_rules':['产品不预置演示业务数据','来源不等于独立核验','未配置模型时不伪造AI回答']}
     @app.post('/api/auth/register',status_code=201)
     async def register(body: Register,request: Request,response: Response):
         if settings.invite_code and not hmac.compare_digest(body.invitation.encode(),settings.invite_code.encode()):fail('INVALID_INVITATION','邀请码无效。',403)
@@ -202,6 +231,17 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             count=conn.execute('UPDATE users SET preferences=?,name=?,version=version+1,updated_at=? WHERE id=? AND version=?',(encode(data),body.name,now(),user['id'],body.version)).rowcount
             if not count:fail('VERSION_CONFLICT','资料已在其他窗口更新，请刷新后重新修改。',409)
             db.audit(conn,user['id'],'preferences',user['id'],'updated',{'version':body.version+1})
+        return {'user':public_user(db.one('SELECT * FROM users WHERE id=?',(user['id'],)))}
+
+    @app.put('/api/preferences/role')
+    def switch_role(body: RoleSwitch,request: Request,user=Depends(require_user)):
+        db=store(request)
+        with db.transaction() as conn:
+            updated={**user['preferences'],'role':body.role}
+            count=conn.execute('UPDATE users SET preferences=?,version=version+1,updated_at=? WHERE id=? AND version=?',
+                               (encode(updated),now(),user['id'],body.version)).rowcount
+            if not count:fail('VERSION_CONFLICT','工作视角已在其他窗口更新，请刷新后重试。',409)
+            db.audit(conn,user['id'],'preferences',user['id'],'role_changed',{'role':body.role,'version':body.version+1})
         return {'user':public_user(db.one('SELECT * FROM users WHERE id=?',(user['id'],)))}
 
     @app.get('/api/datasets')
@@ -416,10 +456,16 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     @app.get('/api/memories')
     def memories(request: Request,user=Depends(require_user)):return {'items':store(request).items('memories',user['id'])}
     @app.post('/api/memories',status_code=201)
-    def memory_create(body: Memory,request: Request,user=Depends(require_user)):return store(request).create('memories',user['id'],body.model_dump(mode='json'))
+    def memory_create(body: Memory,request: Request,user=Depends(require_user)):
+        from .identities import resolve_identity
+        resolve_identity(store(request),user['id'],body.identity_id)
+        return store(request).create('memories',user['id'],body.model_dump(mode='json'))
     @app.put('/api/memories/{id}')
     def memory_update(id: str,body: MemoryUpdate,request: Request,user=Depends(require_user)):
-        db=store(request);owned(db,'memories',user,id);row=db.update('memories',user['id'],id,body.version,body.model_dump(mode='json',exclude={'version'}))
+        db=store(request)
+        from .identities import resolve_identity
+        resolve_identity(db,user['id'],body.identity_id)
+        owned(db,'memories',user,id);row=db.update('memories',user['id'],id,body.version,body.model_dump(mode='json',exclude={'version'}))
         if not row:fail('VERSION_CONFLICT','记忆已在其他窗口更新。',409)
         return row
     @app.delete('/api/memories/{id}')

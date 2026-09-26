@@ -8,7 +8,7 @@
 
 请求体2MB、总上传deadline、有限鉴权/接口频率、资源配额、排队上限、单进程锁。文件格式白名单，XLSX只允许单表、限制展开规模/条目/压缩比，拒绝公式和不规范数值。TXT/MD文本不执行，显示前统一HTML转义。
 
-公开抓取为固定域名白名单+HTTPS+公网DNS检查+连接IP固定，不跟随重定向至任意地址。模型仅固定供应商接口，不接受用户可编辑任意base_url，不让不可信输入生成工具命令。密钥只来自服务端环境，解析子进程清理环境变量。
+公开抓取为固定域名白名单+HTTPS+公网DNS检查+连接IP固定，不跟随重定向至任意地址。账户可配置自己的 HTTPS 模型连接，但服务端拒绝本机/内网地址、DNS 重绑定、重定向及未批准输入范围；更换目标地址须提交新密钥。模型不能从不可信输入生成任意工具命令。服务端共享供应商密钥来自环境，个人连接密钥在本机独立加密保存，解析子进程清理环境变量。
 
 模型文本、证据、历史、前序角色输出都不可信。模型无数据库写入、shell、交易能力，外发先预览再逐次批准；排队/多步骤间可撤销未发送内容；取消不允许晚到结果覆盖状态。不能保证自然语言提示注入完全消失，因此使用能力边界而不是“更强提示词”作为唯一防线。
 
@@ -16,7 +16,7 @@
 
 环境存在旧pypdf5.9.0，**核心requirements已不再安装pypdf，运行时阻止小于6.13.2的PDF解析**。默认可用路径为TXT/MD和结构化CSV/XLSX/JSON。可选requirements-pdf要求6.13.2至7之前版本；已查上游6.13.2修复循环Pages树等安全问题，但这个下限不是“所有将来漏洞已修复”的保证。尚未安装并验收该可选解析器。解析位于限时子进程，Linux资源限额不等于Windows也已实测。
 
-requirements固定本次实际运行版本，未宣称是最新版本。当前运行环境的包索引联网安装/完整pip-audit没有完成；需在目标部署环境完成漏洞审计、兼容升级、全套回归后再公网放行。单靠应用层限制不能替代第三方补丁。证据见evidence及DEPENDENCIES。
+requirements 固定本次实际运行版本，未宣称是最新版本。2026-09-27 的核心依赖 pip-audit 当次未发现已知漏洞，GitHub CI 仍需以最终 main 运行记录为准。可选依赖与未来新公告需持续核对；单靠应用层限制不能替代第三方补丁。证据见 evidence 及 DEPENDENCIES。
 
 ## 保留风险
 
@@ -26,7 +26,7 @@ requirements固定本次实际运行版本，未宣称是最新版本。当前�
 - 网络请求一旦发出可能计费；超时/取消无法保证远端终止。不对未知结果自动重试；用户批准的HTTP429候补尝试仍可能有供应商费用，全部计入次数台账。
 - 结构门禁、词法相关、手工接受与哈希一致性都不是事实真实性保证。用户财务信息未经独立验证，未接入完整实时金融源。
 - 目前是个人工作区，不是企业多租户协作/SSO/MFA产品。行动负责人标签不会授予访问权。
-- 原生浏览器网络、生产HTTPS、真实供应商、目标Windows和长期负载未完成本次验收。
+- 生产 HTTPS、真实供应商、跨设备兼容和长期负载未完成本次验收；本机 Windows 原生 Chromium 已单独验收。
 
 ## 外部设计依据
 
@@ -40,6 +40,14 @@ FastAPI官方变更记录：https://fastapi.tiangolo.com/release-notes/ 。本�
 
 声明式能力白名单、DAG无环验证、事务累计预算、服务端固定模型绑定、断点哈希复核、授权撤回和终态禁止晚写是独立控制。策略激活要求当前案例集合、原输入、人工评估、候选和策略版本均匹配；不会让模型自动改代码或自行提升权限。模型输出的语义正确性和相互独立性未被这些控制证明。
 
-本次实际新增本机TCP/HTTP原始资源、认证、CSRF、导入、冻结报告、真实SSE续读、暂停后SIGKILL与恢复、策略激活回滚、在线备份检查。浏览器原生导航仍遭管理员策略阻止，未修改策略；DOM/API桥接记录单独列出，不伪装同源Cookie/CSP/SSE浏览器验收。
+本次实际执行本机 TCP/HTTP 原始资源、认证、CSRF、导入、冻结报告、真实 SSE 续读、暂停后 SIGKILL 与恢复、策略激活回滚、在线备份检查。Windows 本机原生 Chromium 经真实网络加载并检查 Cookie/CSP/SSE；显式 DOM/API 桥接作为另一种测试记录，不能替代原生结果。未修改浏览器管理员策略。
 
-当前联网依赖元数据检查15项均因连接失败标记not_checked，见evidence/current-dependency-advisories.json。它不是15项无漏洞，不替代完整依赖与源码安全审计。
+历史网络检查失败记录保存在 `evidence/history/dependency-advisories-20260926.json`，不能视为通过。当前核心依赖审计以 `evidence/dependency-audit.json` 和最终 GitHub CI 为准；其范围不包含所有可选依赖或源码形式化证明。
+
+## Current security update
+
+Runtime constraints are FastAPI 0.141.1, Starlette 1.3.1, python-multipart 0.0.32 and cryptography 50.0.1. Official package metadata and advisories were checked; historical local pins are not advertised as safe. GitHub dependency-audit installs and resolves the release constraints independently. A successful audit reflects the advisories available at that run, not proof of zero vulnerabilities.
+
+Service connections are owner-scoped and encrypted with a separate local Fernet key. Same-machine administrators can read both: this is not protection against a compromised host. Missing keys fail closed. Backup keys must remain private. Sensitive operations reauthenticate and limit password-hash concurrency. Work identities do not add organizational permissions.
+
+Raw ambiguous Host authorities, control characters and Windows UNC/drive-style paths are rejected before URL construction or static-file resolution. This is defense in depth, not a substitute for patched dependencies.

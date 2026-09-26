@@ -1,1 +1,1 @@
-{"compilerOptions":{"target":"ES2022","module":"ES2022","moduleResolution":"bundler","lib":["ES2022","DOM","DOM.Iterable"],"strict":true,"noEmitOnError":true,"outDir":"web/dist","rootDir":"web","skipLibCheck":true,"sourceMap":true},"include":["web/*.ts"]}
+{"compilerOptions":{"target":"ES2022","module":"ES2022","moduleResolution":"bundler","lib":["ES2022","DOM","DOM.Iterable"],"strict":true,"noEmitOnError":true,"outDir":"web/dist","rootDir":"web","skipLibCheck":true,"sourceMap":false,"newLine":"lf"},"include":["web/*.ts"]}

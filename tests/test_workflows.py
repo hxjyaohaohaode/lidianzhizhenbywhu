@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sqlite3
+import threading
 import time
 from contextlib import closing
 from types import SimpleNamespace
@@ -99,14 +100,27 @@ def test_oversized_required_context_prevents_dispatch(factory):
     p=FakeProvider();a=Actor(factory(providers=p,max_context_chars=1024));r=a.execute(a.run(use_llm=True,query='非常长的核查问题'*200).json())
     assert r['result']['llm']['state']=='failed' and p.calls==[] and r['result']['memory_used']==[]
 def test_cancel_running_no_late_result(factory):
-    p=FakeProvider(delay=.5);c=factory(providers=p,worker=True);a=Actor(c);r=a.run(use_llm=True).json()
-    for _ in range(100):
-        current=a.get('/runs/'+r['id']).json()
-        if current['state']=='running':break
-        time.sleep(.01)
-    assert current['state']=='running'
-    assert a.post('/runs/'+r['id']+'/cancel').json()['state']=='cancelled';time.sleep(.15)
-    final=a.get('/runs/'+r['id']).json();assert final['state']=='cancelled' and final['result'] is None
+    class BlockedProvider(FakeProvider):
+        def __init__(self):super().__init__();self.started=threading.Event();self.release=threading.Event()
+        async def complete(self,p,system,context):
+            self.started.set()
+            await asyncio.to_thread(self.release.wait,10)
+            return await super().complete(p,system,context)
+    p=BlockedProvider();c=factory(providers=p,worker=False);a=Actor(c)
+    # Build the explicitly authorized fixture before starting the worker;
+    # otherwise a fast worker can complete the queued row before the fixture update.
+    r=a.run(use_llm=True).json();assert r['state']=='queued'
+    worker=c.app.state.worker
+    try:
+        c.portal.call(worker.start)
+        assert p.started.wait(10),'provider was never entered'
+        assert a.get('/runs/'+r['id']).json()['state']=='running'
+        assert a.post('/runs/'+r['id']+'/cancel').json()['state']=='cancelled'
+        p.release.set()
+        final=a.get('/runs/'+r['id']).json();assert final['state']=='cancelled' and final['result'] is None
+    finally:
+        p.release.set()
+        c.portal.call(worker.stop)
 def test_restart_interrupts_unfinished_without_paid_retry(actor,client):
     r=actor.run().json()
     with client.app.state.store.transaction() as db:db.execute("UPDATE runs SET state='running' WHERE id=?",(r['id'],))
@@ -162,7 +176,7 @@ def test_index_owner_delete_and_migration_backfill(actor,client,tmp_path):
     backup=tmp_path/'migrate.sqlite3';db.backup(backup);reloaded=Store(backup)
     try:
         assert retrieve_indexed(reloaded,actor.user['id'],'碳酸锂成本毛利率')
-        assert reloaded.one('SELECT MAX(version) AS n FROM schema_version')['n']==2
+        assert reloaded.one('SELECT MAX(version) AS n FROM schema_version')['n']==3
     finally:reloaded.close()
     actor.delete('/evidence/'+ev['id']);assert db.one('SELECT count(*) AS n FROM evidence_fts')['n']==0 and db.one('SELECT count(*) AS n FROM evidence_chunks')['n']==0
 def test_future_schema_refused_without_mutation(tmp_path):

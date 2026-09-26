@@ -11,7 +11,7 @@ Text = Annotated[str, Field(min_length=1, max_length=200)]
 Number = Annotated[float, Field(strict=True, ge=-1e15, le=1e15)]
 Nonnegative = Annotated[float, Field(strict=True, ge=0, le=1e15)]
 Mode = Literal['operational', 'margin', 'industry', 'investment', 'deep_dive']
-Persona = Literal['enterprise', 'investor']
+Persona = Literal['enterprise', 'investor', 'analyst', 'advisor']
 
 class Register(StrictModel):
     email: str = Field(min_length=5, max_length=180)
@@ -39,6 +39,10 @@ class Preferences(StrictModel):
     watchlist: list[Text] = Field(default_factory=list,max_length=20)
     memory_enabled: bool = True
     name: Text
+    version: int = Field(ge=1)
+
+class RoleSwitch(StrictModel):
+    role: Persona
     version: int = Field(ge=1)
 
 class Period(StrictModel):
@@ -128,6 +132,7 @@ class FetchEvidence(StrictModel):
     published_at: date | None = None
 
 class Memory(StrictModel):
+    identity_id: str = Field(default='', max_length=80)
     text: str = Field(min_length=1,max_length=1500)
     kind: Literal['preference','fact','note'] = 'note'
     company: str = Field(default='',max_length=200)

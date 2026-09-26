@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import date,datetime,timezone
+from .connections import scoped_providers
 from fastapi import APIRouter,Request,Depends,UploadFile,File,Form,Query
 from fastapi.responses import Response
 from .security import require_user,fail
@@ -49,8 +50,8 @@ def brief(request:Request,user=Depends(require_user)):
 
 @router.get('/agents')
 def agents(request:Request,user=Depends(require_user)):
-    return {'items':AGENTS,'providers':request.app.state.providers.status(),
-        'policy':{'external_requires_plan':True,'default_external_calls':0,'max_calls':3,
+    return {'items':AGENTS,'providers':scoped_providers(request.app.state.providers,user['id']).status(),
+        'policy':{'external_requires_plan':True,'default_external_calls':0,'max_calls':8,
             'llm_write_tools':[],'automatic_paid_retry':False,'automatic_provider_fallback':False,
             'context_character_limit':request.app.state.settings.max_context_chars}}
 
@@ -361,7 +362,7 @@ def report_compare(request:Request,left:str=Query(...,max_length=80),right:str=Q
 
 @router.post('/assistant')
 def assistant(body:AssistantRequest,request:Request,user=Depends(require_user)):
-    return assistant_answer(dbof(request),user['id'],body.query,body.dataset_id)
+    return assistant_answer(dbof(request),user,body.query,body.dataset_id)
 
 
 @router.get('/export')
@@ -374,6 +375,9 @@ def export_workspace(request:Request,user=Depends(require_user)):
         'agent_artifacts':store.all('SELECT a.* FROM agent_artifacts a JOIN runs r ON r.id=a.run_id WHERE r.user_id=? ORDER BY a.created_at',(user['id'],)),
         'event_integrity':store.all('SELECT e.* FROM event_integrity e JOIN runs r ON r.id=e.run_id WHERE r.user_id=? ORDER BY e.event_seq',(user['id'],)),
         'adaptive':{t:store.all(f'SELECT a.* FROM {t} a JOIN runs r ON r.id=a.run_id WHERE r.user_id=?',(user['id'],)) for t in ('adaptive_graphs','adaptive_controls','adaptive_checkpoints','adaptive_calls')},
+        'assistant_messages':store.all('SELECT id,thread_id,payload,created_at FROM copilot_messages WHERE user_id=? ORDER BY created_at,id',(user['id'],)),
+        'model_connections':store.all('SELECT id,name,host,path,model,version FROM private_connections WHERE user_id=?',(user['id'],)),
+        'tracking_receipts':store.all('SELECT * FROM tracking_receipts WHERE user_id=?',(user['id'],)),
         'dataset_revisions':store.all('SELECT * FROM dataset_revisions WHERE user_id=? ORDER BY dataset_id,version',(user['id'],)),
         'notice':'包含个人业务数据、批准记忆及历史快照；不包含密码、会话凭据和模型密钥。不是可直接覆盖数据库的格式。'}
     return Response(encode(payload),media_type='application/json',headers={'Content-Disposition':'attachment; filename="lidian-workspace.json"'})

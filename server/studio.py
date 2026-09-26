@@ -29,7 +29,10 @@ def selected_memory(store,user,company,enabled):
     selected=[];excluded=[];today=date.today().isoformat()
     for row in store.items('memories',user['id']):
         p=row['payload'];reason=None
-        if not p['approved']:reason='未批准'
+        identity=user.get('service_identity');identity_id=identity['id'] if identity else ''
+        if p.get('identity_id') and p['identity_id']!=identity_id:reason='服务身份不匹配'
+        elif identity and not identity['payload']['include_shared_memory'] and not p.get('identity_id'):reason='身份不允许共享记忆'
+        elif not p['approved']:reason='未批准'
         elif p.get('expires_at') and p['expires_at']<today:reason='已过期'
         elif p.get('company') and p['company']!=company:reason='企业不匹配'
         elif p.get('role') not in ('all',user['preferences'].get('role')):reason='角色不匹配'
@@ -46,7 +49,7 @@ def pack_context(snapshot,query,mode,limit):
             'review_state':c.get('review_state','unreviewed'),'stance':c.get('stance','context'),'stale':c['stale']} for c in snapshot['citations']],
         'preferences':snapshot['preferences'],'objective':snapshot['profile'],
         'approved_memory':[{'id':m['id'],'text':m['text'],'kind':m['kind']} for m in snapshot['memory']],
-        'history':snapshot.get('history',[]), 'data_limits':a['warnings']}
+        'history':snapshot.get('history',[]), 'data_limits':a['warnings'],'service_identity':snapshot.get('identity')}
     dropped=[]
     # Reserve space for reviewer inputs; do not truncate an identifier, JSON or a sentence silently.
     target=max(0,limit-2400)
@@ -62,6 +65,11 @@ def pack_context(snapshot,query,mode,limit):
 
 
 def build_plan(store,user,body,settings,providers):
+    from .connections import scoped_providers, provider_binding
+    from .identities import resolve_identity, context_user, identity_context, identity_binding
+    providers=scoped_providers(providers,user['id'])
+    identity=resolve_identity(store,user['id'],body.identity_id,body.dataset_id,external=body.use_llm,max_calls=body.max_calls)
+    user=context_user(user,identity)
     d=store.owned('datasets',user['id'],body.dataset_id)
     if not d:fail('NOT_FOUND','数据不存在或无权访问',404)
     company=d['payload']['company'];profile=profile_for(store,user['id'],company)
@@ -72,6 +80,7 @@ def build_plan(store,user,body,settings,providers):
     if body.session_id:
         session=store.owned('conversations',user['id'],body.session_id)
         if not session:fail('NOT_FOUND','会话不存在或无权访问',404)
+        if session['payload'].get('identity_id','')!=body.identity_id:fail('IDENTITY_SCOPE','会话属于另一服务身份，请新建会话',403)
         if session['payload'].get('company') not in ('',company):fail('COMPANY_MISMATCH','会话与企业不一致',409)
         session_version=session['version']
         if body.include_history:
@@ -79,9 +88,11 @@ def build_plan(store,user,body,settings,providers):
             history=[{'role':h['role'],'text':h['payload']['text'][:500]} for h in reversed(rows)]
     snapshot={'dataset':d['payload'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],
         'citations':citations,'memory':memories,'preferences':user['preferences'],'profile':profile,
-        'history':history,'comparison':body.comparison}
+        'history':history,'comparison':body.comparison,'identity':identity_context(identity)}
     context,packing=pack_context(snapshot,body.query,body.mode,settings.max_context_chars)
     provider=providers.select(body.provider) if body.use_llm else None
+    if provider and not body.provider:
+        body=body.model_copy(update={'provider':provider.id})
     blockers=[]
     if body.use_llm and not provider:blockers.append('尚未配置所选模型；可改为本地规则计划，不会模拟AI回答')
     call_ids=[]
@@ -101,7 +112,7 @@ def build_plan(store,user,body,settings,providers):
         'evidence':[{'id':c['document_id'],'hash':c['document_hash'],'review_version':c.get('review_version',0)} for c in citations],
         'memory':[{'id':m['id'],'version':m['version'],'hash':m['payload_hash']} for m in memories],
         'session_version':session_version if body.include_history else None,
-        'provider':{'id':provider.id,'model':provider.model} if provider else None}
+        'provider':provider_binding(provider) if provider else None,'identity':identity_binding(identity)}
     payload={'status':'draft','request':body.model_dump(mode='json'),'snapshot':snapshot,'context':context,
         'packing':packing,'bindings':bindings,'nodes':nodes,'call_ids':call_ids,
         'max_calls':len(call_ids),'requested_max_calls':body.max_calls if body.use_llm else 0,
@@ -115,7 +126,11 @@ def build_plan(store,user,body,settings,providers):
 
 
 def check_bindings(store,user,plan,providers):
+    from .connections import scoped_providers, provider_binding
+    from .identities import validate_identity_binding
+    providers=scoped_providers(providers,user['id'])
     p=plan['payload'];b=p['bindings'];r=p['request']
+    validate_identity_binding(store,user,b.get('identity'),b['dataset_id'],external=r['use_llm'],max_calls=r['max_calls'])
     from .autonomy import validate_extra_bindings
     validate_extra_bindings(store,user,p,providers)
     d=store.owned('datasets',user['id'],b['dataset_id'])
@@ -140,7 +155,7 @@ def check_bindings(store,user,plan,providers):
         if not s or s['version']!=b['session_version']:fail('PLAN_STALE','会话历史已改变，请重新预览',409)
     if r['use_llm']:
         provider=providers.select(r['provider'])
-        if not provider or {'id':provider.id,'model':provider.model}!=b['provider']:
+        if not provider or provider_binding(provider)!=b['provider']:
             fail('PROVIDER_CHANGED','模型不可用或配置已变更，请重新选择',409)
     if (datetime.now(timezone.utc)-datetime.fromisoformat(p['created_at'])).total_seconds()>86400:
         fail('PLAN_EXPIRED','计划超过24小时，请重新预览',409)
@@ -165,7 +180,7 @@ def dispatch_plan(store,user,id,body,settings,providers):
         r=p['request'];session_id=r['session_id']
         if not session_id:
             session_id=uid();at=now()
-            db.execute('INSERT INTO conversations VALUES(?,?,?,?,?,?)',(session_id,user['id'],encode({'title':r['query'][:60],'mode':r['mode'],'company':p['snapshot']['dataset']['company']}),1,at,at))
+            db.execute('INSERT INTO conversations VALUES(?,?,?,?,?,?)',(session_id,user['id'],encode({'title':r['query'][:60],'mode':r['mode'],'company':p['snapshot']['dataset']['company'],'identity_id':r.get('identity_id','')}),1,at,at))
         else:
             session=store.owned('conversations',user['id'],session_id)
             if not session:fail('NOT_FOUND','会话已删除',404)
@@ -227,7 +242,8 @@ async def perform_studio(worker,id):
                     current=store.one('SELECT * FROM users WHERE id=?',(row['user_id'],))
                     bindings=st['bindings']
                     changed=not current or current['version']!=bindings['user_version']
-                    if {'id':provider.id,'model':provider.model}!=bindings['provider']:changed=True
+                    from .identities import execution_service_valid
+                    if not execution_service_valid(store,row['user_id'],bindings,r,worker.providers,bindings['provider']):changed=True
                     for m in s['memory']:
                         if m['id'] not in st['packing']['included_memory_ids']:continue
                         live=store.owned('memories',row['user_id'],m['id'])

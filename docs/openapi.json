@@ -1780,6 +1780,1019 @@
         }
       }
     },
+    "/api/services/identities": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Identities",
+        "operationId": "identities_api_services_identities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Create Identity",
+        "operationId": "create_identity_api_services_identities_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentitySpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/identities/{id}": {
+      "put": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Update Identity",
+        "operationId": "update_identity_api_services_identities__id__put",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentitySpec"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Delete Identity",
+        "operationId": "delete_identity_api_services_identities__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/threads": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Threads",
+        "operationId": "threads_api_services_threads_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Create Thread",
+        "operationId": "create_thread_api_services_threads_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/threads/{id}": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Get Thread",
+        "operationId": "get_thread_api_services_threads__id__get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Delete Thread",
+        "operationId": "delete_thread_api_services_threads__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/threads/{id}/messages": {
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Add Message",
+        "operationId": "add_message_api_services_threads__id__messages_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopilotMessage"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/threads/{id}/proposals": {
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Add Proposal",
+        "operationId": "add_proposal_api_services_threads__id__proposals_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/proposals/{id}": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Get Proposal",
+        "operationId": "get_proposal_api_services_proposals__id__get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Discard Proposal",
+        "operationId": "discard_proposal_api_services_proposals__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/proposals/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Confirm",
+        "operationId": "confirm_api_services_proposals__id__confirm_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalConfirm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/tracking": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Tracking",
+        "operationId": "tracking_api_services_tracking_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Identity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/watches": {
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Create Watch",
+        "operationId": "create_watch_api_services_watches_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/watches/{id}": {
+      "put": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Update Watch",
+        "operationId": "update_watch_api_services_watches__id__put",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchSpec"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Delete Watch",
+        "operationId": "delete_watch_api_services_watches__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/alerts/{id}/acknowledge": {
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Acknowledge Alert",
+        "operationId": "acknowledge_alert_api_services_alerts__id__acknowledge_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertAck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/alerts/{id}": {
+      "delete": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Delete Alert",
+        "operationId": "delete_alert_api_services_alerts__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/connections": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Connections",
+        "operationId": "connections_api_services_connections_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Create Connection",
+        "operationId": "create_connection_api_services_connections_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivateConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/connections/{id}": {
+      "put": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Update Connection",
+        "operationId": "update_connection_api_services_connections__id__put",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivateConnection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/connections/{id}/remove": {
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Remove Connection",
+        "operationId": "remove_connection_api_services_connections__id__remove_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reauthenticate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/security": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Security Status",
+        "operationId": "security_status_api_services_security_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/sessions/revoke": {
+      "post": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Revoke Session",
+        "operationId": "revoke_session_api_services_sessions_revoke_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRevoke"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -1961,6 +2974,42 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Preferences"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/preferences/role": {
+      "put": {
+        "summary": "Switch Role",
+        "operationId": "switch_role_api_preferences_role_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleSwitch"
               }
             }
           },
@@ -3526,6 +4575,28 @@
         ],
         "title": "ActivateStrategy"
       },
+      "AlertAck": {
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 2,
+            "title": "Note",
+            "default": "已核对"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "AlertAck"
+      },
       "AssistantRequest": {
         "properties": {
           "query": {
@@ -3573,7 +4644,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           },
           "company": {
@@ -3598,7 +4669,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           }
         },
@@ -3612,7 +4683,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           },
           "company": {
@@ -3841,6 +4912,34 @@
         "additionalProperties": false,
         "type": "object",
         "title": "Conversation"
+      },
+      "CopilotMessage": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 3000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{8,80}$",
+            "title": "Request Id"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "request_id",
+          "version"
+        ],
+        "title": "CopilotMessage"
       },
       "Dataset": {
         "properties": {
@@ -4416,6 +5515,92 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "IdentitySpec": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "perspective": {
+            "type": "string",
+            "enum": [
+              "operator",
+              "executive",
+              "investor",
+              "researcher",
+              "auditor",
+              "custom"
+            ],
+            "title": "Perspective",
+            "default": "operator"
+          },
+          "objective": {
+            "type": "string",
+            "maxLength": 1200,
+            "title": "Objective",
+            "default": ""
+          },
+          "depth": {
+            "type": "string",
+            "enum": [
+              "concise",
+              "balanced",
+              "deep"
+            ],
+            "title": "Depth",
+            "default": "balanced"
+          },
+          "output_style": {
+            "type": "string",
+            "enum": [
+              "actionable",
+              "analytical",
+              "evidence_first"
+            ],
+            "title": "Output Style",
+            "default": "actionable"
+          },
+          "dataset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Dataset Ids"
+          },
+          "allow_external": {
+            "type": "boolean",
+            "title": "Allow External",
+            "default": false
+          },
+          "max_calls": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 0.0,
+            "title": "Max Calls",
+            "default": 3
+          },
+          "include_shared_memory": {
+            "type": "boolean",
+            "title": "Include Shared Memory",
+            "default": true
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "IdentitySpec"
+      },
       "ImportPreview": {
         "properties": {
           "dataset": {
@@ -4475,6 +5660,12 @@
       },
       "Memory": {
         "properties": {
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
           "text": {
             "type": "string",
             "maxLength": 1500,
@@ -4503,7 +5694,9 @@
                 "type": "string",
                 "enum": [
                   "enterprise",
-                  "investor"
+                  "investor",
+                  "analyst",
+                  "advisor"
                 ]
               },
               {
@@ -4547,6 +5740,12 @@
       },
       "MemoryUpdate": {
         "properties": {
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
           "text": {
             "type": "string",
             "maxLength": 1500,
@@ -4575,7 +5774,9 @@
                 "type": "string",
                 "enum": [
                   "enterprise",
-                  "investor"
+                  "investor",
+                  "analyst",
+                  "advisor"
                 ]
               },
               {
@@ -4872,6 +6073,12 @@
       },
       "PlanDraft": {
         "properties": {
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
           "dataset_id": {
             "type": "string",
             "maxLength": 80,
@@ -4970,7 +6177,9 @@
             "type": "string",
             "enum": [
               "enterprise",
-              "investor"
+              "investor",
+              "analyst",
+              "advisor"
             ],
             "title": "Role",
             "default": "enterprise"
@@ -5060,6 +6269,226 @@
         ],
         "title": "Preferences"
       },
+      "PrivateConnection": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Base Url"
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Model"
+          },
+          "api_key": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Api Key",
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "base_url",
+          "model",
+          "password"
+        ],
+        "title": "PrivateConnection"
+      },
+      "ProposalConfirm": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Fingerprint"
+          },
+          "external_consent": {
+            "type": "boolean",
+            "title": "External Consent",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "fingerprint"
+        ],
+        "title": "ProposalConfirm"
+      },
+      "ProposalRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "research",
+              "action",
+              "watch",
+              "memory"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Title",
+            "default": ""
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 3000,
+            "title": "Text",
+            "default": ""
+          },
+          "source_message_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Source Message Id",
+            "default": ""
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{8,80}$",
+            "title": "Request Id"
+          },
+          "include_thread_history": {
+            "type": "boolean",
+            "title": "Include Thread History",
+            "default": false
+          },
+          "use_llm": {
+            "type": "boolean",
+            "title": "Use Llm",
+            "default": false
+          },
+          "provider": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Provider",
+            "default": ""
+          },
+          "max_calls": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 0.0,
+            "title": "Max Calls",
+            "default": 3
+          },
+          "execution": {
+            "$ref": "#/components/schemas/ExecutionOptions"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "operational",
+              "margin",
+              "industry",
+              "investment",
+              "deep_dive"
+            ],
+            "title": "Mode",
+            "default": "operational"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "gross_margin",
+              "cash_ratio",
+              "leverage",
+              "revenue_growth",
+              "cash_flow",
+              "revenue"
+            ],
+            "title": "Metric",
+            "default": "gross_margin"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "lt",
+              "gt"
+            ],
+            "title": "Operator",
+            "default": "lt"
+          },
+          "threshold": {
+            "type": "number",
+            "maximum": 1000000000000000.0,
+            "minimum": -1000000000000000.0,
+            "title": "Threshold",
+            "default": 0.0
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "acceptance": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Acceptance",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "request_id"
+        ],
+        "title": "ProposalRequest"
+      },
+      "Reauthenticate": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "Reauthenticate"
+      },
       "Register": {
         "properties": {
           "email": {
@@ -5084,7 +6513,9 @@
             "type": "string",
             "enum": [
               "enterprise",
-              "investor"
+              "investor",
+              "analyst",
+              "advisor"
             ],
             "title": "Role",
             "default": "enterprise"
@@ -5125,6 +6556,32 @@
           "target_revision"
         ],
         "title": "RevisionRestore"
+      },
+      "RoleSwitch": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "enterprise",
+              "investor",
+              "analyst",
+              "advisor"
+            ],
+            "title": "Role"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "version"
+        ],
+        "title": "RoleSwitch"
       },
       "RollbackStrategy": {
         "properties": {
@@ -5395,6 +6852,33 @@
         ],
         "title": "SearchRequest"
       },
+      "SessionRevoke": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Id",
+            "default": ""
+          },
+          "others": {
+            "type": "boolean",
+            "title": "Others",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "SessionRevoke"
+      },
       "StageCommit": {
         "properties": {
           "fingerprint": {
@@ -5500,6 +6984,32 @@
         ],
         "title": "TaskTemplate"
       },
+      "ThreadCreate": {
+        "properties": {
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
+          "dataset_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Dataset Id",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title",
+            "default": "新的研究"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ThreadCreate"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -5539,6 +7049,82 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WatchSpec": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
+          "dataset_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Dataset Id"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "gross_margin",
+              "cash_ratio",
+              "leverage",
+              "revenue_growth",
+              "cash_flow",
+              "revenue"
+            ],
+            "title": "Metric"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "lt",
+              "gt"
+            ],
+            "title": "Operator"
+          },
+          "threshold": {
+            "type": "number",
+            "maximum": 1000000000000000.0,
+            "minimum": -1000000000000000.0,
+            "title": "Threshold"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "default": true
+          },
+          "stale_after_days": {
+            "type": "integer",
+            "maximum": 1460.0,
+            "minimum": 30.0,
+            "title": "Stale After Days",
+            "default": 180
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Version",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "dataset_id",
+          "metric",
+          "operator",
+          "threshold"
+        ],
+        "title": "WatchSpec"
       }
     }
   }

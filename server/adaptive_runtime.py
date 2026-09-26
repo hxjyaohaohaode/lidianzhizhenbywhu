@@ -130,8 +130,8 @@ class AdaptiveRun:
         b=self.st['bindings']
         if (datetime.now(timezone.utc)-datetime.fromisoformat(self.row['created_at'])).total_seconds()>86400:return False
         if not user or user['version'] != b['user_version']: return False
-        provider=self.worker.providers.select(binding['id'])
-        if not provider or any(getattr(provider,k)!=binding[k] for k in ('id','model','host','path')):return False
+        from .identities import execution_service_valid
+        if not execution_service_valid(self.store,self.user_id,b,self.r,self.worker.providers,binding):return False
         # Frozen input remains available for local report; new external sends require current authorization.
         d=self.store.owned('datasets',self.user_id,self.row['dataset_id'])
         if not d or d['version'] != b['dataset_version'] or d['content_hash'] != b['dataset_hash']:return False

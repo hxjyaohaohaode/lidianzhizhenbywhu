@@ -1,14 +1,20 @@
-name: source-regression
+name: workbench-acceptance
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+concurrency:
+  group: acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   regression:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,21 +25,38 @@ jobs:
           node-version: '22'
           cache: npm
       - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip check
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: python scripts/verify.py --full-chain
-      - run: python -m pytest --cov=server --cov-report=term-missing --cov-report=json:evidence/coverage.json
+      - run: python -m playwright install --with-deps chromium
+      - run: python scripts/native_acceptance.py
+      - run: python scripts/bootstrap.py --yes --no-browser
+      - run: python -m pip freeze
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: regression-${{ matrix.os }}
+          name: acceptance-${{ matrix.os }}
           path: evidence/
+          retention-days: 14
   dependency-audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - run: python -m pip install pip-audit
-      - run: python -m pip_audit -r requirements.txt --strict
+      - run: python -m pip_audit -r requirements.txt --strict --format json --output dependency-audit.json
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=moderate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-audit
+          path: dependency-audit.json
+          retention-days: 14

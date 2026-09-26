@@ -4,6 +4,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {esc,num,pct,amount,safeLink,textarea,input,select,jsonView,lineChart,nodeFlow,metricValue} from '../web/dist/components.js';
 import {api,setCsrf,ApiError} from '../web/dist/api.js';
+import {assistantView} from '../web/dist/assistant.js';
+
+test('assistant traces are escaped and absent values stay absent',()=>{
+ const html=assistantView('<img src=x>',{answer:'<script>x',facts:[{id:'cash_flow',label:'现金流',value:null,period:'2025-Q4',dataset_version:2,formula:'原始录入值',inputs:[{path:'periods/2025-Q4/<img>',value:null}],trend:[{period:'2025-Q4',value:null}],source_url:'javascript:alert(1)',input_hash:'abc',verification:'unverified'}],quality:[],evidence_matches:[{title:'<img src=x>',excerpt:'<script>bad',review_state:'unreviewed',stance:'context',content_hash:'abcd',source_url:'javascript:alert(1)'}],actions:[],external_calls:0});
+ assert(!html.includes('<script>')&&!html.includes('<img src=x>')&&!html.includes('href="javascript:'));
+ assert(html.includes('—')&&!html.includes('— 元'));
+ assert(html.includes('季度追踪')&&html.includes('外部模型调用 0 次'));
+});
 
 test('HTML metacharacters and untrusted closing tags are escaped',()=>{assert.equal(esc(`<x a="b">'&`),'&lt;x a=&quot;b&quot;&gt;&#39;&amp;');assert(!textarea('a','</textarea><img src=x>').includes('</textarea><img'));assert(!input('x','" onfocus="alert(1)').includes('" onfocus="'));assert(!jsonView({x:'</pre><script>'}).includes('<script>'));});
 test('empty values stay absent; real zero and negatives survive',()=>{for(const v of [null,undefined,NaN,Infinity,'0'])assert.equal(num(v),'—');assert.equal(num(0),'0');assert.equal(pct(0),'0%');assert.equal(pct(-.2),'-20%');assert.equal(amount(100000,'wan'),'10');assert.equal(metricValue('asset_turnover',2),'2');});

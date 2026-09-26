@@ -1,6 +1,7 @@
 export type Json = any;
 let csrf = '';
 let authGeneration=0;
+export function invalidateContext(){authGeneration++;}
 export function setCsrf(value:string){if(value!==csrf)authGeneration++;csrf=value;}
 export class ApiError extends Error {
   constructor(message:string,public status:number,public code:string,public requestId:string){super(message);}
@@ -15,7 +16,7 @@ export async function api(path:string,method='GET',body?:Json,extra:Record<strin
     const type=res.headers.get('content-type')??'';
     if(!type.includes('application/json'))throw new ApiError('服务返回格式异常，请检查后端地址。',res.status,'NON_JSON','');
     const data=await res.json();
-    if(generation!==authGeneration)throw new ApiError('登录上下文已变化，已丢弃旧账户的迟到响应。',409,'STALE_SESSION','');
+    if(generation!==authGeneration)throw new ApiError('账户或服务身份已变化，已丢弃旧上下文的迟到响应。',409,'STALE_SESSION','');
     if(!res.ok){const e=data.error??{};throw new ApiError((e.message??'请求失败')+(e.details?.length?'\n'+e.details.map((x:Json)=>x.path+': '+x.message).join('\n'):''),res.status,e.code??'ERROR',data.request_id??'');}
     return data;
   } catch(e){

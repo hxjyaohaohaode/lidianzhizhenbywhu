@@ -11,6 +11,17 @@ import httpx
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'evidence'
 
+class WindowsSafeTemporaryDirectory(tempfile.TemporaryDirectory):
+    def cleanup(self):
+        # A terminated Uvicorn process can release its SQLite handle slightly
+        # after wait() returns on Windows. Keep cleanup bounded and observable.
+        for attempt in range(10):
+            try:
+                return super().cleanup()
+            except PermissionError:
+                if attempt==9:raise
+                time.sleep(.2)
+
 
 def port():
     with socket.socket() as s:s.bind(('127.0.0.1',0));return s.getsockname()[1]
@@ -63,11 +74,12 @@ def wait_run(client,id):
 
 
 def main():
+    if hasattr(sys.stdout,'reconfigure'):sys.stdout.reconfigure(encoding='utf-8')
     OUT.mkdir(exist_ok=True);checks=[];timings={};start=time.time()
     def record(name):checks.append(name);print('PASS',name,flush=True)
     evidence={'transport':'real loopback TCP/HTTP; actual Uvicorn process + SQLite; NOT native browser E2E','real_external_supplier_calls':0,'test_data':'explicitly synthetic; temporary isolated database; never bundled'}
     try:
-      with tempfile.TemporaryDirectory(prefix='lidian-e2e-') as temp:
+      with WindowsSafeTemporaryDirectory(prefix='lidian-e2e-') as temp:
         srv=ProductServer(Path(temp)/'product');srv.start()
         try:
           with httpx.Client(base_url=srv.base,trust_env=False,timeout=10) as c,httpx.Client(base_url=srv.base,trust_env=False,timeout=10) as other:
@@ -166,13 +178,13 @@ def main():
             target=Path(temp)/'backup.sqlite';proc=subprocess.run([sys.executable,'scripts/backup.py','--source',str(dbpath),'--output',str(target)],cwd=ROOT,env={**os.environ,'DATA_DIR':str(srv.dir)},capture_output=True,text=True)
             # backup CLI contract is checked below, not inferred from a file name.
             if proc.returncode!=0:raise AssertionError(proc.stdout+proc.stderr)
-            with sqlite3.connect(target) as db:assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+            with contextlib.closing(sqlite3.connect(target)) as db:assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
             record('运行中的SQLite一致性备份与副本完整性检查')
         finally:srv.stop()
       evidence.update({'passed':True,'checks':checks,'load_probe':timings,'elapsed_seconds':round(time.time()-start,2)})
     except Exception as exc:
       evidence.update({'passed':False,'checks':checks,'error':repr(exc),'load_probe':timings,'elapsed_seconds':round(time.time()-start,2)})
       raise
-    finally:(OUT/'full-chain-http.json').write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
+    finally:(OUT/'full-chain-http.json').write_text(json.dumps(evidence,ensure_ascii=False,indent=2),encoding='utf-8')
 
 if __name__=='__main__':main()

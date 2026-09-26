@@ -151,6 +151,7 @@ def compile_graph(payload, *, policy=None):
 
 
 def attach_plan(store, user, payload, providers):
+    from .connections import provider_binding
     if not payload['request'].get('execution'):
         return
     policy, active_version = strategy(store, user['id'])
@@ -162,7 +163,7 @@ def attach_plan(store, user, payload, providers):
         for role in MODEL_CAPS:
             target = providers.select(ex['role_providers'].get(role, r['provider']))
             if target:
-                selections[role] = {'id': target.id, 'model': target.model, 'host': target.host, 'path': target.path}
+                selections[role] = {**provider_binding(target), 'host': target.host, 'path': target.path}
             elif role in graph['call_ids'] or role in ex['role_providers']:
                 payload['blockers'].append(f'{role} 所选模型没有配置，不能模拟执行')
         fallbacks = []
@@ -171,7 +172,7 @@ def attach_plan(store, user, payload, providers):
             if not p:
                 payload['blockers'].append(f'候补模型 {id} 未配置')
             else:
-                fallbacks.append({'id':p.id, 'model':p.model, 'host':p.host, 'path':p.path})
+                fallbacks.append({**provider_binding(p), 'host':p.host, 'path':p.path})
         # Default provider is already checked by the legacy binding path.
         if not default:
             payload['blockers'].append('默认模型未配置')
@@ -207,7 +208,7 @@ def validate_extra_bindings(store, user, p, providers):
         fail('PLAN_STALE', '编排策略已改变，请重新预览', 409)
     for b in [*a['provider_bindings'].values(), *a['fallback_bindings']]:
         live = providers.select(b['id'])
-        if not live or any(getattr(live, k) != b[k] for k in ('id', 'model', 'host', 'path')):
+        if not live or any(getattr(live, k) != b[k] for k in ('id', 'model', 'host', 'path')) or (live and b.get('configuration_version')!=getattr(live,'configuration_version',None)):
             fail('PROVIDER_CHANGED', '分工模型或候补连接已变化，请重新授权', 409)
 
 
