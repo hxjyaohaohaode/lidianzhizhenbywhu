@@ -26,7 +26,7 @@ README是主启动入口。GitHub 源码需先运行 `npm ci --ignore-scripts` �
 
 默认不公开。APP_ENV=production要求HTTPS APP_ORIGIN与至少16字符REGISTRATION_CODE，否则启动拒绝。需要自己的TLS终止反向代理、访问控制、日志策略、补丁更新、备份恢复演练、供应商隐私合规判断及原生浏览器验收。不得使用多worker指向同一SQLite库；Docker部署模板保持一个应用进程，需要持久化/data，并自行配置uid10001可写权限。
 
-Dockerfile是构建说明，本次未实际构建；CI文件是复现矩阵，本次没有远程执行结果。不能把配置存在当作部署成功。
+Dockerfile是构建说明，本次未实际构建。GitHub Actions 的 Ubuntu、Windows 回归与依赖审计已在 2026-09-27 的运行 `36265249690` 通过；这不代表公网部署成功。仓库关联的 Vercel 预览在原始 `main` 和本分支均报告失败；没有 Vercel 项目凭据，无法读取其部署日志。部署负责人须在 Vercel 项目内核查失败原因，并针对持久化 SQLite、单进程后台任务及 HTTPS 入口选择合适的运行环境后重新验收。
 
 ## 外部服务
 

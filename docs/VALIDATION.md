@@ -21,4 +21,6 @@
 
 全量回归最初在 Windows 因 Pytest 把超长参数写入环境变量而产生 2 个准备阶段错误；给该参数添加短测试 ID 后，原测试输入保持不变且全量通过。真实 HTTP 链最初在退出时因测试脚本未关闭备份数据库连接而失败；显式关闭连接后 12 组检查通过。原生浏览器脚本最初使用受 CSP 禁止的 `eval` 式等待；改用 Playwright locator 等待后通过，没有放宽产品 CSP。
 
-首次 GitHub Actions 运行 `36264528001` 中，Ubuntu 回归和依赖审计通过；Windows Python 3.13 在 `cp1252` 管道编码下打印中文验收标签时抛出 `UnicodeEncodeError`，导致 HTTP 链在第一组完成后中断。2026-09-27 修复为子进程明确使用 UTF-8、链路脚本输出与 JSON 写入明确使用 UTF-8；本机将外层 `PYTHONIOENCODING` 强制设为 `cp1252` 后重新执行 `scripts/verify.py --full-chain`，所有检查通过。远端 Windows 的复验结果以本次修复提交后的 CI 为准。
+首次 GitHub Actions 运行 `36264528001` 中，Ubuntu 回归和依赖审计通过；Windows Python 3.13 在 `cp1252` 管道编码下打印中文验收标签时抛出 `UnicodeEncodeError`，导致 HTTP 链在第一组完成后中断。2026-09-27 修复为子进程明确使用 UTF-8、链路脚本输出与 JSON 写入明确使用 UTF-8；本机将外层 `PYTHONIOENCODING` 强制设为 `cp1252` 后重新执行 `scripts/verify.py --full-chain`，所有检查通过。GitHub Actions [36265249690](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36265249690) 随后在 Ubuntu、Windows Python 3.13 的完整链路与覆盖率、依赖审计全部通过。
+
+该 GitHub 仓库关联的 Vercel 预览状态在原始 `main` 提交 `42fdf34` 和本分支均为失败。GitHub 状态只给出部署失败和要求查看 Vercel 日志的提示；本机 Vercel CLI 无项目登录凭据，因此没有可核实的构建错误详情。Vercel 预览未被计入上述通过项，公网部署仍未验收。
