@@ -32,7 +32,7 @@ def source_files() -> list[Path]:
         if set(rel.parts)&EXCLUDE:continue
         if p.is_symlink():raise ValueError('Refusing to publish symlink: '+str(rel))
         if not p.is_file():continue
-        if p.name in ('.env','.coverage') or (p.name.startswith('.env.') and p.name!='.env.example'):continue
+        if p.name in ('.env','.coverage','publish-receipt.json') or (p.name.startswith('.env.') and p.name!='.env.example'):continue
         if p.suffix.lower() in ('.sqlite3','.sqlite','.db','.pyc','.ttf','.otf','.woff','.woff2','.pem','.key','.p12','.pfx') or p.name.endswith(('-wal','-shm')):continue
         # Remote repository contains source and compact reports; release ZIP carries binaries/screenshots.
         if rel.parts[:2]==('web','dist'):continue
@@ -43,21 +43,35 @@ def source_files() -> list[Path]:
 def main() -> int:
     parser=argparse.ArgumentParser(description='在已有Git登录下推送新的重构分支，不覆盖main。')
     parser.add_argument('--confirm',action='store_true',help='允许创建远程新分支并提交当前源码')
+    parser.add_argument('--update-branch',action='store_true',help='只快进更新上次发布回执中的同一远程分支')
     args=parser.parse_args();files=source_files()
     print('Repository:',REPOSITORY);print('Source files:',len(files));print('Main is never force-pushed or merged.')
     if not args.confirm:
         print('仅预览，没有网络写入。完成本机Git登录和回归后，加 --confirm 执行。');return 0
+    if args.update_branch:
+        prior=json.loads((ROOT/'evidence/publish-receipt.json').read_text(encoding='utf-8'))
+        branch=prior['branch']
+        if prior['repository']!=REPOSITORY or not branch.startswith('new/') or not prior.get('remote_verified'):
+            raise ValueError('The prior receipt does not identify a verified publication branch.')
+    else:
+        prior=None
+        branch='new/lidian-workspace-'+datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
     if not shutil.which('git'):raise RuntimeError('Git is not installed. Use the official Git client and sign in locally first.')
     # Execute the complete Python suite again before any network write.
     run([sys.executable,'-m','pytest','-q'],ROOT)
-    branch='new/lidian-workspace-'+datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
     with tempfile.TemporaryDirectory(prefix='lidian-publish-') as tmp:
         clone=Path(tmp)/'repo'
-        run(['git','clone','--single-branch','--branch','main',REPOSITORY,str(clone)],Path(tmp))
+        run(['git','clone','--single-branch','--branch',branch if prior else 'main',REPOSITORY,str(clone)],Path(tmp))
         # Author identity is the user's existing Git identity; do not fabricate it or change global config.
         run(['git','var','GIT_AUTHOR_IDENT'],clone)
-        base=run(['git','rev-parse','HEAD'],clone)
-        run(['git','checkout','-b',branch],clone)
+        head=run(['git','rev-parse','HEAD'],clone)
+        base=prior['base_commit'] if prior else head
+        if prior:
+            remote_before=run(['git','ls-remote','origin','refs/heads/'+branch],clone)
+            if head!=prior['commit'] or not remote_before.startswith(head+'\t'):
+                raise RuntimeError('Publication branch changed since the prior receipt; refusing to overwrite it.')
+        else:
+            run(['git','checkout','-b',branch],clone)
         tracked=run(['git','ls-files','-z'],clone).split('\x00')
         for name in tracked:
             if not name:continue
@@ -75,7 +89,7 @@ def main() -> int:
         run(['git','push','origin','HEAD:refs/heads/'+branch],clone)
         remote=run(['git','ls-remote','origin','refs/heads/'+branch],clone)
         if not remote.startswith(commit+'\t'):raise RuntimeError('Remote commit verification failed; inspect remote before retrying.')
-        receipt={'repository':REPOSITORY,'branch':branch,'base_commit':base,'commit':commit,'remote_verified':True,'files':expected}
+        receipt={'repository':REPOSITORY,'branch':branch,'base_commit':base,'previous_commit':head if prior else None,'commit':commit,'remote_verified':True,'files':expected}
         (ROOT/'evidence/publish-receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2),encoding='utf-8')
         print('已验证远程分支：',branch);print('commit:',commit)
     return 0

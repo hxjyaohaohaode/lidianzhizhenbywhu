@@ -64,6 +64,8 @@ def wait_run(client,id):
 
 
 def main():
+    # CI may redirect stdout through a legacy Windows code page.
+    if hasattr(sys.stdout,'reconfigure'):sys.stdout.reconfigure(encoding='utf-8')
     OUT.mkdir(exist_ok=True);checks=[];timings={};start=time.time()
     def record(name):checks.append(name);print('PASS',name,flush=True)
     evidence={'transport':'real loopback TCP/HTTP; actual Uvicorn process + SQLite; NOT native browser E2E','real_external_supplier_calls':0,'test_data':'explicitly synthetic; temporary isolated database; never bundled'}
@@ -174,6 +176,6 @@ def main():
     except Exception as exc:
       evidence.update({'passed':False,'checks':checks,'error':repr(exc),'load_probe':timings,'elapsed_seconds':round(time.time()-start,2)})
       raise
-    finally:(OUT/'full-chain-http.json').write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
+    finally:(OUT/'full-chain-http.json').write_text(json.dumps(evidence,ensure_ascii=False,indent=2),encoding='utf-8')
 
 if __name__=='__main__':main()

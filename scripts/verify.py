@@ -11,9 +11,9 @@ def main():
     for name,cmd in commands:
         t=time.monotonic()
         try:
-            result=subprocess.run(cmd,cwd=ROOT,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=240);code=result.returncode;text=result.stdout
+            result=subprocess.run(cmd,cwd=ROOT,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace',env={**os.environ,'PYTHONIOENCODING':'utf-8'},timeout=240);code=result.returncode;text=result.stdout
         except (OSError,subprocess.TimeoutExpired) as e:code=1;text=type(e).__name__+': '+str(e)
         (out/(name+'.log')).write_text(text,encoding='utf-8');results.append({'check':name,'command':cmd,'exit_code':code,'seconds':round(time.monotonic()-t,3)});print(name,':','PASS' if code==0 else 'FAIL',flush=True)
-    report={'python':sys.version,'platform':platform.platform(),'checks':results,'all_executed_checks_pass':all(r['exit_code']==0 for r in results),'not_covered':['Live model API credentials','Live public sources','Windows runtime','Public HTTPS deployment','Long-duration production load','Native browser navigation/Cookie/CSP integration','Complete live dependency audit','Optional patched PDF integration']}
+    report={'python':sys.version,'platform':platform.platform(),'checks':results,'all_executed_checks_pass':all(r['exit_code']==0 for r in results),'not_covered':['Live model API credentials','Live public sources','Public HTTPS deployment','Long-duration production load','Native browser navigation/Cookie/CSP integration','Cross-device browser compatibility','Future dependency advisories','Optional patched PDF integration']}
     (out/'verification.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8');return 0 if report['all_executed_checks_pass'] else 1
 if __name__=='__main__':raise SystemExit(main())
