@@ -49,3 +49,31 @@ def validate_identity_binding(store, user, binding, dataset_id, *, external=Fals
                            external=external, max_calls=max_calls)
     if identity_binding(row) != binding:
         fail('IDENTITY_CHANGED', '服务身份或其外发权限已经改变，请重新预览并批准', 409)
+
+
+def execution_service_valid(store, user_id, bindings, request, providers, expected_provider):
+    """Revalidate identity and owner-scoped connection at each dispatch boundary.
+
+    Approval is not a permanent grant. This check never initiates a network call;
+    a revoked identity, rotated key or unavailable credential blocks future sends.
+    Already dispatched requests cannot be recalled.
+    """
+    from fastapi import HTTPException
+    from .connections import scoped_providers, provider_binding
+    try:
+        user = store.one('SELECT * FROM users WHERE id=?', (user_id,))
+        if not user:
+            return False
+        validate_identity_binding(store, user, bindings.get('identity'), bindings['dataset_id'],
+                                  external=True, max_calls=request.get('max_calls', 1))
+        if not expected_provider:
+            return False
+        live = scoped_providers(providers, user_id).select(expected_provider['id'])
+        if not live:
+            return False
+        expected = {k: expected_provider[k] for k in ('id', 'model', 'configuration_version') if k in expected_provider}
+        if provider_binding(live) != expected:
+            return False
+        return all(getattr(live, k) == expected_provider[k] for k in ('host', 'path') if k in expected_provider)
+    except (HTTPException, RuntimeError, ValueError, KeyError):
+        return False

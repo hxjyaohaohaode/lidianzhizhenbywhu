@@ -67,10 +67,13 @@ class SetupLock:
     def __init__(self,path):self.path=path;self.file=None
     def __enter__(self):
         self.path.parent.mkdir(exist_ok=True,parents=True)
-        self.file=open(self.path,'a+b');self.file.seek(0)
-        if not self.file.read(1):self.file.write(b'1');self.file.flush()
-        self.file.seek(0)
         try:
+            # Windows byte-range locks also deny reads through a second handle.
+            # Query file size instead of reading a possibly locked byte, and keep
+            # initialization inside the same visible error boundary as locking.
+            self.file=open(self.path,'a+b',buffering=0)
+            if os.fstat(self.file.fileno()).st_size==0:self.file.write(b'1')
+            self.file.seek(0)
             if os.name=='nt':
                 import msvcrt
                 msvcrt.locking(self.file.fileno(),msvcrt.LK_NBLCK,1)
@@ -78,7 +81,8 @@ class SetupLock:
                 import fcntl
                 fcntl.flock(self.file.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
         except OSError:
-            self.file.close();raise RuntimeError('已有安装或检查窗口在运行，请先完成该窗口，不要同时建立虚拟环境。') from None
+            if self.file:self.file.close()
+            raise RuntimeError('已有安装或检查窗口在运行，或项目目录不可写。请先完成该窗口并核对目录权限，不要同时建立虚拟环境。') from None
         return self
     def __exit__(self,*args):
         if self.file:self.file.close()

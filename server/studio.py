@@ -242,7 +242,8 @@ async def perform_studio(worker,id):
                     current=store.one('SELECT * FROM users WHERE id=?',(row['user_id'],))
                     bindings=st['bindings']
                     changed=not current or current['version']!=bindings['user_version']
-                    if {'id':provider.id,'model':provider.model}!=bindings['provider']:changed=True
+                    from .identities import execution_service_valid
+                    if not execution_service_valid(store,row['user_id'],bindings,r,worker.providers,bindings['provider']):changed=True
                     for m in s['memory']:
                         if m['id'] not in st['packing']['included_memory_ids']:continue
                         live=store.owned('memories',row['user_id'],m['id'])

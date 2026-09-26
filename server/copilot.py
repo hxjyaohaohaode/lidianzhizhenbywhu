@@ -264,6 +264,13 @@ def _propose(store,user,thread_id,body,settings,providers):
 
 
 def confirm_proposal(store,user,id,body,settings,providers):
+    # Serialize local confirmation with discard/update; dispatch itself is idempotent.
+    # No external model request occurs while this lock is held.
+    with store._lock:
+        return _confirm_proposal(store,user,id,body,settings,providers)
+
+
+def _confirm_proposal(store,user,id,body,settings,providers):
     row=ws.get(store,user['id'],'assistant_proposal',id);p=row['payload']
     if body.fingerprint!=p['fingerprint']:
         fail('PROPOSAL_MISMATCH','提案指纹不匹配',409)
@@ -292,6 +299,8 @@ def confirm_proposal(store,user,id,body,settings,providers):
         row=ws.get(store,user['id'],'assistant_proposal',id);p=row['payload']
         if p['status']=='executed':
             return row
+        if p['status']!='draft' or body.version!=row['version']:
+            fail('VERSION_CONFLICT','提案已改变，未执行后续写入',409)
         t,i,d=thread_context(store,user,p['thread_id'])
         if proposal_binding(t,i,d)!=p['binding']:
             fail('PROPOSAL_STALE','输入已变化',409)

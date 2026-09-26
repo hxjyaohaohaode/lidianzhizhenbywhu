@@ -1,35 +1,12 @@
-name: workbench-final-validation
-on: [push, workflow_dispatch]
+name: workbench-acceptance
+on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+concurrency:
+  group: acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  source:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      sha: ${{ steps.source.outputs.sha }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: source
-        shell: bash
-        env:
-          TARGET_REF: ${{ github.ref }}
-        run: |
-          set -euo pipefail
-          test "$TARGET_REF" = 'refs/heads/refactor/service-workbench-20260927'
-          python .delivery/apply.py
-          git config core.autocrlf false
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'fix: enforce live service consent and Windows resource cleanup'
-          git push origin HEAD:refs/heads/refactor/service-workbench-20260927
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   regression:
-    needs: source
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -40,8 +17,6 @@ jobs:
       PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.source.outputs.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -65,13 +40,10 @@ jobs:
           path: evidence/
           retention-days: 14
   dependency-audit:
-    needs: source
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.source.outputs.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'

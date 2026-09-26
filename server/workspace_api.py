@@ -51,7 +51,7 @@ def brief(request:Request,user=Depends(require_user)):
 @router.get('/agents')
 def agents(request:Request,user=Depends(require_user)):
     return {'items':AGENTS,'providers':scoped_providers(request.app.state.providers,user['id']).status(),
-        'policy':{'external_requires_plan':True,'default_external_calls':0,'max_calls':3,
+        'policy':{'external_requires_plan':True,'default_external_calls':0,'max_calls':8,
             'llm_write_tools':[],'automatic_paid_retry':False,'automatic_provider_fallback':False,
             'context_character_limit':request.app.state.settings.max_context_chars}}
 
