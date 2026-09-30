@@ -70,3 +70,33 @@ def test_revocation_after_first_expert_blocks_later_external_calls(factory,engin
     result=actor.execute(run)
     assert result['result'],result
     assert len(providers.calls)==1
+
+
+@pytest.mark.parametrize('engine',['legacy','adaptive'])
+@pytest.mark.parametrize('failure',['missing','malformed','mismatched','unreadable'])
+def test_unusable_restored_key_retains_local_report_without_dispatch(factory,engine,failure,monkeypatch):
+    from cryptography.fernet import Fernet
+    from server.store import encode
+    actor,providers,run,_=prepare(factory,engine)
+    vault=providers.vault;vault._fernet=None
+    if failure=='missing':vault.path.unlink()
+    elif failure=='malformed':vault.path.write_bytes(b'test-only-invalid-key')
+    elif failure=='mismatched':vault.path.write_bytes(Fernet.generate_key())
+    else:
+        def unreadable():raise PermissionError('TEST_PRIVATE_PATH_MUST_NOT_LEAK')
+        monkeypatch.setattr(vault,'_read_key',unreadable)
+    result=actor.execute(run)
+    assert result['state']=='degraded' and result['result'],result
+    assert result['result']['analysis']['metrics']['gross_margin'] is not None
+    assert providers.calls==[] and result['result']['llm']['calls']==[]
+    store=actor.client.app.state.store
+    events=store.all('SELECT * FROM run_events WHERE run_id=?',(run['id'],))
+    assert not any(e['type']=='external_dispatch' for e in events)
+    assert store.all('SELECT * FROM adaptive_calls WHERE run_id=?',(run['id'],))==[]
+    assert 'TEST_PRIVATE_PATH_MUST_NOT_LEAK' not in encode(result)+encode(events)
+    assert 'TEST-ONLY-KEY-INITIAL' not in encode(result)+encode(events)
+    if engine=='legacy':
+        assert result['result']['llm']['unavailable_reason']=='CREDENTIALS_UNAVAILABLE'
+        assert any('配对' in warning for warning in result['result']['warnings'])
+        assert any(e['type']=='provider_unavailable' and e['payload']['dispatched'] is False for e in events)
+    if failure=='missing':assert not vault.path.exists()

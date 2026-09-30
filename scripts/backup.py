@@ -25,7 +25,11 @@ def backup(source: Path, target: Path, *, include_key=False) -> dict:
     if target.exists() or target.is_symlink() or target.resolve()==source:raise ValueError('目标存在，拒绝覆盖。')
     key=source.parent/'credentials.key';key_target=target.with_name(target.name+'.credentials.key')
     meta=target.with_name(target.name+'.backup.json')
-    if meta.exists() or (include_key and (key_target.exists() or key_target.is_symlink())):raise ValueError('备份配套文件已经存在，拒绝覆盖。')
+    # SQLite can recover, truncate or delete pre-existing sidecars even when the
+    # database itself is new. Do not let opening the destination touch them.
+    companions=[meta,*(target.with_name(target.name+suffix) for suffix in ('-wal','-shm','-journal'))]
+    if include_key:companions.append(key_target)
+    if any(path.exists() or path.is_symlink() for path in companions):raise ValueError('备份配套文件已经存在，拒绝覆盖。')
     created=[];target.parent.mkdir(parents=True,exist_ok=True)
     try:
         with closing(sqlite3.connect(source.as_uri()+'?mode=ro',uri=True)) as src:
@@ -33,6 +37,9 @@ def backup(source: Path, target: Path, *, include_key=False) -> dict:
             with closing(sqlite3.connect(target)) as dst:
                 src.backup(dst)
                 if dst.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise ValueError('数据库完整性检查失败')
+                # integrity_check excludes foreign keys; validate the completed
+                # snapshot rather than a live source that can change afterward.
+                if dst.execute('PRAGMA foreign_key_check').fetchone() is not None:raise ValueError('数据库外键完整性检查失败')
                 # Count and verify credentials in the completed snapshot, never a
                 # pre-backup live query that can race a concurrent connection save.
                 present=bool(dst.execute("SELECT 1 FROM sqlite_master WHERE name='private_connections' AND type='table'").fetchone())
@@ -51,7 +58,7 @@ def backup(source: Path, target: Path, *, include_key=False) -> dict:
             if key_bytes:
                 exclusive_file(key_target,key_bytes);created.append(key_target)
             receipt={'output':str(target),'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),
-                'integrity':'ok','private_connection_count':required,'matching_key_required':bool(required),
+                'integrity':'ok','foreign_key_check':'ok','private_connection_count':required,'matching_key_required':bool(required),
                 'key_included':bool(key_bytes),'key_file':key_target.name if key_bytes else None,
                 'warning':'包含账户哈希和业务资料。密钥与数据库同时被读取可解密API凭据；应离线加密备份并限制访问。' if key_bytes else
                 '包含账户哈希和业务资料；必须加密并限制访问。' + ('私有凭据恢复还需要原 credentials.key，不可生成新密钥替代。' if required else '')}

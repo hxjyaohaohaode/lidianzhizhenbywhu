@@ -12,7 +12,7 @@ README是主启动入口。GitHub 源码需先运行 `npm ci --ignore-scripts` �
 .\.venv\Scripts\python.exe scripts/backup.py --source .runtime/workbench/lidian.sqlite3 --output private-backups/lidian-copy.sqlite3
 ```
 
-使用SQLite backup API，避免只拷贝主库丢失WAL；拒绝覆盖目标，输出文件哈希并执行integrity_check。备份包含业务数据、密码哈希与会话信息，不是公开导出文件，必须受控保存。不要把真实备份放Git、聊天或发布ZIP。
+使用SQLite backup API，避免只拷贝主库丢失WAL；拒绝覆盖目标，输出文件哈希并在完成副本上执行 integrity_check 与 foreign_key_check；目标旁已有 WAL/SHM/journal 或回执时拒绝，不接管或清理这些旧文件。备份包含业务数据、密码哈希与会话信息，不是公开导出文件，必须受控保存。不要把真实备份放Git、聊天或发布ZIP。
 
 恢复时先停止服务，确认无第二进程、另存当前数据库和日志，使用经过integrity_check的备份在独立数据目录试启动；不要把旧备份与新目录遗留的-wal/-shm文件混放。切换DATA_DIR指向已验证副本。完整备份能恢复运行状态但会按重启策略中断旧任务，不重放付费调用。个人JSON导出没有自动覆盖还原功能。
 

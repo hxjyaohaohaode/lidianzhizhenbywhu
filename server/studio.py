@@ -312,9 +312,20 @@ async def perform_studio(worker,id):
     await node('context',lambda:immediate(st['packing']),'仅发送批准时展示的内容，超预算整条排除')
     outputs=[];calls=[];claims=[];state='not_requested';used_memory=[];sent=[]
     from .connections import scoped_providers
-    provider=scoped_providers(worker.providers,row['user_id']).select(r['provider']) if r['use_llm'] else None
+    from fastapi import HTTPException
+    provider=None;unavailable_reason=''
     if r['use_llm']:
-        if not provider:state='unavailable'
+        try:provider=scoped_providers(worker.providers,row['user_id']).select(r['provider'])
+        except (RuntimeError,HTTPException):
+            # A restored database can outlive its matching credential key. Keep
+            # verified local outputs and never turn credential loading into a
+            # dispatched/unknown remote call or expose key/path exception text.
+            unavailable_reason='CREDENTIALS_UNAVAILABLE'
+        if not provider:
+            state='unavailable';unavailable_reason=unavailable_reason or 'NOT_CONFIGURED'
+            worker.event(id,'provider_unavailable',{'reason':unavailable_reason,'dispatched':False})
+            for name in st['call_ids']:
+                worker.event(id,'step_skipped',{'node':name,'reason':'模型凭据不可用，未发送外部请求；请检查配对密钥或重新配置连接'})
         else:
             state='completed'
             planned_citations=st['packing']['included_citation_ids']
@@ -389,13 +400,14 @@ async def perform_studio(worker,id):
     if not citations:findings.append('没有相关证据片段；本次不生成有来源要求的行业事实。')
     warnings=list(maths['warnings'])
     if state in ('partial','failed','unavailable'):warnings.append('模型调用未全部完成，规则结果保留；模型解释按实际完成情况披露。')
+    if unavailable_reason=='CREDENTIALS_UNAVAILABLE':warnings.append('模型凭据不可用，未发送外部请求；请恢复与数据库配对的主密钥或重新配置连接后预览新计划。')
     async def report():
         return {'title':data['company']+' · 经营研判','query':r['query'],'mode':r['mode'],
             'dataset_id':row['dataset_id'],'dataset_version':s['dataset_version'],'dataset_hash':s['dataset_hash'],
             'snapshot_hash':digest(s),'research_scope':s.get('research_scope'),'model_version':MODEL_VERSION,'analysis':maths,'quality':quality,
             'findings':findings,'citations':citations,'lineage':lineage(data,maths),'memory_selected':[{'id':x['id'],'version':x['version']} for x in s['memory']],
             'memory_used':[{'id':x['id'],'version':x['version']} for x in used_memory], 'citation_ids_sent':sent,
-            'llm':{'state':state,'calls':calls,'review':reviewed},'warnings':warnings,
+            'llm':{'state':state,'calls':calls,'review':reviewed,'unavailable_reason':unavailable_reason},'warnings':warnings,
             'missing':[x for out in outputs for x in out.get('missing',[])],
             'plan':{'id':st['plan_id'],'fingerprint':st['fingerprint'],'success_criteria':st['success_criteria']},
             'limitations':['本地规则与模型解释均不能替代原始资料核验','自定义目标影响提示，不改写财务计算或权重','未提供实时行业数据源和经验校准的风险概率'],

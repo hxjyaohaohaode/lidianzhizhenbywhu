@@ -5,7 +5,7 @@ provider failure integration uses explicitly injected test-only provider classes
 not real supplier credentials. Native browser Cookie/CSP behavior is a separate gate.
 """
 from __future__ import annotations
-import concurrent.futures,contextlib,copy,hashlib,json,os,socket,sqlite3,subprocess,sys,tempfile,time,uuid
+import concurrent.futures,contextlib,copy,hashlib,json,os,shutil,socket,sqlite3,subprocess,sys,tempfile,time,uuid
 from pathlib import Path
 import httpx
 ROOT=Path(__file__).resolve().parents[1]
@@ -90,7 +90,7 @@ def main():
                 raw=c.get(path).content;assert hashlib.sha256(raw).digest()==hashlib.sha256((ROOT/'web/brand'/file).read_bytes()).digest()
             partial=c.get('/loading-video.mp4',headers={'Range':'bytes=0-99'});assert partial.status_code==206 and len(partial.content)==100
             record('原始PNG/MP4实际HTTP散列一致、视频Range分段与安全响应头')
-            a=register(c);register(other)
+            a=register(c);b=register(other)
             me=require(c.get('/api/auth/me'));assert me['user']['id']==a['user']['id']
             for cookie in c.cookies.jar:assert cookie.has_nonstandard_attr('HttpOnly') and cookie.get_nonstandard_attr('SameSite').lower()=='strict'
             assert require(c.get('/api/datasets'))['items']==[]
@@ -246,12 +246,44 @@ def main():
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:latencies=list(pool.map(get_one,range(64)))
             ys=sorted(latencies);timings={'read_requests':len(ys),'concurrency':4,'p50_ms':round(ys[len(ys)//2],2),'p95_ms':round(ys[int(len(ys)*.95)-1],2),'max_ms':round(max(ys),2)}
             record('实际本机四并发64次跨工作区读取全部成功；单独保留延迟样本')
+            expected_backup=require(c.get('/api/account/export'))['data']
             dbpath=Path(temp)/'product'/'lidian.sqlite3'
             target=Path(temp)/'backup.sqlite';proc=subprocess.run([sys.executable,'scripts/backup.py','--source',str(dbpath),'--output',str(target)],cwd=ROOT,env={**os.environ,'DATA_DIR':str(srv.dir)},capture_output=True,text=True)
             # backup CLI contract is checked below, not inferred from a file name.
             if proc.returncode!=0:raise AssertionError(proc.stdout+proc.stderr)
-            with contextlib.closing(sqlite3.connect(target)) as db:assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
-            record('运行中的SQLite一致性备份与副本完整性检查')
+            receipt=json.loads(proc.stdout)
+            assert receipt['integrity']=='ok' and receipt['foreign_key_check']=='ok'
+            assert receipt['sha256']==hashlib.sha256(target.read_bytes()).hexdigest()
+            with contextlib.closing(sqlite3.connect(target)) as db:
+                assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+                assert db.execute('PRAGMA foreign_key_check').fetchall()==[]
+            record('运行中的SQLite一致性备份、副本结构及外键检查、回执散列核对')
+            # Follow the documented independent-directory recovery procedure.
+            # Starting a second HTTP service against this copy proves more than
+            # checking that a backup file exists or opens in sqlite3.
+            restored_dir=Path(temp)/'restored';restored_dir.mkdir()
+            shutil.copyfile(target,restored_dir/'lidian.sqlite3')
+            restored=ProductServer(restored_dir)
+            try:
+                restored.start()
+                with httpx.Client(base_url=restored.base,trust_env=False,timeout=10) as recovered, httpx.Client(base_url=restored.base,trust_env=False,timeout=10) as outsider:
+                    for client,account in ((recovered,a),(outsider,b)):
+                        login=require(client.post('/api/auth/login',json={'email':account['user']['email'],'password':'Real-HTTP-acceptance-password'}))
+                        client.headers.update({'X-CSRF-Token':login['csrf']})
+                    actual=require(recovered.get('/api/account/export'))['data']
+                    for table in ('datasets','dataset_revisions','dataset_import_receipts','runs','workspace_objects','agent_artifacts','event_integrity'):
+                        assert actual[table]==expected_backup[table],table
+                    assert outsider.get('/api/runs/'+linked_run['id']).status_code==404
+                    assert outsider.get('/api/datasets/'+d['id']).status_code==404
+                    recovered_audit=require(recovered.get('/api/workspace/runs/'+linked_run['id']+'/audit'))
+                    assert recovered_audit['ledger']['valid'] and recovered_audit['report_hash_valid']
+                    recovered_data=require(recovered.get('/api/datasets/'+d['id']))
+                    new_revision=require(recovered.post('/api/workspace/datasets/'+d['id']+'/restore',json={'version':recovered_data['version'],'target_revision':1}))
+                    assert new_revision['version']==recovered_data['version']+1 and new_revision['payload']==d['payload']
+                    assert require(recovered.get('/api/runs/'+linked_run['id']))['result']==original_report
+                    assert require(c.get('/api/datasets/'+d['id']))['version']==recovered_data['version']
+                record('备份→全新DATA_DIR实际Uvicorn重启→重新登录→完整来源/报告核对→跨账户拒绝→历史恢复新修订且原库/报告不变')
+            finally:restored.stop()
         finally:srv.stop()
       evidence.update({'passed':True,'checks':checks,'load_probe':timings,'elapsed_seconds':round(time.time()-start,2)})
     except Exception as exc:

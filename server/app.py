@@ -341,6 +341,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
                     conn.execute("UPDATE runs SET state='cancelled',updated_at=? WHERE id=?",(now(),row['id']))
                     task=app.state.worker.active.get(row['id'])
                     if task:task.cancel()
+                db._delete_current_reviews(conn,'conversations',user['id'],id)
                 conn.execute('DELETE FROM conversations WHERE id=? AND user_id=?',(id,user['id']));db.audit(conn,user['id'],'conversations',id,'deleted_batch')
         return {'deleted':len(body.ids)}
     @app.post('/api/runs',status_code=202)

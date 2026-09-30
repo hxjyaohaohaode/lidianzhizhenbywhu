@@ -144,10 +144,23 @@ def dataset_quality(id:str,request:Request,user=Depends(require_user)):
 @router.get('/datasets/{id}/revisions')
 def revisions(id:str,request:Request,user=Depends(require_user)):
     store=dbof(request);owned(store,user,'datasets',id)
-    rows=store.all('SELECT * FROM dataset_revisions WHERE dataset_id=? AND user_id=? ORDER BY version',(id,user['id']))
-    result=[]
-    for i,r in enumerate(rows):
-        result.append({k:v for k,v in r.items() if k!='payload'} | {'diff':dataset_diff(rows[i-1]['payload'],r['payload']) if i else [],'initial':i==0,'import_receipt':store.one('SELECT payload,content_hash,created_at FROM dataset_import_receipts WHERE dataset_id=? AND user_id=? AND version=?',(id,user['id'],r['version']))})
+    # Metadata remains inspectable even if one historical payload is corrupt.
+    # Never calculate a diff from bad input or make it available for restore.
+    rows=store.all('SELECT dataset_id,user_id,version,content_hash,created_at,payload AS revision_payload FROM dataset_revisions WHERE dataset_id=? AND user_id=? ORDER BY version',(id,user['id']))
+    from fastapi import HTTPException
+    result=[];previous=None
+    for i,raw in enumerate(rows):
+        r={k:v for k,v in raw.items() if k!='revision_payload'};valid=True
+        try:
+            r['payload']=json.loads(raw['revision_payload'])
+            store.validate_dataset_revision(r)
+        except (ValueError,TypeError,HTTPException):valid=False
+        diff_available=valid and (i==0 or previous is not None)
+        result.append({k:v for k,v in r.items() if k!='payload'} | {
+            'integrity_valid':valid,'diff_available':diff_available,
+            'diff':dataset_diff(previous,r['payload']) if diff_available and i else [],'initial':i==0,
+            'import_receipt':store.one('SELECT payload,content_hash,created_at FROM dataset_import_receipts WHERE dataset_id=? AND user_id=? AND version=?',(id,user['id'],r['version']))})
+        previous=r['payload'] if valid else None
     return {'items':result}
 
 
@@ -155,21 +168,14 @@ def revisions(id:str,request:Request,user=Depends(require_user)):
 def dataset_lineage(id:str,request:Request,revision:int=Query(0,ge=0),user=Depends(require_user)):
     store=dbof(request);row=owned(store,user,'datasets',id)
     if revision:
-        old=store.one('SELECT * FROM dataset_revisions WHERE dataset_id=? AND user_id=? AND version=?',(id,user['id'],revision))
-        if not old:fail('NOT_FOUND','历史修订不存在',404)
-        row=old
+        row=store.dataset_revision(user['id'],id,revision)
     return {'dataset_id':id,'version':row['version'],'hash':row['content_hash'],
         'items':lineage(row['payload'],calculate(row['payload']))}
 
 
 @router.post('/datasets/{id}/restore')
 def restore_revision(id:str,body:RevisionRestore,request:Request,user=Depends(require_user)):
-    store=dbof(request);owned(store,user,'datasets',id)
-    old=store.one('SELECT * FROM dataset_revisions WHERE dataset_id=? AND user_id=? AND version=?',(id,user['id'],body.target_revision))
-    if not old:fail('NOT_FOUND','历史修订不存在',404)
-    row=store.update('datasets',user['id'],id,body.version,old['payload'])
-    if not row:fail('VERSION_CONFLICT','当前版本已变，请刷新',409)
-    return row
+    return dbof(request).restore_dataset_revision(user['id'],id,body.version,body.target_revision)
 
 
 def stage(store,user,body,*,merge_mode='replace',import_context=None):

@@ -60,7 +60,9 @@ class ConnectionVault:
 
     def _key(self):
         with self._key_lock:
-            return self._read_key()
+            try:return self._read_key()
+            except OSError:
+                raise RuntimeError('凭据主密钥无法读取；请检查配对备份与文件访问权限，没有发送模型请求') from None
 
     def _read_key(self):
         if self._fernet:

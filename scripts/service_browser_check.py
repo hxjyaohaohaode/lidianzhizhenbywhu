@@ -148,6 +148,18 @@ def main():
             revised=client.get('/api/datasets').json()['items'];assert len(revised)==1 and revised[0]['id']==original['id'] and revised[0]['version']==original['version']+1
             assert len(revised[0]['payload']['periods'])==12 and revised[0]['payload']['periods'][-1]['revenue']==120000
             record('文件修订显式选择合并，预览不写入，确认保留数据ID和历史季度')
+            page.locator('[data-action="data-revisions"]').click();page.locator('#modal').wait_for(state='visible')
+            history=page.locator('#modal .dialog-body > details')
+            assert history.count()==2
+            assert page.locator('#modal [data-action="restore-revision"]').count()==2
+            history.first.locator('summary').first.click()
+            assert history.first.locator('[data-action="restore-revision"]').is_visible()
+            assert '完整性异常' not in page.locator('#modal').inner_text()
+            assert all(x['integrity_valid'] for x in client.get('/api/workspace/datasets/'+original['id']+'/revisions').json()['items'])
+            snap('ui-current-revisions.png')
+            page.locator('#modal [data-action="close-modal"]').click();page.locator('#modal').wait_for(state='hidden')
+            assert client.get('/api/datasets/'+original['id']).json()['version']==revised[0]['version']
+            record('修订记录可读并显示通过校验的历史恢复入口；查看和关闭不改数据版本')
             go('copilot');page.locator('#assistant-query').fill('核查毛利现金流的来源与数据质量，查看已保存证据')
             submit('#assistant-form');page.locator('.chat-turn').wait_for();assert page.locator('.fact-tile').count()>=2
             assert '数据质量' in page.locator('#assistant-answer').inner_text();assert page.locator('.tool-receipts').count()==1

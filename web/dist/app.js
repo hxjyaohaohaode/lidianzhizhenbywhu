@@ -14,7 +14,7 @@ import { api, workspace, setCsrf, invalidateContext, contextGuard, invalidateVie
 import { state, routes, activeDataset, activeIdentity, scopedDatasets, roleNames } from './state.js';
 import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricNames, metricValue } from './components.js';
 import { briefPage, settingsPage, opsPage } from './pages.js';
-import { dataPage, datasetEditor, periodRow, financialFields, importForm, stageView, qualityPanel, evidencePage, evidenceForm, reviewEvidenceForm, evidenceScope, evidenceMetadataForm, memoryPage, memoryForm } from './views-data.js';
+import { revisionHistory, dataPage, datasetEditor, periodRow, financialFields, importForm, stageView, qualityPanel, evidencePage, evidenceForm, reviewEvidenceForm, evidenceScope, evidenceMetadataForm, memoryPage, memoryForm } from './views-data.js';
 import { agentsPage, templateForm } from './views-studio.js';
 import { labPage, comparePage, comparisonOutput, reportsPage, reportCompareForm, actionsPage, actionForm, actionDetail, actionEditForm } from './views-analysis.js';
 const root = document.querySelector('#app');
@@ -625,7 +625,7 @@ document.addEventListener('click', async (event) => {
                 const r = await workspace('/datasets/' + state.active + '/revisions');
                 if (!valid())
                     break;
-                dialog('数据修订记录', notice('恢复历史内容会创建新的修订，不会修改或抹除旧报告。') + r.items.slice().reverse().map((v) => `<details><summary>修订 ${v.version} · ${timeText(v.created_at)}</summary>${v.diff.length ? table(['路径', '原值', '新值'], v.diff.map((c) => [esc(c.path), esc(c.before), esc(c.after)])) : '<p>初始保存的内容。</p>'}${button('以此内容创建新修订', 'restore-revision', 'secondary', `data-revision="${v.version}"`)}<p class="micro">${esc(v.content_hash)}</p>${v.import_receipt ? `<details><summary>本次导入处理回执</summary>${jsonView(v.import_receipt.payload)}<p class="micro">回执校验 ${esc(v.import_receipt.content_hash)}</p></details>` : notice('此修订没有导入处理回执；不能推定原文件或转换过程。')}</details>`).join(''), true);
+                dialog('数据修订记录', revisionHistory(r.items), true);
                 break;
             }
             case 'restore-revision':
