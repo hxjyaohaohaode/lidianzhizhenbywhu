@@ -43,7 +43,7 @@ def report_payload(run, events, reviews, assessment=None):
 
 def math_markdown(kind, output):
     names = {'forecast': '时间序列预测与回测', 'sensitivity': '情景与敏感性',
-             'counterevidence': '支持与反向证据对照', 'gaps': '数据缺口与补充计划'}
+             'counterevidence': '支持与反向证据对照', 'gaps': '数据缺口与补充计划', 'comparison': '已批准企业对照'}
     parts = ['### ' + names.get(kind, text(kind))]
     if output.get('status') in {'blocked', 'failed', 'unknown', 'unavailable'}:
         parts += ['状态：' + text(output['status']), text(output.get('reason', '未产生可用结果'))]
@@ -68,6 +68,13 @@ def math_markdown(kind, output):
                   '盈亏平衡销量 / 基准销量：' + number(output.get('break_even_volume_multiplier')),
                   table(['参数', '−5个百分点毛利额（元）', '当前毛利额（元）', '+5个百分点毛利额（元）'],
                   [[s.get('label'), number(s.get('minus_five_pp')), number(s.get('center')), number(s.get('plus_five_pp'))] for s in output.get('sensitivity', [])])]
+    elif kind == 'comparison':
+        parts += ['共同季度：'+text(output.get('period'))+'；比较基期：'+text(output.get('comparison')),
+                  '人工可比性说明：'+text(output.get('comparability_note')), text(output.get('warning')),
+                  table(['企业 / 数据集', '毛利率', '现金收入比', '负债率', '收入增速', '净利率'],
+                    [[item['company']+' / '+item['id'], *[number(item['analysis']['metrics'].get(key),True)
+                       for key in ('gross_margin','cash_ratio','leverage','revenue_growth','net_margin')]]
+                     for item in output.get('items',[])])]
     elif kind == 'counterevidence':
         parts += [text(output.get('limitation', '标签对照不是语义矛盾认证')),
                   table(['立场', '原始引用 ID'], [[label, '、'.join(output.get('groups', {}).get(key, [])) or '未提供']
@@ -98,6 +105,10 @@ def markdown_report(result):
     if result.get('experiment'):
         parts += ['## 已批准数学实验来源', code(result['experiment']),
                   '原始假设、目标季度、实验版本与指纹随批准计划冻结；不随当前实验或财务输入变化改写。']
+    if result.get('comparison_artifact'):
+        parts += ['## 企业比较来源与全部冻结输入', code(result['comparison_provenance']),
+                  '以下为本地归档的完整成员输入；专家仅接收计划披露的有限派生指标，未自动外发这些财务快照。',
+                  code(result['comparison_artifact'])]
     parts += ['## 模型解释与人工复核', '结构门禁与引用关联不等于事实核验。']
     reviews = ctx.get('human_reviews_at_export', [])
     for claim in result.get('llm', {}).get('review', {}).get('claims', []):

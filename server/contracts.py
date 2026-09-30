@@ -26,6 +26,24 @@ class ExperimentReference(StrictModel):
     hash: str = Field(pattern='^[a-f0-9]{64}$')
 
 
+class SavedComparisonRequest(StrictModel):
+    request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
+    identity_id: str = Field(default='', max_length=80)
+    name: Text
+    datasets: list[ExperimentReference] = Field(min_length=2, max_length=8)
+    comparison: Literal['previous', 'year_over_year'] = 'year_over_year'
+    target_period: str | None = Field(default=None, pattern='^(19|20)[0-9]{2}-Q[1-4]$')
+    comparability_note: str = Field(min_length=5, max_length=2000)
+
+    @model_validator(mode='after')
+    def comparison_scope(self):
+        if len({d.id for d in self.datasets}) != len(self.datasets):
+            raise ValueError('比较对象不能重复')
+        if len(self.comparability_note.strip()) < 5:
+            raise ValueError('请明确说明企业之间的可比口径与使用限制')
+        return self
+
+
 class PlanDraft(StrictModel):
     identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(min_length=1, max_length=80)
@@ -37,6 +55,7 @@ class PlanDraft(StrictModel):
     max_calls: int = Field(default=2, ge=0, le=8)
     execution: ExecutionOptions | None = None
     experiment: ExperimentReference | None = None
+    comparison_artifact: ExperimentReference | None = None
     include_memory: bool = True
     include_history: bool = False
     session_id: str = Field(default='', max_length=80)

@@ -12,6 +12,7 @@ CAPABILITIES = {
     'gaps': ('缺口补全规划', '将无法计算的字段转成具体待补清单，不填假值', 'deterministic'),
     'forecast': ('序列回测', '相同验证折比较透明基线；样本不足则停止预测', 'deterministic'),
     'sensitivity': ('情景建模', '仅使用明确批准的价格、成本、销量与成本结构假设', 'deterministic'),
+    'comparison': ('企业对照', '仅复核明确选中的企业比较及全部冻结成员，不追加数据权限', 'deterministic'),
     'context': ('上下文装配', '完整条目预算、来源隔离与最小披露', 'deterministic'),
     'planner': ('任务规划专家', '在已批准能力集合内提出分工建议，不能新增权限', 'optional_llm'),
     'analyst': ('经营研究员', '指标与业务解释假设', 'optional_llm'),
@@ -24,7 +25,7 @@ CAPABILITIES = {
 }
 REQUIRED = {'quality', 'quant', 'evidence', 'context', 'review', 'reflection', 'report'}
 MODEL_CAPS = {'planner', 'analyst', 'researcher', 'challenger', 'revision'}
-REPLAY_CAPABILITIES = {'quality', 'quant', 'evidence', 'counterevidence', 'gaps', 'forecast', 'sensitivity'}
+REPLAY_CAPABILITIES = {'quality', 'quant', 'evidence', 'counterevidence', 'gaps', 'forecast', 'sensitivity', 'comparison'}
 
 
 def execute_local_capability(capability, snapshot, request, execution, outputs, *, today=None):
@@ -33,6 +34,9 @@ def execute_local_capability(capability, snapshot, request, execution, outputs, 
     from .models import calculate
     from .question_scope import analysis_dataset
     data = analysis_dataset(snapshot)
+    if capability == 'comparison':
+        from .saved_comparisons import selected_output
+        return selected_output(snapshot, request)
     if capability in ('forecast','sensitivity') and snapshot.get('experiment'):
         from .saved_experiments import selected_output
         # A provenance/assumption mismatch is an integrity failure, not a reason
@@ -164,16 +168,19 @@ def compile_graph(payload, *, policy=None):
     q = r['query'].lower(); decisions = []
     forecast = ex['forecast'] or any(w in q for w in ('预测', '趋势回测', 'forecast'))
     scenario = ex['scenario'] is not None
+    comparison = s.get('comparison_artifact') is not None
     counter = depth == 'deep' or r['mode'] in ('industry', 'investment', 'deep_dive') or any(w in q for w in ('反证', '反向', '不同解释', '矛盾')) or bool(policy and policy.get('require_counterevidence'))
     gaps = depth == 'deep' or bool(policy and policy.get('require_gap_analysis'))
     for cap, selected, reason in [
         ('forecast', forecast, '明确预测开关或问题中的预测意图；执行时仍须通过样本门槛'),
         ('sensitivity', scenario, '仅在已填写并批准情景假设时启用'),
+        ('comparison', comparison, '仅复核用户明确选中并批准的企业比较产物'),
         ('counterevidence', counter, '研究方向、反向证据意图或已激活策略要求'),
         ('gaps', gaps, '研究深度或已激活策略要求；运行中也可根据数据缺失追加')]:
         decisions.append({'capability': cap, 'selected': selected, 'reason': reason})
     nodes = [node('quality', reason='所有结论的输入门槛'), node('quant', ['quality']), node('evidence', ['quality'])]
     for cap, selected, deps in [('forecast', forecast, ['quality']), ('sensitivity', scenario, ['quality']),
+                                ('comparison', comparison, ['quality']),
                                 ('counterevidence', counter, ['evidence']), ('gaps', gaps, ['quality'])]:
         if selected:
             nodes.append(node(cap, deps, reason=next(d['reason'] for d in decisions if d['capability'] == cap)))

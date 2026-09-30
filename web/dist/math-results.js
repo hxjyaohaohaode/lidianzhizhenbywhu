@@ -1,6 +1,7 @@
+import { comparisonResultView, comparisonArtifactView } from './saved-comparisons.js';
 import { experimentProvenance } from './saved-experiments.js';
 import { esc, num, pct, amount, unitName, table, notice, jsonView, lineChart, metricNames, badge } from './components.js';
-const names = { forecast: '时间序列预测与回测', sensitivity: '情景与敏感性', counterevidence: '支持与反向证据对照', gaps: '数据缺口与补充计划' };
+const names = { comparison: '共同季度企业对照', forecast: '时间序列预测与回测', sensitivity: '情景与敏感性', counterevidence: '支持与反向证据对照', gaps: '数据缺口与补充计划' };
 export function mathResult(kind, r, unit = 'wan') {
     const title = names[kind] ?? kind;
     let content = '';
@@ -34,6 +35,9 @@ export function mathResult(kind, r, unit = 'wan') {
             `<p class="micro">单位：${unitName(unit)}，其他假设保持不变</p><p class="micro">${esc(r.formula ?? '')}</p>`;
         if (r.grid?.length)
             content += `<details><summary>售价 × 变动成本敏感性网格</summary>${table(['售价变化', '单位变动成本变化', '毛利率'], r.grid.map((p) => [pct(p.price_change), pct(p.cost_change), pct(p.gross_margin)]))}</details>`;
+    }
+    else if (kind === 'comparison') {
+        content = comparisonResultView(r) + comparisonArtifactView(r.comparison_provenance, '实际计算引用的多企业范围', false);
     }
     else if (kind === 'counterevidence') {
         content = notice(r.limitation ?? '标签对照不是语义矛盾认证。') + table(['人工标注立场', '引用 ID'], [['supports', '支持'], ['contradicts', '反向'], ['context', '背景']].map(([key, label]) => [label, (r.groups?.[key] ?? []).map(esc).join('<br>') || '没有对应资料']));

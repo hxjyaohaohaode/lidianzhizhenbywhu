@@ -14,7 +14,7 @@ from .autonomy_contracts import ExecutionOptions
 from .models import MODEL_VERSION
 from . import workspace_store as ws
 
-REPLAY_VERSION = 'local-capability-replay-v3'
+REPLAY_VERSION = 'local-capability-replay-v4'
 COMPLETED_STATES = {'succeeded', 'degraded'}
 
 
@@ -82,6 +82,7 @@ def binding(a, run):
 
 def replay(run, rubric, spec):
     from .saved_experiments import provenance
+    from .saved_comparisons import provenance as comparison_provenance
     s = copy.deepcopy(run['snapshot']); original = s.get('studio', {})
     ex = copy.deepcopy(original.get('execution') or ExecutionOptions().model_dump())
     # Policy affects only planning defaults. It never alters financial inputs/thresholds.
@@ -115,6 +116,8 @@ def replay(run, rubric, spec):
             'computation_hash': digest(computations), 'external_calls': 0, 'capabilities': sorted(caps),
             'planned_capabilities': sorted(planned), 'as_of': as_of.isoformat(),
             'experiment': provenance(s.get('experiment')),
+            'comparison_provenance': comparison_provenance(s.get('comparison_artifact')),
+            'comparison_hash': digest(computations['comparison']) if 'comparison' in computations else None,
             'computations': {cap: {'status': out.get('status', 'completed'), 'output_hash': digest(out)} for cap, out in computations.items()},
             'scope': '共享生产实现的本地执行与人工需求覆盖；资料不足节点不计为已完成'}
 
@@ -143,9 +146,11 @@ def replay_cohort(grouped, baseline, candidate):
             rubric = a['payload']['expected_capabilities']
             b = replay(run, rubric, baseline); c = replay(run, rubric, candidate)
             results.append({'run_id': run['id'], 'dataset_hash': key, 'partition': 'holdout' if key in holdout else 'development',
-                            'expected': rubric, 'baseline': b, 'candidate': c, 'reference_math_hash': digest(run['result']['analysis'])})
+                            'expected': rubric, 'baseline': b, 'candidate': c, 'reference_math_hash': digest(run['result']['analysis']),
+                            'reference_comparison_hash': digest(run['result']['adaptive']['mathematical_outputs']['comparison']) if run['snapshot'].get('comparison_artifact') else None})
             bindings.append(binding(a, run))
-    regressions = [r['run_id'] for r in results if r['candidate']['recall'] < r['baseline']['recall'] or r['candidate']['math_hash'] != r['baseline']['math_hash'] or r['baseline']['math_hash'] != r['reference_math_hash']]
+    regressions = [r['run_id'] for r in results if r['candidate']['recall'] < r['baseline']['recall'] or r['candidate']['math_hash'] != r['baseline']['math_hash'] or r['baseline']['math_hash'] != r['reference_math_hash']
+                   or r['candidate']['comparison_hash'] != r['baseline']['comparison_hash'] or r['baseline']['comparison_hash'] != r['reference_comparison_hash']]
     improvements = [r['run_id'] for r in results if r['candidate']['recall'] > r['baseline']['recall'] or
                     (r['candidate']['recall'] == r['baseline']['recall'] and r['candidate']['node_count'] < r['baseline']['node_count'])]
     reasons = []

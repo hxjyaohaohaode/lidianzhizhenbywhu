@@ -11,7 +11,7 @@ from fastapi.responses import Response
 from .security import require_user,fail,check_version
 from .schemas import Dataset
 from .contracts import (CompanyProfile,PlanDraft,PlanConsent,EvidenceReview,ActionCreate,ActionEdit,ActionTransition,
-    ExperimentRequest,ImportPreview,RevisionRestore,ClaimReview,TaskTemplate,AssistantRequest,StageCommit,DismissInsight)
+    ExperimentRequest,SavedComparisonRequest,ImportPreview,RevisionRestore,ClaimReview,TaskTemplate,AssistantRequest,StageCommit,DismissInsight)
 from .store import encode,digest,uid,now
 from .models import normalize,calculate
 from .analytics import quality_report,from_cumulative,dataset_diff,extended_scenario,forecast_baselines,lineage
@@ -411,6 +411,57 @@ def experiments(request:Request,identity_id:str|None=Query(None,max_length=80),d
 def experiment_get(id:str,request:Request,user=Depends(require_user)):
     from .saved_experiments import public_record
     return public_record(ws.get(dbof(request),user['id'],'experiment',id))
+
+
+@router.post('/comparisons',status_code=201)
+def comparison_add(body:SavedComparisonRequest,request:Request,user=Depends(require_user)):
+    from .saved_comparisons import create_payload, public_record
+    store=dbof(request);request_hash=digest(body.model_dump(mode='json'))
+    with store.transaction() as db:
+        key='comparison_request:'+body.request_id if body.request_id else None
+        prior=ws.keyed(store,user['id'],'comparison',key) if key else None
+        if prior:
+            if prior['payload'].get('creation_request_hash')!=request_hash:
+                fail('IDEMPOTENCY_CONFLICT','保存请求标识已用于不同的比较内容，请核对记录后重新提交',409)
+            # The outcome of an earlier save is returned even if inputs changed;
+            # live impact is separate and no new calculation or mutation occurs.
+            return public_record(store,user['id'],prior)
+        row=ws.save(store,db,user['id'],'comparison',create_payload(store,user['id'],body),key=key)
+        return public_record(store,user['id'],row)
+
+
+@router.get('/comparisons')
+def comparison_list(request:Request,identity_id:str=Query('',max_length=80),dataset_id:str=Query('',max_length=80),user=Depends(require_user)):
+    from .saved_comparisons import public_record
+    from .identities import resolve_identity
+    store=dbof(request);resolve_identity(store,user['id'],identity_id)
+    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='comparison' AND json_extract(payload,'$.identity_id')=? ORDER BY updated_at DESC,id",(user['id'],identity_id))
+    if dataset_id:rows=[r for r in rows if dataset_id in {m['id'] for m in r['payload']['members']}]
+    return {'items':[public_record(store,user['id'],r,summary=True) for r in rows[:200]],'has_more':len(rows)>200,
+            'scope':{'identity_id':identity_id,'dataset_id':dataset_id},'sharing':'比较绑定创建时服务身份；历史成员变化单独显示，不改写已保存结果'}
+
+
+def owned_comparison(store,user_id,id,identity_id):
+    row=ws.get(store,user_id,'comparison',id)
+    if row['payload']['identity_id']!=identity_id:fail('IDENTITY_SCOPE','比较属于另一服务身份，请在原身份查看',403)
+    return row
+
+
+@router.get('/comparisons/{id}')
+def comparison_get(id:str,request:Request,identity_id:str=Query('',max_length=80),user=Depends(require_user)):
+    from .saved_comparisons import public_record
+    store=dbof(request)
+    return public_record(store,user['id'],owned_comparison(store,user['id'],id,identity_id))
+
+
+@router.delete('/comparisons/{id}')
+def comparison_delete(id:str,request:Request,identity_id:str=Query('',max_length=80),version:int|None=Query(None,ge=1),user=Depends(require_user)):
+    store=dbof(request)
+    with store.transaction() as db:
+        row=owned_comparison(store,user['id'],id,identity_id);check_version(row,version)
+        db.execute('DELETE FROM workspace_objects WHERE user_id=? AND id=?',(user['id'],id))
+        store.audit(db,user['id'],'comparison',id,'deleted',{'version':row['version']})
+    return {'deleted':True,'notice':'原比较已删除；已批准计划和历史报告中的冻结输入仍保留，新的外发将停止'}
 
 
 @router.get('/reports')

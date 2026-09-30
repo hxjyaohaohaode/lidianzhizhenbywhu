@@ -3,7 +3,7 @@ from __future__ import annotations
 from .store import encode, digest, uid, now, unpack
 from .security import fail
 
-KINDS = frozenset({'profile','plan','action','experiment','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation','identity','assistant_thread','assistant_proposal','watch','alert'})
+KINDS = frozenset({'profile','plan','action','experiment','comparison','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation','identity','assistant_thread','assistant_proposal','watch','alert'})
 
 
 def migrate(store):
@@ -11,7 +11,7 @@ def migrate(store):
     with store.transaction() as db:
         db.execute('CREATE TABLE IF NOT EXISTS workspace_schema(version INTEGER PRIMARY KEY)')
         row = db.execute('SELECT MAX(version) FROM workspace_schema').fetchone()
-        if row[0] is not None and row[0] > 2:
+        if row[0] is not None and row[0] > 3:
             raise RuntimeError('工作区数据库版本高于程序，拒绝降级写入')
         db.execute('''CREATE TABLE IF NOT EXISTS workspace_objects(
             id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -56,6 +56,8 @@ def migrate(store):
         db.execute('INSERT OR IGNORE INTO workspace_schema VALUES(1)')
         # New source/receipt contracts must not be silently written by an older app.
         db.execute('INSERT OR IGNORE INTO workspace_schema VALUES(2)')
+        # Older dispatchers do not understand approved multi-company inputs.
+        db.execute('INSERT OR IGNORE INTO workspace_schema VALUES(3)')
 
 
 def get(store, user, kind, id):

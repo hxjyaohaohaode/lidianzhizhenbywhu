@@ -1,5 +1,5 @@
 {
-  "files_scanned": 79,
+  "files_scanned": 81,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -30,6 +30,7 @@
     "server/research_context.py",
     "server/research_gaps.py",
     "server/retrieval.py",
+    "server/saved_comparisons.py",
     "server/saved_experiments.py",
     "server/schemas.py",
     "server/security.py",
@@ -57,6 +58,7 @@
     "web/live.ts",
     "web/math-results.ts",
     "web/pages.ts",
+    "web/saved-comparisons.ts",
     "web/saved-experiments.ts",
     "web/state.ts",
     "web/styles.css",

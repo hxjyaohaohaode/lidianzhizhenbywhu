@@ -1,8 +1,9 @@
+import {comparisonResultView,comparisonArtifactView} from './saved-comparisons.js';
 /** Present archived tool outputs without recalculating business values. */
 import type {Json} from './api.js';
 import {experimentProvenance} from './saved-experiments.js';
 import {esc,num,pct,amount,unitName,table,notice,jsonView,lineChart,metricNames,badge} from './components.js';
-const names:Record<string,string>={forecast:'时间序列预测与回测',sensitivity:'情景与敏感性',counterevidence:'支持与反向证据对照',gaps:'数据缺口与补充计划'};
+const names:Record<string,string>={comparison:'共同季度企业对照',forecast:'时间序列预测与回测',sensitivity:'情景与敏感性',counterevidence:'支持与反向证据对照',gaps:'数据缺口与补充计划'};
 export function mathResult(kind:string,r:Json,unit='wan'){
  const title=names[kind]??kind;let content='';
  if(['blocked','failed','unknown','unavailable'].includes(r.status)){
@@ -29,6 +30,8 @@ export function mathResult(kind:string,r:Json,unit='wan'){
    table(['参数','−5个百分点毛利额','当前毛利额','+5个百分点毛利额'],(r.sensitivity??[]).map((s:Json)=>[esc(s.label),amount(s.minus_five_pp,unit),amount(s.center,unit),amount(s.plus_five_pp,unit)]))+
    `<p class="micro">单位：${unitName(unit)}，其他假设保持不变</p><p class="micro">${esc(r.formula??'')}</p>`;
   if(r.grid?.length)content+=`<details><summary>售价 × 变动成本敏感性网格</summary>${table(['售价变化','单位变动成本变化','毛利率'],r.grid.map((p:Json)=>[pct(p.price_change),pct(p.cost_change),pct(p.gross_margin)]))}</details>`;
+ }else if(kind==='comparison'){
+  content=comparisonResultView(r)+comparisonArtifactView(r.comparison_provenance,'实际计算引用的多企业范围',false);
  }else if(kind==='counterevidence'){
   content=notice(r.limitation??'标签对照不是语义矛盾认证。')+table(['人工标注立场','引用 ID'],[['supports','支持'],['contradicts','反向'],['context','背景']].map(([key,label])=>[label,(r.groups?.[key]??[]).map(esc).join('<br>')||'没有对应资料']));
  }else if(kind==='gaps'){

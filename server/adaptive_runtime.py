@@ -195,10 +195,12 @@ class AdaptiveRun:
     def authorization_valid(self, binding):
         from .studio import approved_run_valid
         from .saved_experiments import binding_current
+        from .saved_comparisons import current_impact as comparison_impact
         if not approved_run_valid(self.store, self.row):return False
         user=self.store.one('SELECT * FROM users WHERE id=?',(self.user_id,))
         b=self.st['bindings']
         if not binding_current(self.store,self.user_id,b.get('experiment')):return False
+        if comparison_impact(self.store,self.user_id,self.s.get('comparison_artifact'))['state']!='current':return False
         if (datetime.now(timezone.utc)-datetime.fromisoformat(self.row['created_at'])).total_seconds()>86400:return False
         if not user or user['version'] != b['user_version']: return False
         from .identities import execution_service_valid
@@ -474,6 +476,7 @@ class AdaptiveRun:
 
     def report(self):
         from .saved_experiments import provenance
+        from .saved_comparisons import provenance as comparison_provenance
         maths=self.outputs['quant'];review=self.outputs[self.latest_review];data=self.s['dataset']
         def pct(v):return '不可计算' if v is None else f'{v*100:.2f}%'
         findings=[f"{data['company']} · {maths['current_period']}：毛利率{pct(maths['metrics']['gross_margin'])}，经营现金收入比{pct(maths['metrics']['cash_ratio'])}。"]
@@ -492,6 +495,7 @@ class AdaptiveRun:
         return {'title':data['company']+' · 协同研判','query':self.r['query'],'mode':self.r['mode'],
             'dataset_id':self.row['dataset_id'],'dataset_version':self.s['dataset_version'],'dataset_hash':self.s['dataset_hash'],
             'snapshot_hash':digest(self.s),'research_scope':self.s.get('research_scope'),'experiment':provenance(self.s.get('experiment')),'model_version':MODEL_VERSION,'analysis':maths,'quality':self.outputs['quality'],
+            'comparison_artifact':self.s.get('comparison_artifact'),'comparison_provenance':comparison_provenance(self.s.get('comparison_artifact')),
             'findings':findings,'citations':self.s['citations'],'lineage':lineage(data,maths),
             'memory_selected':[{'id':x['id'],'version':x['version']} for x in self.s['memory']],
             'memory_used':[{'id':x['id'],'version':x['version']} for x in self.s['memory'] if x['id'] in memory],
@@ -500,7 +504,7 @@ class AdaptiveRun:
             'missing':[x for v in model_nodes for x in v.get('output',{}).get('missing',[])],
             'plan':{'id':self.st['plan_id'],'fingerprint':self.st['fingerprint'],'success_criteria':self.st['success_criteria']},
             'adaptive':{'graph_version':self.version,'nodes':self.graph['nodes'],'reflection':self.outputs.get('reflection',{}),
-                        'mathematical_outputs':{k:v for k,v in self.outputs.items() if k in ('forecast','sensitivity','counterevidence','gaps')}},
+                        'mathematical_outputs':{k:v for k,v in self.outputs.items() if k in ('forecast','sensitivity','counterevidence','gaps','comparison')}},
             'warnings':warnings,'limitations':['规划自适应不等于模型训练或自动修改程序。','回测与情景计算不是已校准的未来概率。','多角色可能使用同一模型；引用合法不证明解释真实。'], 'created_at':now()}
 
     async def run(self):

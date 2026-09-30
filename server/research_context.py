@@ -9,6 +9,8 @@ from .store import digest
 
 CLAIM_CONTRACT_VERSION = 'grounded-claims-v2'
 TOOL_KEYS = {
+    'comparison': ('status', 'reason', 'period', 'comparison', 'period_basis', 'analysis_as_of',
+                   'comparability_note', 'comparison_provenance', 'warning', 'limitations'),
     'forecast': ('status', 'reason', 'metric', 'forecast_horizon', 'selected', 'selected_label',
                  'forecast', 'train_end', 'excluded_periods', 'limitations', 'locked_holdout', 'selection', 'approved_assumptions', 'experiment'),
     'sensitivity': ('status', 'reason', 'period', 'baseline', 'result', 'delta_gross_profit',
@@ -26,17 +28,24 @@ def project_tools(outputs):
         if not isinstance(value, dict):
             continue
         projected = {key: value[key] for key in keys if key in value}
+        if kind == 'comparison':
+            from .saved_comparisons import METRICS
+            projected['items'] = [{'id': item['id'], 'company': item['company'],
+                'dataset_version': item['dataset_version'],
+                'metrics': {key: item['analysis']['metrics'].get(key) for key in METRICS},
+                'warnings': item['analysis'].get('warnings', [])}
+                for item in value.get('items', [])[:8]]
         projected['output_hash'] = digest(value)
         projected['references'] = {}
         if value.get('status', 'completed') == 'completed':
-            def add(path, number, label, unit, period):
+            def add(path, number, label, unit, period, *, reference_id=None, **extra):
                 if not isinstance(number, (int, float)) or isinstance(number, bool) or not math.isfinite(number):
                     return
-                id = kind + ':' + path.replace('/', ':')
+                id = reference_id or kind + ':' + path.replace('/', ':')
                 projected['references'][id] = {'id': id, 'capability': kind, 'path': path,
                     'value': number, 'label': label, 'unit': unit, 'period': period,
                     'output_hash': projected['output_hash'],
-                    'interpretation': 'approved_assumption_scenario' if kind == 'sensitivity' else 'statistical_baseline_not_causal'}
+                    'interpretation': 'approved_assumption_scenario' if kind == 'sensitivity' else 'same_period_user_inputs_not_industry_ranking' if kind == 'comparison' else 'statistical_baseline_not_causal', **extra}
                 if value.get('experiment'):
                     # Do not duplicate a potentially 2,000-character assumption
                     # note for every number. The full provenance is in the tool.
@@ -53,6 +62,14 @@ def project_tools(outputs):
                 for index, point in enumerate(value.get('forecast', [])[:4]):
                     add(f'forecast/{index}/value', point.get('value'), '统计基线点估计',
                         'ratio' if value.get('metric') == 'gross_margin' else 'yuan', point.get('period'))
+            elif kind == 'comparison':
+                labels = {'gross_margin': '毛利率', 'cash_ratio': '经营现金收入比', 'leverage': '资产负债率',
+                          'revenue_growth': '收入增速', 'net_margin': '净利率'}
+                for index, item in enumerate(value.get('items', [])[:8]):
+                    for key in METRICS:
+                        add(f'items/{index}/analysis/metrics/{key}', item['analysis']['metrics'].get(key),
+                            item['company'][:80]+' · '+labels[key], 'ratio',
+                            value['period'], dataset_id=item['id'], reference_id='comparison:'+item['id']+':'+key)
         result[kind] = projected
     return result
 

@@ -1,3 +1,4 @@
+import { displayedComparisonMembers, comparisonPreviewDraft, comparisonSaveForm, comparisonCreateRequest, selectedComparisonRequest, syncComparisonControls } from './saved-comparisons.js';
 import { syncExperimentControls, selectedExperimentRequest, unchangedInputGuard } from './saved-experiments.js';
 import { formSource, continueInsightDraft } from './business-source.js';
 import { workflowGuide } from './workflow.js';
@@ -58,12 +59,13 @@ async function refreshData(valid = () => true) { const [ds, caps, ids, me] = awa
     state.active = ''; return true; }
 async function render() { invalidateInteractions(); invalidateView(); live?.dispose(); live = null; if (!state.user)
     return auth(); const seq = ++renderEpoch; const [r, ...rest] = (location.hash.slice(1) || 'brief').split(':'); state.route = r in routes ? r : 'brief'; state.id = rest.join(':'); currentHash = location.hash; shell(); showSyncNotice(); const main = document.querySelector('#main'); try {
-    const views = { brief: briefPage, copilot: copilotPage, services: servicesPage, tracking: trackingPage, agents: () => agentsPage(state.id), data: dataPage, evidence: evidencePage, lab: () => labPage(state.id), compare: comparePage, reports: reportsPage, actions: actionsPage, memory: memoryPage, ops: opsPage, settings: settingsPage, evolution: evolutionPage };
+    const views = { brief: briefPage, copilot: copilotPage, services: servicesPage, tracking: trackingPage, agents: () => agentsPage(state.id), data: dataPage, evidence: evidencePage, lab: () => labPage(state.id), compare: () => comparePage(state.id), reports: reportsPage, actions: actionsPage, memory: memoryPage, ops: opsPage, settings: settingsPage, evolution: evolutionPage };
     const html = await views[state.route]();
     if (seq !== renderEpoch)
         return;
     main.innerHTML = workflowGuide(state.route) + html;
     syncExperimentControls(main, state.cache.planExperiments ?? [], scopedDatasets());
+    syncComparisonControls(main, state.cache.planComparisons ?? [], scopedDatasets(), state.identity);
     main.dataset.page = state.route;
     applyLayout();
     void mountCopilot().catch(() => { });
@@ -257,7 +259,9 @@ document.addEventListener('submit', async (event) => {
                     else
                         delete execution.scenario;
                 }
-                const payload = { execution, experiment, identity_id: state.identity, dataset_id: str('dataset_id'), query: str('query'), mode: str('mode'), comparison: str('comparison'), use_llm: check('use_llm'), provider: str('provider'), max_calls: Number(str('max_calls') || 2), include_memory: check('include_memory'), include_history: check('include_history'), session_id: str('session_id'), success_criteria: str('success_criteria') };
+                const selectedComparison = (state.cache.planComparisons ?? []).find((r) => r.id === str('comparison_artifact_id'));
+                const comparisonArtifact = str('comparison_artifact_id') ? selectedComparisonRequest(selectedComparison, str('dataset_id'), scopedDatasets(), state.identity) : null;
+                const payload = { execution, experiment, comparison_artifact: comparisonArtifact, identity_id: state.identity, dataset_id: str('dataset_id'), query: str('query'), mode: str('mode'), comparison: comparisonArtifact ? selectedComparison.payload.comparison : str('comparison'), use_llm: check('use_llm'), provider: str('provider'), max_calls: Number(str('max_calls') || 2), include_memory: check('include_memory'), include_history: check('include_history'), session_id: str('session_id'), success_criteria: str('success_criteria') };
                 state.query = payload.query;
                 const row = await workspace('/plans', 'POST', payload);
                 if (sameContext()) {
@@ -307,12 +311,46 @@ document.addEventListener('submit', async (event) => {
             }
             case 'compare-form': {
                 const ids = list('dataset_ids');
-                if (ids.length < 2 || ids.length > 8)
-                    throw new Error('请选择 2–8 份数据集');
-                const r = await api('/compare', 'POST', { dataset_ids: ids });
-                if (!submittedCurrent())
+                const members = displayedComparisonMembers(f, scopedDatasets());
+                const mode = str('comparison');
+                const sameContext = contextGuard();
+                const current = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify({ selection: [...new FormData(form)], draft: document.querySelector('#comparison-save-form') ? [...new FormData(document.querySelector('#comparison-save-form'))] : null }) : null);
+                const r = await api('/compare', 'POST', { dataset_ids: ids, comparison: mode });
+                if (!sameContext())
                     break;
-                document.querySelector('#comparison-output').innerHTML = comparisonOutput(r);
+                if (!current()) {
+                    toast('对照读取已完成；保留你当前的选择和保存草稿，需要时可重新对照。');
+                    break;
+                }
+                const old = document.querySelector('#comparison-save-form');
+                const oldDraft = old ? new FormData(old) : null;
+                const draft = comparisonPreviewDraft(r, members, mode, state.identity);
+                document.querySelector('#comparison-output').innerHTML = comparisonOutput(r) + comparisonSaveForm({ ...draft, name: oldDraft?.get('name') ?? '', comparability_note: oldDraft?.get('comparability_note') ?? '' });
+                break;
+            }
+            case 'comparison-save-form': {
+                const sameContext = contextGuard();
+                const current = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null);
+                const payload = comparisonCreateRequest(f, state.identity, form.dataset.requestId ?? '');
+                const row = await workspace('/comparisons', 'POST', payload);
+                if (sameContext()) {
+                    if (current())
+                        navigate('compare:' + row.id, true);
+                    else {
+                        renewSavedDraft(JSON.stringify([...f]), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null, () => { form.dataset.requestId = crypto.randomUUID(); });
+                        toast('上一版企业对照已保存；保留你当前的页面和输入，可从已保存对照中查看。');
+                    }
+                }
+                break;
+            }
+            case 'comparison-transfer-form': {
+                if ((form.dataset.identityId ?? '') !== state.identity)
+                    throw new Error('服务身份已经变化，请重新选择企业对照');
+                const row = state.cache.comparison;
+                if (!row || row.id !== form.dataset.id || row.version !== Number(form.dataset.version) || row.comparison_hash !== form.dataset.hash)
+                    throw new Error('当前显示的对照已变化，请重新打开');
+                selectedComparisonRequest(row, str('primary_dataset_id'), scopedDatasets(), state.identity);
+                navigate('agents:comparison-' + row.id + ':' + str('primary_dataset_id'), true);
                 break;
             }
             case 'report-compare-form': {
@@ -801,6 +839,9 @@ document.addEventListener('click', async (event) => {
             case 'export-experiment':
                 download('analysis-experiment.json', state.cache.experiment);
                 break;
+            case 'export-comparison':
+                download('saved-enterprise-comparison.json', state.cache.comparison);
+                break;
             case 'report-compare-dialog':
                 dialog('报告与输入修订对比', reportCompareForm(), true);
                 break;
@@ -886,6 +927,8 @@ document.addEventListener('input', (event) => { const el = event.target; if (el.
 document.addEventListener('change', async (event) => { const el = event.target; try {
     if (el.id === 'plan-experiment')
         syncExperimentControls(document, state.cache.planExperiments ?? [], scopedDatasets());
+    if (el.id === 'plan-comparison' || el.closest('#plan-form') && el.name === 'dataset_id')
+        syncComparisonControls(document, state.cache.planComparisons ?? [], scopedDatasets(), state.identity);
     if (el.id === 'active-dataset') {
         if (!safeToLeave()) {
             el.value = state.active;

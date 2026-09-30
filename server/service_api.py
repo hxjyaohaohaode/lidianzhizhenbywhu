@@ -167,10 +167,20 @@ def orphan_history(request:Request,offset:int=Query(0,ge=0),limit:int=Query(100,
     store=storeof(request)
     identities={r['id']:r for r in ws.objects(store,user['id'],'identity')}
     datasets={r['id']:r for r in store.items('datasets',user['id'])}
-    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind IN ('assistant_thread','action','watch','alert') ORDER BY updated_at DESC,id",(user['id'],))
+    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind IN ('assistant_thread','action','watch','alert','comparison') ORDER BY updated_at DESC,id",(user['id'],))
     items=[]
     for row in rows:
         p=row['payload'];identity_id=p.get('identity_id','');dataset_id=p.get('dataset_id','')
+        if row['kind']=='comparison':
+            from .saved_comparisons import public_record
+            archived=public_record(store,user['id'],row)
+            impact=archived['source_impact']
+            if impact['state']!='unavailable':continue
+            reason='；'.join(r['message'] for r in impact['reasons'])
+            items.append({**archived,'title':p['name'],'company':'、'.join(m['company'] for m in p['members']),
+                          'dataset_id':'','identity_id':identity_id,'status':'archived','active':False,
+                          'read_only':True,'archived_mode':True,'unavailable_reason':reason,'history_reason':reason})
+            continue
         identity=identities.get(identity_id);reason='';code=''
         if identity_id and not identity:
             reason='原服务身份已删除；仅供查阅历史，不恢复原权限';code='identity_unavailable'

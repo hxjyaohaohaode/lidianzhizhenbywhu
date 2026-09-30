@@ -1,3 +1,4 @@
+import { comparisonArtifactView } from './saved-comparisons.js';
 import { unchangedInputGuard } from './saved-experiments.js';
 import { formSource, sourcePanel } from './business-source.js';
 import { actionForm } from './views-analysis.js';
@@ -92,7 +93,7 @@ export function setupExperience(value) {
                         break;
                     const prior = state.cache.serviceHistory;
                     state.cache.serviceHistory = { ...next, items: [...prior.items, ...next.items] };
-                    hooks.inspect('更多失效范围历史', state.cache.serviceHistory.items.map((r) => `<article><h4>${esc(r.title ?? r.payload.title ?? '历史记录')}</h4><p>${esc(r.company || r.dataset_id || '通用范围')} · ${esc(r.history_reason)}</p><button type="button" class="text-button" data-x-action="history-detail" data-id="${esc(r.id)}">只读核查</button></article>`).join('') + (next.has_more ? `<button type="button" class="text-button" data-x-action="history-more" data-offset="${next.next_offset}">继续加载历史</button>` : ''));
+                    hooks.inspect('更多失效范围历史', state.cache.serviceHistory.items.map((r) => `<article><h4>${esc(r.title ?? r.payload.title ?? r.payload.name ?? '历史记录')}</h4><p>${esc(r.company || r.dataset_id || '通用范围')} · ${esc(r.history_reason)}</p><button type="button" class="text-button" data-x-action="history-detail" data-id="${esc(r.id)}">只读核查</button></article>`).join('') + (next.has_more ? `<button type="button" class="text-button" data-x-action="history-more" data-offset="${next.next_offset}">继续加载历史</button>` : ''));
                     break;
                 }
                 case 'history-detail': {
@@ -106,6 +107,9 @@ export function setupExperience(value) {
                         if (!valid())
                             break;
                         content += (thread.messages ?? []).map((m) => `<article class="subpanel"><h4>${esc(m.payload.question)}</h4><p class="preserve-lines">${esc(m.payload.response.answer)}</p><details><summary>当时的完整上下文与工具回执</summary>${jsonView(m.payload.response)}</details></article>`).join('');
+                    }
+                    else if (row.kind === 'comparison') {
+                        content += comparisonArtifactView(row, '只读历史企业对照');
                     }
                     else {
                         content += sourcePanel(row) + `<p>${esc(row.payload.description ?? row.payload.acceptance ?? '')}</p><details><summary>冻结记录与状态历史</summary>${jsonView(row.payload)}</details>`;

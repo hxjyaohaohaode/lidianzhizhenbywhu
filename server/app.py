@@ -308,14 +308,9 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         return {**scenario(data,body.price_change,body.cost_change,body.volume_change),'dataset_version':version,'input_hash':digest(data),'run_id':body.run_id}
     @app.post('/api/compare')
     def compare(body: CompareRequest,request: Request,user=Depends(require_user)):
+        from .saved_comparisons import calculate_comparison
         data=[owned(store(request),'datasets',user,id) for id in body.dataset_ids]
-        common=set.intersection(*(set(p['period'] for p in d['payload']['periods']) for d in data))
-        if not common:fail('NO_COMMON_PERIOD','没有共同季度，禁止跨期假比较。',422)
-        period=max(common);items=[]
-        for d in data:
-            payload={**d['payload'],'periods':[p for p in d['payload']['periods'] if p['period']<=period]}
-            items.append({'id':d['id'],'company':payload['company'],'source_kind':payload['source_kind'],'dataset_version':d['version'],'analysis':calculate(payload,body.comparison)})
-        return {'period':period,'items':items,'warning':'同季度用户数据对照，不是行业基准或投资排名；请核实业务口径。'}
+        return calculate_comparison(data,body.comparison)
 
     @app.get('/api/conversations')
     def conversations(request: Request,user=Depends(require_user)):return {'items':store(request).items('conversations',user['id'])}

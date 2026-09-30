@@ -1,3 +1,4 @@
+import { comparisonIndex, savedComparisonPage, comparisonResultView, comparisonModes } from './saved-comparisons.js';
 import { experimentProblem } from './saved-experiments.js';
 import { sourceBadge, sourcePanel, sourceForm, acceptanceEvidence } from './business-source.js';
 import { viewWorkspace as workspace } from './api.js';
@@ -31,8 +32,13 @@ export async function experimentPage(id) {
     }
     return heading(p.request.name, `${p.company} · ${r.kind === 'scenario' ? '参数化情景实验' : '滚动回测与预测'}`, routeButton('返回实验室', 'lab', 'secondary') + button(icon('download') + ' 导出实验', 'export-experiment') + (experimentProblem(e, scopedDatasets()) ? '' : routeButton('交给 Agent 研判', 'agents:experiment-' + e.id, 'primary'))) + (experimentProblem(e, scopedDatasets()) ? notice(experimentProblem(e, scopedDatasets()), 'warm') : '') + `<div class="notice neutral"><span><strong>你的假设</strong>　${esc(p.request.assumptions)}</span></div>` + content + `<section class="panel"><details open><summary>本次方法边界</summary>${r.limitations.map((s) => `<p class="micro">${esc(s)}</p>`).join('')}</details><details><summary>可复现输入快照</summary>${jsonView({ experiment_id: e.id, experiment_version: e.version, experiment_hash: e.experiment_hash, target_period: p.target_period, analysis_as_of: p.analysis_as_of, dataset_version: p.dataset_version, dataset_hash: p.dataset_hash, request: p.request, snapshot: p.snapshot })}</details></section>`;
 }
-export async function comparePage() { return heading('企业对照', '仅使用共同季度；不将用户样本包装成全行业排名。') + `<section class="panel">${scopedDatasets().length >= 2 ? `<form id="compare-form"><h2>选择 2–8 份数据集</h2><div class="choice-grid">${scopedDatasets().map(d => `<label class="choice"><input type="checkbox" name="dataset_ids" value="${esc(d.id)}"><span><strong>${esc(d.payload.company)}</strong><small>${esc(d.payload.name)}</small></span></label>`).join('')}</div>${formFooter('对照共同季度')}</form>` : empty('至少需要两份数据集', '可以是不同企业，也可以是同一家企业不同口径的数据；先核实可比性。', routeButton('管理数据', 'data', 'primary'))}</section><div id="comparison-output"></div>`; }
-export function comparisonOutput(result) { return `<section class="panel"><div class="section-heading row-between"><h2>共同季度 · ${esc(result.period)}</h2>${badge('不是行业排名')}</div>${table(['企业', '毛利率', '经营现金收入比', '资产负债率', '收入增速'], result.items.map((r) => [esc(r.company), ...['gross_margin', 'cash_ratio', 'leverage', 'revenue_growth'].map(k => pct(r.analysis.metrics[k]))]))}${notice(result.warning)}<details><summary>完整指标、数据版本与口径</summary>${jsonView(result.items)}</details></section>`; }
+export async function comparePage(id = '') {
+    if (id)
+        return savedComparisonPage(id);
+    const saved = await comparisonIndex();
+    return heading('企业对照', '先核对共同季度与业务可比性；可保存为明确批准后才进入 Agent 的研究依据。') + `<section class="panel">${scopedDatasets().length >= 2 ? `<form id="compare-form" class="stack">${input('displayed_bindings', JSON.stringify(scopedDatasets().map(d => ({ id: d.id, version: d.version, hash: d.content_hash }))), 'type="hidden"')}<h2>选择 2–8 份数据集</h2><div class="choice-grid">${scopedDatasets().map(d => `<label class="choice"><input type="checkbox" name="dataset_ids" value="${esc(d.id)}"><span><strong>${esc(d.payload.company)}</strong><small>${esc(d.payload.name)} · 修订 ${d.version}</small></span></label>`).join('')}</div>${field('比较基期', select('comparison', comparisonModes, 'year_over_year'))}<p class="micro">使用所选数据的最新共同季度；结果显示后可明确命名并保存。数据不会自动发给模型。</p>${formFooter('对照共同季度')}</form>` : empty('至少需要两份数据集', '可以是不同企业，也可以是同一家企业不同口径的数据；先核实可比性。', routeButton('管理数据', 'data', 'primary'))}</section><div id="comparison-output"></div>` + saved;
+}
+export function comparisonOutput(result) { return comparisonResultView(result); }
 export async function reportsPage() {
     const rows = await workspace('/reports' + scopeQuery());
     state.cache.reports = rows.items;

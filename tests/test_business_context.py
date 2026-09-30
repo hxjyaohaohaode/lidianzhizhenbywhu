@@ -95,7 +95,7 @@ def test_workspace_upgrade_is_idempotent_and_future_schema_rejects_writes(actor)
     import pytest
     from server import workspace_store as ws
     store=actor.client.app.state.store
-    assert store.one('SELECT max(version) AS version FROM workspace_schema')['version']==2
+    assert store.one('SELECT max(version) AS version FROM workspace_schema')['version']==3
     original=store.all('SELECT * FROM dataset_revisions')
     ws.migrate(store);ws.migrate(store)
     assert store.all('SELECT * FROM dataset_revisions')==original

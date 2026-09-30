@@ -92,6 +92,25 @@ def _insight_binding(insight):
     return binding
 
 
+def _comparison_reference(frozen):
+    """Bounded numerical receipt, not a replacement for the full historical report."""
+    p=frozen['payload'];keys=('identity_id','name','comparison','period','period_basis','analysis_as_of','comparability_note')
+    payload={k:deepcopy(p.get(k)) for k in keys}
+    payload['members']=[{k:deepcopy(m[k]) for k in ('id','version','hash','company')} for m in p['members']]
+    metrics=('gross_margin','cash_ratio','leverage','revenue_growth','net_margin')
+    items=[]
+    for item in p['result']['items']:
+        row={k:deepcopy(item.get(k)) for k in ('id','company','source_kind','dataset_version','dataset_hash')}
+        analysis=item['analysis']
+        row['analysis']={k:deepcopy(analysis.get(k)) for k in ('current_period','baseline_period','comparison','warnings')}
+        row['analysis']['metrics']={k:deepcopy(analysis['metrics'].get(k)) for k in metrics}
+        items.append(row)
+    payload['result']={'period':p['result']['period'],'items':items,'warning':p['result']['warning']}
+    payload['units']={'gross_margin':'ratio','cash_ratio':'ratio','leverage':'ratio','revenue_growth':'ratio','net_margin':'ratio'}
+    payload['summary_notice']='仅保留五项指标、可比性说明及来源的归档摘要，不等于完整原报告。缺失值保持为空。'
+    return {k:frozen[k] for k in ('id','version','hash')}|{'payload':payload,'projection_hash':digest(payload)}
+
+
 def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, run_id='', source_key=''):
     """Resolve client IDs to immutable server-owned origin, rejecting stale approval.
 
@@ -114,6 +133,8 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         binding=snapshot.get('studio',{}).get('bindings',{}).get('identity')
         extra={'run_id':run['id'],'report_hash':digest(result),'report_title':result.get('title',''),
             'source_created_at':run['created_at']}
+        if snapshot.get('comparison_artifact'):
+            extra['comparison_reference']=_comparison_reference(snapshot['comparison_artifact'])
         citations=snapshot.get('citations',[])
         if ref.get('claim_id'):
             claim=next((c for c in result.get('llm',{}).get('review',{}).get('claims',[])
@@ -161,7 +182,7 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
             'dataset_hash':origin.get('dataset_hash'),'company':origin.get('company',ap.get('company',''))}
         binding=deepcopy(origin.get('identity_binding'));evidence=deepcopy(origin.get('evidence',[]))
         inherited={'run_id','report_hash','report_title','source_created_at','claim_id','claim_hash','claim_snapshot',
-            'claim_review_version','claim_review_hash','thread_id','source_message_id','message_hash','proposal_id','question',
+            'comparison_reference','claim_review_version','claim_review_hash','thread_id','source_message_id','message_hash','proposal_id','question',
             'source_key','insight_hash','insight_binding_hash','insight_snapshot','alert_id','alert_hash','rule_id','rule_version','evaluation_revision','alert_snapshot'}
         extra={k:deepcopy(v) for k,v in origin.items() if k in inherited}
         # Flatten an optional API-created chain; never nest entire actions/histories.
@@ -268,7 +289,9 @@ def source_impact(store,user_id,provenance):
             extra_codes={'memory_removed','memory_withdrawn','memory_changed','objective_changed',
                 'experiment_removed','experiment_changed'}
             if not p.get('claim_id'):extra_codes.add('human_review_disputes')
-            reasons.extend(r for r in report_impact(store,user_id,run)['reasons'] if r['code'] in extra_codes
+            report_dependencies=report_impact(store,user_id,run)
+            if report_dependencies['state']=='unavailable':unavailable=True
+            reasons.extend(r for r in report_dependencies['reasons'] if (r['code'] in extra_codes or r['code'].startswith('comparison_'))
                 and r['code'] not in {existing['code'] for existing in reasons})
         if p.get('claim_id'):
             review=ws.keyed(store,user_id,'claim_review',p['run_id']+':'+p['claim_id'])
@@ -276,6 +299,16 @@ def source_impact(store,user_id,provenance):
                 reasons.append({'code':'claim_rejected','message':'来源解释当前已被人工排除'})
             elif (review['version'] if review else 0)!=p.get('claim_review_version',0):
                 reasons.append({'code':'claim_review_changed','message':'来源解释的人工审阅已变化'})
+    if p.get('comparison_reference'):
+        from .saved_comparisons import current_impact
+        reference=p['comparison_reference']
+        if digest(reference['payload'])!=reference.get('projection_hash'):
+            reasons.append({'code':'comparison_receipt_changed','message':'行动归档的对照摘要校验不一致'});unavailable=True
+        else:
+            comparison_impact=current_impact(store,user_id,reference)
+            existing={(r['code'],r.get('dataset_id')) for r in reasons}
+            reasons.extend(r for r in comparison_impact['reasons'] if (r['code'],r.get('dataset_id')) not in existing)
+            if comparison_impact['state']=='unavailable':unavailable=True
     if p.get('thread_id'):
         thread=store.one("SELECT id FROM workspace_objects WHERE user_id=? AND kind='assistant_thread' AND id=?",(user_id,p['thread_id']))
         if not thread:
@@ -389,6 +422,12 @@ def report_impact(store,user_id,run):
         if not current:reasons.append({'code':'experiment_removed','message':'原数学实验已清理；报告保留当时冻结产物'})
         elif current['version']!=experiment['version'] or digest(current['payload'])!=experiment['hash']:
             reasons.append({'code':'experiment_changed','message':'原数学实验记录与批准时的版本不一致'})
+    comparison=snapshot.get('comparison_artifact')
+    if comparison:
+        from .saved_comparisons import current_impact
+        comparison_impact=current_impact(store,user_id,comparison)
+        reasons.extend(comparison_impact['reasons'])
+        if comparison_impact['state']=='unavailable':impact['state']='unavailable'
     reviews=store.all("SELECT payload FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND json_extract(payload,'$.run_id')=?",(user_id,run['id']))
     disputed=sum(r['payload']['verdict']!='accepted' for r in reviews)
     if disputed:reasons.append({'code':'human_review_disputes','message':f'{disputed} 条解释存在人工拒绝或待补证意见；这不自动否定本地数学计算'})

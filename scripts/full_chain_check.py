@@ -128,6 +128,39 @@ def main():
             assert c.get('/api/runs/'+run['id']+'/export',params={'format':'md'}).status_code==200
             assert other.get('/api/workspace/runs/'+run['id']+'/runtime').status_code==404
             record('报告字段血缘、节点产物、事件锚点、完整工作区导出和跨账户隔离')
+            # Explicitly synthetic peer; frozen common-quarter comparison is approved
+            # as extra input, never silently added to ordinary single-company plans.
+            peer_data=copy.deepcopy(d['payload']);peer_data.pop('verification',None);peer_data.pop('input_amount_unit',None)
+            peer_data['company']='同季度对照合成企业';peer_data['name']='HTTP 对照独立合成样本'
+            peer=require(c.post('/api/datasets',json=peer_data),201)
+            comparison=require(c.post('/api/workspace/comparisons',json={
+                'name':'HTTP 冻结企业对照','identity_id':'',
+                'datasets':[{'id':x['id'],'version':x['version'],'hash':x['content_hash']} for x in (d,peer)],
+                'comparison':'year_over_year','comparability_note':'仅用独立合成数据验证共同季度和来源链，不作行业排名'}),201)
+            ref={'id':comparison['id'],'version':comparison['version'],'hash':comparison['comparison_hash']}
+            comparison_plan=plan(c,d,query='核对'+comparison['payload']['period']+'企业对照的毛利率及可比性边界',comparison_artifact=ref)
+            comparison_run=wait_run(c,approve(c,comparison_plan)['id']);assert comparison_run['result'],comparison_run
+            frozen_comparison=copy.deepcopy(comparison_run['result']['comparison_artifact'])
+            assert comparison_run['snapshot']['comparison_artifact']['hash']==ref['hash']
+            assert comparison_run['result']['comparison_provenance']['hash']==ref['hash']
+            assert ref['hash'] in c.get('/api/runs/'+comparison_run['id']+'/export',params={'format':'md'}).text
+            assert other.get('/api/workspace/comparisons/'+ref['id']+'?identity_id=').status_code==404
+            comparison_action=require(c.post('/api/workspace/actions',json={
+                'title':'核查对照口径','acceptance':'确认共同季度与两家企业来源的实际可比性',
+                'dataset_id':d['id'],'source_ref':{'kind':'report','run_id':comparison_run['id']}}),201)
+            peer_update=copy.deepcopy(peer_data);peer_update['version']=peer['version'];peer_update['periods'][-1]['revenue']+=1
+            require(c.put('/api/datasets/'+peer['id'],json=peer_update))
+            assert c.post('/api/workspace/plans',json={'dataset_id':d['id'],'query':'核对'+comparison['payload']['period']+'企业对照',
+                'execution':{},'comparison_artifact':ref}).status_code==409
+            old_comparison_run=require(c.get('/api/runs/'+comparison_run['id']))
+            assert old_comparison_run['result']['comparison_artifact']==frozen_comparison
+            action_rows=require(c.get('/api/workspace/actions'))['items']
+            impacted=next(x for x in action_rows if x['id']==comparison_action['id'])
+            assert impacted['payload']==comparison_action['payload']
+            assert any(r['code'].startswith('comparison_') for r in impacted['source_impact']['reasons'])
+            require(c.delete('/api/workspace/comparisons/'+ref['id'],params={'identity_id':'','version':ref['version']}))
+            assert require(c.get('/api/runs/'+comparison_run['id']))['result']['comparison_artifact']==frozen_comparison
+            record('双企业共同季度对照→版本冻结→明确批准Agent→报告引用→另一企业修订/清理→行动适用性变化且历史不改写')
             with c.stream('GET','/api/runs/'+run['id']+'/events') as response:
                 assert response.status_code==200 and response.headers['content-type'].startswith('text/event-stream')
                 text='\n'.join(response.iter_lines())

@@ -327,6 +327,46 @@ def main():
             assert historical['payload']['provenance']['dataset_version']==selected_run['snapshot']['dataset_version']
             assert historical['source_impact']['state']=='changed'
             record('数据修订后旧报告保持不变，创建新行动须明确历史依据并显示来源变化')
+            # A second explicit synthetic CSV enters through the real import UI.
+            go('data');page.locator('#main [data-action="import-dialog"]').click()
+            page.locator('#import-file-form [name="target_id"]').select_option('')
+            page.locator('#import-file-form [name="company"]').fill('对照合成企业（非真实财报）')
+            page.locator('#import-file-form [name="amount_unit"]').select_option('yuan')
+            page.locator('#import-file-form [name="file"]').set_input_files({'name':'synthetic-comparison-peer.csv','mimeType':'text/csv','buffer':csv.encode('utf-8-sig')})
+            submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for()
+            page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden')
+            peer=next(d for d in client.get('/api/datasets').json()['items'] if d['id']!=original['id'])
+            go('compare');page.locator('#compare-form [name="dataset_ids"]').nth(0).check()
+            page.locator('#compare-form [name="dataset_ids"]').nth(1).check();submit('#compare-form')
+            page.locator('#comparison-save-form').wait_for()
+            page.locator('#comparison-save-form [name="name"]').fill('已核对企业对照（合成验收）')
+            page.locator('#comparison-save-form [name="comparability_note"]').fill('两份合成单季人民币数据仅验证来源链，不代表行业样本或排名')
+            submit('#comparison-save-form');page.locator('#comparison-transfer-form').wait_for()
+            comparison_id=page.url.split('compare:')[-1]
+            comparison_row=client.get('/api/workspace/comparisons/'+comparison_id,params={'identity_id':identity_id}).json()
+            assert len(comparison_row['payload']['members'])==2
+            assert not overflow();snap('ui-current-saved-comparison.png')
+            page.locator('#comparison-transfer-form [name="primary_dataset_id"]').select_option(original['id'])
+            submit('#comparison-transfer-form');page.locator('#plan-comparison').wait_for()
+            assert page.locator('#plan-comparison').input_value()==comparison_id
+            assert peer['payload']['company'] in page.locator('#selected-comparison-details').inner_text()
+            submit('#plan-form');page.locator('#execute-plan-form').wait_for()
+            assert peer['payload']['company'] in page.locator('#main').inner_text()
+            submit('#execute-plan-form');page.locator('[data-comparison-stage="report"]').wait_for(timeout=25000)
+            comparison_run_id=page.url.split('agents:run-')[-1]
+            comparison_run=client.get('/api/runs/'+comparison_run_id).json()
+            assert comparison_run['result']['comparison_provenance']['hash']==comparison_row['comparison_hash']
+            assert peer['payload']['company'] in page.locator('[data-comparison-stage="report"]').inner_text()
+            assert not overflow();snap('ui-current-comparison-report.png')
+            record('共同季度对照经界面保存，明确主企业与额外企业输入，批准后报告保留原比较指纹和数值')
+            go('data');page.locator('#active-dataset').select_option(peer['id'])
+            page.locator('#dataset-editor').wait_for()
+            page.locator('#dataset-editor [name="notes"]').fill('仅同行修订说明：历史对照仍须冻结')
+            submit('#dataset-editor');page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden')
+            go('compare:'+comparison_id)
+            assert page.locator('#comparison-transfer-form').count()==0 or page.locator('#comparison-transfer-form button[type="submit"]').is_disabled()
+            assert client.get('/api/runs/'+comparison_run_id).json()['result']==comparison_run['result']
+            record('同行单独修订后已保存对照不再当成当前Agent输入，原报告比较结果不被重写')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')

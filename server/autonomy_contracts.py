@@ -59,7 +59,7 @@ class RunAssessment(StrictModel):
     review_context_hash: str | None = Field(default=None,pattern='^[a-f0-9]{64}$')
     verdict: Literal['useful', 'needs_revision', 'rejected']
     note: str = Field(min_length=5, max_length=2000)
-    expected_capabilities: list[Literal['quality', 'quant', 'evidence', 'counterevidence', 'forecast', 'sensitivity', 'gaps']] = Field(default_factory=list, max_length=7)
+    expected_capabilities: list[Literal['quality', 'quant', 'evidence', 'counterevidence', 'forecast', 'sensitivity', 'gaps', 'comparison']] = Field(default_factory=list, max_length=8)
     consent_replay: bool = False
     version: int = Field(default=0, ge=0)
     @model_validator(mode='after')
