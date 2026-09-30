@@ -255,7 +255,7 @@ def test_reference_and_format_gate(text,metric,citation):
 def test_model_can_choose_real_specialist_dependencies_inside_consent(factory,order):
     ps=ResearchProviders(proposal={'focus':['evidence'],'specialists':['analyst','researcher','challenger'],'rationale':'按照资料与量化结果配置分工','execution_order':order})
     a=Actor(factory(ps));d=a.dataset()
-    e=a.post('/evidence',json={'title':'明确合成的资料','text':'合成验收资料；企业经营变化及现金情况需要原始证据核验，不能当作真实财报。'*12}).json()
+    e=a.post('/evidence',json={'global_scope':True,'title':'明确合成的资料','text':'合成验收资料；企业经营变化及现金情况需要原始证据核验，不能当作真实财报。'*12}).json()
     r=completed(a,dataset=d,use_llm=True,provider='alpha',max_calls=5,execution={'model_planning':True})
     assert r['result'],r
     rt=runtime(a,r);nodes={n['id']:n for n in rt['graph']['payload']['nodes']};assert 'researcher' in nodes

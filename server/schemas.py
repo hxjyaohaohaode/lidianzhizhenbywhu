@@ -126,7 +126,23 @@ class Evidence(StrictModel):
         if v and v>date.today():raise ValueError('发布日期不能晚于今天')
         return v
 
+class EvidenceCapture(Evidence):
+    company: str = Field(default='', max_length=200)
+    global_scope: bool = False
+    search_receipt: str = Field(default='', pattern=r'^(?:[a-f0-9]{64})?$')
+    retrieved_at: str = Field(default='', max_length=80)
+
+class EvidenceMetadata(StrictModel):
+    title: Text
+    source_url: str = Field(default='', max_length=1000)
+    published_at: date | None = None
+    version: int = Field(ge=1)
+    _safe_url = field_validator('source_url')(Evidence.safe_url.__func__)
+    _no_future_date = field_validator('published_at')(Evidence.no_future_date.__func__)
+
 class FetchEvidence(StrictModel):
+    company: str = Field(default='', max_length=200)
+    global_scope: bool = False
     url: str = Field(min_length=8,max_length=1000)
     title: Text
     published_at: date | None = None

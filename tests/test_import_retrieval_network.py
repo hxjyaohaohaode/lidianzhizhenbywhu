@@ -43,6 +43,7 @@ def test_isolated_document_parser():
     for name,raw in [('bad.pdf',b'not a PDF'),('program.exe',b'program'),('scan.txt',b'\xff\xfe\x00')]:
         with pytest.raises(ValueError):parse_document_isolated(name,raw)
 def test_upload_and_finance_export_roundtrip(actor,example):
+    example={**example,'source_kind':'user_provided'}  # Isolated synthetic upload fixture.
     r=actor.post('/import/dataset',files={'file':('finance.json',json.dumps(example).encode(),'application/json')},data={'company':'导入企业','amount_unit':'yuan'})
     assert r.status_code==201,r.text
     d=r.json();exp=actor.get('/datasets/'+d['id']+'/export');assert exp.status_code==200 and 'verification' not in exp.json()

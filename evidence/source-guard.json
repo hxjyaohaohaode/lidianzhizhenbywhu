@@ -1,5 +1,5 @@
 {
-  "files_scanned": 68,
+  "files_scanned": 71,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -14,6 +14,7 @@
     "server/copilot.py",
     "server/evolution.py",
     "server/exports.py",
+    "server/financial_import.py",
     "server/identities.py",
     "server/imports.py",
     "server/intelligence.py",
@@ -21,6 +22,7 @@
     "server/network.py",
     "server/parse_worker.py",
     "server/providers.py",
+    "server/report_export.py",
     "server/research.py",
     "server/retrieval.py",
     "server/schemas.py",
@@ -46,6 +48,7 @@
     "web/interactions.ts",
     "web/layout.ts",
     "web/live.ts",
+    "web/math-results.ts",
     "web/pages.ts",
     "web/state.ts",
     "web/styles.css",

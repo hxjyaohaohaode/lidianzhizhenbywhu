@@ -77,3 +77,34 @@ def execution_service_valid(store, user_id, bindings, request, providers, expect
         return all(getattr(live, k) == expected_provider[k] for k in ('host', 'path') if k in expected_provider)
     except (HTTPException, RuntimeError, ValueError, KeyError):
         return False
+
+
+def workspace_scope(store, user_id, identity_id=None, dataset_id=''):
+    """Resolve an optional service lens before list aggregation, never as account RBAC.
+
+    Omitting identity_id retains legacy account-wide lists. An explicit empty
+    identity selects the default identity; dataset assets remain account-owned.
+    """
+    identity = resolve_identity(store, user_id, identity_id or '', dataset_id)
+    datasets = store.items('datasets', user_id)
+    if dataset_id and not any(row['id'] == dataset_id for row in datasets):
+        fail('NOT_FOUND', '数据不存在或无权访问', 404)
+    allowed = set(identity['payload']['dataset_ids']) if identity and identity['payload']['dataset_ids'] else None
+    datasets = [row for row in datasets if (allowed is None or row['id'] in allowed) and (not dataset_id or row['id'] == dataset_id)]
+    return datasets, {'mode': 'account' if identity_id is None else 'identity',
+        'identity_id': identity_id, 'dataset_id': dataset_id,
+        'dataset_ids': [row['id'] for row in datasets],
+        'label': '账户全部记录' if identity_id is None else (identity['payload']['name'] if identity else '默认身份')}
+
+
+def scope_sql(scope, dataset_expr, identity_expr=None):
+    """Only trusted code supplies expressions; values always use bound parameters."""
+    clauses=[]; values=[]
+    if scope['mode'] != 'account' or scope['dataset_id']:
+        ids=scope['dataset_ids']
+        clauses.append(dataset_expr+' IN ('+','.join('?' for _ in ids)+')' if ids else '0')
+        values.extend(ids)
+    if identity_expr and scope['mode'] == 'identity':
+        clauses.append("COALESCE("+identity_expr+",'')=?")
+        values.append(scope['identity_id'])
+    return ''.join(' AND '+clause for clause in clauses), values

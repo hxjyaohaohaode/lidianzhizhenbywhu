@@ -38,8 +38,8 @@ def execute(a,p,consent=False):
     run=good(approve(a,p,external_consent=consent),202)
     return a.execute(run)
 def evidence(a,company='',status='unreviewed',stance='context',text=None,expires=None):
-    row=good(a.post('/evidence',json={'title':'验收原文','text':text or ('毛利率、现金流、采购成本的验收合成文本。'*9)}),201)
-    review=good(a.put('/workspace/evidence/'+row['id']+'/review',json={'company':company,'status':status,'stance':stance,'note':'合成验收用途，不代表企业事实','expires_at':expires}),200)
+    row=good(a.post('/evidence',json={'company':company,'global_scope':not bool(company),'title':'验收原文','text':text or ('毛利率、现金流、采购成本的验收合成文本。'*9)}),201)
+    review=good(a.put('/workspace/evidence/'+row['id']+'/review',json={'company':company,'global_scope':not bool(company),'version':1,'status':status,'stance':stance,'note':'合成验收用途，不代表企业事实','expires_at':expires}),200)
     return row,review
 
 def test_empty_workspace_and_no_runtime_sample_generator(actor):
@@ -147,7 +147,7 @@ def test_plan_bindings_reject_changes_before_approval(factory,change):
     if change=='dataset':good(a.put('/datasets/'+d['id'],json=editable(d)))
     if change=='profile':good(a.post('/workspace/profiles',json={'company':d['payload']['company'],'margin_floor':.9}))
     if change=='memory':good(a.put('/memories/'+m['id'],json={**m['payload'],'version':m['version'],'approved':False}))
-    if change=='evidence':good(a.put('/workspace/evidence/'+doc['id']+'/review',json={'company':d['payload']['company'],'version':1,'status':'rejected','note':'资料存在不适用范围'}))
+    if change=='evidence':good(a.put('/workspace/evidence/'+doc['id']+'/review',json={'company':d['payload']['company'],'version':rev['version'],'status':'rejected','note':'资料存在不适用范围'}))
     if change=='preferences':good(a.put('/preferences',json={**a.user['preferences'],'name':'变更偏好','version':1}))
     if change=='history':
         with a.client.app.state.store.transaction() as db:db.execute('UPDATE conversations SET version=version+1 WHERE id=?',(session['id'],))

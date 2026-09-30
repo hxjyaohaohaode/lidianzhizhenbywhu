@@ -17,10 +17,10 @@ def candidate(a,**kw):
 
 def three_cases(a,example):
     runs=[]
-    source=a.post('/evidence',json={'title':'合成验收证据','text':'核验企业经营变化及现金情况；合成验收数据仅供测试，核查支持资料和反向资料。'*15})
+    source=a.post('/evidence',json={'global_scope':True,'title':'合成验收证据','text':'核验企业经营变化及现金情况；合成验收数据仅供测试，核查支持资料和反向资料。'*15})
     assert source.status_code==201,source.text
     for i in range(3):
-        d=copy.deepcopy(example);d['name']='验收合成输入'+str(i);d['periods'][-1]['revenue']+=i*1e6
+        d=copy.deepcopy(example);d['source_kind']='user_provided';d['name']='验收合成输入'+str(i);d['periods'][-1]['revenue']+=i*1e6
         res=a.post('/datasets',json=d);assert res.status_code==201,res.text
         r=completed(a,dataset=res.json());assessment(a,r);runs.append(r)
     return runs
@@ -64,7 +64,7 @@ def test_revoke_case_blocks_stale_candidate_activation(actor,example):
 
 def test_duplicate_runs_or_renamed_financial_inputs_do_not_inflate_holdout(actor,example):
     for i in range(3):
-        d=copy.deepcopy(example);d['name']='不同文件名'+str(i);d['company']='不同标签'+str(i)
+        d=copy.deepcopy(example);d['source_kind']='user_provided';d['name']='不同文件名'+str(i);d['company']='不同标签'+str(i)
         r=completed(actor,dataset=actor.post('/datasets',json=d).json());assessment(actor,r)
     c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()
     assert e['payload']['raw_consented_runs']==3 and e['payload']['unique_inputs']==1 and not e['payload']['eligible']
@@ -119,7 +119,7 @@ def test_replay_does_not_change_explicit_research_depth_to_improve_its_score(act
 
 def test_new_consented_case_invalidates_evaluation_cohort_before_activation(actor,example):
     three_cases(actor,example);c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()
-    d=copy.deepcopy(example);d['periods'][-1]['revenue']+=777777
+    d=copy.deepcopy(example);d['source_kind']='user_provided';d['periods'][-1]['revenue']+=777777
     r=completed(actor,dataset=actor.post('/datasets',json=d).json());assessment(actor,r,expected_capabilities=['forecast'])
     result=actor.post('/workspace/strategies/'+c['id']+'/activate',json={'evaluation_id':e['id'],'expected_active_version':0})
     assert result.status_code==409 and result.json()['error']['code']=='EVALUATION_STALE'

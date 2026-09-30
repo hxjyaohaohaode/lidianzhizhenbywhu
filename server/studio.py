@@ -46,7 +46,11 @@ def pack_context(snapshot,query,mode,limit):
     a=calculate(snapshot['dataset'],snapshot['comparison'])
     obj={'question':query,'mode':mode,'metrics':a['metrics'],
         'evidence':[{'id':c['id'],'excerpt':c['excerpt'][:800],'company_scope':c.get('company_scope',''),
-            'review_state':c.get('review_state','unreviewed'),'stance':c.get('stance','context'),'stale':c['stale']} for c in snapshot['citations']],
+            'review_state':c.get('review_state','unreviewed'),'stance':c.get('stance','context'),'stale':c['stale'],
+            'source_kind':c.get('source_kind'),'verification':c.get('verification'),
+            'source_url':c.get('url',''),'original_source_url':c.get('original_source_url'),
+            'retrieved_at':c.get('retrieved_at'),'fetched_at':c.get('fetched_at'),
+            'published_at':c.get('published_at')} for c in snapshot['citations']],
         'preferences':snapshot['preferences'],'objective':snapshot['profile'],
         'approved_memory':[{'id':m['id'],'text':m['text'],'kind':m['kind']} for m in snapshot['memory']],
         'history':snapshot.get('history',[]), 'data_limits':a['warnings'],'service_identity':snapshot.get('identity')}

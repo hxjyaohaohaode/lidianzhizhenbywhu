@@ -51,6 +51,7 @@ class PlanConsent(StrictModel):
 
 
 class EvidenceReview(StrictModel):
+    global_scope: bool = False
     company: str = Field(default='', max_length=200)
     tags: list[Text] = Field(default_factory=list, max_length=8)
     status: Literal['unreviewed', 'accepted', 'rejected'] = 'unreviewed'
@@ -60,12 +61,17 @@ class EvidenceReview(StrictModel):
     version: int = Field(default=0, ge=0)
     @model_validator(mode='after')
     def reasoning(self):
+        if not self.company and not self.global_scope and self.status != 'rejected':
+            raise ValueError('请选择企业，或明确允许所有企业使用')
+        if self.company and self.global_scope:
+            raise ValueError('企业范围与通用范围不能同时选择')
         if self.status != 'unreviewed' and not self.note.strip():
             raise ValueError('接受或排除证据必须写明人工审阅依据')
         return self
 
 
 class ActionCreate(StrictModel):
+    identity_id: str = Field(default="", max_length=80)
     title: Text
     company: str = Field(default='', max_length=200)
     dataset_id: str = Field(default='', max_length=80)
@@ -76,6 +82,27 @@ class ActionCreate(StrictModel):
     due_at: date | None = None
     acceptance: str = Field(min_length=5, max_length=2000)
     description: str = Field(default='', max_length=3000)
+    @model_validator(mode='after')
+    def meaningful_acceptance(self):
+        if len(self.acceptance.strip()) < 5:
+            raise ValueError('请填写具体的验收标准')
+        return self
+
+
+class ActionEdit(StrictModel):
+    version: int = Field(ge=1)
+    title: Text
+    priority: Literal['high', 'normal', 'low']
+    owner: str = Field(max_length=100)
+    due_at: date | None
+    acceptance: str = Field(min_length=5, max_length=2000)
+    description: str = Field(max_length=3000)
+    note: str = Field(min_length=5, max_length=2000)
+    @model_validator(mode='after')
+    def meaningful_edit(self):
+        if len(self.acceptance.strip()) < 5 or len(self.note.strip()) < 5:
+            raise ValueError('请填写具体的验收标准及修改原因')
+        return self
 
 
 class ActionTransition(StrictModel):

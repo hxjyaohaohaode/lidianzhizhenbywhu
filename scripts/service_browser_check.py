@@ -119,7 +119,7 @@ def main():
             page.locator('[data-action="close-assistant"]').click();assert not rail.is_visible()
             record('助手独立展开/收起与键盘调宽，不占用隐藏空间')
             go('services');page.locator('[data-x-action="identity-new"]').click()
-            f='form[data-service-form="identity"]';page.locator(f+' [name="name"]').fill('经营负责人（合成验收）');page.locator(f+' [name="objective"]').fill('核对现金流与毛利差异，明确反向证据')
+            f='form[data-service-form="identity"]';page.locator(f+' [name="name"]').fill('经营负责人（合成验收）');page.locator(f+' [name="objective"]').fill('核对现金流与毛利差异，明确反向证据');page.locator(f+' [name="max_calls"]').fill('0')
             submit(f);page.locator('.identity-card').wait_for();page.locator('[data-x-action="identity-use"]').first.click();page.wait_for_timeout(400)
             assert page.locator('#active-identity').input_value()
             identity_id=page.locator('#active-identity').input_value();record('服务身份创建、选择、顶部上下文同步')
@@ -131,6 +131,22 @@ def main():
             page.locator('#import-file-form [name="file"]').set_input_files({'name':'synthetic-service-test.csv','mimeType':'text/csv','buffer':csv.encode('utf-8-sig')})
             submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for();assert client.get('/api/datasets').json()['items']==[]
             page.locator('[data-action="commit-stage"]').click();page.locator('#dataset-editor').wait_for();record('上传真实CSV：暂存不写正式库，确认后入库')
+            # Revise an existing dataset through the visible file workflow. No
+            # direct API write substitutes for preview, target choice or commit.
+            original=client.get('/api/datasets').json()['items'][0]
+            go('data');page.locator('#main [data-action="import-dialog"]').click()
+            page.locator('#import-file-form [name="target_id"]').select_option(original['id'])
+            page.locator('#import-file-form [name="merge_mode"]').select_option('merge')
+            page.locator('#import-file-form [name="amount_unit"]').select_option('yuan')
+            revision=csv.splitlines()[0]+'\n2024-Q4,120000,76600,13100,9000,500000,200000,300000,290000,20000,3000\n'
+            page.locator('#import-file-form [name="file"]').set_input_files({'name':'synthetic-quarter-revision.csv','mimeType':'text/csv','buffer':revision.encode('utf-8-sig')})
+            submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for()
+            before=client.get('/api/datasets').json()['items'];assert len(before)==1 and before[0]['version']==original['version']
+            assert '合并到已有数据集' in page.locator('#modal').inner_text()
+            page.locator('[data-action="commit-stage"]').click();page.locator('#dataset-editor').wait_for()
+            revised=client.get('/api/datasets').json()['items'];assert len(revised)==1 and revised[0]['id']==original['id'] and revised[0]['version']==original['version']+1
+            assert len(revised[0]['payload']['periods'])==12 and revised[0]['payload']['periods'][-1]['revenue']==120000
+            record('文件修订显式选择合并，预览不写入，确认保留数据ID和历史季度')
             go('copilot');page.locator('#assistant-query').fill('核查毛利现金流的来源与数据质量，查看已保存证据')
             submit('#assistant-form');page.locator('.chat-turn').wait_for();assert page.locator('.fact-tile').count()>=2
             assert '数据质量' in page.locator('#assistant-answer').inner_text();assert page.locator('.tool-receipts').count()==1
@@ -157,14 +173,37 @@ def main():
             snap('ui-current-copilot.png')
             page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
             f='form[data-service-form="proposal"]';page.locator(f+' details').first.click();page.locator(f+' [name="forecast"]').check()
+            assert page.locator(f+' [name="max_calls"]').input_value()=='0'
+            assert page.locator(f).evaluate('(form)=>form.checkValidity()')
             submit(f);page.locator('form[data-service-form="confirm-proposal"]').wait_for()
+            record('零外部调用预算身份仍能预览本地Agent与预测任务，表单无隐藏非法约束')
             assert client.get('/api/runs').json()['items']==[]
             record('助手提案显示实际Agent依赖和上下文，确认前没有运行或模型调用')
             snap('ui-current-approval.png')
             submit('form[data-service-form="confirm-proposal"]');page.locator('.chat-run-result').wait_for(timeout=25000)
             assert '未调用模型' in page.locator('#assistant-answer').inner_text();record('助手批准→真实Agent运行→数学工具与报告回到原会话')
+            run_id=client.get('/api/runs').json()['items'][0]['id']
+            go('agents:run-'+run_id)
+            math=page.locator('[data-math-kind="forecast"]');math.wait_for()
+            assert math.locator('svg.chart').is_visible()
+            assert '相同滚动起点回测' in math.inner_text() and '点估计' in math.inner_text()
+            assert page.locator('#main a[href$="export?format=json"]').is_visible()
+            assert not overflow();snap('ui-current-agent-math.png')
+            record('Agent报告直接展示真实预测曲线、逐季数值、回测和缺失误差带，不要求阅读JSON')
             if native:
-                run_id=client.get('/api/runs').json()['items'][0]['id']
+                for format in ('json','md'):
+                    with page.expect_download() as downloaded:
+                        page.locator('#main a[href$="export?format='+format+'"]').first.click()
+                    content=Path(downloaded.value.path()).read_text(encoding='utf-8')
+                    if format=='json':
+                        exported=json.loads(content)
+                        assert exported['export_context']['run_id']==run_id
+                        assert exported['adaptive']['mathematical_outputs']['forecast']['forecast']
+                    else:
+                        assert '时间序列预测与回测' in content and 'locked_holdout' in content
+                record('浏览器原生下载Markdown与完整JSON，实际数学结果与归档上下文均保留')
+            go('copilot');page.locator('.chat-turn').first.wait_for()
+            if native:
                 stream=page.evaluate("""id => new Promise((resolve,reject)=>{
                     const entries=[];let opened=false;
                     const source=new EventSource('/api/runs/'+encodeURIComponent(id)+'/events',{withCredentials:true});
@@ -186,6 +225,20 @@ def main():
             page.locator('[data-x-action="chat-propose"][data-kind="action"]').last.click()
             f='form[data-service-form="proposal"]';page.locator(f+' [name="acceptance"]').fill('核对原始财务表，记录输入口径和复核证据');submit(f);submit('form[data-service-form="confirm-proposal"]')
             assert client.get('/api/workspace/actions').json()['items'];record('助手行动提案→明确验收标准→确认入库')
+            action=client.get('/api/workspace/actions').json()['items'][0]
+            go('actions');page.locator('[data-action="action-detail"][data-id="'+action['id']+'"]').click()
+            page.locator('[data-action="action-edit"]').click()
+            edit='#action-edit-form';page.locator(edit+' [name="owner"]').fill('验收复核负责人')
+            page.locator(edit+' [name="due_at"]').fill('2026-12-31')
+            page.locator(edit+' [name="priority"]').select_option('high')
+            page.locator(edit+' [name="note"]').fill('调整验收分工和期限，保留原始来源')
+            submit(edit)
+            updated=next(x for x in client.get('/api/workspace/actions').json()['items'] if x['id']==action['id'])
+            assert updated['version']==action['version']+1 and updated['payload']['identity_id']==identity_id
+            assert updated['payload']['owner']=='验收复核负责人' and updated['payload']['due_at']=='2026-12-31'
+            assert updated['payload']['changes'] and updated['payload']['history']==action['payload']['history']
+            record('行动原位调整负责人、期限和优先级，保留身份、来源与完整状态/修改历史')
+            go('copilot');page.locator('.chat-turn').first.wait_for()
             page.locator('[data-x-action="chat-propose"][data-kind="memory"]').last.click();submit(f);submit('form[data-service-form="confirm-proposal"]')
             m=client.get('/api/memories').json()['items'][0];assert m['payload']['identity_id']==identity_id and m['payload']['approved'];record('助手记忆确认与身份作用域持久化')
             page.locator('#active-identity').select_option('');page.wait_for_timeout(700)

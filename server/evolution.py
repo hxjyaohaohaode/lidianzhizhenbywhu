@@ -8,7 +8,7 @@ from __future__ import annotations
 import copy
 from datetime import date
 from .store import digest, encode, now
-from .security import fail
+from .security import fail, check_version
 from .autonomy import compile_graph, strategy, node, validate_graph, REPLAY_CAPABILITIES, execute_local_capability
 from .autonomy_contracts import ExecutionOptions
 from .models import MODEL_VERSION
@@ -163,7 +163,7 @@ def activate(store, user, candidate_id, body):
         if any(report.get(key) != value for key, value in verified.items()):
             fail('EVALUATION_STALE', '评估产物与当前实际回放不一致，请重新评估', 409)
         old = current['payload'] if current else {'spec': None, 'candidate_id': None, 'history': []}
-        history = [*old.get('history', []), {'spec': old.get('spec'), 'candidate_id': old.get('candidate_id')}][-20:]
+        history = [*old.get('history', []), {'spec': old.get('spec'), 'candidate_id': old.get('candidate_id'), 'evaluation_id': old.get('evaluation_id')}][-20:]
         p = {'spec': candidate['payload'], 'candidate_id': candidate_id, 'evaluation_id': body.evaluation_id,
              'history': history, 'activated_at': now(), 'scope': '仅影响之后创建的计划，不修改历史报告、模型权重或程序'}
         row = ws.save(store, db, user['id'], 'strategy_active', p, key='active', expected=version)
@@ -178,7 +178,7 @@ def rollback(store, user, body):
         history = current['payload'].get('history', [])
         if not history:fail('NO_ROLLBACK','没有可恢复的前一策略',409)
         previous = history[-1]
-        p = {**previous, 'history': history[:-1], 'activated_at': now(), 'evaluation_id': None, 'scope':'显式恢复此前本地规划策略'}
+        p = {**previous, 'history': history[:-1], 'activated_at': now(), 'evaluation_id': previous.get('evaluation_id'), 'scope':'显式恢复此前本地规划策略'}
         return ws.save(store, db, user['id'], 'strategy_active', p, key='active', expected=current['version'])
 
 
@@ -188,7 +188,7 @@ def overview(store, user_id):
     for r in rows:counts[r['state']] = counts.get(r['state'], 0) + 1
     rejects = sum((r['result'] or {}).get('llm',{}).get('review',{}).get('rejected_claims',0) for r in rows)
     active=ws.keyed(store,user_id,'strategy_active','active')
-    return {'active':active,'candidates':ws.objects(store,user_id,'strategy'),'evaluations':ws.objects(store,user_id,'strategy_evaluation',50),
+    return {'active':active,'candidates':ws.objects(store,user_id,'strategy'),'evaluations':ws.objects(store,user_id,'strategy_evaluation',200),
         'assessments':ws.objects(store,user_id,'assessment',200),
         'observations':{'observed_runs':len(rows),'states':counts,'structural_rejections':rejects,
                         'consented_cases':len(cases(store,user_id)),'automatic_model_updates':0},
@@ -225,3 +225,26 @@ def propose_from_assessments(store, user):
     evaluation=evaluate(store,user,row['id'])
     return {'candidate':row,'evaluation':evaluation,'sources':references,'source_partition':'development',
             'held_out_inputs':len(keys)-len(development),'automatic_activation':False,'external_calls':0}
+
+
+def delete_record(store,user,kind,id,version):
+    """Explicit cleanup can free bounded capacity without erasing active governance."""
+    with store.transaction() as db:
+        row=ws.get(store,user['id'],kind,id)
+        check_version(row,version)
+        active=ws.keyed(store,user['id'],'strategy_active','active')
+        payload=active['payload'] if active else {}
+        if kind=='strategy':
+            protected={payload.get('candidate_id'),*(h.get('candidate_id') for h in payload.get('history',[]))}
+            if id in protected:fail('STRATEGY_IN_USE','当前或可回滚策略不能删除',409)
+            if any(r['payload'].get('candidate_id')==id for r in ws.objects(store,user['id'],'strategy_evaluation',200)):
+                fail('STRATEGY_HAS_EVALUATIONS','请先检查并清理此候选的回放记录',409)
+        else:
+            chain=[payload,*payload.get('history',[])]
+            protected_evaluations={item.get('evaluation_id') for item in chain}
+            legacy_candidates={item.get('candidate_id') for item in chain if item.get('candidate_id') and not item.get('evaluation_id')}
+            if id in protected_evaluations or row['payload'].get('candidate_id') in legacy_candidates:
+                fail('EVALUATION_IN_USE','当前或可回滚策略依赖的回放证据不能删除',409)
+        db.execute('DELETE FROM workspace_objects WHERE user_id=? AND kind=? AND id=?',(user['id'],kind,id))
+        store.audit(db,user['id'],kind,id,'deleted',{'historical_runs':'retained'})
+    return {'ok':True,'notice':'已清理选中实验记录；历史报告与原始数据保持不变'}

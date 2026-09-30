@@ -34,7 +34,7 @@ def retrieve(documents,query,limit=6):
         if dt:
             try:age=(date.today()-date.fromisoformat(dt)).days
             except ValueError:pass
-        ranked.append({'id':f"{doc['id']}:{start}",'document_id':doc['id'],'title':p['title'],'url':p.get('source_url',''),'excerpt':excerpt,'start':start,'end':start+len(excerpt),'content_hash':digest(excerpt),'document_hash':doc['content_hash'],'score':round(score,4),'matched_terms':sorted(matches),'published_at':dt,'age_days':age,'source_kind':p.get('source_kind','user_provided'),'verification':p.get('verification','unverified'),'stale':age is None or age>365})
+        ranked.append({'id':f"{doc['id']}:{start}",'document_id':doc['id'],'title':p['title'],'url':p.get('source_url',''),'excerpt':excerpt,'start':start,'end':start+len(excerpt),'content_hash':digest(excerpt),'document_hash':doc['content_hash'],'score':round(score,4),'matched_terms':sorted(matches),'published_at':dt,'age_days':age,'source_kind':p.get('source_kind','user_provided'),'verification':p.get('verification','unverified'),'retrieved_at':p.get('retrieved_at'),'fetched_at':p.get('fetched_at'),'original_source_url':p.get('original_source_url',p.get('source_url','')),'stale':age is None or age>365})
     ranked.sort(key=lambda r:(-r['score'],r['id']));selected=[];per_doc=Counter()
     for row in ranked:
         if per_doc[row['document_id']]>=2:continue
@@ -51,10 +51,12 @@ def retrieve_indexed(store,user,query,limit=6,company=None):
     rows=store.all('''SELECT c.id,c.document_id,c.start,c.excerpt,e.content_hash,
         json_object('title',json_extract(e.payload,'$.title'),'source_url',json_extract(e.payload,'$.source_url'),
         'published_at',json_extract(e.payload,'$.published_at'),'source_kind',json_extract(e.payload,'$.source_kind'),
-        'verification',json_extract(e.payload,'$.verification')) AS payload
+        'verification',json_extract(e.payload,'$.verification'),'retrieved_at',json_extract(e.payload,'$.retrieved_at'),
+        'fetched_at',json_extract(e.payload,'$.fetched_at'),'original_source_url',coalesce(json_extract(e.payload,'$.original_source_url'),json_extract(e.payload,'$.source_url'))) AS payload
         FROM evidence_fts f JOIN evidence_chunks c ON c.id=f.chunk_id JOIN evidence e ON e.id=c.document_id
         LEFT JOIN workspace_objects w ON w.kind='evidence_review' AND w.user_id=e.user_id AND w.natural_key=e.id
         WHERE evidence_fts MATCH ? AND c.user_id=? AND e.user_id=?
+        AND (coalesce(json_extract(w.payload,'$.company'),'')!='' OR json_extract(w.payload,'$.global_scope')=1)
         AND coalesce(json_extract(w.payload,'$.status'),'unreviewed')!='rejected'
         AND (json_extract(w.payload,'$.expires_at') IS NULL OR json_extract(w.payload,'$.expires_at')>=?)
         AND (?='' OR coalesce(json_extract(w.payload,'$.company'),'') IN ('',?))

@@ -11,9 +11,9 @@ import { api, workspace, setCsrf, invalidateContext, invalidateView, ApiError } 
 import { state, routes, activeDataset, activeIdentity, scopedDatasets, roleNames } from './state.js';
 import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricNames, metricValue } from './components.js';
 import { briefPage, settingsPage, opsPage } from './pages.js';
-import { dataPage, datasetEditor, periodRow, financialFields, importForm, stageView, qualityPanel, evidencePage, evidenceForm, reviewEvidenceForm, memoryPage, memoryForm } from './views-data.js';
+import { dataPage, datasetEditor, periodRow, financialFields, importForm, stageView, qualityPanel, evidencePage, evidenceForm, reviewEvidenceForm, evidenceScope, evidenceMetadataForm, memoryPage, memoryForm } from './views-data.js';
 import { agentsPage, templateForm } from './views-studio.js';
-import { labPage, comparePage, comparisonOutput, reportsPage, reportCompareForm, actionsPage, actionForm, actionDetail } from './views-analysis.js';
+import { labPage, comparePage, comparisonOutput, reportsPage, reportCompareForm, actionsPage, actionForm, actionDetail, actionEditForm } from './views-analysis.js';
 const root = document.querySelector('#app');
 const modal = document.querySelector('#modal');
 const inspector = document.querySelector('#inspector');
@@ -86,21 +86,9 @@ function read(form) { const f = new FormData(form); const str = (k) => String(f.
     throw new Error('请填写有效数值：' + k); return n; }; return { f, str, val, check: (k) => f.has(k), list: (k) => f.getAll(k).map(String) }; }
 async function showStage(stage) { state.cache.stage = stage; dialog('保存前核对', stageView(stage), true); }
 function rawDataset(d) { const p = { ...d }; delete p.verification; delete p.input_amount_unit; return p; }
-async function createEvidence(data, company) { const result = await api('/evidence', 'POST', data); if (company) {
-    const all = await workspace('/evidence');
-    const old = all.items.find((v) => v.id === result.id);
-    if (old?.review.company && old.review.company !== company) {
-        toast('相同原文已存在，保留原有企业范围。请到资料审阅中核对。', true);
-    }
-    else if (old?.review.company !== company) {
-        try {
-            await workspace('/evidence/' + result.id + '/review', 'PUT', { ...old.review, company, version: old.review_version });
-        }
-        catch {
-            throw new Error('原始资料已保存，但企业范围未更新。请前往证据资料审阅，勿重复上传。');
-        }
-    }
-} return result; }
+async function createEvidence(data, company, global_scope = false) { if (!company && !global_scope)
+    throw new Error('请填写所属企业，或明确选择通用资料。'); const result = await api('/evidence', 'POST', { ...data, company, global_scope }); if (result.deduplicated)
+    toast(result.notice, true); return result; }
 async function ask(query) { await sendCopilot(query); }
 // All writes share a visible error boundary. Network failures are never automatically retried.
 document.addEventListener('submit', async (event) => {
@@ -164,16 +152,36 @@ document.addEventListener('submit', async (event) => {
                 await showStage(await workspace('/imports/preview', 'POST', req));
                 break;
             }
-            case 'import-file-form':
+            case 'import-file-form': {
+                const target = state.datasets.find(d => d.id === str('target_id'));
+                if (str('target_id') && !target)
+                    throw new Error('目标数据集已不可用，请刷新后重试');
+                const versions = JSON.parse(form.dataset.targetVersions ?? '{}');
+                if (target && !versions[target.id])
+                    throw new Error('目标版本缺失，请重新打开导入窗口');
+                f.set('target_version', String(target ? versions[target.id] : 0));
+                if (!target)
+                    f.set('merge_mode', 'replace');
                 state.cache.editorDraft = null;
                 await showStage(await workspace('/imports/file', 'POST', f));
                 break;
+            }
             case 'evidence-form':
-                await createEvidence({ title: str('title'), source_url: str('source_url'), published_at: str('published_at') || null, text: str('text') }, str('company'));
+                await createEvidence({ title: str('title'), source_url: str('source_url'), published_at: str('published_at') || null, text: str('text') }, str('company'), check('global_scope'));
                 changed = true;
                 break;
+            case 'evidence-metadata-form':
+                await api('/evidence/' + form.dataset.id + '/metadata', 'PUT', { title: str('title'), source_url: str('source_url'), published_at: str('published_at') || null, version: Number(form.dataset.version) });
+                changed = true;
+                break;
+            case 'search-evidence-form': {
+                const r = state.cache.searchCapture;
+                await createEvidence({ title: r.title, source_url: r.source_url, text: r.text, published_at: null, search_receipt: r.search_receipt, retrieved_at: r.retrieved_at }, str('company'), check('global_scope'));
+                changed = true;
+                break;
+            }
             case 'evidence-review-form':
-                await workspace('/evidence/' + form.dataset.id + '/review', 'PUT', { version: Number(form.dataset.version), company: str('company'), expires_at: str('expires_at') || null, status: str('status'), stance: str('stance'), tags: split(str('tags')), note: str('note') });
+                await workspace('/evidence/' + form.dataset.id + '/review', 'PUT', { version: Number(form.dataset.version), company: str('company'), global_scope: check('global_scope'), expires_at: str('expires_at') || null, status: str('status'), stance: str('stance'), tags: split(str('tags')), note: str('note') });
                 changed = true;
                 break;
             case 'evidence-search': {
@@ -182,13 +190,21 @@ document.addEventListener('submit', async (event) => {
                 break;
             }
             case 'document-form': {
+                if (!str('company') && !check('global_scope'))
+                    throw new Error('请填写所属企业，或明确选择通用资料。');
                 const r = await api('/evidence/import', 'POST', f);
-                toast('文档已保存，请审阅企业范围与适用边界。');
+                toast(r.notice ?? '文档已保存，请审阅企业范围与适用边界。', !!r.deduplicated);
                 changed = true;
                 break;
             }
             case 'fetch-evidence-form':
-                await api('/evidence/fetch', 'POST', { url: str('url'), title: str('title'), published_at: str('published_at') || null });
+                {
+                    if (!str('company') && !check('global_scope'))
+                        throw new Error('请填写所属企业，或明确选择通用资料。');
+                    const r = await api('/evidence/fetch', 'POST', { url: str('url'), title: str('title'), published_at: str('published_at') || null, company: str('company'), global_scope: check('global_scope') });
+                    if (r.deduplicated)
+                        toast(r.notice, true);
+                }
                 changed = true;
                 break;
             case 'public-search-form': {
@@ -208,7 +224,7 @@ document.addEventListener('submit', async (event) => {
                 break;
             }
             case 'plan-form': {
-                const execution = { depth: str('depth') || 'balanced', parallelism: val('parallelism'), model_planning: check('model_planning') && check('use_llm'), local_recovery: check('local_recovery'), max_revisions: val('max_revisions'), total_context_chars: val('total_context_chars'), forecast: check('forecast'), forecast_metric: str('forecast_metric') || 'revenue', horizon: Number(str('forecast_horizon') || 2), role_providers: Object.fromEntries(['analyst', 'researcher', 'challenger', 'planner', 'revision'].map(k => [k, str('route_' + k)]).filter(([, v]) => v)), fallback_providers: str('fallback_provider') ? [str('fallback_provider')] : [] };
+                const execution = { depth: str('depth') || null, parallelism: val('parallelism'), model_planning: check('model_planning') && check('use_llm'), local_recovery: check('local_recovery'), max_revisions: val('max_revisions'), total_context_chars: val('total_context_chars'), forecast: check('forecast'), forecast_metric: str('forecast_metric') || 'revenue', horizon: Number(str('forecast_horizon') || 2), role_providers: Object.fromEntries(['analyst', 'researcher', 'challenger', 'planner', 'revision'].map(k => [k, str('route_' + k)]).filter(([, v]) => v)), fallback_providers: str('fallback_provider') ? [str('fallback_provider')] : [] };
                 if (check('with_scenario')) {
                     if (str('scenario_note').length < 5)
                         throw new Error('启用情景需说明至少5个字符的假设依据');
@@ -231,7 +247,11 @@ document.addEventListener('submit', async (event) => {
                 changed = true;
                 break;
             case 'experiment-form': {
-                const payload = { dataset_id: str('dataset_id'), name: str('name'), kind: str('kind'), price_change: val('price_change') / 100, cost_change: val('cost_change') / 100, volume_change: val('volume_change') / 100, fixed_cost_share: val('fixed_cost_share') / 100, metric: str('metric'), horizon: val('horizon'), assumptions: str('assumptions') };
+                const payload = { dataset_id: str('dataset_id'), name: str('name'), kind: str('kind'), assumptions: str('assumptions') };
+                if (payload.kind === 'scenario')
+                    Object.assign(payload, { price_change: val('price_change') / 100, cost_change: val('cost_change') / 100, volume_change: val('volume_change') / 100, fixed_cost_share: val('fixed_cost_share') / 100 });
+                else
+                    Object.assign(payload, { metric: str('metric'), horizon: val('horizon') });
                 const r = await workspace('/experiments', 'POST', payload);
                 navigate('lab:' + r.id, true);
                 break;
@@ -252,11 +272,15 @@ document.addEventListener('submit', async (event) => {
                 break;
             }
             case 'action-form':
-                await workspace('/actions', 'POST', { title: str('title'), company: str('company'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), source_key: form.dataset.sourceKey ?? '', run_id: form.dataset.runId ?? '', dataset_id: form.dataset.datasetId ?? '' });
+                await workspace('/actions', 'POST', { identity_id: form.dataset.identityId ?? '', title: str('title'), company: str('company'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), source_key: form.dataset.sourceKey ?? '', run_id: form.dataset.runId ?? '', dataset_id: form.dataset.datasetId ?? '' });
+                changed = true;
+                break;
+            case 'action-edit-form':
+                await workspace('/actions/' + form.dataset.id, 'PUT', { version: Number(form.dataset.version), title: str('title'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), note: str('note') });
                 changed = true;
                 break;
             case 'action-transition-form':
-                await workspace('/actions/' + form.dataset.id + '/status', 'PUT', { version: Number(form.dataset.version), status: str('status'), note: str('note'), evidence_ids: split(str('evidence_ids')) });
+                await workspace('/actions/' + form.dataset.id + '/status', 'PUT', { version: Number(form.dataset.version), status: str('status'), note: str('note'), evidence_ids: list('evidence_ids') });
                 changed = true;
                 break;
             case 'preferences-form': {
@@ -335,7 +359,7 @@ document.addEventListener('click', async (event) => {
         return;
     el.dataset.pending = 'true';
     el.setAttribute('aria-busy', 'true');
-    if (['data-quality', 'data-lineage', 'data-revisions', 'assessment-dialog', 'node-details', 'archive-dialog'].includes(act ?? ''))
+    if (['data-quality', 'data-lineage', 'data-revisions', 'assessment-dialog', 'node-details', 'archive-dialog', 'action-detail'].includes(act ?? ''))
         invalidateInteractions();
     const valid = interactionGuard();
     try {
@@ -504,9 +528,12 @@ document.addEventListener('click', async (event) => {
             case 'review-evidence':
                 dialog('审阅与适用范围', reviewEvidenceForm(state.cache.evidence.find((d) => d.id === id)), true);
                 break;
+            case 'edit-evidence-metadata':
+                dialog('编辑资料元数据', evidenceMetadataForm(state.cache.evidence.find((d) => d.id === id)), true);
+                break;
             case 'evidence-detail': {
                 const d = state.cache.evidence.find((v) => v.id === id);
-                inspect(d.payload.title, `<p class="micro">资料 ID：<code>${esc(d.id)}</code></p><p class="micro">内容 SHA-256：${esc(d.content_hash)}</p><p>${esc(d.payload.source_url || '未提供来源链接')}</p>${status(d.review.status)}<pre class="source-text">${esc(d.payload.text)}</pre>${button('审阅此资料', 'review-evidence', 'primary', `data-id="${id}"`)}`);
+                inspect(d.payload.title, `<p class="micro">资料 ID：<code>${esc(d.id)}</code></p><p class="micro">内容 SHA-256：${esc(d.content_hash)}</p><p>${esc(d.payload.source_url || '未提供来源链接')}</p><p class="micro">来源类型：${esc(d.payload.source_kind)} · 核验状态：${esc(d.payload.verification)}<br>原始获取地址：${esc(d.payload.original_source_url ?? d.payload.source_url ?? '未提供')}<br>获取时间：${esc(d.payload.retrieved_at ?? d.payload.fetched_at ?? '未记录')}</p>${button('编辑元数据', 'edit-evidence-metadata', 'secondary', `data-id="${id}"`)}${status(d.review.status)}<pre class="source-text">${esc(d.payload.text)}</pre>${button('审阅此资料', 'review-evidence', 'primary', `data-id="${id}"`)}`);
                 break;
             }
             case 'delete-evidence':
@@ -516,16 +543,15 @@ document.addEventListener('click', async (event) => {
                 await render();
                 break;
             case 'document-dialog':
-                dialog('上传原始文档', `<form id="document-form" class="stack">${field('标题', input('title', '', 'required'))}<label class="upload-box">${icon('upload')}<strong>选择文本资料</strong><span>TXT / MD${state.caps.pdf.enabled ? ' / 文本型 PDF' : ''} · 最大 2 MB</span><input type="file" name="file" accept=".txt,.md${state.caps.pdf.enabled ? ',.pdf' : ''}" required></label>${state.caps.pdf.enabled ? '' : notice('当前 PDF 解析依赖未通过版本门禁。请使用 TXT / MD；不静默调用外部 OCR。', 'warm')}${formFooter('解析并保存')}</form>`);
+                dialog('上传原始文档', `<form id="document-form" class="stack">${field('标题', input('title', '', 'required maxlength="200"'))}${evidenceScope()}${field('来源地址', input('source_url', '', 'type="url"'))}${field('发布日期', input('published_at', '', 'type="date"'))}<label class="upload-box">${icon('upload')}<strong>选择文本资料</strong><span>TXT / MD${state.caps.pdf.enabled ? ' / 文本型 PDF' : ''} · 最大 2 MB</span><input type="file" name="file" accept=".txt,.md${state.caps.pdf.enabled ? ',.pdf' : ''}" required></label>${state.caps.pdf.enabled ? '' : notice('当前 PDF 解析依赖未通过版本门禁。请使用 TXT / MD；不静默调用外部 OCR。', 'warm')}${formFooter('解析并保存')}</form>`);
                 break;
             case 'public-search-dialog':
-                dialog('公开资料检索', `<form id="public-search-form" class="stack">${field('检索内容', input('query', activeDataset()?.payload.company ?? '', 'required minlength="2" maxlength="500"'))}<label class="check-label consent"><input type="checkbox" name="consent" required>同意将此查询词发送给已配置的公开搜索服务，不发送财务表和记忆。</label>${formFooter('发起公开检索')}</form><div id="public-search-results"></div><details><summary>按已知公开 URL 获取原文</summary><form id="fetch-evidence-form" class="stack">${field('标题', input('title', '', 'required'))}${field('白名单来源 URL', input('url', '', 'required type="url" placeholder="https://…"'))}${field('发布日期', input('published_at', '', 'type="date"'))}${formFooter('获取公开原文')}</form></details>`, true);
+                dialog('公开资料检索', `<form id="public-search-form" class="stack">${field('检索内容', input('query', activeDataset()?.payload.company ?? '', 'required minlength="2" maxlength="500"'))}<label class="check-label consent"><input type="checkbox" name="consent" required>同意将此查询词发送给已配置的公开搜索服务，不发送财务表和记忆。</label>${formFooter('发起公开检索')}</form><div id="public-search-results"></div><details><summary>按已知公开 URL 获取原文</summary><form id="fetch-evidence-form" class="stack">${field('标题', input('title', '', 'required'))}${field('白名单来源 URL', input('url', '', 'required type="url" placeholder="https://…"'))}${field('发布日期', input('published_at', '', 'type="date"'))}${evidenceScope()}${formFooter('获取公开原文')}</form></details>`, true);
                 break;
             case 'save-search-result': {
                 const r = state.cache.search.items[Number(el.dataset.index)];
-                await createEvidence({ title: r.title, source_url: r.source_url, text: r.text, published_at: null }, activeDataset()?.payload.company ?? '');
-                el.setAttribute('disabled', '');
-                el.textContent = '已保存，待审阅';
+                state.cache.searchCapture = r;
+                dialog('保存搜索摘要', `<form id="search-evidence-form" class="stack"><h3>${esc(r.title)}</h3>${notice('保存的是未经核验的搜索摘要，来源标签和获取时间将保留。')}${evidenceScope()}${formFooter('保存到证据库')}</form>`);
                 break;
             }
             case 'memory-dialog':
@@ -590,6 +616,14 @@ document.addEventListener('click', async (event) => {
                 if (!valid())
                     break;
                 dialog('报告验收与回放授权', assessmentForm(r.item));
+                break;
+            }
+            case 'delete-strategy':
+            case 'delete-evaluation': {
+                if (!confirm('清理此候选或回放记录？清理后不可恢复，历史报告保持不变；当前策略和回滚链不能清理。'))
+                    return;
+                await workspace((act === 'delete-strategy' ? '/strategies/' : '/strategy-evaluations/') + id + '?version=' + el.dataset.version, 'DELETE');
+                await render();
                 break;
             }
             case 'strategy-propose':
@@ -690,9 +724,23 @@ document.addEventListener('click', async (event) => {
                 dialog('从诊断报告创建行动', actionForm({ run_id: r.id, dataset_id: r.dataset_id, company: r.snapshot.dataset.company, title: '跟进：' + r.payload.query.slice(0, 100), message: r.result.findings.join('\n') }));
                 break;
             }
-            case 'action-detail':
-                inspect('行动与验收', actionDetail(state.cache.actions.find((a) => a.id === id)));
+            case 'action-detail': {
+                const a = state.cache.actions.find((a) => a.id === id);
+                const docs = await workspace('/evidence');
+                if (!valid())
+                    break;
+                inspect('行动与验收', actionDetail(a, docs.items));
                 break;
+            }
+            case 'action-edit': {
+                if (!safeToLeave())
+                    break;
+                state.dirty = false;
+                const a = state.cache.actions.find((a) => a.id === id);
+                inspector.close();
+                dialog('编辑跟进行动', actionEditForm(a));
+                break;
+            }
             case 'insight-action':
                 dialog('把核查项转为行动', actionForm(state.cache.insights.find((i) => i.key === id)));
                 break;
@@ -782,8 +830,11 @@ document.addEventListener('change', async (event) => { const el = event.target; 
             e.hidden = !el.checked;
     }
     if (el.id === 'experiment-kind') {
-        document.querySelector('#scenario-fields').hidden = el.value !== 'scenario';
-        document.querySelector('#forecast-fields').hidden = el.value !== 'forecast';
+        for (const kind of ['scenario', 'forecast']) {
+            const fields = document.querySelector('#' + kind + '-fields');
+            fields.hidden = el.value !== kind;
+            fields.disabled = el.value !== kind;
+        }
     }
 }
 catch (e) {

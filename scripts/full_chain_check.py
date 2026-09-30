@@ -109,8 +109,9 @@ def main():
             assert d.get('id'),commit
             assert other.get('/api/datasets/'+d['id']).status_code==404
             record('multipart实际解析→暂存预览→明确事务提交→企业跨账户隔离')
-            e=require(c.post('/api/evidence',json={'title':'全链路合成验收资料','text':'此为验收用合成资料，并非真实财务信息。毛利变化与现金回流需要原始报表核验。'*15}),201)
-            require(c.put('/api/workspace/evidence/'+e['id']+'/review',json={'version':0,'company':d['payload']['company'],'status':'accepted','stance':'contradicts','note':'合成资料用于验证引用链，不能认作真实财报'}))
+            e=require(c.post('/api/evidence',json={'company':d['payload']['company'],'title':'全链路合成验收资料','text':'此为验收用合成资料，并非真实财务信息。毛利变化与现金回流需要原始报表核验。'*15}),201)
+            evidence_review=next(row for row in require(c.get('/api/workspace/evidence'))['items'] if row['id']==e['id'])
+            require(c.put('/api/workspace/evidence/'+e['id']+'/review',json={'version':evidence_review['review_version'],'company':d['payload']['company'],'status':'accepted','stance':'contradicts','note':'合成资料用于验证引用链，不能认作真实财报'}))
             m=require(c.post('/api/memories',json={'text':'优先列出反证与不足，不填充缺失值','approved':True,'company':d['payload']['company']}),201)
             assert require(c.get('/api/workspace/retrieval',params={'q':'毛利现金回流','company':d['payload']['company']}))['items']
             record('证据范围、反向标签、批准记忆与真实全文检索联动')

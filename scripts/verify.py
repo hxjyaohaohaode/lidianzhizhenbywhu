@@ -22,7 +22,7 @@ def main():
     out=ROOT/'evidence';out.mkdir(exist_ok=True);tsc=a.tsc or str(ROOT/'node_modules/typescript/bin/tsc')
     tc=['node',tsc,'--noEmit','-p','tsconfig.json'] if Path(tsc).is_file() else ['tsc','--noEmit','-p','tsconfig.json']
     build=[x for x in tc if x!='--noEmit']
-    commands=[('python-compile',[sys.executable,'-m','compileall','-q','server','scripts']),('typecheck',tc),('build',build),('pytest',[sys.executable,'-m','pytest','-q','--junitxml=evidence/pytest.xml']),('frontend-tests',['node','--test','tests/frontend.test.mjs','tests/services.frontend.test.mjs']),('source-guard',[sys.executable,'scripts/source_guard.py'])];results=[]
+    commands=[('python-compile',[sys.executable,'-m','compileall','-q','server','scripts']),('typecheck',tc),('build',build),('pytest',[sys.executable,'-m','pytest','-q','--junitxml=evidence/pytest.xml']),('frontend-tests',['node','--test',*sorted(str(path.relative_to(ROOT)) for path in (ROOT/'tests').glob('*.test.mjs'))]),('source-guard',[sys.executable,'scripts/source_guard.py'])];results=[]
     if a.full_chain:commands.append(('full-chain-http',[sys.executable,'scripts/full_chain_check.py']))
     for name,cmd in commands:
         t=time.monotonic()

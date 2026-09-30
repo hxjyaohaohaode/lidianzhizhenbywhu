@@ -19,9 +19,9 @@ def evidence_catalog(store,user):
     out=[]
     for row in rows:
         rv=reviews.get(row['id']);review=rv['payload'] if rv else {'status':'unreviewed','company':'','tags':[],'stance':'context','note':'','expires_at':None}
-        eligible=review['status']!='rejected' and not (review.get('expires_at') and review['expires_at']<today)
+        eligible=bool(review.get('company') or review.get('global_scope')) and review['status']!='rejected' and not (review.get('expires_at') and review['expires_at']<today)
         out.append({**row,'review':review,'review_version':rv['version'] if rv else 0,
-            'eligible':eligible,'excluded_reason': 'rejected' if review['status']=='rejected' else 'expired' if not eligible else None})
+            'eligible':eligible,'excluded_reason': 'scope_unset' if not (review.get('company') or review.get('global_scope')) else 'rejected' if review['status']=='rejected' else 'expired' if not eligible else None})
     return out
 
 

@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import date,datetime,timezone
+from typing import Literal
 from .connections import scoped_providers
 from fastapi import APIRouter,Request,Depends,UploadFile,File,Form,Query
 from fastapi.responses import Response
 from .security import require_user,fail,check_version
 from .schemas import Dataset
-from .contracts import (CompanyProfile,PlanDraft,PlanConsent,EvidenceReview,ActionCreate,ActionTransition,
+from .contracts import (CompanyProfile,PlanDraft,PlanConsent,EvidenceReview,ActionCreate,ActionEdit,ActionTransition,
     ExperimentRequest,ImportPreview,RevisionRestore,ClaimReview,TaskTemplate,AssistantRequest,StageCommit,DismissInsight)
 from .store import encode,digest,uid,now
 from .models import normalize,calculate
@@ -17,6 +18,7 @@ from .imports import import_dataset
 from .intelligence import build_insights,evidence_catalog,assistant_answer,profile_for,scoped_retrieve
 from .studio import AGENTS,build_plan,dispatch_plan
 from . import workspace_store as ws
+from .identities import workspace_scope, scope_sql
 
 router=APIRouter(prefix='/api/workspace',tags=['Workspace'])
 
@@ -31,20 +33,27 @@ def owned(store,user,table,id):
 
 
 @router.get('/brief')
-def brief(request:Request,user=Depends(require_user)):
-    store=dbof(request);datasets=store.items('datasets',user['id']);cards=[]
+def brief(request:Request,identity_id:str|None=Query(None,max_length=80),dataset_id:str=Query('',max_length=80),user=Depends(require_user)):
+    store=dbof(request);datasets,scope=workspace_scope(store,user['id'],identity_id,dataset_id);cards=[]
     for row in datasets:
         data=row['payload'];analysis=calculate(data)
         cards.append({'id':row['id'],'company':data['company'],'name':data['name'],'version':row['version'],
             'source_kind':data['source_kind'],'updated_at':row['updated_at'],'period':analysis['current_period'],
             'metrics':analysis['metrics'],'revenue':data['periods'][-1]['revenue'],
             'quality':quality_report(data),'profile':profile_for(store,user['id'],data['company'])})
-    runs=store.all('SELECT id,dataset_id,state,created_at,updated_at,error,json_object(\'query\',json_extract(payload,\'$.query\')) AS payload FROM runs WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 10',(user['id'],))
+    filters,args=scope_sql(scope,'dataset_id',"json_extract(snapshot,'$.identity.id')")
+    runs=store.all("SELECT id,dataset_id,state,created_at,updated_at,error,json_object('query',json_extract(payload,'$.query')) AS payload FROM runs WHERE user_id=?"+filters+" ORDER BY created_at DESC,id DESC LIMIT 10",(user['id'],*args))
     actions=ws.objects(store,user['id'],'action',1000)
-    return {'datasets':cards,'insights':build_insights(store,user['id'],datasets),'runs':runs,
-        'counts':{'datasets':len(datasets),'evidence':store.one('SELECT count(*) AS n FROM evidence WHERE user_id=?',(user['id'],))['n'],
+    companies={row['payload']['company'] for row in datasets}
+    if scope['mode']=='identity':actions=[a for a in actions if a['payload'].get('identity_id','')==identity_id]
+    if scope['mode']=='identity' or dataset_id:
+        actions=[a for a in actions if a['payload'].get('dataset_id') in scope['dataset_ids'] or (not a['payload'].get('dataset_id') and (a['payload'].get('company') in companies or (not dataset_id and not a['payload'].get('company'))))]
+    docs=evidence_catalog(store,user['id'])
+    if scope['mode']=='identity' or dataset_id:docs=[d for d in docs if d['eligible'] and (not d['review'].get('company') or d['review']['company'] in companies)]
+    return {'datasets':cards,'scope':scope,'insights':build_insights(store,user['id'],datasets),'runs':runs,
+        'counts':{'datasets':len(datasets),'evidence':len(docs),
             'actions_open':sum(a['payload']['status'] not in ('done','dismissed') for a in actions),
-            'reports':store.one('SELECT count(*) AS n FROM runs WHERE user_id=? AND result IS NOT NULL',(user['id'],))['n']},
+            'reports':store.one('SELECT count(*) AS n FROM runs WHERE user_id=? AND result IS NOT NULL'+filters,(user['id'],*args))['n']},
         'runtime':{'external_automation':False,'storage':'local_transactional','time':now()}}
 
 
@@ -74,11 +83,13 @@ def plan_create(body:PlanDraft,request:Request,user=Depends(require_user)):
 
 
 @router.get('/plans')
-def plans(request:Request,user=Depends(require_user)):
-    rows=ws.objects(dbof(request),user['id'],'plan',1000)
-    # Do not resend all historical snapshots to list the last 100 plans.
+def plans(request:Request,identity_id:str|None=Query(None,max_length=80),dataset_id:str=Query('',max_length=80),user=Depends(require_user)):
+    store=dbof(request);_,scope=workspace_scope(store,user['id'],identity_id,dataset_id)
+    filters,args=scope_sql(scope,"json_extract(payload,'$.request.dataset_id')","json_extract(payload,'$.request.identity_id')")
+    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='plan'"+filters+" ORDER BY updated_at DESC,id LIMIT 101",(user['id'],*args))
+    total=store.one("SELECT count(*) AS n FROM workspace_objects WHERE user_id=? AND kind='plan'"+filters,(user['id'],*args))['n']
     return {'items':[{k:v for k,v in row.items() if k!='payload'} | {'payload':{k:row['payload'][k] for k in ('status','request','max_calls','blockers','run_id','created_at')}} for row in rows[:100]],
-        'total':len(rows),'has_more':len(rows)>100}
+        'total':total,'has_more':total>100,'scope':scope}
 
 
 @router.get('/plans/{id}')
@@ -159,7 +170,7 @@ def restore_revision(id:str,body:RevisionRestore,request:Request,user=Depends(re
     return row
 
 
-def stage(store,user,body):
+def stage(store,user,body,*,merge_mode='replace',import_context=None):
     raw=body.dataset.model_dump(mode='json')
     if raw['source_kind']=='sample':fail('SAMPLE_DISABLED','工作区不接收合成演示业务数据',422)
     if body.basis=='year_to_date':raw=from_cumulative(raw)
@@ -168,9 +179,25 @@ def stage(store,user,body):
         old=owned(store,user,'datasets',body.target_id)
         if old['version']!=body.target_version:fail('VERSION_CONFLICT','目标数据已更新',409)
         if old['payload']['company']!=data['company']:fail('COMPANY_MISMATCH','不能在修订中更换企业身份，请创建新数据集',409)
+    if import_context is not None:
+        before={p['period'] for p in old['payload']['periods']} if old else set()
+        incoming={p['period'] for p in data['periods']}
+        if old:
+            # Reimport revises financial rows, not the established dataset's identity/source metadata.
+            data={**old['payload'], 'periods':data['periods']}
+            if merge_mode=='merge':
+                combined={p['period']:p for p in old['payload']['periods']}
+                combined.update({p['period']:p for p in data['periods']})
+                data['periods']=sorted(combined.values(),key=lambda p:p['period'])
+            Dataset.model_validate({k:v for k,v in data.items() if k in Dataset.model_fields})
+        import_context={**import_context,'mode':merge_mode if old else 'new',
+            'added':sorted(incoming-before),'replaced':sorted(incoming & before),
+            'retained':sorted(before-incoming) if merge_mode=='merge' else [],
+            'removed':sorted(before-incoming) if merge_mode=='replace' else []}
     p={'status':'preview','dataset':data,'basis':body.basis,'target_id':body.target_id,
         'target_version':body.target_version,'quality':quality_report(data),
         'diff':dataset_diff(old['payload'],data) if old else [],'created_at':now()}
+    if import_context is not None:p['import_context']=import_context
     p['fingerprint']=digest(p)
     with store.transaction() as db:return ws.save(store,db,user['id'],'import_stage',p)
 
@@ -182,10 +209,18 @@ def import_preview(body:ImportPreview,request:Request,user=Depends(require_user)
 
 @router.post('/imports/file',status_code=201)
 async def import_file(request:Request,file:UploadFile=File(...),company:str=Form(...,min_length=1,max_length=200),
-    amount_unit:str=Form('yuan'),basis:str=Form('standalone_quarter'),user=Depends(require_user)):
+    amount_unit:Literal['yuan','wan','yi']=Form('yuan'),
+    basis:Literal['standalone_quarter','year_to_date']=Form('standalone_quarter'),
+    target_id:str=Form('',max_length=80),target_version:int=Form(0,ge=0),
+    merge_mode:Literal['replace','merge']=Form('replace'),user=Depends(require_user)):
+    if bool(target_id)!=bool(target_version):fail('INVALID_TARGET','修订必须同时指定数据集和当前版本',422)
+    if not target_id and merge_mode=='merge':fail('INVALID_TARGET','合并季度必须选择已有数据集',422)
+    report=[]
     raw=await file.read(2_000_001)
-    parsed=await asyncio.to_thread(import_dataset,file.filename or '',raw,company,amount_unit)
-    return stage(dbof(request),user,ImportPreview(dataset=parsed,basis=basis))
+    parsed=await asyncio.to_thread(import_dataset,file.filename or '',raw,company,amount_unit,report)
+    return stage(dbof(request),user,ImportPreview(dataset=parsed,basis=basis,target_id=target_id,target_version=target_version),
+        merge_mode=merge_mode,import_context={'filename':file.filename or '', 'normalizations':report,
+            'input_amount_unit':parsed.amount_unit,'input_basis':basis})
 
 
 @router.post('/imports/{id}/commit',status_code=201)
@@ -236,19 +271,41 @@ def actions(request:Request,user=Depends(require_user)):
 
 @router.post('/actions',status_code=201)
 def action_add(body:ActionCreate,request:Request,user=Depends(require_user)):
+    from .identities import resolve_identity
     store=dbof(request)
     with store.transaction() as db:
-        if body.dataset_id:
-            d=owned(store,user,'datasets',body.dataset_id)
-            if body.company and body.company!=d['payload']['company']:fail('COMPANY_MISMATCH','行动与数据企业不一致',409)
+        payload=body.model_dump(mode='json')
         if body.run_id:
             r=owned(store,user,'runs',body.run_id)
             if body.dataset_id and r['dataset_id']!=body.dataset_id:fail('DATASET_MISMATCH','行动与运行的数据不一致',409)
-        key='insight:'+body.source_key if body.source_key else uid()
+            payload['dataset_id']=r['dataset_id']
+        if payload['dataset_id']:
+            d=owned(store,user,'datasets',payload['dataset_id'])
+            if body.company and body.company!=d['payload']['company']:fail('COMPANY_MISMATCH','行动与数据企业不一致',409)
+            payload['company']=d['payload']['company']
+        resolve_identity(store,user['id'],body.identity_id,payload['dataset_id'])
+        key=('insight:'+(digest({'source_key':body.source_key,'identity_id':body.identity_id}) if body.identity_id else body.source_key)) if body.source_key else uid()
         existing=ws.keyed(store,user['id'],'action',key)
         if existing:return existing
-        payload={**body.model_dump(mode='json'),'status':'open','history':[{'at':now(),'status':'open','note':'用户创建','evidence_ids':[]}]}
+        payload={**payload,'origin':dict(payload),'origin_kind':'created','changes':[],'status':'open','history':[{'at':now(),'status':'open','note':'用户创建','evidence_ids':[]}]}
         return ws.save(store,db,user['id'],'action',payload,key=key)
+
+
+@router.put('/actions/{id}')
+def action_edit(id:str,body:ActionEdit,request:Request,user=Depends(require_user)):
+    store=dbof(request)
+    with store.transaction() as db:
+        row=ws.get(store,user['id'],'action',id);p=row['payload']
+        check_version(row,body.version)
+        if p['status']=='done':fail('ACTION_ACCEPTED','已验收行动请先重新打开，再修改内容',409)
+        values=body.model_dump(mode='json',exclude={'version','note'})
+        changes={k:{'before':p.get(k),'after':v} for k,v in values.items() if p.get(k)!=v}
+        if not changes:fail('ACTION_UNCHANGED','没有内容变化，未新增历史记录',409)
+        prior=p.get('changes',[])
+        if len(prior)>=100:fail('ACTION_CHANGE_LIMIT','行动修改记录达到上限，请另建跟进行动；已有记录保留',409)
+        origin=p.get('origin') or {k:v for k,v in p.items() if k not in {'history','changes','status'}}
+        record={'at':now(),'actor_id':user['id'],'version':row['version']+1,'note':body.note,'fields':changes}
+        return ws.save(store,db,user['id'],'action',{**p,**values,'origin':origin,'origin_kind':p.get('origin_kind','before_first_edit'),'changes':prior+[record]},key=row['natural_key'],expected=body.version)
 
 
 @router.put('/actions/{id}/status')
@@ -258,8 +315,15 @@ def action_transition(id:str,body:ActionTransition,request:Request,user=Depends(
         'blocked':{'in_progress','dismissed'},'done':{'open'},'dismissed':{'open'}}
     with store.transaction() as db:
         row=ws.get(store,user['id'],'action',id);p=row['payload']
+        check_version(row,body.version)
         if body.status not in allowed[p['status']]:fail('STATE_TRANSITION','该状态不能直接转换到目标状态',409)
         for eid in body.evidence_ids:owned(store,user,'evidence',eid)
+        if body.evidence_ids:
+            catalog={e['id']:e for e in evidence_catalog(store,user['id'])}
+            for eid in body.evidence_ids:
+                evidence=catalog.get(eid)
+                if not evidence or not evidence['eligible'] or evidence['review'].get('company') not in ('',p.get('company','')):
+                    fail('ACTION_EVIDENCE_SCOPE','关联证据已失效、被排除或不属于该企业，请重新选择',409)
         if len(p['history'])>=100:fail('ACTION_HISTORY_LIMIT','行动状态记录达到上限，请另建跟进行动',409)
         history=p['history']+[{'at':now(),'status':body.status,'note':body.note,'evidence_ids':body.evidence_ids}]
         return ws.save(store,db,user['id'],'action',{**p,'status':body.status,'history':history},key=row['natural_key'],expected=body.version)
@@ -287,9 +351,11 @@ def experiment_add(body:ExperimentRequest,request:Request,user=Depends(require_u
 
 
 @router.get('/experiments')
-def experiments(request:Request,user=Depends(require_user)):
-    rows=ws.objects(dbof(request),user['id'],'experiment')
-    return {'items':[{**r,'payload':{k:v for k,v in r['payload'].items() if k not in ('snapshot','result')}} for r in rows]}
+def experiments(request:Request,identity_id:str|None=Query(None,max_length=80),dataset_id:str=Query('',max_length=80),user=Depends(require_user)):
+    store=dbof(request);_,scope=workspace_scope(store,user['id'],identity_id,dataset_id)
+    filters,args=scope_sql(scope,"json_extract(payload,'$.dataset_id')")
+    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='experiment'"+filters+" ORDER BY updated_at DESC,id LIMIT 201",(user['id'],*args))
+    return {'items':[{**r,'payload':{k:v for k,v in r['payload'].items() if k not in ('snapshot','result')}} for r in rows[:200]],'has_more':len(rows)>200,'scope':scope,'sharing':'数学实验按企业数据范围共享，不伪装为独立身份私有资产'}
 
 
 @router.get('/experiments/{id}')
@@ -298,15 +364,17 @@ def experiment_get(id:str,request:Request,user=Depends(require_user)):
 
 
 @router.get('/reports')
-def reports(request:Request,user=Depends(require_user)):
-    store=dbof(request)
-    rows=store.all('''SELECT r.id,r.dataset_id,r.state,r.created_at,
+def reports(request:Request,identity_id:str|None=Query(None,max_length=80),dataset_id:str=Query('',max_length=80),user=Depends(require_user)):
+    store=dbof(request);_,scope=workspace_scope(store,user['id'],identity_id,dataset_id)
+    filters,args=scope_sql(scope,'r.dataset_id',"json_extract(r.snapshot,'$.identity.id')")
+    rows=store.all("""SELECT r.id,r.dataset_id,r.state,r.created_at,
         json_extract(r.result,'$.title') AS title,json_extract(r.result,'$.query') AS query,
         json_extract(r.result,'$.dataset_version') AS dataset_version,
         json_extract(r.result,'$.llm.state') AS llm_state,
+        COALESCE(json_extract(r.snapshot,'$.identity.id'),'') AS identity_id,
         d.version AS current_version FROM runs r JOIN datasets d ON d.id=r.dataset_id
-        WHERE r.user_id=? AND r.result IS NOT NULL ORDER BY r.created_at DESC,r.id LIMIT 200''',(user['id'],))
-    return {'items':[{**r,'stale':r['dataset_version']!=r['current_version']} for r in rows]}
+        WHERE r.user_id=? AND r.result IS NOT NULL"""+filters+" ORDER BY r.created_at DESC,r.id LIMIT 201",(user['id'],*args))
+    return {'items':[{**r,'stale':r['dataset_version']!=r['current_version']} for r in rows[:200]],'has_more':len(rows)>200,'scope':scope}
 
 
 @router.get('/runs/{id}/audit')

@@ -35,7 +35,7 @@ def test_full_workflow_seven_steps_and_export(actor):
     d=actor.dataset();s=actor.conversation();run=actor.execute(actor.run(d,s).json());assert run['state']=='succeeded',run
     result=run['result'];assert result['dataset_version']==1 and result['dataset_hash']==d['content_hash']
     assert result['llm']['state']=='not_requested' and result['llm']['calls']==[]
-    assert result['memory_used']==[] and result['quality']['source_kind']=='sample'
+    assert result['memory_used']==[] and result['quality']['source_kind']=='user_provided'
     events=actor.get('/runs/'+run['id']+'/trace').json()['items'];assert events[0]['type']=='queued'
     assert {e['payload']['node'] for e in events if e['type']=='step_completed'}=={s['id'] for s in STEPS}
     assert events[-1]['type']=='succeeded' and all(e['payload']['duration_ms']>=0 for e in events if e['type']=='step_completed')
@@ -140,7 +140,7 @@ def test_sse_resume_cursor(actor):
     assert ids==[e['seq'] for e in events if e['seq']>pivot] and 'event: end' in response.text
     assert actor.get(path+'/events',headers={'Last-Event-ID':'x'}).status_code==422
 def test_evidence_snapshot_survives_deletion(actor):
-    doc=actor.post('/evidence',json={'title':'毛利率说明','text':'毛利率下降与碳酸锂采购成本、营业成本变化有关，经营现金流需要审阅财报。'*10}).json();r=actor.run(query='毛利率和碳酸锂采购成本').json()
+    doc=actor.post('/evidence',json={'global_scope':True,'title':'毛利率说明','text':'毛利率下降与碳酸锂采购成本、营业成本变化有关，经营现金流需要审阅财报。'*10}).json();r=actor.run(query='毛利率和碳酸锂采购成本').json()
     assert r['snapshot']['citations'];actor.delete('/evidence/'+doc['id']+'?version='+str(doc['version']));run=actor.execute(r)
     assert run['result']['citations']==r['snapshot']['citations'] and actor.get('/retrieval?q=碳酸锂采购成本').json()['items']==[]
 def test_duplicate_worker_claim_only_executes_once(actor,client):
@@ -168,12 +168,12 @@ def test_sync_pagination_lossless(actor):
 def test_common_period_comparison_and_refusal(actor):
     a=actor.dataset();b=actor.dataset();p=editable(b);p['company']='乙企业';p['periods']=p['periods'][:-1];actor.put('/datasets/'+b['id'],json=p)
     r=actor.post('/compare',json={'dataset_ids':[a['id'],b['id']]});assert r.status_code==200 and r.json()['period']=='2026-Q2'
-    assert all(x['analysis']['current_period']=='2026-Q2' and x['source_kind']=='sample' for x in r.json()['items'])
+    assert all(x['analysis']['current_period']=='2026-Q2' and x['source_kind']=='user_provided' for x in r.json()['items'])
     p=editable(actor.get('/datasets/'+b['id']).json());p['periods']=[{'period':'2020-Q1','revenue':1.,'cost':1.}];actor.put('/datasets/'+b['id'],json=p)
     assert actor.post('/compare',json={'dataset_ids':[a['id'],b['id']]}).status_code==422
 def test_index_owner_delete_and_migration_backfill(actor,client,tmp_path):
     from server.retrieval import retrieve_indexed
-    db=client.app.state.store;ev=actor.post('/evidence',json={'title':'经营毛利率','text':'碳酸锂成本变化需要结合毛利率分析。'*200}).json();hits=actor.get('/retrieval?q=碳酸锂成本毛利率').json()['items']
+    db=client.app.state.store;ev=actor.post('/evidence',json={'global_scope':True,'title':'经营毛利率','text':'碳酸锂成本变化需要结合毛利率分析。'*200}).json();hits=actor.get('/retrieval?q=碳酸锂成本毛利率').json()['items']
     assert hits and all(x['document_id']==ev['id'] for x in hits)
     assert actor.get('/retrieval?q=%22%20OR%20owner%20NOT%20anything').status_code==200
     with db.transaction() as c:c.execute('DELETE FROM evidence_chunks');c.execute('DELETE FROM schema_version WHERE version=2')
@@ -200,7 +200,7 @@ def test_worker_concurrency_and_shutdown(factory):
     states=[a.get('/runs/'+id).json()['state'] for id in ids];assert states.count('running')<=2 and len(c.app.state.worker.active)<=2
     c.portal.call(c.app.state.worker.stop);assert all(a.get('/runs/'+id).json()['state']!='running' for id in ids)
 def test_task_submission_bounded_indexed_retrieval(actor,monkeypatch):
-    actor.post('/evidence',json={'title':'采购与现金流','text':'碳酸锂采购成本和经营现金流需要用锂电企业季度财报核对。'*20});store=actor.client.app.state.store;original=store.items
+    actor.post('/evidence',json={'global_scope':True,'title':'采购与现金流','text':'碳酸锂采购成本和经营现金流需要用锂电企业季度财报核对。'*20});store=actor.client.app.state.store;original=store.items
     def bounded(table,user,limit=200):
         assert table!='evidence','Submission must not load every full evidence document';return original(table,user,limit)
     monkeypatch.setattr(store,'items',bounded);r=actor.run(query='分析碳酸锂采购成本和现金流');assert r.status_code==202 and r.json()['snapshot']['citations']

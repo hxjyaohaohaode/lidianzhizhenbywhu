@@ -12,12 +12,52 @@
         ],
         "summary": "Brief",
         "operationId": "brief_api_workspace_brief_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -100,23 +140,6 @@
       }
     },
     "/api/workspace/plans": {
-      "get": {
-        "tags": [
-          "Workspace"
-        ],
-        "summary": "Plans",
-        "operationId": "plans_api_workspace_plans_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "Workspace"
@@ -124,17 +147,74 @@
         "summary": "Plan Create",
         "operationId": "plan_create_api_workspace_plans_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PlanDraft"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Plans",
+        "operationId": "plans_api_workspace_plans_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -902,6 +982,56 @@
         }
       }
     },
+    "/api/workspace/actions/{id}": {
+      "put": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Action Edit",
+        "operationId": "action_edit_api_workspace_actions__id__put",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspace/actions/{id}/status": {
       "put": {
         "tags": [
@@ -992,23 +1122,6 @@
       }
     },
     "/api/workspace/experiments": {
-      "get": {
-        "tags": [
-          "Workspace"
-        ],
-        "summary": "Experiments",
-        "operationId": "experiments_api_workspace_experiments_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "Workspace"
@@ -1016,17 +1129,74 @@
         "summary": "Experiment Add",
         "operationId": "experiment_add_api_workspace_experiments_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ExperimentRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Experiments",
+        "operationId": "experiments_api_workspace_experiments_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -1094,12 +1264,52 @@
         ],
         "summary": "Reports",
         "operationId": "reports_api_workspace_reports_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -1825,6 +2035,120 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspace/strategies/{id}": {
+      "delete": {
+        "tags": [
+          "Adaptive research"
+        ],
+        "summary": "Delete Strategy",
+        "operationId": "delete_strategy_api_workspace_strategies__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspace/strategy-evaluations/{id}": {
+      "delete": {
+        "tags": [
+          "Adaptive research"
+        ],
+        "summary": "Delete Evaluation",
+        "operationId": "delete_evaluation_api_workspace_strategy_evaluations__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -4073,7 +4397,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Evidence"
+                "$ref": "#/components/schemas/EvidenceCapture"
               }
             }
           },
@@ -4153,6 +4477,53 @@
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evidence/{id}/metadata": {
+      "put": {
+        "summary": "Evidence Metadata",
+        "operationId": "evidence_metadata_api_evidence__id__metadata_put",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceMetadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -4637,6 +5008,12 @@
     "schemas": {
       "ActionCreate": {
         "properties": {
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
           "title": {
             "type": "string",
             "maxLength": 200,
@@ -4715,6 +5092,77 @@
           "acceptance"
         ],
         "title": "ActionCreate"
+      },
+      "ActionEdit": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "high",
+              "normal",
+              "low"
+            ],
+            "title": "Priority"
+          },
+          "owner": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Owner"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "acceptance": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Acceptance"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000,
+            "title": "Description"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "title",
+          "priority",
+          "owner",
+          "due_at",
+          "acceptance",
+          "description",
+          "note"
+        ],
+        "title": "ActionEdit"
       },
       "ActionTransition": {
         "properties": {
@@ -4884,6 +5332,32 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Company",
+            "default": ""
+          },
+          "global_scope": {
+            "type": "boolean",
+            "title": "Global Scope",
+            "default": false
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url",
+            "default": ""
+          },
+          "published_at": {
+            "type": "string",
+            "title": "Published At",
+            "default": ""
           }
         },
         "type": "object",
@@ -4907,13 +5381,43 @@
           },
           "amount_unit": {
             "type": "string",
+            "enum": [
+              "yuan",
+              "wan",
+              "yi"
+            ],
             "title": "Amount Unit",
             "default": "yuan"
           },
           "basis": {
             "type": "string",
+            "enum": [
+              "standalone_quarter",
+              "year_to_date"
+            ],
             "title": "Basis",
             "default": "standalone_quarter"
+          },
+          "target_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Target Id",
+            "default": ""
+          },
+          "target_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Target Version",
+            "default": 0
+          },
+          "merge_mode": {
+            "type": "string",
+            "enum": [
+              "replace",
+              "merge"
+            ],
+            "title": "Merge Mode",
+            "default": "replace"
           }
         },
         "type": "object",
@@ -5371,7 +5875,7 @@
         ],
         "title": "DismissInsight"
       },
-      "Evidence": {
+      "EvidenceCapture": {
         "properties": {
           "title": {
             "type": "string",
@@ -5402,6 +5906,29 @@
               }
             ],
             "title": "Published At"
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Company",
+            "default": ""
+          },
+          "global_scope": {
+            "type": "boolean",
+            "title": "Global Scope",
+            "default": false
+          },
+          "search_receipt": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{64})?$",
+            "title": "Search Receipt",
+            "default": ""
+          },
+          "retrieved_at": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Retrieved At",
+            "default": ""
           }
         },
         "additionalProperties": false,
@@ -5410,10 +5937,55 @@
           "title",
           "text"
         ],
-        "title": "Evidence"
+        "title": "EvidenceCapture"
+      },
+      "EvidenceMetadata": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "source_url": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Source Url",
+            "default": ""
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "version"
+        ],
+        "title": "EvidenceMetadata"
       },
       "EvidenceReview": {
         "properties": {
+          "global_scope": {
+            "type": "boolean",
+            "title": "Global Scope",
+            "default": false
+          },
           "company": {
             "type": "string",
             "maxLength": 200,
@@ -5710,6 +6282,17 @@
       },
       "FetchEvidence": {
         "properties": {
+          "company": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Company",
+            "default": ""
+          },
+          "global_scope": {
+            "type": "boolean",
+            "title": "Global Scope",
+            "default": false
+          },
           "url": {
             "type": "string",
             "maxLength": 1000,
