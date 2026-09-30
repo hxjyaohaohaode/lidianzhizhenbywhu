@@ -130,7 +130,7 @@ def main():
             page.locator('#import-file-form [name="amount_unit"]').select_option('yuan')
             page.locator('#import-file-form [name="file"]').set_input_files({'name':'synthetic-service-test.csv','mimeType':'text/csv','buffer':csv.encode('utf-8-sig')})
             submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for();assert client.get('/api/datasets').json()['items']==[]
-            page.locator('[data-action="commit-stage"]').click();page.locator('#dataset-editor').wait_for();record('上传真实CSV：暂存不写正式库，确认后入库')
+            page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden');page.locator('#dataset-editor[data-version="1"]').wait_for();record('上传真实CSV：暂存不写正式库，确认后入库')
             # Revise an existing dataset through the visible file workflow. No
             # direct API write substitutes for preview, target choice or commit.
             original=client.get('/api/datasets').json()['items'][0]
@@ -143,7 +143,8 @@ def main():
             submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for()
             before=client.get('/api/datasets').json()['items'];assert len(before)==1 and before[0]['version']==original['version']
             assert '合并到已有数据集' in page.locator('#modal').inner_text()
-            page.locator('[data-action="commit-stage"]').click();page.locator('#dataset-editor').wait_for()
+            page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden')
+            page.locator('#dataset-editor[data-id="'+original['id']+'"][data-version="'+str(original['version']+1)+'"]').wait_for()
             revised=client.get('/api/datasets').json()['items'];assert len(revised)==1 and revised[0]['id']==original['id'] and revised[0]['version']==original['version']+1
             assert len(revised[0]['payload']['periods'])==12 and revised[0]['payload']['periods'][-1]['revenue']==120000
             record('文件修订显式选择合并，预览不写入，确认保留数据ID和历史季度')

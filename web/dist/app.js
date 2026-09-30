@@ -1,5 +1,5 @@
 import { workflowGuide } from './workflow.js';
-import { invalidateInteractions, interactionGuard } from './interactions.js';
+import { invalidateInteractions, interactionGuard, finishMutation } from './interactions.js';
 import { loadLayout, applyLayout, toggleNav, toggleAssistant, clearLayout, closeDrawers } from './layout.js';
 import { copilotShell, copilotPage, mountCopilot, sendCopilot, resetCopilot } from './copilot-ui.js';
 import { servicesPage, trackingPage } from './views-services.js';
@@ -7,7 +7,7 @@ import { setupExperience, restoreIdentity } from './experience.js';
 import { showBrandIntro, restoreMotion, motionSetting } from './brand.js';
 import { evolutionPage, strategyForm, assessmentForm, graphCanvas, runtimeRibbon } from './views-orchestrator.js';
 import { RunLive } from './live.js';
-import { api, workspace, setCsrf, invalidateContext, invalidateView, ApiError } from './api.js';
+import { api, workspace, setCsrf, invalidateContext, contextGuard, invalidateView, ApiError } from './api.js';
 import { state, routes, activeDataset, activeIdentity, scopedDatasets, roleNames } from './state.js';
 import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricNames, metricValue } from './components.js';
 import { briefPage, settingsPage, opsPage } from './pages.js';
@@ -50,9 +50,10 @@ async function bootstrap() { const me = await api('/auth/me'); setCsrf(me.csrf);
     state.active = ''; if (state.active && !scopedDatasets().some(d => d.id === state.active))
     state.active = ''; if (!state.active && scopedDatasets().length === 1)
     state.active = scopedDatasets()[0].id; }
-async function refreshData() { const [ds, caps, ids] = await Promise.all([api('/datasets'), api('/capabilities'), api('/services/identities')]); state.datasets = ds.items; state.caps = caps; state.identities = ids.items; if (state.identity && !ids.items.some((x) => x.id === state.identity))
-    state.identity = ''; const me = await api('/auth/me'); state.user = me.user; setCsrf(me.csrf); if (state.active && !scopedDatasets().some(d => d.id === state.active))
-    state.active = ''; }
+async function refreshData(valid = () => true) { const [ds, caps, ids, me] = await Promise.all([api('/datasets'), api('/capabilities'), api('/services/identities'), api('/auth/me')]); if (!valid())
+    return false; state.datasets = ds.items; state.caps = caps; state.identities = ids.items; if (state.identity && !ids.items.some((x) => x.id === state.identity))
+    state.identity = ''; state.user = me.user; setCsrf(me.csrf); if (state.active && !scopedDatasets().some(d => d.id === state.active))
+    state.active = ''; return true; }
 async function render() { invalidateInteractions(); invalidateView(); live?.dispose(); live = null; if (!state.user)
     return auth(); const seq = ++renderEpoch; const [r, ...rest] = (location.hash.slice(1) || 'brief').split(':'); state.route = r in routes ? r : 'brief'; state.id = rest.join(':'); currentHash = location.hash; shell(); showSyncNotice(); const main = document.querySelector('#main'); try {
     const views = { brief: briefPage, copilot: copilotPage, services: servicesPage, tracking: trackingPage, agents: () => agentsPage(state.id), data: dataPage, evidence: evidencePage, lab: () => labPage(state.id), compare: comparePage, reports: reportsPage, actions: actionsPage, memory: memoryPage, ops: opsPage, settings: settingsPage, evolution: evolutionPage };
@@ -467,18 +468,44 @@ document.addEventListener('click', async (event) => {
                 break;
             case 'commit-stage': {
                 const p = state.cache.stage;
+                const label = el.textContent;
+                const sameContext = contextGuard();
+                let saved = false;
                 el.setAttribute('disabled', '');
+                el.textContent = '正在保存并同步…';
                 try {
                     const d = await workspace('/imports/' + p.id + '/commit', 'POST', { version: p.version, fingerprint: p.payload.fingerprint });
-                    state.active = d.id;
-                    state.dirty = false;
-                    modal.close();
-                    await refreshData();
-                    navigate('data', true);
-                    toast('已保存标准化数据和修订记录。');
+                    saved = true;
+                    const applied = await finishMutation(() => valid() && sameContext(), refreshData, () => { state.active = d.id; state.dirty = false; modal.close(); navigate('data', true); });
+                    if (!sameContext())
+                        break;
+                    if (!applied) {
+                        syncPending = true;
+                        showSyncNotice();
+                    }
+                    toast(applied ? '已保存标准化数据和修订记录。' : '数据已保存；保留你当前的页面和输入，可核对并刷新。');
+                }
+                catch (e) {
+                    if (!sameContext())
+                        break;
+                    if (!saved)
+                        throw e;
+                    if (e instanceof ApiError && e.status === 401) {
+                        resetAuth();
+                        toast('数据已保存，但登录已失效；请重新登录后核对。', true);
+                        break;
+                    }
+                    if (valid()) {
+                        state.dirty = false;
+                        modal.close();
+                    }
+                    syncPending = true;
+                    showSyncNotice();
+                    toast('数据已保存，但同步读取未完成，请核对并刷新；无需重复导入。', true);
                 }
                 finally {
                     el.removeAttribute('disabled');
+                    el.textContent = label;
                 }
                 break;
             }
@@ -890,7 +917,7 @@ catch (e) {
 finally {
     polling = false;
 } }, 1500);
-setupExperience({ dialog, inspect, toast, navigate, render, refresh: refreshData, reset: resetAuth });
+setupExperience({ dialog, inspect, toast, navigate, render, refresh: async () => { await refreshData(); }, reset: resetAuth });
 restoreMotion();
 showBrandIntro();
 (async () => { try {

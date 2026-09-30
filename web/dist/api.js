@@ -1,6 +1,7 @@
 let csrf = '';
 let authGeneration = 0;
 export function invalidateContext() { authGeneration++; }
+export function contextGuard() { const started = authGeneration; return () => started === authGeneration; }
 export function setCsrf(value) { if (value !== csrf)
     authGeneration++; csrf = value; }
 export class ApiError extends Error {

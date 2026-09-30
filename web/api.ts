@@ -2,6 +2,7 @@ export type Json = any;
 let csrf = '';
 let authGeneration=0;
 export function invalidateContext(){authGeneration++;}
+export function contextGuard(){const started=authGeneration;return ()=>started===authGeneration;}
 export function setCsrf(value:string){if(value!==csrf)authGeneration++;csrf=value;}
 export class ApiError extends Error {
   constructor(message:string,public status:number,public code:string,public requestId:string){super(message);}
