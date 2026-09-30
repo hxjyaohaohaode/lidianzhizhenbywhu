@@ -32,6 +32,15 @@ def outputs(target):
             ('', '.backup.json', '.credentials.key', '-wal', '-shm', '-journal')]
 
 
+def assert_link_unchanged(link, intended_target, stored_target):
+    # Windows os.readlink may expose a \\?\ prefix that was not supplied to
+    # symlink_to. Preserve the OS spelling exactly across the operation, and
+    # separately resolve both fixture paths without requiring the target to exist.
+    assert link.is_symlink()
+    assert os.readlink(link) == stored_target
+    assert link.resolve(strict=False) == intended_target.resolve(strict=False)
+
+
 @pytest.mark.parametrize('journal', ['delete', 'wal'])
 def test_valid_snapshot_checks_relations_and_preserves_committed_online_data(tmp_path, journal):
     source, target = tmp_path / 'source.db', tmp_path / 'copy.db'
@@ -120,10 +129,9 @@ def test_destination_sidecars_and_receipt_are_never_overwritten(tmp_path, suffix
     else:
         if kind == 'link':
             linked.write_bytes(sentinel)
-        try:
-            collision.symlink_to(linked)
-        except (OSError, NotImplementedError):
-            pytest.skip('symlinks unavailable on this test platform')
+        collision.symlink_to(linked)
+        stored_target = os.readlink(collision)
+        assert_link_unchanged(collision, linked, stored_target)
 
     def unexpected_open(*args, **kwargs):
         pytest.fail('Collision must be rejected before opening either SQLite database')
@@ -135,7 +143,7 @@ def test_destination_sidecars_and_receipt_are_never_overwritten(tmp_path, suffix
     if kind == 'file':
         assert collision.read_bytes() == sentinel
     else:
-        assert collision.is_symlink() and collision.readlink() == linked
+        assert_link_unchanged(collision, linked, stored_target)
         if kind == 'link':
             assert linked.read_bytes() == sentinel
         else:
@@ -162,3 +170,41 @@ def test_cli_reports_only_validated_receipt_or_safe_integrity_error(tmp_path, or
     else:
         assert result.returncode == 0 and not result.stderr
         assert json.loads(result.stdout)['foreign_key_check'] == 'ok'
+
+
+@pytest.mark.parametrize('dangling', [False, True])
+@pytest.mark.parametrize('mutation', ['retarget', 'replace', 'remove', 'respell', 'wrong_expected'])
+def test_link_preservation_assertion_rejects_actual_changes(tmp_path, dangling, mutation):
+    target = tmp_path / 'intended-target'
+    if not dangling:
+        target.write_bytes(b'KEEP')
+    link = tmp_path / 'link'
+    link.symlink_to(target)
+    stored_target = os.readlink(link)
+    assert_link_unchanged(link, target, stored_target)
+    expected = target
+    if mutation == 'wrong_expected':
+        expected = tmp_path / 'other-directory' / target.name
+    else:
+        link.unlink()
+        if mutation == 'retarget':
+            # Same basename, different parent. An endswith/name-only comparison
+            # would accept this accidental replacement of the backup companion.
+            other = tmp_path / 'other-directory' / target.name
+            other.parent.mkdir()
+            if not dangling:
+                other.write_bytes(b'KEEP')
+            link.symlink_to(other)
+        elif mutation == 'replace':
+            link.write_bytes(b'KEEP')
+        elif mutation == 'respell':
+            # Equivalent destination is still a changed link: resolution alone
+            # must not replace the exact before/after preservation assertion.
+            link.symlink_to(Path(target.name))
+            assert link.resolve(strict=False) == target.resolve(strict=False)
+    with pytest.raises(AssertionError):
+        assert_link_unchanged(link, expected, stored_target)
+    if not dangling:
+        assert target.read_bytes() == b'KEEP'
+    else:
+        assert not target.exists()
