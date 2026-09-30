@@ -10,9 +10,9 @@ from .store import digest
 CLAIM_CONTRACT_VERSION = 'grounded-claims-v2'
 TOOL_KEYS = {
     'forecast': ('status', 'reason', 'metric', 'forecast_horizon', 'selected', 'selected_label',
-                 'forecast', 'train_end', 'excluded_periods', 'limitations', 'locked_holdout', 'selection'),
+                 'forecast', 'train_end', 'excluded_periods', 'limitations', 'locked_holdout', 'selection', 'approved_assumptions', 'experiment'),
     'sensitivity': ('status', 'reason', 'period', 'baseline', 'result', 'delta_gross_profit',
-                    'break_even_volume_multiplier', 'assumptions', 'approved_assumptions', 'formula', 'limitations'),
+                    'break_even_volume_multiplier', 'assumptions', 'approved_assumptions', 'formula', 'limitations', 'experiment'),
     'counterevidence': ('status', 'groups', 'conflicting_labels', 'limitation'),
     'gaps': ('status', 'items', 'findings', 'baseline_requirement', 'unavailable_rule_components', 'limitation'),
 }
@@ -37,6 +37,11 @@ def project_tools(outputs):
                     'value': number, 'label': label, 'unit': unit, 'period': period,
                     'output_hash': projected['output_hash'],
                     'interpretation': 'approved_assumption_scenario' if kind == 'sensitivity' else 'statistical_baseline_not_causal'}
+                if value.get('experiment'):
+                    # Do not duplicate a potentially 2,000-character assumption
+                    # note for every number. The full provenance is in the tool.
+                    projected['references'][id]['experiment'] = {key: value['experiment'][key]
+                        for key in ('id', 'version', 'hash', 'result_hash')}
             if kind == 'sensitivity':
                 for key, label in [('revenue', '情景营业收入'), ('cost', '情景营业成本'),
                                    ('gross_profit', '情景毛利额'), ('gross_margin', '情景毛利率')]:

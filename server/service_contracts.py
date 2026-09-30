@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import Field, model_validator, field_validator
 from .schemas import StrictModel
 from .autonomy_contracts import ExecutionOptions
+from .business_provenance import SourceRef
 
 
 class IdentitySpec(StrictModel):
@@ -84,6 +85,8 @@ class ProposalConfirm(StrictModel):
 
 
 class WatchSpec(StrictModel):
+    request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
+    source_ref: SourceRef | None = None
     title: str = Field(min_length=1, max_length=200)
     identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(min_length=1, max_length=80)
@@ -94,6 +97,12 @@ class WatchSpec(StrictModel):
     stale_after_days: int = Field(default=180, ge=30, le=1460)
     expires_at: date | None = None
     version: int = Field(default=0, ge=0)
+
+    @model_validator(mode='after')
+    def request_id_create_only(self):
+        if self.version and self.request_id is not None:
+            raise ValueError('提交标识只用于新建跟踪；更新应使用记录版本')
+        return self
 
 
 class AlertAck(StrictModel):

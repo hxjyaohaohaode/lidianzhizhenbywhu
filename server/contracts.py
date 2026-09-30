@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 from .schemas import StrictModel, Text, Mode, Dataset
 from .autonomy_contracts import ExecutionOptions
+from .business_provenance import SourceRef, EvidenceRef
 
 
 class CompanyProfile(StrictModel):
@@ -19,6 +20,12 @@ class CompanyProfile(StrictModel):
     version: int = Field(default=0, ge=0)
 
 
+class ExperimentReference(StrictModel):
+    id: str = Field(min_length=1, max_length=80)
+    version: int = Field(ge=1)
+    hash: str = Field(pattern='^[a-f0-9]{64}$')
+
+
 class PlanDraft(StrictModel):
     identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(min_length=1, max_length=80)
@@ -29,6 +36,7 @@ class PlanDraft(StrictModel):
     provider: str = Field(default='', max_length=40)
     max_calls: int = Field(default=2, ge=0, le=8)
     execution: ExecutionOptions | None = None
+    experiment: ExperimentReference | None = None
     include_memory: bool = True
     include_history: bool = False
     session_id: str = Field(default='', max_length=80)
@@ -71,6 +79,8 @@ class EvidenceReview(StrictModel):
 
 
 class ActionCreate(StrictModel):
+    request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
+    source_ref: SourceRef | None = None
     identity_id: str = Field(default="", max_length=80)
     title: Text
     company: str = Field(default='', max_length=200)
@@ -110,6 +120,7 @@ class ActionTransition(StrictModel):
     status: Literal['open', 'in_progress', 'blocked', 'done', 'dismissed']
     note: str = Field(default='', max_length=2000)
     evidence_ids: list[str] = Field(default_factory=list, max_length=10)
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list, max_length=10)
     @model_validator(mode='after')
     def completion_proof(self):
         if self.status in ('done', 'blocked', 'dismissed') and len(self.note.strip()) < 5:
@@ -119,6 +130,9 @@ class ActionTransition(StrictModel):
 
 class ExperimentRequest(StrictModel):
     dataset_id: str = Field(min_length=1, max_length=80)
+    dataset_version: int | None = Field(default=None, ge=1)
+    dataset_hash: str | None = Field(default=None, pattern='^[a-f0-9]{64}$')
+    target_period: str | None = Field(default=None, pattern='^(19|20)[0-9]{2}-Q[1-4]$')
     name: Text
     kind: Literal['scenario', 'forecast']
     price_change: float = Field(default=0.0, ge=-0.8, le=1, strict=True)
@@ -172,5 +186,6 @@ class StageCommit(StrictModel):
 
 
 class DismissInsight(StrictModel):
+    identity_id: str = Field(default="", max_length=80)
     key: str = Field(min_length=1, max_length=200)
     note: str = Field(min_length=5, max_length=1000)

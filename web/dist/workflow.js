@@ -14,5 +14,5 @@ export function workflowGuide(route) {
 }
 export function contextBanner() {
     const d = activeDataset(), identity = activeIdentity();
-    return `<div class="research-context"><span class="context-symbol">${icon('database')}</span><div><span class="eyebrow">当前研究范围</span><strong>${esc(d?.payload.company ?? '尚未选择企业')}</strong><p>${d ? esc(d.payload.name) + ' · 修订 ' + d.version + ' · ' + esc(d.payload.periods.at(-1)?.period ?? '未录入季度') : '使用你的报表与证据开始，工作区不填充演示结论'}</p></div><span class="context-identity">${icon('memory')}${esc(identity?.payload.name ?? '默认身份')}</span>${routeButton(d ? '核对输入' : '准备数据', 'data', 'text-button')}</div>`;
+    return `<div class="research-context"><span class="context-symbol">${icon('database')}</span><div><span class="eyebrow">当前研究范围</span><strong>${esc(d?.payload.company ?? '尚未选择企业')}</strong><p>${d ? esc(d.payload.name) + ' · 修订 ' + d.version + ' · ' + esc(d.payload.periods.at(-1)?.period ?? '未录入季度') : '使用你的报表与证据开始，工作区不填充演示结论'}</p><small>期间完成与到期统一按 UTC 核查日期；报告保留当时日期</small></div><span class="context-identity">${icon('memory')}${esc(identity?.payload.name ?? '默认身份')}</span>${routeButton(d ? '核对输入' : '准备数据', 'data', 'text-button')}</div>`;
 }

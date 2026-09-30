@@ -64,7 +64,9 @@ def test_immutable_snapshot_and_scenario(actor):
     other=actor.dataset();assert actor.post('/scenarios',json={'dataset_id':other['id'],'run_id':r['id'],'price_change':0,'cost_change':0,'volume_change':0}).status_code==422
 def test_company_binding(actor):
     d=actor.dataset();s=actor.conversation();assert actor.run(d,s).status_code==202
-    other=actor.dataset();b=editable(other);b['company']='另一家企业';actor.put('/datasets/'+other['id'],json=b)
+    b=editable(d);b.pop('version');b['company']='另一家企业'
+    response=actor.post('/datasets',json=b);assert response.status_code==201,response.text
+    other=response.json()
     assert actor.run(other,s).status_code==409
 @pytest.mark.parametrize('field,value',[('approved',False),('expires_at','2020-01-01'),('company','不匹配企业'),('role','investor')])
 def test_unapproved_expired_or_scoped_memories_excluded(actor,field,value):
@@ -166,7 +168,9 @@ def test_sync_pagination_lossless(actor):
         if not page['has_more']:break
     assert len(ids)==5 and len(set(ids))==5 and actor.get(f'/sync?after={cursor}').json()['cursor']==cursor
 def test_common_period_comparison_and_refusal(actor):
-    a=actor.dataset();b=actor.dataset();p=editable(b);p['company']='乙企业';p['periods']=p['periods'][:-1];actor.put('/datasets/'+b['id'],json=p)
+    a=actor.dataset();p=editable(a);p.pop('version');p['company']='乙企业';p['periods']=p['periods'][:-1]
+    response=actor.post('/datasets',json=p);assert response.status_code==201,response.text
+    b=response.json()
     r=actor.post('/compare',json={'dataset_ids':[a['id'],b['id']]});assert r.status_code==200 and r.json()['period']=='2026-Q2'
     assert all(x['analysis']['current_period']=='2026-Q2' and x['source_kind']=='user_provided' for x in r.json()['items'])
     p=editable(actor.get('/datasets/'+b['id']).json());p['periods']=[{'period':'2020-Q1','revenue':1.,'cost':1.}];actor.put('/datasets/'+b['id'],json=p)

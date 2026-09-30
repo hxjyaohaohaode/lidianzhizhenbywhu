@@ -169,6 +169,44 @@ def main():
             assert not any(n['id']=='counterevidence' for n in plan(c,d)['payload']['nodes'])
             assert require(c.get('/api/runs/'+runs[0]['id']))['result']==runs[0]['result']
             record('真实报告验收→自动提出策略→逐例回放与保留组→明确激活→旧计划失效→回滚；历史结果不变')
+            # Cross-workspace source lifecycle over real HTTP, not only direct TestClient calls.
+            experiment=require(c.post('/api/workspace/experiments',json={'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],
+                'name':'真实HTTP链路隔离情景','kind':'scenario','price_change':.05,'fixed_cost_share':.2,'assumptions':'仅用于隔离验收的明确情景假设'}),201)
+            selected=plan(c,d,experiment={'id':experiment['id'],'version':experiment['version'],'hash':experiment['experiment_hash']},execution={})
+            linked_run=wait_run(c,approve(c,selected)['id']);assert linked_run['result']['adaptive']['mathematical_outputs']['sensitivity']['experiment']['id']==experiment['id']
+            body={'request_id':'http-lifecycle-action','dataset_id':d['id'],'run_id':linked_run['id'],'source_ref':{'kind':'report','run_id':linked_run['id']},
+                'title':'真实HTTP报告跟进行动','acceptance':'保存原始依据并记录人工核验说明'}
+            action=require(c.post('/api/workspace/actions',json=body),201)
+            assert require(c.post('/api/workspace/actions',json=body),201)['id']==action['id']
+            watch=require(c.post('/api/services/watches',json={'request_id':'http-lifecycle-watch','title':'行动关联指标跟踪','dataset_id':d['id'],
+                'metric':'gross_margin','operator':'lt','threshold':.99,'stale_after_days':1460,'source_ref':{'kind':'action','action_id':action['id'],'action_version':action['version'],'action_hash':action['object_hash']}}),201)
+            tracking=require(c.get('/api/services/tracking'));assert any(a['payload']['rule_id']==watch['id'] for a in tracking['alerts'])
+            spec={k:watch['payload'][k] for k in ('title','identity_id','dataset_id','metric','operator','threshold','active','stale_after_days','expires_at')}
+            unchanged=require(c.put('/api/services/watches/'+watch['id'],json={**spec,'version':watch['version']}));assert unchanged['version']==watch['version']
+            assert len(require(c.get('/api/services/tracking'))['alerts'])==len(tracking['alerts'])
+            action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={'version':action['version'],'status':'in_progress'}))
+            action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={'version':action['version'],'status':'done','note':'已核对隔离测试凭证并明确其局限','evidence_ids':[e['id']]}))
+            assert action['payload']['history'][-1]['evidence_snapshots'][0]['content_hash']==e['content_hash']
+            feedback=require(c.get('/api/workspace/runs/'+linked_run['id']+'/assessment'))['review_context'];assert feedback['related_actions'][0]['status']=='done'
+            require(c.post('/api/workspace/runs/'+linked_run['id']+'/assessment',json={'verdict':'useful','note':'已参考关联行动的实际验收记录','expected_capabilities':['quant','sensitivity'],'consent_replay':True,'review_context_hash':feedback['hash']}))
+            original_report=linked_run['result'];original_action=copy.deepcopy(action['payload'])
+            revised=copy.deepcopy(d['payload']);revised.pop('verification',None);revised.pop('input_amount_unit',None);revised.update(version=d['version'],notes='真实HTTP跨工作区修订核验')
+            require(c.put('/api/datasets/'+d['id'],json=revised))
+            stale={**body,'request_id':'http-historical-action'}
+            assert c.post('/api/workspace/actions',json=stale).status_code==409
+            stale['source_ref']={**stale['source_ref'],'allow_historical':True}
+            historical=require(c.post('/api/workspace/actions',json=stale),201);assert historical['payload']['provenance']['dataset_version']==1
+            current_action=next(x for x in require(c.get('/api/workspace/actions'))['items'] if x['id']==action['id'])
+            assert current_action['payload']==original_action and current_action['source_impact']['state']=='changed'
+            assert require(c.get('/api/runs/'+linked_run['id']))['result']==original_report
+            require(c.delete('/api/workspace/archive/import_stage/'+stage['id'],params={'version':2}))
+            revision=require(c.get('/api/workspace/datasets/'+d['id']+'/revisions'))['items'][0]
+            assert revision['import_receipt']['payload']['import_context']['source_file_sha256']
+            require(c.delete('/api/evidence/'+e['id'],params={'version':e['version']}))
+            after=next(x for x in require(c.get('/api/workspace/actions'))['items'] if x['id']==action['id'])
+            assert after['payload']==original_action and after['acceptance_impact']['state']=='changed'
+            assert require(c.get('/api/account/export'))['data']['dataset_import_receipts']
+            record('真实HTTP来源→保存实验→批准Agent→报告→行动→指标跟踪→证据验收→人工反馈；修订/清理后历史冻结与当前失效分离')
             # Short read-load probe, not an SLA or capacity claim.
             def get_one(i):
                 t=time.perf_counter();res=c.get(['/api/datasets','/api/workspace/evolution','/api/ops','/api/workspace/runs/'+run['id']+'/runtime'][i%4]);assert res.status_code==200;return (time.perf_counter()-t)*1000

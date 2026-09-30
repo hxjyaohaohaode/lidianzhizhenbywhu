@@ -13,3 +13,9 @@ export async function finishMutation(valid:()=>boolean,refresh:(valid:()=>boolea
  if(!await refresh(valid)||!valid())return false;
  apply();return true;
 }
+
+/** Only call after a known successful create. Unknown outcomes retain the retry key. */
+export function renewSavedDraft(submitted:string,read:()=>string|null,renew:()=>void):boolean{
+ const latest=read();if(latest===null||latest===submitted)return false;
+ renew();return true;
+}

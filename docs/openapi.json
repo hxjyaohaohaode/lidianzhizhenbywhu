@@ -2788,6 +2788,61 @@
         }
       }
     },
+    "/api/services/history": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Orphan History",
+        "description": "Account-owned archived context without evaluating rules or restoring access.",
+        "operationId": "orphan_history_api_services_history_get",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/services/watches": {
       "post": {
         "tags": [
@@ -5008,6 +5063,28 @@
     "schemas": {
       "ActionCreate": {
         "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{8,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "identity_id": {
             "type": "string",
             "maxLength": 80,
@@ -5195,6 +5272,14 @@
             "type": "array",
             "maxItems": 10,
             "title": "Evidence Ids"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Evidence Refs"
           }
         },
         "additionalProperties": false,
@@ -5854,6 +5939,12 @@
       },
       "DismissInsight": {
         "properties": {
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
           "key": {
             "type": "string",
             "maxLength": 200,
@@ -5978,6 +6069,40 @@
           "version"
         ],
         "title": "EvidenceMetadata"
+      },
+      "EvidenceRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Content Hash"
+          },
+          "review_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Review Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "content_hash",
+          "review_version"
+        ],
+        "title": "EvidenceRef"
       },
       "EvidenceReview": {
         "properties": {
@@ -6163,6 +6288,34 @@
         "type": "object",
         "title": "ExecutionOptions"
       },
+      "ExperimentReference": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Hash"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "hash"
+        ],
+        "title": "ExperimentReference"
+      },
       "ExperimentRequest": {
         "properties": {
           "dataset_id": {
@@ -6170,6 +6323,42 @@
             "maxLength": 80,
             "minLength": 1,
             "title": "Dataset Id"
+          },
+          "dataset_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Version"
+          },
+          "dataset_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Hash"
+          },
+          "target_period": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(19|20)[0-9]{2}-Q[1-4]$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Period"
           },
           "name": {
             "type": "string",
@@ -6964,6 +7153,16 @@
               }
             ]
           },
+          "experiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "include_memory": {
             "type": "boolean",
             "title": "Include Memory",
@@ -7420,6 +7619,18 @@
       },
       "RunAssessment": {
         "properties": {
+          "review_context_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Context Hash"
+          },
           "verdict": {
             "type": "string",
             "enum": [
@@ -7638,7 +7849,7 @@
           },
           "note": {
             "type": "string",
-            "maxLength": 1000,
+            "maxLength": 2000,
             "minLength": 5,
             "title": "Note"
           }
@@ -7698,6 +7909,123 @@
           "password"
         ],
         "title": "SessionRevoke"
+      },
+      "SourceRef": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "dataset",
+              "report",
+              "copilot",
+              "insight",
+              "alert",
+              "action"
+            ],
+            "title": "Kind"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Run Id",
+            "default": ""
+          },
+          "claim_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Claim Id",
+            "default": ""
+          },
+          "thread_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Thread Id",
+            "default": ""
+          },
+          "message_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Message Id",
+            "default": ""
+          },
+          "source_key": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Source Key",
+            "default": ""
+          },
+          "alert_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Alert Id",
+            "default": ""
+          },
+          "action_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Action Id",
+            "default": ""
+          },
+          "action_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Version"
+          },
+          "action_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Hash"
+          },
+          "dataset_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Version"
+          },
+          "dataset_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Hash"
+          },
+          "allow_historical": {
+            "type": "boolean",
+            "title": "Allow Historical",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "SourceRef"
       },
       "StageCommit": {
         "properties": {
@@ -7884,6 +8212,28 @@
       },
       "WatchSpec": {
         "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{8,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "title": {
             "type": "string",
             "maxLength": 200,

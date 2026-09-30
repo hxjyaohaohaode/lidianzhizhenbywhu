@@ -11,7 +11,7 @@ def migrate(store):
     with store.transaction() as db:
         db.execute('CREATE TABLE IF NOT EXISTS workspace_schema(version INTEGER PRIMARY KEY)')
         row = db.execute('SELECT MAX(version) FROM workspace_schema').fetchone()
-        if row[0] is not None and row[0] > 1:
+        if row[0] is not None and row[0] > 2:
             raise RuntimeError('工作区数据库版本高于程序，拒绝降级写入')
         db.execute('''CREATE TABLE IF NOT EXISTS workspace_objects(
             id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -24,6 +24,11 @@ def migrate(store):
             user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             version INTEGER NOT NULL, payload TEXT NOT NULL, content_hash TEXT NOT NULL,
             created_at TEXT NOT NULL, PRIMARY KEY(dataset_id,version))''')
+        db.execute('''CREATE TABLE IF NOT EXISTS dataset_import_receipts(
+            dataset_id TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL, payload TEXT NOT NULL, content_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL, PRIMARY KEY(dataset_id,version),
+            FOREIGN KEY(dataset_id,version) REFERENCES dataset_revisions(dataset_id,version) ON DELETE CASCADE)''')
         db.execute('''CREATE TABLE IF NOT EXISTS event_integrity(
             event_seq INTEGER PRIMARY KEY REFERENCES run_events(seq) ON DELETE CASCADE,
             run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
@@ -49,6 +54,8 @@ def migrate(store):
             db.execute('INSERT OR IGNORE INTO event_integrity VALUES(?,?,?,?)', (e['seq'],e['run_id'],p,h))
             previous[e['run_id']] = h
         db.execute('INSERT OR IGNORE INTO workspace_schema VALUES(1)')
+        # New source/receipt contracts must not be silently written by an older app.
+        db.execute('INSERT OR IGNORE INTO workspace_schema VALUES(2)')
 
 
 def get(store, user, kind, id):

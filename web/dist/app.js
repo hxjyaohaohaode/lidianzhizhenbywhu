@@ -1,5 +1,7 @@
+import { syncExperimentControls, selectedExperimentRequest, unchangedInputGuard } from './saved-experiments.js';
+import { formSource, continueInsightDraft } from './business-source.js';
 import { workflowGuide } from './workflow.js';
-import { invalidateInteractions, interactionGuard, finishMutation } from './interactions.js';
+import { invalidateInteractions, interactionGuard, finishMutation, renewSavedDraft } from './interactions.js';
 import { loadLayout, applyLayout, toggleNav, toggleAssistant, clearLayout, closeDrawers } from './layout.js';
 import { copilotShell, copilotPage, mountCopilot, sendCopilot, resetCopilot } from './copilot-ui.js';
 import { servicesPage, trackingPage } from './views-services.js';
@@ -61,6 +63,7 @@ async function render() { invalidateInteractions(); invalidateView(); live?.disp
     if (seq !== renderEpoch)
         return;
     main.innerHTML = workflowGuide(state.route) + html;
+    syncExperimentControls(main, state.cache.planExperiments ?? [], scopedDatasets());
     main.dataset.page = state.route;
     applyLayout();
     void mountCopilot().catch(() => { });
@@ -108,16 +111,18 @@ document.addEventListener('submit', async (event) => {
     form.dataset.submitting = 'true';
     if (submit)
         submit.disabled = true;
+    const submittedContext = contextGuard();
+    const submittedCurrent = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null);
     try {
         const { f, str, val, check, list } = read(form);
-        let changed = false;
+        let changed = false, savedDraftMessage = '';
         switch (form.id) {
             case 'strategy-form':
                 await workspace('/strategies', 'POST', { name: str('name'), depth: str('depth'), require_counterevidence: check('require_counterevidence'), require_gap_analysis: check('require_gap_analysis'), note: str('note') });
                 changed = true;
                 break;
             case 'assessment-form':
-                await workspace('/runs/' + state.cache.run.id + '/assessment', 'POST', { version: Number(form.dataset.version), verdict: str('verdict'), note: str('note'), expected_capabilities: list('expected_capabilities'), consent_replay: check('consent_replay') });
+                await workspace('/runs/' + state.cache.run.id + '/assessment', 'POST', { review_context_hash: form.dataset.reviewContextHash ?? null, version: Number(form.dataset.version), verdict: str('verdict'), note: str('note'), expected_capabilities: list('expected_capabilities'), consent_replay: check('consent_replay') });
                 changed = true;
                 break;
             case 'appearance-form':
@@ -150,7 +155,9 @@ document.addEventListener('submit', async (event) => {
                     req.target_id = form.dataset.id;
                     req.target_version = Number(form.dataset.version);
                 }
-                await showStage(await workspace('/imports/preview', 'POST', req));
+                const preview = await workspace('/imports/preview', 'POST', req);
+                if (submittedCurrent())
+                    await showStage(preview);
                 break;
             }
             case 'import-file-form': {
@@ -164,7 +171,9 @@ document.addEventListener('submit', async (event) => {
                 if (!target)
                     f.set('merge_mode', 'replace');
                 state.cache.editorDraft = null;
-                await showStage(await workspace('/imports/file', 'POST', f));
+                const preview = await workspace('/imports/file', 'POST', f);
+                if (submittedCurrent())
+                    await showStage(preview);
                 break;
             }
             case 'evidence-form':
@@ -187,6 +196,8 @@ document.addEventListener('submit', async (event) => {
                 break;
             case 'evidence-search': {
                 const r = await workspace('/retrieval?q=' + encodeURIComponent(str('q')) + '&company=' + encodeURIComponent(activeDataset()?.payload.company ?? ''));
+                if (!submittedCurrent())
+                    break;
                 document.querySelector('#evidence-search-results').innerHTML = `<section class="panel"><div class="section-heading row-between"><h2>原文检索结果</h2>${badge(r.items.length + ' 条')}</div>${r.items.map(citationCard).join('') || notice('当前企业作用域内没有匹配的有效资料。')}</section>`;
                 break;
             }
@@ -210,6 +221,8 @@ document.addEventListener('submit', async (event) => {
                 break;
             case 'public-search-form': {
                 const r = await api('/research/search', 'POST', { query: str('query'), consent: check('consent') });
+                if (!submittedCurrent())
+                    break;
                 state.cache.search = r;
                 document.querySelector('#public-search-results').innerHTML = (r.items ?? []).map((v, i) => `<article class="citation"><h3>${esc(v.title)}</h3><p>${esc(v.text ?? '')}</p><p class="micro">${esc(v.source_url)}</p>${button('确认保存此摘要', 'save-search-result', 'secondary', `data-index="${i}"`)}</article>`).join('') || notice('没有通过过滤的结果。');
                 break;
@@ -225,22 +238,47 @@ document.addEventListener('submit', async (event) => {
                 break;
             }
             case 'plan-form': {
+                const sameContext = contextGuard();
+                const current = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null);
                 const execution = { depth: str('depth') || null, parallelism: val('parallelism'), model_planning: check('model_planning') && check('use_llm'), local_recovery: check('local_recovery'), max_revisions: val('max_revisions'), total_context_chars: val('total_context_chars'), forecast: check('forecast'), forecast_metric: str('forecast_metric') || 'revenue', horizon: Number(str('forecast_horizon') || 2), role_providers: Object.fromEntries(['analyst', 'researcher', 'challenger', 'planner', 'revision'].map(k => [k, str('route_' + k)]).filter(([, v]) => v)), fallback_providers: str('fallback_provider') ? [str('fallback_provider')] : [] };
                 if (check('with_scenario')) {
                     if (str('scenario_note').length < 5)
                         throw new Error('启用情景需说明至少5个字符的假设依据');
                     execution.scenario = { price_change: Number(val('scenario_price')) / 100, cost_change: Number(val('scenario_cost')) / 100, volume_change: Number(val('scenario_volume')) / 100, fixed_cost_share: Number(val('scenario_fixed')) / 100, note: str('scenario_note') };
                 }
-                const payload = { execution, identity_id: state.identity, dataset_id: str('dataset_id'), query: str('query'), mode: str('mode'), comparison: str('comparison'), use_llm: check('use_llm'), provider: str('provider'), max_calls: Number(str('max_calls') || 2), include_memory: check('include_memory'), include_history: check('include_history'), session_id: str('session_id'), success_criteria: str('success_criteria') };
+                const selected = (state.cache.planExperiments ?? []).find((e) => e.id === str('experiment_id'));
+                const experiment = str('experiment_id') ? selectedExperimentRequest(selected, str('dataset_id'), scopedDatasets()) : null;
+                if (experiment) {
+                    if (selected.payload.request.kind === 'forecast') {
+                        delete execution.forecast;
+                        delete execution.forecast_metric;
+                        delete execution.horizon;
+                    }
+                    else
+                        delete execution.scenario;
+                }
+                const payload = { execution, experiment, identity_id: state.identity, dataset_id: str('dataset_id'), query: str('query'), mode: str('mode'), comparison: str('comparison'), use_llm: check('use_llm'), provider: str('provider'), max_calls: Number(str('max_calls') || 2), include_memory: check('include_memory'), include_history: check('include_history'), session_id: str('session_id'), success_criteria: str('success_criteria') };
                 state.query = payload.query;
                 const row = await workspace('/plans', 'POST', payload);
-                navigate('agents:plan-' + row.id, true);
+                if (sameContext()) {
+                    if (current())
+                        navigate('agents:plan-' + row.id, true);
+                    else
+                        toast('计划已保存；保留你当前的页面和输入，可从计划列表查看。');
+                }
                 break;
             }
             case 'execute-plan-form': {
+                const sameContext = contextGuard();
+                const current = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null);
                 const p = state.cache.plan;
                 const r = await workspace('/plans/' + p.id + '/execute', 'POST', { version: p.version, fingerprint: p.payload.fingerprint, external_consent: check('external_consent') });
-                navigate('agents:run-' + r.id, true);
+                if (sameContext()) {
+                    if (current())
+                        navigate('agents:run-' + r.id, true);
+                    else
+                        toast('执行已获批准；保留你当前的页面和输入，可从执行记录查看。');
+                }
                 break;
             }
             case 'template-form':
@@ -248,13 +286,23 @@ document.addEventListener('submit', async (event) => {
                 changed = true;
                 break;
             case 'experiment-form': {
-                const payload = { dataset_id: str('dataset_id'), name: str('name'), kind: str('kind'), assumptions: str('assumptions') };
+                const sameContext = contextGuard();
+                const current = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null);
+                const d = scopedDatasets().find(d => d.id === str('dataset_id'));
+                if (!d)
+                    throw new Error('请选择当前身份可访问的数据集');
+                const payload = { dataset_id: d.id, dataset_version: d.version, dataset_hash: d.content_hash, target_period: str('target_period') || null, name: str('name'), kind: str('kind'), assumptions: str('assumptions') };
                 if (payload.kind === 'scenario')
                     Object.assign(payload, { price_change: val('price_change') / 100, cost_change: val('cost_change') / 100, volume_change: val('volume_change') / 100, fixed_cost_share: val('fixed_cost_share') / 100 });
                 else
                     Object.assign(payload, { metric: str('metric'), horizon: val('horizon') });
                 const r = await workspace('/experiments', 'POST', payload);
-                navigate('lab:' + r.id, true);
+                if (sameContext()) {
+                    if (current())
+                        navigate('lab:' + r.id, true);
+                    else
+                        toast('实验已保存；保留你当前的页面和输入，可从实验列表查看。');
+                }
                 break;
             }
             case 'compare-form': {
@@ -262,6 +310,8 @@ document.addEventListener('submit', async (event) => {
                 if (ids.length < 2 || ids.length > 8)
                     throw new Error('请选择 2–8 份数据集');
                 const r = await api('/compare', 'POST', { dataset_ids: ids });
+                if (!submittedCurrent())
+                    break;
                 document.querySelector('#comparison-output').innerHTML = comparisonOutput(r);
                 break;
             }
@@ -269,24 +319,34 @@ document.addEventListener('submit', async (event) => {
                 if (str('left') === str('right'))
                     throw new Error('请选择两份不同的报告');
                 const r = await workspace('/reports/compare?left=' + encodeURIComponent(str('left')) + '&right=' + encodeURIComponent(str('right')));
+                if (!submittedCurrent())
+                    break;
                 document.querySelector('#report-comparison').innerHTML = `<section class="panel"><h3>${esc(r.left_period)} → ${esc(r.right_period)}</h3>${notice(r.warning, r.same_period ? 'neutral' : 'warm')}${!r.same_rule_version ? notice('规则版本不同，不可直接将得分变化解释为经营变化。', 'warm') : ''}${table(['指标', '基准', '对照', '变化'], r.changes.map((c) => [esc(metricNames[c.metric] ?? c.metric), metricValue(c.metric, c.before), metricValue(c.metric, c.after), metricValue(c.metric, c.delta)]))}<details><summary>输入修订差异</summary>${jsonView(r.input_diff)}</details></section>`;
                 break;
             }
-            case 'action-form':
-                await workspace('/actions', 'POST', { identity_id: form.dataset.identityId ?? '', title: str('title'), company: str('company'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), source_key: form.dataset.sourceKey ?? '', run_id: form.dataset.runId ?? '', dataset_id: form.dataset.datasetId ?? '' });
+            case 'action-form': {
+                const saved = await workspace('/actions', 'POST', { request_id: form.dataset.requestId ?? null, ...formSource(f), identity_id: form.dataset.identityId ?? '', title: str('title'), company: str('company'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), source_key: form.dataset.sourceKey ?? '', run_id: form.dataset.runId ?? '', dataset_id: form.dataset.datasetId ?? '' });
+                if (submittedContext() && renewSavedDraft(JSON.stringify([...f]), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null, () => { if (!continueInsightDraft(form, saved))
+                    form.dataset.requestId = crypto.randomUUID(); }))
+                    savedDraftMessage = form.dataset.sourceKey ? '原行动已保存；保留新草稿，请按表单提示明确修改原行动。' : '上一版行动已保存到跟进行动；保留你的新草稿，再次提交将创建新的行动。';
                 changed = true;
                 break;
-            case 'action-edit-form':
-                await workspace('/actions/' + form.dataset.id, 'PUT', { version: Number(form.dataset.version), title: str('title'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), note: str('note') });
+            }
+            case 'action-edit-form': {
+                const saved = await workspace('/actions/' + form.dataset.id, 'PUT', { version: Number(form.dataset.version), title: str('title'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), note: str('note') });
+                if (submittedContext() && form.isConnected)
+                    form.dataset.version = String(saved.version);
                 changed = true;
                 break;
+            }
             case 'action-transition-form':
-                await workspace('/actions/' + form.dataset.id + '/status', 'PUT', { version: Number(form.dataset.version), status: str('status'), note: str('note'), evidence_ids: list('evidence_ids') });
+                await workspace('/actions/' + form.dataset.id + '/status', 'PUT', { version: Number(form.dataset.version), status: str('status'), note: str('note'), evidence_ids: list('evidence_ids'), evidence_refs: JSON.parse(form.dataset.evidenceRefs ?? '[]').filter((r) => list('evidence_ids').includes(r.id)) });
                 changed = true;
                 break;
             case 'preferences-form': {
                 const r = await api('/preferences', 'PUT', { name: str('name'), role: str('role'), theme: str('theme'), amount_unit: str('amount_unit'), risk_appetite: str('risk_appetite'), horizon: str('horizon'), memory_enabled: check('memory_enabled'), interests: split(str('interests')), watchlist: split(str('watchlist')), version: state.user.version });
-                state.user = r.user;
+                if (submittedCurrent())
+                    state.user = r.user;
                 changed = true;
                 break;
             }
@@ -314,20 +374,21 @@ document.addEventListener('submit', async (event) => {
                 changed = true;
                 break;
             case 'dismiss-insight-form':
-                await workspace('/insights/dismiss', 'POST', { key: form.dataset.key, note: str('reason') });
+                await workspace('/insights/dismiss', 'POST', { identity_id: state.identity, key: form.dataset.key, note: str('reason') });
                 changed = true;
                 break;
             default: throw new Error('未识别的表单，未执行任何写入。');
         }
-        if (changed) {
-            state.dirty = false;
-            if (modal.open)
-                modal.close();
-            if (inspector.open)
-                inspector.close();
-            await refreshData();
-            await render();
-            toast('已保存。');
+        if (changed && submittedContext()) {
+            const applied = await finishMutation(submittedCurrent, refreshData, () => { state.dirty = false; if (modal.open)
+                modal.close(); if (inspector.open)
+                inspector.close(); });
+            if (applied) {
+                await render();
+                toast('已保存。');
+            }
+            else
+                toast(savedDraftMessage || '已保存；保留你当前的页面和输入，稍后可刷新核对。');
         }
     }
     catch (e) {
@@ -526,7 +587,7 @@ document.addEventListener('click', async (event) => {
                 const r = await workspace('/datasets/' + state.active + '/revisions');
                 if (!valid())
                     break;
-                dialog('数据修订记录', notice('恢复历史内容会创建新的修订，不会修改或抹除旧报告。') + r.items.slice().reverse().map((v) => `<details><summary>修订 ${v.version} · ${timeText(v.created_at)}</summary>${v.diff.length ? table(['路径', '原值', '新值'], v.diff.map((c) => [esc(c.path), esc(c.before), esc(c.after)])) : '<p>初始保存的内容。</p>'}${button('以此内容创建新修订', 'restore-revision', 'secondary', `data-revision="${v.version}"`)}<p class="micro">${esc(v.content_hash)}</p></details>`).join(''), true);
+                dialog('数据修订记录', notice('恢复历史内容会创建新的修订，不会修改或抹除旧报告。') + r.items.slice().reverse().map((v) => `<details><summary>修订 ${v.version} · ${timeText(v.created_at)}</summary>${v.diff.length ? table(['路径', '原值', '新值'], v.diff.map((c) => [esc(c.path), esc(c.before), esc(c.after)])) : '<p>初始保存的内容。</p>'}${button('以此内容创建新修订', 'restore-revision', 'secondary', `data-revision="${v.version}"`)}<p class="micro">${esc(v.content_hash)}</p>${v.import_receipt ? `<details><summary>本次导入处理回执</summary>${jsonView(v.import_receipt.payload)}<p class="micro">回执校验 ${esc(v.import_receipt.content_hash)}</p></details>` : notice('此修订没有导入处理回执；不能推定原文件或转换过程。')}</details>`).join(''), true);
                 break;
             }
             case 'restore-revision':
@@ -642,7 +703,7 @@ document.addEventListener('click', async (event) => {
                 const r = await workspace('/runs/' + state.cache.run.id + '/assessment');
                 if (!valid())
                     break;
-                dialog('报告验收与回放授权', assessmentForm(r.item));
+                dialog('报告验收与回放授权', assessmentForm(r.item, r.review_context));
                 break;
             }
             case 'delete-strategy':
@@ -773,7 +834,7 @@ document.addEventListener('click', async (event) => {
                 break;
             case 'insight-details': {
                 const i = state.cache.insights.find((v) => v.key === id);
-                inspect(i.title, `<p>${esc(i.message)}</p><h3>触发依据</h3>${jsonView(i.proof)}<p class="micro">数据修订 ${i.dataset_version} · 本地确定性规则，不是模型预测。</p><div class="inline-actions">${button('转为行动', 'insight-action', 'primary', `data-id="${esc(id)}"`)}${routeButton('打开相关工作区', i.target)}</div><details><summary>本次不再提示</summary><form id="dismiss-insight-form" data-key="${esc(id)}">${field('搁置原因', textarea('reason', '', 'required minlength="5" rows="2"'))}${formFooter('仅对当前数据修订关闭提示')}</form></details>`);
+                inspect(i.title, `<p>${esc(i.message)}</p><h3>触发依据</h3>${jsonView(i.proof)}<p class="micro">数据修订 ${i.dataset_version} · 本地确定性规则，不是模型预测。</p><div class="inline-actions">${button('转为行动', 'insight-action', 'primary', `data-id="${esc(id)}"`)}${routeButton('打开相关工作区', i.target)}</div><details><summary>本次不再提示</summary><form id="dismiss-insight-form" data-key="${esc(id)}">${field('搁置原因', textarea('reason', '', 'required minlength="5" rows="2"'))}${formFooter('仅对当前身份与本次依据关闭提示')}</form></details>`);
                 break;
             }
             case 'assistant-query':
@@ -823,6 +884,8 @@ document.addEventListener('input', (event) => { const el = event.target; if (el.
 } const form = el.closest('form'); if (form && !['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'public-search-form'].includes(form.id))
     state.dirty = true; });
 document.addEventListener('change', async (event) => { const el = event.target; try {
+    if (el.id === 'plan-experiment')
+        syncExperimentControls(document, state.cache.planExperiments ?? [], scopedDatasets());
     if (el.id === 'active-dataset') {
         if (!safeToLeave()) {
             el.value = state.active;

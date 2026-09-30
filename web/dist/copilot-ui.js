@@ -1,5 +1,6 @@
+import { unchangedInputGuard } from './saved-experiments.js';
 import { claimMathReferences } from './math-results.js';
-import { interactionGuard, invalidateInteractions } from './interactions.js';
+import { interactionGuard, invalidateInteractions, renewSavedDraft } from './interactions.js';
 import { api, workspace, ApiError } from './api.js';
 import { assistantView } from './assistant.js';
 import { state, activeDataset, activeIdentity } from './state.js';
@@ -426,7 +427,7 @@ export async function reviewProposal(row, valid = interactionGuard()) {
 export async function copilotSubmit(form, fd) {
     if (form.dataset.thread !== threadId)
         throw new Error('会话已切换，请从当前会话重新打开提案。');
-    const valid = interactionGuard(), e = epoch, scope = contextKey;
+    const valid = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null), e = epoch, scope = contextKey;
     const active = () => valid() && validContext(e, scope);
     const get = (n) => String(fd.get(n) ?? '');
     if (form.dataset.serviceForm === 'proposal') {
@@ -442,12 +443,23 @@ export async function copilotSubmit(form, fd) {
         else if (kind === 'watch')
             Object.assign(body, { metric: get('metric'), operator: get('operator'), threshold: Number(get('threshold')), expires_at: get('expires_at') || null });
         const row = await api('/services/threads/' + threadId + '/proposals', 'POST', body);
-        if (!active())
+        const keepDraft = () => { if (validContext(e, scope) && renewSavedDraft(JSON.stringify([...fd]), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null, () => { form.dataset.key = crypto.randomUUID(); })) {
+            state.dirty = true;
+            hooks.toast('上一版提案已保存到此会话；保留你的新草稿，再次提交会生成新的提案。');
+        } };
+        if (!active()) {
+            keepDraft();
             return;
-        state.dirty = false;
+        }
         await reloadThread();
-        if (active())
-            await reviewProposal(row, active);
+        if (!active()) {
+            keepDraft();
+            return;
+        }
+        state.dirty = false;
+        await reviewProposal(row, active);
+        if (form.isConnected && !active())
+            keepDraft();
         return;
     }
     if (form.dataset.serviceForm === 'confirm-proposal') {

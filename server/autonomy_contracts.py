@@ -12,7 +12,7 @@ class ScenarioAssumptions(StrictModel):
     cost_change: float = Field(default=0.0, ge=-.8, le=1, strict=True)
     volume_change: float = Field(default=0.0, ge=-.8, le=1, strict=True)
     fixed_cost_share: float = Field(default=0.0, ge=0, le=1, strict=True)
-    note: str = Field(min_length=5, max_length=1000)
+    note: str = Field(min_length=5, max_length=2000)
 
 class ExecutionOptions(StrictModel):
     # None means a planning default; every explicit choice, including balanced,
@@ -56,6 +56,7 @@ class RunControl(StrictModel):
     action: Literal['pause', 'resume']
 
 class RunAssessment(StrictModel):
+    review_context_hash: str | None = Field(default=None,pattern='^[a-f0-9]{64}$')
     verdict: Literal['useful', 'needs_revision', 'rejected']
     note: str = Field(min_length=5, max_length=2000)
     expected_capabilities: list[Literal['quality', 'quant', 'evidence', 'counterevidence', 'forecast', 'sensitivity', 'gaps']] = Field(default_factory=list, max_length=7)

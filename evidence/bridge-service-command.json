@@ -1,5 +1,5 @@
 {
-  "exit_code": 0,
+  "exit_code": 1,
   "command": [
     "python",
     "scripts/service_browser_check.py"

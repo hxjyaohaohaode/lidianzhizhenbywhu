@@ -266,6 +266,67 @@ def main():
             print('STEP rule submitted',flush=True);page.locator('.alert-card').wait_for();page.locator('[data-x-action="alert-ack"]').click();f='form[data-service-form="alert-ack"]';page.locator(f+' [name="note"]').fill('已核对合成输入，仅用于流程验收');submit(f)
             page.locator('[data-x-action="alert-archive"]').click();page.wait_for_timeout(500);assert page.locator('.alert-card').count()==0
             go('brief');go('tracking');assert page.locator('.alert-card').count()==0;record('跟踪规则真实触发、核对归档、相同输入不重复提醒')
+            # Reuse a saved mathematical result through the actual review/approval
+            # UI, rather than copying parameters into a second unrelated experiment.
+            go('lab');page.locator('#experiment-form [name="name"]').fill('保存假设闭环（合成验收）')
+            page.locator('#experiment-form [name="price_change"]').fill('5')
+            page.locator('#experiment-form [name="fixed_cost_share"]').fill('30')
+            page.locator('#experiment-form [name="assumptions"]').fill('明确假设售价上调且固定成本份额不变，仅作流程验收')
+            submit('#experiment-form')
+            saved_experiment=client.get('/api/workspace/experiments').json()['items'][0]
+            saved_id=saved_experiment['id']
+            page.locator('[data-route="agents:experiment-'+saved_id+'"]').click()
+            page.locator('#plan-form').wait_for()
+            assert page.locator('#plan-experiment').input_value()==saved_id
+            assert page.locator('#plan-form [name="scenario_note"]').is_disabled()
+            assert '明确假设售价上调' in page.locator('#selected-experiment-details').inner_text()
+            submit('#plan-form');page.locator('#execute-plan-form').wait_for()
+            page.get_by_text('实验来源与结果指纹',exact=True).click()
+            assert saved_experiment['experiment_hash'] in page.locator('#main').inner_text()
+            submit('#execute-plan-form')
+            page.locator('[data-math-kind="sensitivity"]').wait_for(timeout=25000)
+            selected_run_id=page.url.split('agents:run-')[-1]
+            selected_run=client.get('/api/runs/'+selected_run_id).json()
+            full_experiment=client.get('/api/workspace/experiments/'+saved_id).json()
+            tool=selected_run['result']['adaptive']['mathematical_outputs']['sensitivity']
+            assert tool['result']==full_experiment['payload']['result']['result']
+            assert selected_run['result']['experiment']['hash']==saved_experiment['experiment_hash']
+            page.locator('[data-math-kind="sensitivity"]').get_by_text('实验来源与结果指纹',exact=True).click()
+            assert saved_experiment['experiment_hash'] in page.locator('[data-math-kind="sensitivity"]').inner_text()
+            assert not overflow();snap('ui-current-saved-experiment.png')
+            record('保存情景→原参数锁定转交Agent→预览批准→同一数学结果和实验指纹归档')
+            page.locator('[data-action="action-from-report"]').click()
+            page.locator('#action-form [name="acceptance"]').fill('核对本报告明确假设、原始财务输入和实际数学结果')
+            submit('#action-form');page.locator('#modal').wait_for(state='hidden')
+            linked_action=next(x for x in client.get('/api/workspace/actions').json()['items'] if x['payload'].get('run_id')==selected_run_id)
+            assert linked_action['payload']['provenance']['run_id']==selected_run_id
+            assert linked_action['payload']['provenance']['dataset_version']==selected_run['snapshot']['dataset_version']
+            page.locator('[data-x-action="watch-from-report"]').click();f='form[data-service-form="watch"]'
+            page.locator(f+' [name="title"]').fill('报告来源跟踪（合成验收）')
+            page.locator(f+' [name="threshold"]').fill('-1')
+            page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
+            linked_watch=next(w for w in client.get('/api/services/tracking?identity_id='+identity_id).json()['rules'] if w['payload']['title']=='报告来源跟踪（合成验收）')
+            assert linked_watch['payload']['provenance']['run_id']==selected_run_id
+            record('报告分别转为行动与跟踪规则，保存原报告和财务修订来源')
+            # A newer input revision never silently re-labels the old report as
+            # current. Choosing it as a new action basis requires explicit consent.
+            go('data');page.locator('#dataset-editor [name="notes"]').fill('合成验收追加数据说明；历史报告和实验不得重写')
+            submit('#dataset-editor');page.locator('[data-action="commit-stage"]').click()
+            page.locator('#modal').wait_for(state='hidden')
+            assert client.get('/api/datasets').json()['items'][0]['version']>selected_run['snapshot']['dataset_version']
+            go('agents:run-'+selected_run_id)
+            assert client.get('/api/runs/'+selected_run_id).json()['result']==selected_run['result']
+            page.locator('[data-action="action-from-report"]').click()
+            page.locator('#action-form [name="acceptance"]').fill('明确基于旧报告复核历史假设与差异，另行检查新修订')
+            page.locator('#action-form button[type="submit"]').click()
+            page.locator('#action-form .form-error').filter(has_text='历史').wait_for()
+            assert page.locator('#action-form [name="allow_historical"]').is_visible()
+            page.locator('#action-form [name="allow_historical"]').check();submit('#action-form')
+            page.locator('#modal').wait_for(state='hidden')
+            historical=client.get('/api/workspace/actions').json()['items'][0]
+            assert historical['payload']['provenance']['dataset_version']==selected_run['snapshot']['dataset_version']
+            assert historical['source_impact']['state']=='changed'
+            record('数据修订后旧报告保持不变，创建新行动须明确历史依据并显示来源变化')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')

@@ -14,7 +14,7 @@ def export_account(store, user_id):
             fail('UNAUTHORIZED', '账户已不存在', 401)
         owned_tables = (
             'datasets', 'conversations', 'memories', 'evidence', 'runs',
-            'messages', 'feedback', 'workspace_objects', 'dataset_revisions',
+            'messages', 'feedback', 'workspace_objects', 'dataset_revisions', 'dataset_import_receipts',
             'copilot_messages', 'tracking_receipts', 'adaptive_controls',
             'adaptive_graphs', 'adaptive_calls', 'audit',
         )

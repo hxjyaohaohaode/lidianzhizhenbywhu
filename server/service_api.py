@@ -13,6 +13,7 @@ from .service_contracts import (IdentitySpec, ThreadCreate, CopilotMessage, Prop
 from .identities import resolve_identity, PERSPECTIVES
 from .connections import scoped_providers
 from .copilot import make_thread, read_thread, send_message, propose, confirm_proposal, evaluate_watches
+from .business_provenance import resolve_source, with_source_impact
 
 router=APIRouter(prefix='/api/services',tags=['Identity, Copilot and Security'])
 
@@ -129,7 +130,8 @@ def add_proposal(id:str,body:ProposalRequest,request:Request,user=Depends(requir
 
 @router.get('/proposals/{id}')
 def get_proposal(id:str,request:Request,user=Depends(require_user)):
-    return ws.get(storeof(request),user['id'],'assistant_proposal',id)
+    store=storeof(request)
+    return with_source_impact(store,user['id'],ws.get(store,user['id'],'assistant_proposal',id))
 
 
 @router.post('/proposals/{id}/confirm')
@@ -152,11 +154,44 @@ def discard_proposal(id:str,request:Request,version:int|None=Query(None,ge=1),us
 def tracking(request:Request,identity_id:str=Query('',max_length=80),user=Depends(require_user)):
     store=storeof(request);resolve_identity(store,user['id'],identity_id)
     result=evaluate_watches(store,user['id'])
-    rules=[x for x in ws.objects(store,user['id'],'watch') if x['payload'].get('identity_id','')==identity_id]
-    alerts=[x for x in ws.objects(store,user['id'],'alert') if x['payload'].get('identity_id','')==identity_id]
+    rules=[with_source_impact(store,user['id'],x) for x in ws.objects(store,user['id'],'watch') if x['payload'].get('identity_id','')==identity_id]
+    alerts=[with_source_impact(store,user['id'],x) for x in ws.objects(store,user['id'],'alert') if x['payload'].get('identity_id','')==identity_id]
     ids={x['id'] for x in rules}
     return {**result,'evaluations':[x for x in result['evaluations'] if x['rule_id'] in ids], 'rules':rules,'alerts':alerts,
             'schedule':'服务运行时每60秒检查本地已保存数据；关闭服务后不监控，不调用付费模型'}
+
+
+@router.get('/history')
+def orphan_history(request:Request,offset:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=200),user=Depends(require_user)):
+    """Account-owned archived context without evaluating rules or restoring access."""
+    store=storeof(request)
+    identities={r['id']:r for r in ws.objects(store,user['id'],'identity')}
+    datasets={r['id']:r for r in store.items('datasets',user['id'])}
+    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind IN ('assistant_thread','action','watch','alert') ORDER BY updated_at DESC,id",(user['id'],))
+    items=[]
+    for row in rows:
+        p=row['payload'];identity_id=p.get('identity_id','');dataset_id=p.get('dataset_id','')
+        identity=identities.get(identity_id);reason='';code=''
+        if identity_id and not identity:
+            reason='原服务身份已删除；仅供查阅历史，不恢复原权限';code='identity_unavailable'
+        elif identity and identity['payload']['dataset_ids'] and dataset_id and dataset_id not in identity['payload']['dataset_ids']:
+            reason='企业已移出原服务身份范围；仅供查阅历史';code='identity_scope_removed'
+        elif dataset_id and dataset_id not in datasets:
+            reason='原企业数据已删除；仅供查阅已保存的历史';code='dataset_removed'
+        if not reason:continue
+        impact=with_source_impact(store,user['id'],row)['source_impact']
+        if code not in {r['code'] for r in impact['reasons']}:
+            impact={**impact,'state':'unavailable','reasons':impact['reasons']+[{'code':code,'message':reason}]}
+        provenance=p.get('provenance') or {}
+        items.append({'id':row['id'],'kind':row['kind'],'version':row['version'],'payload':p,
+            'created_at':row['created_at'],'updated_at':row['updated_at'],
+            'title':p.get('title',''),'company':p.get('company',provenance.get('company','')),
+            'dataset_id':dataset_id,'identity_id':identity_id,'status':p.get('status'),
+            'active':p.get('active'),'source_impact':impact,'read_only':True,
+            'archived_mode':True,'unavailable_reason':reason,'history_reason':reason})
+    page=items[offset:offset+limit];has_more=offset+limit<len(items)
+    return {'items':page,'has_more':has_more,'next_offset':offset+limit if has_more else None,
+        'read_only':True,'scope':'account_owned_orphan_history','external_calls':0}
 
 
 @router.post('/watches',status_code=201)
@@ -165,8 +200,18 @@ def create_watch(body:WatchSpec,request:Request,user=Depends(require_user)):
     if body.version:
         fail('VERSION_CONFLICT','新跟踪规则版本必须为0',409)
     with store.transaction() as db:
+        creation=body.model_dump(mode='json',exclude={'version','request_id'});request_hash=digest(creation)
+        key='request:'+body.request_id if body.request_id else None
+        old=ws.keyed(store,user['id'],'watch',key) if key else None
+        if old:
+            if old['payload'].get('creation_request_hash')!=request_hash:
+                fail('IDEMPOTENCY_CONFLICT','同一提交标识不能对应不同的跟踪内容或来源',409)
+            return with_source_impact(store,user['id'],old)
         resolve_identity(store,user['id'],body.identity_id,body.dataset_id);verify_datasets(store,user['id'],[body.dataset_id])
-        return ws.save(store,db,user['id'],'watch',body.model_dump(mode='json',exclude={'version'}))
+        provenance=resolve_source(store,user['id'],body.identity_id,body.dataset_id,body.source_ref)
+        payload={**body.model_dump(mode='json',exclude={'version','source_ref','request_id'}),'provenance':provenance,'changes':[],'evaluation_revision':1,
+            'creation_request_id':body.request_id,'creation_request_hash':request_hash,'creation_request':creation}
+        return with_source_impact(store,user['id'],ws.save(store,db,user['id'],'watch',payload,key=key))
 
 
 @router.put('/watches/{id}')
@@ -175,7 +220,19 @@ def update_watch(id:str,body:WatchSpec,request:Request,user=Depends(require_user
     with store.transaction() as db:
         old=ws.get(store,user['id'],'watch',id)
         resolve_identity(store,user['id'],body.identity_id,body.dataset_id);verify_datasets(store,user['id'],[body.dataset_id])
-        return ws.save(store,db,user['id'],'watch',body.model_dump(mode='json',exclude={'version'}),key=old['natural_key'],expected=body.version)
+        check_version(old,body.version)
+        if body.source_ref is not None or body.dataset_id!=old['payload']['dataset_id'] or body.identity_id!=old['payload'].get('identity_id',''):
+            fail('SOURCE_IMMUTABLE','跟踪规则的来源、企业和服务身份不可改写，请另建规则',409)
+        values=body.model_dump(mode='json',exclude={'version','source_ref','request_id'})
+        changes={k:{'before':old['payload'].get(k),'after':v} for k,v in values.items() if old['payload'].get(k)!=v}
+        if not changes:return with_source_impact(store,user['id'],old)
+        prior=old['payload'].get('changes',[])
+        if changes and len(prior)>=100:fail('WATCH_HISTORY_LIMIT','规则变更记录达到上限，请另建规则',409)
+        history=prior+[{'at':now(),'actor_id':user['id'],'version':old['version']+1,'fields':changes}] if changes else prior
+        evaluation_fields={'metric','operator','threshold','stale_after_days','expires_at'}
+        revision=old['payload'].get('evaluation_revision',old['version'])+int(bool(evaluation_fields.intersection(changes)))
+        payload={**old['payload'],**values,'changes':history,'evaluation_revision':revision}
+        return with_source_impact(store,user['id'],ws.save(store,db,user['id'],'watch',payload,key=old['natural_key'],expected=body.version))
 
 
 @router.delete('/watches/{id}')

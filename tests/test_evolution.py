@@ -210,3 +210,65 @@ def test_automatic_proposal_never_learns_from_holdout_requirements(actor,example
     response=actor.post('/workspace/evolution/propose',json={})
     assert response.status_code==409 and response.json()['error']['code']=='NO_SUPPORTED_IMPROVEMENT'
     assert actor.get('/workspace/evolution').json()['candidates']==[]
+
+
+def test_same_financial_group_preserves_all_human_tasks_and_holdout_gate(actor,example):
+    runs=three_cases(actor,example)
+    original=max(runs,key=input_signature)
+    saved=actor.get('/workspace/runs/'+original['id']+'/assessment').json()['item']
+    assessment(actor,original,version=saved['version'],expected_capabilities=['forecast'])
+    data=actor.get('/datasets/'+original['dataset_id']).json()
+    second=completed(actor,dataset=data,query='核查毛利率与现金流依据')
+    assessment(actor,second,expected_capabilities=['quant'])
+    c=candidate(actor)
+    evaluation=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()['payload']
+    assert evaluation['unique_inputs']==3 and evaluation['scenario_cases']==4
+    by_run={case['run_id']:case for case in evaluation['cases']}
+    assert by_run[original['id']]['partition']==by_run[second['id']]['partition']=='holdout'
+    assert by_run[original['id']]['candidate']['missing']==['forecast']
+    assert not evaluation['eligible']
+    assert len(evaluation['case_bindings'])==4
+
+
+def test_claim_review_context_requires_explicit_reconfirmation_without_relabeling_capability(factory):
+    from test_adaptive import ResearchProviders
+    a=Actor(factory(providers=ResearchProviders()))
+    run=completed(a,use_llm=True,max_calls=2)
+    claim=run['result']['llm']['review']['claims'][0]
+    first=assessment(a,run,expected_capabilities=['quant'])
+    review=a.post('/workspace/runs/'+run['id']+'/reviews',json={'claim_id':claim['id'],'verdict':'rejected','note':'这条解释的依据不充分，需要原始证据'})
+    assert review.status_code==200,review.text
+    current=a.get('/workspace/runs/'+run['id']+'/assessment').json()
+    assert current['item']['feedback_context']['state']=='changed'
+    assert a.get('/workspace/evolution').json()['observations']['consented_cases']==0
+    body={**first['payload'],'version':first['version']}
+    body={key:body[key] for key in ['version','verdict','note','expected_capabilities','consent_replay']}
+    assert a.post('/workspace/runs/'+run['id']+'/assessment',json=body).status_code==409
+    body['review_context_hash']=current['review_context']['hash']
+    updated=a.post('/workspace/runs/'+run['id']+'/assessment',json=body)
+    assert updated.status_code==200,updated.text
+    assert updated.json()['payload']['verdict']==first['payload']['verdict']
+    assert a.get('/workspace/evolution').json()['observations']['consented_cases']==1
+    assert a.get('/runs/'+run['id']).json()['result']==run['result']
+    # A later newly added/edited review invalidates context; it does not rewrite history.
+    again=a.post('/workspace/runs/'+run['id']+'/reviews',json={'claim_id':claim['id'],'verdict':'accepted','note':'已补充人工核查说明并重新评价','version':review.json()['version']})
+    assert again.status_code==200
+    assert a.get('/workspace/evolution').json()['observations']['consented_cases']==0
+
+
+def test_linked_action_feedback_is_seen_and_bound_before_replay_consent(actor):
+    run=completed(actor)
+    created=actor.post('/workspace/actions',json={'dataset_id':run['dataset_id'],'run_id':run['id'],'title':'补充原始依据','acceptance':'附原始凭证并人工核对解释'})
+    assert created.status_code==201,created.text
+    action=created.json()
+    context=actor.get('/workspace/runs/'+run['id']+'/assessment').json()['review_context']
+    assert context['related_actions'][0]['id']==action['id']
+    body={'verdict':'needs_revision','note':'参考当前行动反馈建立回放案例','expected_capabilities':['quant'],'consent_replay':True}
+    assert actor.post('/workspace/runs/'+run['id']+'/assessment',json=body).status_code==409
+    body['review_context_hash']=context['hash']
+    assert actor.post('/workspace/runs/'+run['id']+'/assessment',json=body).status_code==200
+    transition=actor.put('/workspace/actions/'+action['id']+'/status',json={'version':1,'status':'in_progress','note':'正在核对原始凭证'})
+    assert transition.status_code==200,transition.text
+    assert actor.get('/workspace/runs/'+run['id']+'/assessment').json()['item']['feedback_context']['state']=='changed'
+    assert actor.get('/workspace/evolution').json()['observations']['consented_cases']==0
+    assert actor.get('/runs/'+run['id']).json()['result']==run['result']

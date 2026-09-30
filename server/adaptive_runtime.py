@@ -5,6 +5,7 @@ registered research directions; they cannot execute commands, add URLs, write us
 records, raise a budget, or mutate permissions. Pauses occur between ready batches.
 """
 from __future__ import annotations
+from .clock import utc_today
 import asyncio
 import copy
 import re
@@ -193,9 +194,11 @@ class AdaptiveRun:
 
     def authorization_valid(self, binding):
         from .studio import approved_run_valid
+        from .saved_experiments import binding_current
         if not approved_run_valid(self.store, self.row):return False
         user=self.store.one('SELECT * FROM users WHERE id=?',(self.user_id,))
         b=self.st['bindings']
+        if not binding_current(self.store,self.user_id,b.get('experiment')):return False
         if (datetime.now(timezone.utc)-datetime.fromisoformat(self.row['created_at'])).total_seconds()>86400:return False
         if not user or user['version'] != b['user_version']: return False
         from .identities import execution_service_valid
@@ -211,11 +214,11 @@ class AdaptiveRun:
             if not live or live['version']!=m['version'] or not live['payload']['approved']:return False
             if m.get('payload_hash') and digest(live['payload']) != m['payload_hash']:return False
             expiry=live['payload'].get('expires_at')
-            if expiry and expiry<date.today().isoformat():return False
+            if expiry and expiry<utc_today().isoformat():return False
         for e in b['evidence']:
             live=self.store.owned('evidence',self.user_id,e['id']);review=ws.keyed(self.store,self.user_id,'evidence_review',e['id'])
             if not live or live['content_hash']!=e['hash'] or (review['version'] if review else 0)!=e['review_version']:return False
-            if review and (review['payload']['status']=='rejected' or (review['payload'].get('expires_at') and review['payload']['expires_at']<date.today().isoformat())):return False
+            if review and (review['payload']['status']=='rejected' or (review['payload'].get('expires_at') and review['payload']['expires_at']<utc_today().isoformat())):return False
         return True
 
     def reserve_call(self, n, binding, prompt, disclosure):
@@ -470,6 +473,7 @@ class AdaptiveRun:
         if changes:self.graph_update('；'.join(changes))
 
     def report(self):
+        from .saved_experiments import provenance
         maths=self.outputs['quant'];review=self.outputs[self.latest_review];data=self.s['dataset']
         def pct(v):return '不可计算' if v is None else f'{v*100:.2f}%'
         findings=[f"{data['company']} · {maths['current_period']}：毛利率{pct(maths['metrics']['gross_margin'])}，经营现金收入比{pct(maths['metrics']['cash_ratio'])}。"]
@@ -487,7 +491,7 @@ class AdaptiveRun:
         if any(v.get('status')=='blocked' for v in self.outputs.values()):warnings.append('部分能力未达门槛，查看节点产物与缺口清单。')
         return {'title':data['company']+' · 协同研判','query':self.r['query'],'mode':self.r['mode'],
             'dataset_id':self.row['dataset_id'],'dataset_version':self.s['dataset_version'],'dataset_hash':self.s['dataset_hash'],
-            'snapshot_hash':digest(self.s),'research_scope':self.s.get('research_scope'),'model_version':MODEL_VERSION,'analysis':maths,'quality':self.outputs['quality'],
+            'snapshot_hash':digest(self.s),'research_scope':self.s.get('research_scope'),'experiment':provenance(self.s.get('experiment')),'model_version':MODEL_VERSION,'analysis':maths,'quality':self.outputs['quality'],
             'findings':findings,'citations':self.s['citations'],'lineage':lineage(data,maths),
             'memory_selected':[{'id':x['id'],'version':x['version']} for x in self.s['memory']],
             'memory_used':[{'id':x['id'],'version':x['version']} for x in self.s['memory'] if x['id'] in memory],

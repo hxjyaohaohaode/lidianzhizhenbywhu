@@ -13,6 +13,7 @@ from .identities import resolve_identity, identity_binding, identity_context, co
 from .analytics import calculate, quality_report, forecast_baselines, lineage, period_end, closed_quarter, METRIC_LABELS
 from .intelligence import scoped_retrieve, build_insights
 from .service_contracts import WatchSpec
+from .business_provenance import resolve_source, assert_source_current, with_source_impact
 
 
 def migrate(store):
@@ -81,7 +82,8 @@ def read_thread(store,user,id):
                     'dataset_version':run['snapshot']['dataset_version'],
                     'current_dataset_version':data['version'] if data else None})
     return {'thread':t,'identity':identity_context(identity) if identity else t['payload'].get('identity_snapshot'),
-            'messages':messages,'proposals':proposals,'runs':runs,
+            'messages':messages,'proposals':[with_source_impact(store,user['id'],p) for p in proposals],'runs':runs,
+            'archived_mode':not writable,'read_only':not writable,
             'context':{'dataset_id':data['id'] if data else '', 'dataset_version':data['version'] if data else None,
                        'writable':writable,'unavailable_reason':reason}}
 
@@ -153,6 +155,7 @@ def answer_with_tools(store, user, identity, data, text, history):
     ip = identity['payload'] if identity else {}
     context = {'identity': identity_context(identity), 'dataset_id': data['id'] if data else '',
         'dataset_version': data['version'] if data else None, 'dataset_hash': data['content_hash'] if data else None,
+        'identity_binding': identity_binding(identity),
         'history_message_ids': [h['id'] for h in history[-4:]], 'history_used_for_topics': False}
 
     def tool(name, fn, inputs):
@@ -197,7 +200,7 @@ def answer_with_tools(store, user, identity, data, text, history):
         facts = _grounded_facts(d, result, topics, data, {r['id']: r for r in rows}, 4 if depth == 'concise' else 8)
         quality = tool('data_quality', lambda: quality_report(d), {'dataset_id': data['id'], 'version': data['version']})
         citations = tool('scoped_evidence_search', lambda: scoped_retrieve(store, user['id'], effective_query + ' ' + company, company, detail_limit), {'company': company, 'query': effective_query})
-        insights = tool('proactive_findings', lambda: build_insights(store, user['id'], [data]), {'dataset_id': data['id']})
+        insights = tool('proactive_findings', lambda: build_insights(store, user['id'], [data], identity_id=identity['id'] if identity else ''), {'dataset_id': data['id']})
         causal = any(w in q for w in ('为什么', '原因', '归因', '导致', '证明', 'why', 'cause'))
         warnings.extend(result['warnings'])
         if causal:
@@ -305,7 +308,7 @@ def propose(store,user,thread_id,body,settings,providers):
     # Lock proposal generation without nesting SQL transactions; duplicate previews
     # cannot create orphaned plans under simultaneous idempotent submissions.
     with store._lock:
-        return _propose(store,user,thread_id,body,settings,providers)
+        return with_source_impact(store,user['id'],_propose(store,user,thread_id,body,settings,providers))
 
 
 def _propose(store,user,thread_id,body,settings,providers):
@@ -328,9 +331,13 @@ def _propose(store,user,thread_id,body,settings,providers):
     if len(text)<5:
         fail('DETAIL_REQUIRED','请写明至少5个字符的具体研究或操作内容',422)
     title=body.title.strip() or text[:80]
+    proposal_id=uid()
+    provenance=resolve_source(store,user['id'],thread['payload']['identity_id'],data['id'],
+        {'kind':'copilot','thread_id':thread_id,'message_id':body.source_message_id})
+    provenance['proposal_id']=proposal_id
     p={'kind':body.kind,'status':'draft','thread_id':thread_id,'request':req,'request_hash':rh,
        'binding':proposal_binding(thread,identity,data),'created_at':now(),'title':title,'text':text,
-       'result':None,'external_calls':0}
+       'result':None,'external_calls':0,'provenance':provenance,'source_message_id':body.source_message_id}
     if body.kind=='research':
         from .contracts import PlanDraft
         from .studio import build_plan
@@ -354,13 +361,13 @@ def _propose(store,user,thread_id,body,settings,providers):
     elif body.kind=='watch':
         spec=WatchSpec(title=title,identity_id=thread['payload']['identity_id'],dataset_id=data['id'],
             metric=body.metric,operator=body.operator,threshold=body.threshold,expires_at=body.expires_at)
-        p['preview']=spec.model_dump(mode='json')
+        p['preview']={**spec.model_dump(mode='json',exclude={'source_ref','version','request_id'}),'provenance':provenance,'evaluation_revision':1}
     elif body.kind=='action':
         if len(body.acceptance.strip())<5:
             fail('ACCEPTANCE_REQUIRED','请填写具体的行动验收标准',422)
         p['preview']={'title':title,'description':text,'company':data['payload']['company'],'dataset_id':data['id'],
             'run_id':'','source_key':'','priority':'normal','owner':'','due_at':body.due_at.isoformat() if body.due_at else None,
-            'acceptance':body.acceptance,'identity_id':thread['payload']['identity_id']}
+            'acceptance':body.acceptance,'identity_id':thread['payload']['identity_id'],'provenance':provenance}
     else:
         if len(text)>1500:
             fail('MEMORY_TOO_LONG','记忆最多1500个字符，请整理后保存',422)
@@ -377,14 +384,15 @@ def _propose(store,user,thread_id,body,settings,providers):
             if concurrent['payload']['request_hash']!=rh:
                 fail('IDEMPOTENCY_CONFLICT','提案提交冲突',409)
             return concurrent
-        return ws.save(store,db,user['id'],'assistant_proposal',p,key=key)
+        assert_source_current(store,user['id'],provenance)
+        return with_source_impact(store,user['id'],ws.save(store,db,user['id'],'assistant_proposal',p,key=key,id=proposal_id))
 
 
 def confirm_proposal(store,user,id,body,settings,providers):
     # Serialize local confirmation with discard/update; dispatch itself is idempotent.
     # No external model request occurs while this lock is held.
     with store._lock:
-        return _confirm_proposal(store,user,id,body,settings,providers)
+        return with_source_impact(store,user['id'],_confirm_proposal(store,user,id,body,settings,providers))
 
 
 def _confirm_proposal(store,user,id,body,settings,providers):
@@ -400,6 +408,7 @@ def _confirm_proposal(store,user,id,body,settings,providers):
     t,i,d=thread_context(store,user,p['thread_id'])
     if proposal_binding(t,i,d)!=p['binding']:
         fail('PROPOSAL_STALE','数据或服务身份已变化，请重新预览',409)
+    assert_source_current(store,user['id'],p.get('provenance'))
     if (datetime.now(timezone.utc)-datetime.fromisoformat(p['created_at'])).total_seconds()>86400:
         fail('PROPOSAL_EXPIRED','提案超过24小时，请重新预览',409)
     if p['kind']=='research':
@@ -423,11 +432,13 @@ def _confirm_proposal(store,user,id,body,settings,providers):
         t,i,d=thread_context(store,user,p['thread_id'])
         if proposal_binding(t,i,d)!=p['binding']:
             fail('PROPOSAL_STALE','输入已变化',409)
+        assert_source_current(store,user['id'],p.get('provenance'))
         if p['kind']=='watch':
             value=ws.save(store,db,user['id'],'watch',p['preview'])
             result={'watch_id':value['id'],'route':'tracking'}
         elif p['kind']=='action':
-            v={**p['preview'],'status':'open','history':[{'at':now(),'from':None,'to':'open','note':'用户在研究助手中明确批准创建','evidence_ids':[]}]}
+            v={**p['preview'],'origin':dict(p['preview']),'origin_kind':'copilot','changes':[],'status':'open',
+                'history':[{'at':now(),'status':'open','from':None,'to':'open','note':'用户在研究助手中明确批准创建','evidence_ids':[],'evidence_snapshots':[]}]}
             value=ws.save(store,db,user['id'],'action',v)
             result={'action_id':value['id'],'route':'actions'}
         else:
@@ -443,7 +454,9 @@ def _confirm_proposal(store,user,id,body,settings,providers):
 def evaluate_watches(store,user_id,*,today=None):
     """Local rule evaluation: on explicit reads and once per minute while server runs.
 
-Each rule version + input version gets at most one alert. Missing or outdated
+Each material evaluation revision + input version gets at most one alert. The
+legacy receipt column is named rule_version; it stores this semantic revision.
+Missing or outdated
 inputs are visible evaluations, never silently converted into safe values.
 """
     today=today or datetime.now(timezone.utc).date();evaluations=[]
@@ -453,8 +466,11 @@ inputs are visible evaluations, never silently converted into safe values.
             if not p['active']:
                 continue
             d=store.owned('datasets',user_id,p['dataset_id'])
+            evaluation_revision=p.get('evaluation_revision',rule['version'])
             entry={'rule_id':rule['id'],'title':p['title'],'state':'unknown','reason':'数据已删除',
-                   'expires_at':p.get('expires_at'),'rule_version':rule['version']}
+                   'expires_at':p.get('expires_at'),'rule_version':rule['version'],'evaluation_revision':evaluation_revision,
+                   'dataset_id':p['dataset_id'],'dataset_version':d['version'] if d else None,
+                   'dataset_hash':d['content_hash'] if d else None,'threshold':p['threshold'],'operator':p['operator']}
             if p.get('expires_at') and today.isoformat()>p['expires_at']:
                 evaluations.append({**entry,'state':'expired','reason':'已超过跟踪结束日期，不再生成提醒'});continue
             if d:
@@ -466,7 +482,7 @@ inputs are visible evaluations, never silently converted into safe values.
                 a=calculate(d['payload']);latest=d['payload']['periods'][-1]
                 value=latest.get(p['metric']) if p['metric'] in ('revenue','cash_flow') else a['metrics'].get(p['metric'])
                 stale=(today-period_end(latest['period'])).days>p['stale_after_days']
-                entry.update({'value':value,'metric':p['metric'],'period':latest['period'],'dataset_version':d['version'],'dataset_id':d['id']})
+                entry.update({'value':value,'metric':p['metric'],'period':latest['period'],'dataset_version':d['version'],'dataset_id':d['id'],'dataset_hash':d['content_hash']})
                 if not closed_quarter(latest['period'],today):
                     entry['reason']='最新输入属于尚未结束或未来季度，不能判断完成季度指标'
                     entry['state']='incomplete'
@@ -479,8 +495,8 @@ inputs are visible evaluations, never silently converted into safe values.
                     hit=value<p['threshold'] if p['operator']=='lt' else value>p['threshold']
                     entry.update({'state':'triggered' if hit else 'clear','reason':'已按用户阈值核对'})
                     if hit:
-                        key=f"{rule['id']}:{rule['version']}:{d['version']}"
-                        receipt=store.one('SELECT 1 AS present FROM tracking_receipts WHERE rule_id=? AND rule_version=? AND dataset_version=?',(rule['id'],rule['version'],d['version']))
+                        key=f"{rule['id']}:{evaluation_revision}:{d['version']}"
+                        receipt=store.one('SELECT 1 AS present FROM tracking_receipts WHERE rule_id=? AND rule_version=? AND dataset_version=?',(rule['id'],evaluation_revision,d['version']))
                         old=ws.keyed(store,user_id,'alert',key)
                         if old:
                             entry['alert_id']=old['id']
@@ -488,9 +504,16 @@ inputs are visible evaluations, never silently converted into safe values.
                             entry['reason']='该输入对应的提醒已归档，不重复推送'
                         elif len(ws.objects(store,user_id,'alert',200))<200:
                             alert=ws.save(store,db,user_id,'alert',{**entry,'identity_id':p.get('identity_id',''),
-                                'threshold':p['threshold'],'operator':p['operator'],'acknowledged':False,'evaluated_at':now()},key=key)
+                                'threshold':p['threshold'],'operator':p['operator'],'acknowledged':False,'evaluated_at':now(),
+                                'identity_binding':identity_binding(identity),
+                                'provenance':{'schema_version':1,'kind':'watch_evaluation','captured_at':now(),
+                                    'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],
+                                    'company':d['payload']['company'],'identity_id':p.get('identity_id',''),
+                                    'identity_binding':identity_binding(identity),'rule_id':rule['id'],'rule_version':rule['version'],
+                                    'evaluation_revision':evaluation_revision,
+                                    'rule_origin':p.get('provenance'),'evidence':[]}},key=key)
                             entry['alert_id']=alert['id']
-                            db.execute('INSERT OR IGNORE INTO tracking_receipts VALUES(?,?,?,?,?)',(rule['id'],user_id,rule['version'],d['version'],now()))
+                            db.execute('INSERT OR IGNORE INTO tracking_receipts VALUES(?,?,?,?,?)',(rule['id'],user_id,evaluation_revision,d['version'],now()))
                         else:
                             entry['reason']='已触发但历史提醒达到上限，请整理；没有丢弃原提醒'
             evaluations.append(entry)

@@ -18,6 +18,30 @@ REPLAY_VERSION = 'local-capability-replay-v3'
 COMPLETED_STATES = {'succeeded', 'degraded'}
 
 
+
+def review_context(store,user_id,run_id):
+    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND json_extract(payload,'$.run_id')=? ORDER BY id",(user_id,run_id))
+    actions=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='action' AND (json_extract(payload,'$.run_id')=? OR json_extract(payload,'$.provenance.run_id')=?) ORDER BY id",(user_id,run_id,run_id))
+    bindings=[{'kind':'claim_review','id':r['id'],'version':r['version'],'hash':digest(r['payload'])} for r in rows]
+    bindings.extend({'kind':'action','id':r['id'],'version':r['version'],'hash':digest(r['payload'])} for r in actions)
+    feedback=[]
+    for action in actions:
+        p=action['payload'];last=(p.get('history') or [{}])[-1]
+        feedback.append({'id':action['id'],'version':action['version'],'title':p['title'],'status':p['status'],
+            'acceptance':p['acceptance'],'latest_record':{k:last.get(k) for k in ('at','status','note')},
+            'evidence':[{'id':e['id'],'version':e['version'],'content_hash':e['content_hash'],'review_version':e['review_version']} for e in last.get('evidence_snapshots',[])]})
+    return {'hash':digest(bindings),'bindings':bindings,'items':rows,'related_actions':feedback,
+            'disputed':sum(r['payload']['verdict']!='accepted' for r in rows)}
+
+
+def assessment_context(store,user_id,row):
+    context=review_context(store,user_id,row['payload']['run_id'])
+    saved=row['payload'].get('feedback_context_hash',row['payload'].get('claim_review_hash',digest([])))
+    return {**row,'feedback_context':{'current_hash':context['hash'],'saved_hash':saved,
+        'state':'current' if saved==context['hash'] else 'changed','disputed':context['disputed'],
+        'message':'解释复核或关联行动反馈已变化，请重新查看并确认回放授权' if saved!=context['hash'] else '回放仅核对能力覆盖，不替代对模型解释的人工复核'}}
+
+
 def assessment(store, user, run_id, body):
     if body.consent_replay and not body.expected_capabilities:
         fail('MISSING_RUBRIC', '加入回放前须明确至少一个预期能力，不能让系统自行给自己评分', 422)
@@ -26,10 +50,14 @@ def assessment(store, user, run_id, body):
         if not run: fail('NOT_FOUND', '运行不存在或无权限', 404)
         if run['state'] not in COMPLETED_STATES or not run['result']:
             fail('NO_REPORT', '只有已完成且产生实际报告的任务才能用于复盘', 409)
-        payload = body.model_dump(mode='json', exclude={'version'})
+        reviews=review_context(store,user['id'],run_id)
+        if body.consent_replay and (reviews['items'] or reviews['related_actions']) and body.review_context_hash!=reviews['hash']:
+            fail('REVIEW_CONTEXT_CHANGED','解释复核或关联行动反馈已变化，请查看当前意见并重新确认回放授权',409)
+        payload = body.model_dump(mode='json', exclude={'version','review_context_hash'})
         payload.update({'run_id': run_id, 'snapshot_hash': digest(run['snapshot']),
                         'result_hash': digest(run['result']), 'dataset_hash': run['snapshot']['dataset_hash'],
-                        'request_hash': digest(run['payload'])})
+                        'request_hash': digest(run['payload']), 'feedback_context_hash':reviews['hash'],
+                        'claim_reviews':reviews['items'],'action_feedback':reviews['related_actions']})
         return ws.save(store, db, user['id'], 'assessment', payload, key=run_id, expected=body.version)
 
 
@@ -41,6 +69,7 @@ def cases(store, user_id):
         if not run or run['state'] not in COMPLETED_STATES or not run['result']: continue
         if digest(run['snapshot']) != a['payload']['snapshot_hash'] or digest(run['result']) != a['payload']['result_hash']:continue
         if a['payload'].get('request_hash', digest(run['payload'])) != digest(run['payload']):continue
+        if a['payload'].get('feedback_context_hash',a['payload'].get('claim_review_hash',digest([])))!=review_context(store,user_id,run['id'])['hash']:continue
         rows.append((a, run))
     return rows
 
@@ -52,6 +81,7 @@ def binding(a, run):
 
 
 def replay(run, rubric, spec):
+    from .saved_experiments import provenance
     s = copy.deepcopy(run['snapshot']); original = s.get('studio', {})
     ex = copy.deepcopy(original.get('execution') or ExecutionOptions().model_dump())
     # Policy affects only planning defaults. It never alters financial inputs/thresholds.
@@ -84,6 +114,7 @@ def replay(run, rubric, spec):
             'node_count': len(graph['nodes']), 'math_hash': math_hash,
             'computation_hash': digest(computations), 'external_calls': 0, 'capabilities': sorted(caps),
             'planned_capabilities': sorted(planned), 'as_of': as_of.isoformat(),
+            'experiment': provenance(s.get('experiment')),
             'computations': {cap: {'status': out.get('status', 'completed'), 'output_hash': digest(out)} for cap, out in computations.items()},
             'scope': '共享生产实现的本地执行与人工需求覆盖；资料不足节点不计为已完成'}
 
@@ -97,7 +128,7 @@ def input_signature(run):
 def grouped_cases(available):
     grouped = {}
     for assessment, run in sorted(available, key=lambda pair: (pair[0]['updated_at'], pair[0]['id'])):
-        grouped[input_signature(run)] = (assessment, run)
+        grouped.setdefault(input_signature(run), []).append((assessment, run))
     return grouped
 
 
@@ -106,11 +137,14 @@ def replay_cohort(grouped, baseline, candidate):
     holdout = set(groups[-max(1, len(groups)//3):]) if groups else set()
     results = []; bindings = []
     for key in groups:
-        a, run = grouped[key]; rubric = a['payload']['expected_capabilities']
-        b = replay(run, rubric, baseline); c = replay(run, rubric, candidate)
-        results.append({'run_id': run['id'], 'dataset_hash': key, 'partition': 'holdout' if key in holdout else 'development',
-                        'expected': rubric, 'baseline': b, 'candidate': c, 'reference_math_hash': digest(run['result']['analysis'])})
-        bindings.append(binding(a, run))
+        # Grouping prevents repeated inputs inflating sample independence; it must
+        # never discard another real question, scenario or human requirement.
+        for a, run in grouped[key]:
+            rubric = a['payload']['expected_capabilities']
+            b = replay(run, rubric, baseline); c = replay(run, rubric, candidate)
+            results.append({'run_id': run['id'], 'dataset_hash': key, 'partition': 'holdout' if key in holdout else 'development',
+                            'expected': rubric, 'baseline': b, 'candidate': c, 'reference_math_hash': digest(run['result']['analysis'])})
+            bindings.append(binding(a, run))
     regressions = [r['run_id'] for r in results if r['candidate']['recall'] < r['baseline']['recall'] or r['candidate']['math_hash'] != r['baseline']['math_hash'] or r['baseline']['math_hash'] != r['reference_math_hash']]
     improvements = [r['run_id'] for r in results if r['candidate']['recall'] > r['baseline']['recall'] or
                     (r['candidate']['recall'] == r['baseline']['recall'] and r['candidate']['node_count'] < r['baseline']['node_count'])]
@@ -120,7 +154,7 @@ def replay_cohort(grouped, baseline, candidate):
     if not improvements: reasons.append('未观察到需求覆盖改善或相同覆盖下的节点减少')
     if results and any(r['candidate']['missing'] for r in results if r['partition']=='holdout'):
         reasons.append('保留组仍有未覆盖的人工预期能力')
-    return {'case_bindings': bindings, 'cases': results, 'unique_inputs': len(groups),
+    return {'case_bindings': bindings, 'cases': results, 'scenario_cases': len(results), 'unique_inputs': len(groups),
             'regressions': regressions, 'improvements': improvements, 'eligible': not reasons, 'blockers': reasons}
 
 
@@ -155,7 +189,7 @@ def activate(store, user, candidate_id, body):
             fail('EVALUATION_STALE', '候选与评估不一致', 409)
         if not report['eligible']: fail('EVALUATION_BLOCKED', '候选没有通过本地评估门槛', 409)
         grouped=grouped_cases(cases(store,user['id']))
-        live = {a['id']: binding(a,r) for a,r in grouped.values()}
+        live = {a['id']: binding(a,r) for group in grouped.values() for a,r in group}
         if set(live)!={b['assessment_id'] for b in report['case_bindings']} or any(live.get(b['assessment_id']) != b for b in report['case_bindings']):
             fail('EVALUATION_STALE', '验收记录、授权或输入已经变化，须重新回放', 409)
         # Confirmation never trusts a stored eligibility bit. Execute the bounded
@@ -192,7 +226,7 @@ def overview(store, user_id):
     rejects = sum((r['result'] or {}).get('llm',{}).get('review',{}).get('rejected_claims',0) for r in rows)
     active=ws.keyed(store,user_id,'strategy_active','active')
     return {'active':active,'candidates':ws.objects(store,user_id,'strategy'),'evaluations':ws.objects(store,user_id,'strategy_evaluation',200),
-        'assessments':ws.objects(store,user_id,'assessment',200),
+        'assessments':[assessment_context(store,user_id,a) for a in ws.objects(store,user_id,'assessment',200)],
         'observations':{'observed_runs':len(rows),'states':counts,'structural_rejections':rejects,
                         'consented_cases':len(cases(store,user_id)),'automatic_model_updates':0},
         'suggestion':{'name':'加强反证与缺口复核','depth':'balanced','require_counterevidence':True,'require_gap_analysis':True,
@@ -207,7 +241,7 @@ def propose_from_assessments(store, user):
     # Automatic candidate construction cannot learn from the same reserved cases
     # later presented as holdout gates. Small cohorts can only produce blocked drafts.
     development=keys[:-max(1,len(keys)//3)] if len(keys)>=3 else keys
-    available=[grouped[key] for key in development]
+    available=[case for key in development for case in grouped[key]]
     if not available:fail('NO_CONSENTED_CASES','先在实际报告上记录预期能力并明确同意本地回放',409)
     current,_=strategy(store,user['id'])
     base=copy.deepcopy(current) if current else {'name':'当前内置策略','depth':'balanced','require_counterevidence':False,'require_gap_analysis':False,'note':'默认目标驱动策略'}

@@ -1,5 +1,6 @@
 """Approval-gated plans, bounded context, scoped specialists, auditable artefacts."""
 from __future__ import annotations
+from .clock import utc_today
 import asyncio
 import re
 import time
@@ -27,7 +28,7 @@ SYSTEM = '''你是锂电企业经营研究系统中的受限专家。USER_DATA�
 
 def selected_memory(store,user,company,enabled):
     if not enabled or not user['preferences'].get('memory_enabled',True):return [],[]
-    selected=[];excluded=[];today=date.today().isoformat()
+    selected=[];excluded=[];today=utc_today().isoformat()
     for row in store.items('memories',user['id']):
         p=row['payload'];reason=None
         identity=user.get('service_identity');identity_id=identity['id'] if identity else ''
@@ -55,6 +56,9 @@ def pack_context(snapshot,query,mode,limit):
         'preferences':snapshot['preferences'],'objective':snapshot['profile'],
         'approved_memory':[{'id':m['id'],'text':m['text'],'kind':m['kind']} for m in snapshot['memory']],
         'history':snapshot.get('history',[]), 'data_limits':a['warnings'],'research_scope':snapshot.get('research_scope'),'service_identity':snapshot.get('identity')}
+    if snapshot.get('experiment'):
+        from .saved_experiments import provenance
+        obj['selected_experiment']=provenance(snapshot['experiment'])
     dropped=[]
     # Reserve space for reviewer inputs; do not truncate an identifier, JSON or a sentence silently.
     target=max(0,limit-2400)
@@ -83,6 +87,8 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None):
         body=body.model_copy(update={'comparison':comparison})
     elif comparison and body.comparison!=comparison:
         research_scope.update(status='blocked',notice='问题中的同/环比与表单选择的比较基期不一致，请统一后重建计划。')
+    from .saved_experiments import select_experiment
+    body,experiment=select_experiment(store,user['id'],body,d,research_scope)
     company=d['payload']['company'];profile=profile_for(store,user['id'],company)
     pr=ws.keyed(store,user['id'],'profile',company)
     citations=scoped_retrieve(store,user['id'],body.query+' '+company,company,6)
@@ -100,7 +106,8 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None):
     snapshot={'dataset':d['payload'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],
         'citations':citations,'memory':memories,'preferences':user['preferences'],'profile':profile,
         'history':history,'comparison':body.comparison,'identity':identity_context(identity),
-        'research_scope':research_scope,'analysis_as_of':date.today().isoformat()}
+        'research_scope':research_scope,'analysis_as_of':utc_today().isoformat()}
+    if experiment:snapshot['experiment']=experiment
     context,packing=pack_context(snapshot,body.query,body.mode,settings.max_context_chars)
     provider=providers.select(body.provider) if body.use_llm else None
     if provider and not body.provider:
@@ -125,6 +132,7 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None):
         'memory':[{'id':m['id'],'version':m['version'],'hash':m['payload_hash']} for m in memories],
         'session_version':session_version if body.include_history else None,
         'provider':provider_binding(provider) if provider else None,'identity':identity_binding(identity)}
+    if experiment:bindings['experiment']={k:experiment[k] for k in ('id','version','hash')}
     payload={'status':'draft','request':body.model_dump(mode='json'),'snapshot':snapshot,'context':context,
         'packing':packing,'bindings':bindings,'nodes':nodes,'call_ids':call_ids,
         'max_calls':len(call_ids),'requested_max_calls':body.max_calls if body.use_llm else 0,
@@ -133,6 +141,7 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None):
         'created_at':now(),'run_id':None}
     from .autonomy import attach_plan
     attach_plan(store,user,payload,providers)
+    if experiment and body.use_llm:payload['consent_scope'].append('选中数学实验的名称、原始假设、期间、指纹与经核验计算结果')
     payload['fingerprint']=digest(payload)
     with store.transaction() as db:return ws.save(store,db,user['id'],'plan',payload)
 
@@ -185,6 +194,8 @@ def check_bindings(store,user,plan,providers):
     validate_identity_binding(store,user,b.get('identity'),b['dataset_id'],external=r['use_llm'],max_calls=r['max_calls'])
     from .autonomy import validate_extra_bindings
     validate_extra_bindings(store,user,p,providers)
+    from .saved_experiments import check_binding
+    check_binding(store,user['id'],b.get('experiment'))
     d=store.owned('datasets',user['id'],b['dataset_id'])
     if not d or (d['version'],d['content_hash'])!=(b['dataset_version'],b['dataset_hash']):
         fail('PLAN_STALE','财务数据已修改或删除，请重建计划后重新批准',409)
@@ -195,13 +206,13 @@ def check_bindings(store,user,plan,providers):
         doc=store.owned('evidence',user['id'],e['id']);review=ws.keyed(store,user['id'],'evidence_review',e['id'])
         if not doc or doc['content_hash']!=e['hash'] or (review['version'] if review else 0)!=e['review_version']:
             fail('PLAN_STALE','证据或审阅状态已变化，请重建计划',409)
-        if review and review['payload'].get('expires_at') and review['payload']['expires_at']<date.today().isoformat():
+        if review and review['payload'].get('expires_at') and review['payload']['expires_at']<utc_today().isoformat():
             fail('PLAN_STALE','证据已过期，请重建计划',409)
     for m in b['memory']:
         row=store.owned('memories',user['id'],m['id'])
         if not row or row['version']!=m['version'] or digest(row['payload'])!=m['hash']:
             fail('PLAN_STALE','记忆已修改、撤回或删除，请重新预览',409)
-        if row['payload'].get('expires_at') and row['payload']['expires_at']<date.today().isoformat():fail('PLAN_STALE','记忆已过期',409)
+        if row['payload'].get('expires_at') and row['payload']['expires_at']<utc_today().isoformat():fail('PLAN_STALE','记忆已过期',409)
     if b['session_version'] is not None:
         s=store.owned('conversations',user['id'],r['session_id'])
         if not s or s['version']!=b['session_version']:fail('PLAN_STALE','会话历史已改变，请重新预览',409)
@@ -308,13 +319,13 @@ async def perform_studio(worker,id):
                     for m in s['memory']:
                         if m['id'] not in st['packing']['included_memory_ids']:continue
                         live=store.owned('memories',row['user_id'],m['id'])
-                        if not live or live['version']!=m['version'] or not live['payload']['approved'] or (live['payload'].get('expires_at') and live['payload']['expires_at']<date.today().isoformat()):changed=True
+                        if not live or live['version']!=m['version'] or not live['payload']['approved'] or (live['payload'].get('expires_at') and live['payload']['expires_at']<utc_today().isoformat()):changed=True
                     for c in s['citations']:
                         if c['id'] not in planned_citations:continue
                         live=store.owned('evidence',row['user_id'],c['document_id'])
                         rev=ws.keyed(store,row['user_id'],'evidence_review',c['document_id'])
                         if not live or live['content_hash']!=c['document_hash'] or (rev['version'] if rev else 0)!=c.get('review_version',0):changed=True
-                        if rev and (rev['payload']['status']=='rejected' or (rev['payload'].get('expires_at') and rev['payload']['expires_at']<date.today().isoformat())):changed=True
+                        if rev and (rev['payload']['status']=='rejected' or (rev['payload'].get('expires_at') and rev['payload']['expires_at']<utc_today().isoformat())):changed=True
                     if changed:
                         return {'agent':name,'status':'blocked','error_class':'AUTHORIZATION_CHANGED','output':{'claims':[],'missing':['审批后记忆、证据、偏好或模型配置发生变化，未继续外发，请重新预览计划']}}
                     obj=dict(st['context'])

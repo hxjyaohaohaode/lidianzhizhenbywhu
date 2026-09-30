@@ -1,7 +1,10 @@
-import { interactionGuard, invalidateInteractions } from './interactions.js';
+import { unchangedInputGuard } from './saved-experiments.js';
+import { formSource, sourcePanel } from './business-source.js';
+import { actionForm } from './views-analysis.js';
+import { interactionGuard, invalidateInteractions, renewSavedDraft } from './interactions.js';
 import { api, invalidateContext } from './api.js';
 import { state, scopedDatasets } from './state.js';
-import { esc, field, input, textarea, formFooter, notice } from './components.js';
+import { esc, field, input, textarea, formFooter, notice, jsonView, table, num, metricNames } from './components.js';
 import { identityForm, connectionForm, watchForm, serviceForm } from './views-services.js';
 import { configureCopilot, chatAction, copilotSubmit, resetCopilot, handoffCopilot } from './copilot-ui.js';
 let hooks;
@@ -34,7 +37,7 @@ export function setupExperience(value) {
             return;
         el.dataset.pending = 'true';
         el.setAttribute('aria-busy', 'true');
-        const act = el.dataset.xAction, id = el.dataset.id ?? '';
+        const act = el.dataset.xAction, id = el.dataset.id ?? '', clickCurrent = interactionGuard();
         try {
             if (act.startsWith('chat-')) {
                 await chatAction(act, el);
@@ -82,9 +85,49 @@ export function setupExperience(value) {
                 case 'session-revoke':
                     sensitive('撤销登录会话', 'revoke-session', id);
                     break;
+                case 'history-more': {
+                    const valid = interactionGuard();
+                    const next = await api('/services/history?offset=' + encodeURIComponent(el.dataset.offset ?? '0'));
+                    if (!valid())
+                        break;
+                    const prior = state.cache.serviceHistory;
+                    state.cache.serviceHistory = { ...next, items: [...prior.items, ...next.items] };
+                    hooks.inspect('更多失效范围历史', state.cache.serviceHistory.items.map((r) => `<article><h4>${esc(r.title ?? r.payload.title ?? '历史记录')}</h4><p>${esc(r.company || r.dataset_id || '通用范围')} · ${esc(r.history_reason)}</p><button type="button" class="text-button" data-x-action="history-detail" data-id="${esc(r.id)}">只读核查</button></article>`).join('') + (next.has_more ? `<button type="button" class="text-button" data-x-action="history-more" data-offset="${next.next_offset}">继续加载历史</button>` : ''));
+                    break;
+                }
+                case 'history-detail': {
+                    const valid = interactionGuard();
+                    const row = state.cache.serviceHistory.items.find((r) => r.id === id);
+                    if (!row)
+                        throw new Error('历史列表已变化，请刷新');
+                    let content = notice('只读历史：' + row.history_reason, 'warm');
+                    if (row.kind === 'assistant_thread') {
+                        const thread = await api('/services/threads/' + id);
+                        if (!valid())
+                            break;
+                        content += (thread.messages ?? []).map((m) => `<article class="subpanel"><h4>${esc(m.payload.question)}</h4><p class="preserve-lines">${esc(m.payload.response.answer)}</p><details><summary>当时的完整上下文与工具回执</summary>${jsonView(m.payload.response)}</details></article>`).join('');
+                    }
+                    else {
+                        content += sourcePanel(row) + `<p>${esc(row.payload.description ?? row.payload.acceptance ?? '')}</p><details><summary>冻结记录与状态历史</summary>${jsonView(row.payload)}</details>`;
+                    }
+                    hooks.inspect(row.title ?? '历史记录', content);
+                    break;
+                }
                 case 'watch-new':
                     hooks.dialog('跟踪一项已保存指标', watchForm());
                     break;
+                case 'watch-from-action': {
+                    const row = state.cache.actions?.find((a) => a.id === id);
+                    if (!row)
+                        throw new Error('行动已不在当前列表，请刷新');
+                    hooks.dialog('为行动建立指标跟踪', watchForm(null, { dataset_id: row.payload.dataset_id, title: '跟踪：' + row.payload.title.slice(0, 100), source_ref: { kind: 'action', action_id: row.id, action_version: row.version, action_hash: row.object_hash } }));
+                    break;
+                }
+                case 'watch-from-report': {
+                    const r = state.cache.run;
+                    hooks.dialog('从报告建立跟踪规则', watchForm(null, { dataset_id: r.dataset_id, title: '跟踪：' + r.payload.query.slice(0, 100), source_ref: { kind: 'report', run_id: r.id } }));
+                    break;
+                }
                 case 'watch-edit': {
                     const row = state.cache.tracking.rules.find((x) => x.id === id);
                     hooks.dialog('调整跟踪规则', watchForm(row));
@@ -92,15 +135,17 @@ export function setupExperience(value) {
                 }
                 case 'watch-toggle': {
                     const w = state.cache.tracking.rules.find((x) => x.id === id);
-                    await api('/services/watches/' + id, 'PUT', { ...w.payload, active: !w.payload.active, version: w.version });
-                    await hooks.render();
+                    await api('/services/watches/' + id, 'PUT', Object.fromEntries([...['title', 'identity_id', 'dataset_id', 'metric', 'operator', 'threshold', 'stale_after_days', 'expires_at'].map(k => [k, w.payload[k]]), ['active', !w.payload.active], ['version', w.version]]));
+                    if (clickCurrent())
+                        await hooks.render();
                     break;
                 }
                 case 'watch-delete':
                     if (!confirm('删除此跟踪规则？过去的提醒保留供你核查。'))
                         return;
                     await api('/services/watches/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
-                    await hooks.render();
+                    if (clickCurrent())
+                        await hooks.render();
                     break;
                 case 'alert-ack': {
                     const row = state.cache.tracking.alerts.find((x) => x.id === id);
@@ -109,15 +154,39 @@ export function setupExperience(value) {
                 }
                 case 'alert-archive':
                     await api('/services/alerts/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
-                    await hooks.render();
+                    if (clickCurrent())
+                        await hooks.render();
                     break;
                 case 'alert-investigate': {
                     const row = state.cache.tracking.alerts.find((x) => x.id === id);
-                    state.active = row.payload.dataset_id;
+                    if (!row)
+                        throw new Error('提醒已变化，请刷新');
+                    const p = row.payload;
+                    const current = state.datasets.find(d => d.id === p.dataset_id);
+                    hooks.inspect('历史提醒的判定依据', `<h3>${esc(p.title)}</h3>${table(['判定期间', '输入修订', '历史观测值', '历史阈值'], [[esc(p.period), esc(p.dataset_version), num(p.value, 4), esc(p.operator === 'lt' ? '低于' : '高于') + ' ' + num(p.threshold, 4)]])}<p class="micro wrap">当时输入校验：${esc(p.dataset_hash ?? '旧提醒未记录')}</p>${notice(current ? '当前数据为修订 ' + current.version + '。历史提醒不按新数据重算；后续助手核查将明确使用当前修订。' : '源数据已删除；这条提醒仍保留当时的判定记录。', 'warm')}${current ? `<div class="inline-actions"><button type="button" class="secondary" data-x-action="alert-current-investigate" data-id="${esc(id)}">明确用当前修订继续核查</button><button type="button" class="primary" data-x-action="alert-action" data-id="${esc(id)}">以此历史提醒创建行动</button></div>` : ''}${p.acknowledgement ? `<h4>已记录的核对说明</h4><p>${esc(p.acknowledgement)}</p>` : ''}`);
+                    break;
+                }
+                case 'alert-action': {
+                    const row = state.cache.tracking.alerts.find((x) => x.id === id);
+                    const p = row.payload;
+                    hooks.dialog('从历史提醒创建行动', actionForm({ title: '跟进：' + p.title, dataset_id: p.dataset_id, message: '历史提醒：' + p.period + '，数据修订 ' + p.dataset_version + '；当时指标 ' + p.value + '，阈值 ' + p.threshold, source_ref: { kind: 'alert', alert_id: row.id } }));
+                    break;
+                }
+                case 'alert-current-investigate': {
+                    const row = state.cache.tracking.alerts.find((x) => x.id === id);
+                    const p = row.payload;
+                    if (!scopedDatasets().some(d => d.id === p.dataset_id))
+                        throw new Error('原企业数据已删除或不在当前身份范围，请先调整研究范围');
+                    if (state.dirty && !confirm('继续将离开未保存表单，是否继续？'))
+                        return;
+                    state.active = p.dataset_id;
                     invalidateContext();
                     hooks.navigate('copilot', true);
+                    const continuation = interactionGuard();
                     await hooks.render();
-                    await handoffCopilot('核查当前企业的' + row.payload.title + '，说明指标来源、数据质量与需要的证据');
+                    if (!continuation())
+                        break;
+                    await handoffCopilot('核查当前企业的' + (metricNames[p.metric] ?? p.metric) + '指标。参考历史提醒 ' + row.id + '：' + p.period + '，数据修订 ' + p.dataset_version + '，当时值 ' + p.value + '、阈值 ' + p.threshold + '。本次明确使用当前保存的修订，不能把当前计算当成历史提醒复现。');
                     break;
                 }
                 default: throw new Error('此操作未识别，没有执行写入。');
@@ -141,7 +210,7 @@ export function setupExperience(value) {
             return;
         if (!form.reportValidity())
             return;
-        const valid = interactionGuard();
+        const valid = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null);
         form.dataset.pending = 'true';
         form.setAttribute('aria-busy', 'true');
         const fd = new FormData(form), str = (n) => String(fd.get(n) ?? '');
@@ -179,9 +248,16 @@ export function setupExperience(value) {
                     }
                     break;
                 }
-                case 'watch':
-                    await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: Number(str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
+                case 'watch': {
+                    const saved = await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { request_id: str('request_id') || null, ...formSource(fd), title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: Number(str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
+                    if (form.isConnected) {
+                        if (id)
+                            form.dataset.version = String(saved.version);
+                        else if (renewSavedDraft(JSON.stringify([...fd]), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null, () => { form.querySelector('[name="request_id"]').value = crypto.randomUUID(); }))
+                            hooks.toast('上一版规则已保存；保留你的新草稿，再次提交会创建新的跟踪规则。');
+                    }
                     break;
+                }
                 case 'alert-ack':
                     await api('/services/alerts/' + id + '/acknowledge', 'POST', { note: str('note'), version });
                     break;

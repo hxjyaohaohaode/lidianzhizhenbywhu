@@ -179,3 +179,21 @@ test('archived read-only assistant history never dispatches a new question',asyn
 test('watch end date remains optional and expired evaluations are distinct from safe readings',()=>{
  state.datasets=[];state.identities=[];state.identity='';const html=views.watchForm({id:'w',version:2,payload:{expires_at:'2026-12-31'}});assert(html.includes('name="expires_at"'));assert(html.includes('value="2026-12-31"'));assert(html.includes('含截止日'));const source=readFileSync(new URL('../web/views-services.ts',import.meta.url),'utf8');assert(source.includes("expired:'已到期'"));assert(source.includes("incomplete:'季度未结束'"));
 });
+
+for(const [kind,field,value] of [['action','text','用户刚补充的新背景'],['action','acceptance','用户修改后的验收标准'],['watch','threshold','0.9']]){
+ test(`pending ${kind} proposal preserves a newer ${field} draft instead of replacing its modal`,async()=>{
+  const oldFetch=globalThis.fetch,NativeFormData=globalThis.FormData;initChat();const shown=chatHooks();let resolve;
+  try{
+   globalThis.fetch=async url=>json(url.includes('/threads?')?{items:[{id:'thread-a'}]}:thread());await chat.mountCopilot();
+   globalThis.FormData=class extends NativeFormData{constructor(form){super();if(form)for(const [k,v] of form.fields)this.set(k,v);}};
+   const form={isConnected:true,dataset:{thread:'thread-a',serviceForm:'proposal',kind,message:'m',key:'pending-draft-key'},fields:new Map([['text','原始背景说明'],['acceptance','原始验收标准'],['metric','gross_margin'],['operator','lt'],['threshold','0.2']])};
+   const posted=[];globalThis.fetch=(url,init)=>{posted.push(url);return new Promise(r=>resolve=r);};state.dirty=true;
+   const pending=chat.copilotSubmit(form,new FormData(form));form.fields.set(field,value);
+   resolve(json({id:'p',version:1,payload:{status:'draft',kind,title:'已保存旧提案',text:'旧内容',binding:{dataset_version:1},preview:{}}}));await pending;
+   assert.equal(form.fields.get(field),value);assert.equal(state.dirty,true);assert.equal(shown.length,0);assert.equal(posted.length,1);
+   assert.notEqual(form.dataset.key,'pending-draft-key');const freshKey=form.dataset.key;let nextBody;
+   globalThis.fetch=async(url,init)=>{if(init.method==='POST'){nextBody=JSON.parse(init.body);return json({id:'p-new',version:1,payload:{status:'draft',kind,title:'新稿提案',text:'新内容',binding:{dataset_version:1},preview:{}}});}return json(thread(3));};
+   await chat.copilotSubmit(form,new FormData(form));assert.equal(nextBody.request_id,freshKey);assert.equal(String(nextBody[field]),value);assert.equal(shown.length,1);
+  }finally{globalThis.fetch=oldFetch;globalThis.FormData=NativeFormData;chat.resetCopilot();}
+ });
+}

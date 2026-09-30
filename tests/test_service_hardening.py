@@ -46,7 +46,7 @@ def test_identity_and_chat_deletes_require_observed_revision(actor):
 
 def test_watch_alert_and_proposal_deletes_are_revision_bound(actor):
     d=actor.dataset();w=watch(actor,d)
-    changed=ok(actor.put('/services/watches/'+w['id'],json={**w['payload'],'version':1,'threshold':0.98}))
+    changed=ok(actor.put('/services/watches/'+w['id'],json={**{k:v for k,v in w['payload'].items() if k not in {'provenance','changes','evaluation_revision','creation_request_id','creation_request_hash','creation_request'}},'version':1,'threshold':0.98}))
     ok(actor.delete('/services/watches/'+w['id']+'?version=1'),409)
     status=evaluate_watches(actor.client.app.state.store,actor.user['id'],today=date(2026,10,1))
     aid=status['evaluations'][0]['alert_id']

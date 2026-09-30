@@ -95,6 +95,9 @@ def markdown_report(result):
         '## 指标、规则与输入血缘', code(analysis), code(result.get('lineage', []))]
     for kind, value in result.get('adaptive', {}).get('mathematical_outputs', {}).items():
         parts.append(math_markdown(kind, value))
+    if result.get('experiment'):
+        parts += ['## 已批准数学实验来源', code(result['experiment']),
+                  '原始假设、目标季度、实验版本与指纹随批准计划冻结；不随当前实验或财务输入变化改写。']
     parts += ['## 模型解释与人工复核', '结构门禁与引用关联不等于事实核验。']
     reviews = ctx.get('human_reviews_at_export', [])
     for claim in result.get('llm', {}).get('review', {}).get('claims', []):

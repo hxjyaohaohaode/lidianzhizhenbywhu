@@ -15,3 +15,11 @@ export async function finishMutation(valid, refresh, apply) {
     apply();
     return true;
 }
+/** Only call after a known successful create. Unknown outcomes retain the retry key. */
+export function renewSavedDraft(submitted, read, renew) {
+    const latest = read();
+    if (latest === null || latest === submitted)
+        return false;
+    renew();
+    return true;
+}

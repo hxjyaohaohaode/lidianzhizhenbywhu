@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .clock import utc_today
 import asyncio
 import hmac
 import json
@@ -369,7 +370,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             if body.include_memory and user['preferences'].get('memory_enabled',True):
                 for m in db.items('memories',user['id']):
                     p=m['payload']
-                    if not p['approved'] or (p.get('expires_at') and p['expires_at']<date.today().isoformat()):continue
+                    if not p['approved'] or (p.get('expires_at') and p['expires_at']<utc_today().isoformat()):continue
                     if p['role'] not in ('all',user['preferences'].get('role')):continue
                     if p['company'] and p['company']!=dataset['payload']['company']:continue
                     memory.append({'id':m['id'],'version':m['version'],'text':p['text'],'kind':p['kind']})

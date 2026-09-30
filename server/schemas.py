@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .clock import utc_today
 import re
 from datetime import date
 from typing import Annotated, Literal
@@ -65,7 +66,7 @@ class Period(StrictModel):
     @model_validator(mode='after')
     def meaningful(self):
         year=int(self.period[:4]); quarter=int(self.period[-1])
-        if date(year,(quarter-1)*3+1,1)>date.today():raise ValueError('不接受未来季度作为历史实际数据')
+        if date(year,(quarter-1)*3+1,1)>utc_today():raise ValueError('不接受未来季度作为历史实际数据')
         if self.assets==0 and (self.liabilities or 0)>0:raise ValueError('资产为0时不能填入正数负债；请检查单位和口径')
         return self
 
@@ -123,7 +124,7 @@ class Evidence(StrictModel):
     @field_validator('published_at')
     @classmethod
     def no_future_date(cls,v):
-        if v and v>date.today():raise ValueError('发布日期不能晚于今天')
+        if v and v>utc_today():raise ValueError('发布日期不能晚于今天')
         return v
 
 class EvidenceCapture(Evidence):

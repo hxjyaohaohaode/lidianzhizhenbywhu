@@ -1,5 +1,6 @@
 """Evidence-scoped proactive rules and explicit assistant routing, not simulated LLM chat."""
 from __future__ import annotations
+from .clock import utc_today
 from datetime import date
 from .analytics import calculate, quality_report, period_end, lineage, METRIC_LABELS
 from .store import digest
@@ -16,7 +17,7 @@ def profile_for(store,user,company):
 def evidence_catalog(store,user):
     reviews={r['natural_key']:r for r in ws.objects(store,user,'evidence_review')}
     rows=store.items('evidence',user)
-    today=date.today().isoformat()
+    today=utc_today().isoformat()
     out=[]
     for row in rows:
         rv=reviews.get(row['id']);review=rv['payload'] if rv else {'status':'unreviewed','company':'','tags':[],'stance':'context','note':'','expires_at':None}
@@ -32,16 +33,34 @@ def scoped_retrieve(store,user,query,company='',limit=6):
     return retrieve_indexed(store,user,query,limit,company=company)
 
 
-def build_insights(store,user,datasets=None,today=None):
-    today=today or date.today();datasets=datasets if datasets is not None else store.items('datasets',user)
+def build_insights(store,user,datasets=None,today=None,*,identity_id=""):
+    today=today or utc_today();datasets=datasets if datasets is not None else store.items('datasets',user)
     docs=evidence_catalog(store,user);items=[];focus_by_company={d['payload']['company']:profile_for(store,user,d['payload']['company']).get('focus',[]) for d in datasets}
     dismissed={o['natural_key'] for o in ws.objects(store,user,'dismissal')}
-    actions={o['payload'].get('source_key'):o['id'] for o in ws.objects(store,user,'action',1000)}
+    actions={o['payload'].get('source_key'):o['id'] for o in ws.objects(store,user,'action',1000) if o['payload'].get('identity_id','')==identity_id}
     def add(row,code,title,message,priority,proof,target,acceptance):
-        key=f"{row['id']}:{row['version']}:{code}"
+        # A dismissal is about one rule instance in one service context. A changed
+        # threshold/evidence/report basis must produce a new instance, while the
+        # passage of a day alone must not resurrect an otherwise identical one.
+        profile=profile_for(store,user,row['payload']['company'])
+        field={'margin':'margin_floor','cash':'cash_floor','leverage':'leverage_ceiling','stale':'stale_after_days'}.get(code)
+        context={'identity_id':identity_id}
+        if field:context['goal']={field:profile.get(field)}
+        if code in {'margin','cash','leverage'}:context['goal']['objective']=profile.get('objective','')
+
+        if code in {'evidence','counterevidence'}:
+            relevant=[d for d in sorted(docs,key=lambda d:d['id'])
+                if (d['review'].get('company')==row['payload']['company'] or d['review'].get('global_scope'))
+                and (code=='evidence' or d['eligible'] and d['review'].get('stance') in {'supports','contradicts'})]
+            context['evidence']=[{'id':d['id'],'hash':d['content_hash'],
+                'review_hash':digest(d['review']) if code=='counterevidence' else None,
+                'eligible':d['eligible'],'status':d['review']['status']} for d in relevant]
+        if code=='report_stale':context['report']=proof
+        key=f"{row['id']}:{row['version']}:{code}:"+digest(context)[:24]
         if key in dismissed:return
         items.append({'key':key,'code':code,'title':title,'message':message,'priority':priority,
             'company':row['payload']['company'],'dataset_id':row['id'],'dataset_version':row['version'],
+            'dataset_hash':row['content_hash'],'identity_id':identity_id,'context':context,
             'proof':proof,'target':target,'acceptance':acceptance,'action_id':actions.get(key),
             'engine':'deterministic_rule'})
     for d in datasets:
@@ -77,7 +96,7 @@ def build_insights(store,user,datasets=None,today=None):
             add(d,'counterevidence','对照支持与反向证据','存在人工标为支持和反驳的资料；这不自动证明语义矛盾','normal',
                 {'document_ids':[doc['id'] for doc in eligible if doc['review'].get('stance') in ('supports','contradicts')]},
                 'evidence','核对不同证据是否针对相同论点、期间与业务范围')
-        last_run=store.one('SELECT * FROM runs WHERE user_id=? AND dataset_id=? AND result IS NOT NULL ORDER BY created_at DESC LIMIT 1',(user,d['id']))
+        last_run=store.one("SELECT * FROM runs WHERE user_id=? AND dataset_id=? AND result IS NOT NULL AND COALESCE(json_extract(snapshot,'$.identity.id'),'')=? ORDER BY created_at DESC,id DESC LIMIT 1",(user,d['id'],identity_id))
         if last_run and last_run['snapshot']['dataset_version']!=d['version']:
             add(d,'report_stale','数据已更新，旧报告不自动改写','最近诊断使用了较早的数据修订，需要显式重跑','normal',
                 {'run_id':last_run['id'],'report_version':last_run['snapshot']['dataset_version'],'current_version':d['version']},

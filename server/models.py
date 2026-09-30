@@ -1,5 +1,6 @@
 """Versioned deterministic business rules; scores are not empirically trained probabilities."""
 from __future__ import annotations
+from .clock import utc_today
 from decimal import Decimal
 from datetime import date
 from .schemas import Dataset
@@ -50,7 +51,7 @@ def select_baseline(periods,comparison):
 
 def calculate(data,comparison='year_over_year', *, today=None):
     periods=sorted(data['periods'],key=lambda p:p['period']);current=periods[-1];baseline=select_baseline(periods,comparison)
-    m=metric(current);b=metric(baseline) if baseline else {};warnings=[];today=today or date.today()
+    m=metric(current);b=metric(baseline) if baseline else {};warnings=[];today=today or utc_today()
     if current['period']==f'{today.year}-Q{(today.month-1)//3+1}':warnings.append('输入包含尚未结束的当前季度；请核对是否为实际截至日数据，不能当作完整季度业绩。')
     if not baseline:warnings.append('缺少指定的同/环比季度；基期指标保持缺失，不改用任意季度。')
     warnings.append('全部财务输入是演示样例，不代表真实企业。' if data.get('source_kind')=='sample' else '输入未经本系统独立核验；来源链接不等于真实性认证。')

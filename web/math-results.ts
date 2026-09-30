@@ -1,5 +1,6 @@
 /** Present archived tool outputs without recalculating business values. */
 import type {Json} from './api.js';
+import {experimentProvenance} from './saved-experiments.js';
 import {esc,num,pct,amount,unitName,table,notice,jsonView,lineChart,metricNames,badge} from './components.js';
 const names:Record<string,string>={forecast:'时间序列预测与回测',sensitivity:'情景与敏感性',counterevidence:'支持与反向证据对照',gaps:'数据缺口与补充计划'};
 export function mathResult(kind:string,r:Json,unit='wan'){
@@ -34,7 +35,7 @@ export function mathResult(kind:string,r:Json,unit='wan'){
   content=r.items?.length?table(['缺失字段','待补充工作'],r.items.map((p:Json)=>[esc(metricNames[p.field]??p.field),esc(p.action)])):notice('本节点没有列出缺失字段，不代表全部业务事实已核验。');
   if(r.findings?.length)content+=table(['季度','需核对事项'],r.findings.map((p:Json)=>[esc(p.period),esc(p.message)]));
  }
- return `<article class="subpanel math-result" data-math-kind="${esc(kind)}"><h3>${esc(title)}</h3>${content}${(r.limitations??[]).map((s:string)=>`<p class="micro">${esc(s)}</p>`).join('')}<details><summary>完整已保存产物与计算依据</summary>${jsonView(r)}</details></article>`;
+ return `<article class="subpanel math-result" data-math-kind="${esc(kind)}"><h3>${esc(title)}</h3>${content}${experimentProvenance(r.experiment)}${(r.limitations??[]).map((s:string)=>`<p class="micro">${esc(s)}</p>`).join('')}<details><summary>完整已保存产物与计算依据</summary>${jsonView(r)}</details></article>`;
 }
 export function reflectionView(r:Json){if(!r)return notice('本报告没有保存自主复盘记录。');return `<h3>执行复盘与未达成条件</h3>${table(['项目','实际记录'],[['外部调用尝试',num(r.call_attempts,0)],['成功调用',num(r.successful_calls,0)],['外发字符',num(r.context_characters,0)],['结构门禁拦截',num(r.rejected_claims,0)]])}${r.issues?.length?table(['节点','状态','限制 / 原因'],r.issues.map((i:Json)=>[esc(i.node),esc(i.state),esc(i.reason??'查看对应产物')])):notice('未记录结构执行问题；这不表示研究结论已被证明。')}<p><strong>你的验收标准：</strong>${esc(r.success_criteria||'未填写')}</p><p class="micro">${esc(r.criteria_verification??'仍需人工验收')}</p><details><summary>完整复盘记录</summary>${jsonView(r)}</details>`;}
 

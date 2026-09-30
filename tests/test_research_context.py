@@ -154,8 +154,8 @@ def test_replay_after_quarter_rollover_matches_archived_analysis(actor):
     class After(date):
         @classmethod
         def today(cls):return cls(2026,10,1)
-    with patch('server.studio.date',Before):run=completed(actor,dataset=d)
-    with patch('server.models.date',After),patch('server.analytics.date',After):
+    with patch('server.studio.utc_today',return_value=Before.today()):run=completed(actor,dataset=d)
+    with patch('server.models.utc_today',return_value=After.today()),patch('server.analytics.utc_today',return_value=After.today()):
         replayed=replay(run,['quality','quant'],None)
     assert replayed['math_hash']==digest(run['result']['analysis'])
     assert replayed['as_of']=='2026-09-30'

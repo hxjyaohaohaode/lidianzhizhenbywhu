@@ -142,9 +142,20 @@ class Store:
             db.execute('INSERT INTO evidence_chunks VALUES(?,?,?,?,?)',(chunk,id,user,start,excerpt))
             db.execute('INSERT INTO evidence_fts(chunk_id,owner,terms) VALUES(?,?,?)',(chunk,user,' '.join(terms(excerpt))))
 
+    @staticmethod
+    def validate_dataset_identity(current,payload):
+        """Company is the shared business key; a revision cannot reassign its history."""
+        from .security import fail
+        if current['payload']['company'] != payload['company']:
+            fail('COMPANY_MISMATCH','不能在修订中更换企业身份，请创建新数据集',409)
+
     def update(self,table,user,id,version,payload):
         if table not in {'datasets','memories','conversations'}:raise ValueError('invalid table')
         with self.transaction() as db:
+            if table=='datasets':
+                current=self.owned(table,user,id)
+                if not current or current['version']!=version:return None
+                self.validate_dataset_identity(current,payload)
             extra,args=(',content_hash=?',[digest(payload)]) if table=='datasets' else ('',[])
             c=db.execute(f'UPDATE {table} SET payload=?,version=version+1,updated_at=?{extra} WHERE id=? AND user_id=? AND version=?',(encode(payload),now(),*args,id,user,version))
             if c.rowcount!=1:return None

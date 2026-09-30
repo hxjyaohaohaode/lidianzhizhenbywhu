@@ -26,7 +26,9 @@ def control(id:str,body:RunControl,request:Request,user=Depends(require_user)):
 def get_assessment(id:str,request:Request,user=Depends(require_user)):
     from .security import fail
     if not request.app.state.store.owned('runs',user['id'],id):fail('NOT_FOUND','运行不存在或无访问权限',404)
-    return {'item':ws.keyed(request.app.state.store,user['id'],'assessment',id)}
+    store=request.app.state.store;row=ws.keyed(store,user['id'],'assessment',id)
+    return {'item':evolution.assessment_context(store,user['id'],row) if row else None,
+            'review_context':evolution.review_context(store,user['id'],id)}
 
 @router.post('/runs/{id}/assessment')
 def assess(id:str,body:RunAssessment,request:Request,user=Depends(require_user)):

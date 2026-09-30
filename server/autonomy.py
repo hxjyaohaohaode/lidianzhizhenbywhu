@@ -33,6 +33,13 @@ def execute_local_capability(capability, snapshot, request, execution, outputs, 
     from .models import calculate
     from .question_scope import analysis_dataset
     data = analysis_dataset(snapshot)
+    if capability in ('forecast','sensitivity') and snapshot.get('experiment'):
+        from .saved_experiments import selected_output
+        # A provenance/assumption mismatch is an integrity failure, not a reason
+        # to silently fall back to current/default mathematical parameters.
+        selected = selected_output(capability, snapshot, execution)
+        if selected is not None:
+            return selected
     if capability == 'quality':
         return quality_report(data, today=today)
     if capability == 'quant':
