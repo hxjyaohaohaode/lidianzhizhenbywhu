@@ -161,8 +161,8 @@ def test_plan_bindings_reject_changes_before_approval(factory,change):
 def test_revocation_after_queue_approval_blocks_unsent_calls(factory,kind):
     vendor=StudioProvider();a=Actor(factory(providers=vendor));d=dataset(a);doc,review=evidence(a,d['payload']['company']);m=good(a.post('/memories',json={'text':'关注采购成本和现金流','approved':True}),201)
     p=plan(a,d,use_llm=True);run=good(approve(a,p,external_consent=True),202)
-    if kind=='memory':good(a.delete('/memories/'+m['id']))
-    elif kind=='evidence':good(a.delete('/evidence/'+doc['id']))
+    if kind=='memory':good(a.delete('/memories/'+m['id'],params={'version':m['version']}))
+    elif kind=='evidence':good(a.delete('/evidence/'+doc['id'],params={'version':doc['version']}))
     elif kind=='preferences':good(a.put('/preferences',json={**a.user['preferences'],'name':'撤回前偏好变更','version':1,'memory_enabled':False}))
     else:vendor.provider.model='changed-after-dispatch'
     r=a.execute(run)
@@ -195,7 +195,7 @@ def test_total_timeout_does_not_succeed_or_retry(factory):
 
 def test_cancelled_plan_and_run_no_late_writes(factory):
     v=StudioProvider();a=Actor(factory(providers=v));p=plan(a,use_llm=True)
-    good(a.post('/workspace/plans/'+p['id']+'/cancel'))
+    good(a.post('/workspace/plans/'+p['id']+'/cancel',params={'version':p['version']}))
     assert approve(a,p,external_consent=True).status_code==409
     p2=plan(a,use_llm=True);run=good(approve(a,p2,external_consent=True),202)
     good(a.post('/runs/'+run['id']+'/cancel'));a.execute(run)
@@ -295,8 +295,8 @@ def test_export_all_workspace_assets_no_credentials(actor):
 
 def test_workspace_deletion_guards_and_account_cascade(actor):
     p=plan(actor);r=good(approve(actor,p),202)
-    assert actor.delete('/workspace/archive/plan/'+p['id']).status_code==409
-    good(actor.post('/runs/'+r['id']+'/cancel'));good(actor.delete('/workspace/archive/plan/'+p['id']))
+    assert actor.delete('/workspace/archive/plan/'+p['id'],params={'version':actor.get('/workspace/plans/'+p['id']).json()['version']}).status_code==409
+    good(actor.post('/runs/'+r['id']+'/cancel'));good(actor.delete('/workspace/archive/plan/'+p['id'],params={'version':actor.get('/workspace/plans/'+p['id']).json()['version']}))
     assert actor.get('/workspace/plans/'+p['id']).status_code==404
     assert actor.delete('/workspace/archive/users/anything').status_code==422
     good(actor.delete('/account',json={'email':actor.email,'password':actor.password}))
@@ -337,7 +337,7 @@ def test_archive_lists_only_owned_metadata_and_cleanup_frees_space(actor):
     assert rows['total']==1 and rows['items'][0]['id']==p['id']
     assert 'snapshot' not in encode(rows) and 'context' not in encode(rows)
     assert other.delete('/workspace/archive/plan/'+p['id']).status_code==404
-    good(actor.delete('/workspace/archive/plan/'+p['id']))
+    good(actor.delete('/workspace/archive/plan/'+p['id'],params={'version':actor.get('/workspace/plans/'+p['id']).json()['version']}))
     assert good(actor.get('/workspace/archive'))['collections']['plan']['total']==0
 
 

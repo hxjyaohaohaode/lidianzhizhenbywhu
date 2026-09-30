@@ -1,9 +1,15 @@
-# 证据目录
+# 验收证据索引（2026-09-30）
 
-当前验收入口：`verification.json`、`full-chain-http.json`、`native-service-browser.json`、`service-browser-check.json`、`source-guard.json`、`dependency-audit.json` 和 `brand-integrity.json`。本机日志与 JUnit 报告由验收命令生成，未纳入源码；GitHub Actions 运行时作为单独工件保留。旧版记录保存在 `history/`，不代表当前扫描。
+当前权威范围见 `docs/VALIDATION.md`，功能/兼容边界见 `docs/RELEASE_4_1.md`。
 
-“通过”仅指相应命令与范围。2026-09-27 在 Windows 上原生浏览器与独立 DOM/API 桥接分别通过，命令及是否使用桥接记录在 `native-service-command.json` 和 `bridge-service-command.json`；真实外部模型调用 0，不把测试替身当实际供应商连接。
+- `verification.json`：本轮完整编译、类型、构建、585项后端、59项前端、源码检查、真实HTTP链结果
+- `full-chain-http.json`：本轮真实Uvicorn/HTTP/SSE/退出重启/在线备份12组检查
+- `native-service-browser.json`、`native-service-command.json`：本轮Chromium启动因socket权限被阻止，未进入页面；不继承旧通过标志
+- `dependency-audit-current.json`、`npm-audit-current.json`：本轮联网依赖审计；无已知报告不等于不存在漏洞
+- `source-guard.json`：本轮限定语法/模式检查
+- `brand-integrity.json`：原始PNG/MP4摘要，本轮重新核对不变
+- `orchestration-hardening-20260930.json`：本輪有界执行/恢复/治理演进的定向检查及限制；最终整合以verification为准
 
-`ui-current-empty.png` 显示全新注册、业务数据全空；`ui-current-copilot.png`、`ui-current-approval.png`、`ui-current-services.png`、`ui-current-mobile.png` 是本轮原生浏览器在隔离测试数据下的当前界面。生产代码无自动演示入口；测试数据库不打包。`brand-integrity.json` 记录原始 PNG/MP4 摘要。文件权属不由散列证明。
+以下是**历史基线资料，未在本轮重跑或重拍**：`ui-current-*.png`、`service-browser-check.json`、`bridge-service-command.json`、`dependency-audit.json`以及`history/`。保留旧文件名是为了历史引用，不把它们当作4.1视觉或桥接验收证明。只有新的原生CI执行成功并写出对应截图，才能更新此结论。
 
-最终ZIP散列与从ZIP重新解压复验的记录在交付包外，避免将包内容与自身散列循环依赖。
+日志及JUnit由执行生成，不纳入源码；GitHub Actions将其作为独立工件保存。测试账户/财报均在临时目录，不打包数据库、密钥、`.env`、依赖缓存或运行时样例。真实模型/公开搜索供应商调用为0。

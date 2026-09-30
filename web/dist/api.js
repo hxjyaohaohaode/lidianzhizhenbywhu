@@ -49,3 +49,15 @@ export async function api(path, method = 'GET', body, extra = {}) {
     }
 }
 export const workspace = (path, method = 'GET', body) => api('/workspace' + path, method, body);
+// Page reads are fenced separately so navigation cannot corrupt page caches,
+// while the independent assistant can finish its already submitted question.
+let viewGeneration = 0;
+export function invalidateView() { viewGeneration++; }
+export async function viewApi(path, method = 'GET', body, extra = {}) {
+    const generation = viewGeneration;
+    const result = await api(path, method, body, extra);
+    if (generation !== viewGeneration)
+        throw new ApiError('已前往新的工作区，忽略旧页面的迟到结果。', 409, 'STALE_VIEW', '');
+    return result;
+}
+export const viewWorkspace = (path, method = 'GET', body) => viewApi('/workspace' + path, method, body);

@@ -125,6 +125,46 @@ def build_plan(store,user,body,settings,providers):
     with store.transaction() as db:return ws.save(store,db,user['id'],'plan',payload)
 
 
+def plan_fingerprint_valid(payload):
+    """Dispatch state is mutable; the content approved in draft is not."""
+    original = {k: v for k, v in payload.items() if k != 'fingerprint'}
+    original.update(status='draft', run_id=None)
+    return payload.get('fingerprint') == digest(original)
+
+
+def approved_run_valid(store, row):
+    """Bind the runtime inputs to the owner-specific approved immutable plan."""
+    try:
+        snapshot = row['snapshot']; frozen = snapshot['studio']
+        plan = store.one("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='plan'", (frozen['plan_id'], row['user_id']))
+        if not plan:
+            return False
+        p = plan['payload']
+        if not plan_fingerprint_valid(p) or p['status'] != 'dispatched' or p['run_id'] != row['id'] or p['fingerprint'] != frozen['fingerprint']:
+            return False
+        if {k: v for k, v in snapshot.items() if k != 'studio'} != p['snapshot']:
+            return False
+        expected = {'plan_id': plan['id'], 'fingerprint': p['fingerprint'], 'nodes': p['nodes'],
+                    'context': p['context'], 'packing': p['packing'], 'call_ids': p['call_ids'],
+                    'bindings': p['bindings'], 'success_criteria': p['request']['success_criteria'],
+                    'profile': p['snapshot']['profile']}
+        if p.get('adaptive'):
+            expected.update(adaptive=p['adaptive'], execution=p['request']['execution'])
+        if any(frozen.get(k) != value for k, value in expected.items()):
+            return False
+        request = {k: p['request'][k] for k in ('dataset_id', 'query', 'mode', 'comparison', 'use_llm', 'provider', 'include_memory')}
+        request['session_id'] = row['session_id']
+        if row['payload'] != request or row['request_hash'] != digest(request) or row['idempotency_key'] != 'plan_' + plan['id']:
+            return False
+        event = store.one("SELECT * FROM run_events WHERE run_id=? AND type='queued' ORDER BY seq LIMIT 1", (row['id'],))
+        return bool(event and event['payload'].get('plan_id') == plan['id']
+                    and event['payload'].get('fingerprint') == p['fingerprint']
+                    and event['payload'].get('external_consent') == frozen.get('consent')
+                    and (not request['use_llm'] or frozen.get('consent') is True))
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def check_bindings(store,user,plan,providers):
     from .connections import scoped_providers, provider_binding
     from .identities import validate_identity_binding
@@ -164,6 +204,7 @@ def check_bindings(store,user,plan,providers):
 def dispatch_plan(store,user,id,body,settings,providers):
     with store.transaction() as db:
         plan=ws.get(store,user['id'],'plan',id);p=plan['payload']
+        if not plan_fingerprint_valid(p):fail('PLAN_INTEGRITY','计划内容与原始指纹不一致，请重新预览',409)
         if body.fingerprint!=p['fingerprint']:fail('PLAN_MISMATCH','确认指纹与计划不一致',409)
         if p['status']=='dispatched':
             row=store.owned('runs',user['id'],p['run_id'])
@@ -209,6 +250,8 @@ def dispatch_plan(store,user,id,body,settings,providers):
 async def perform_studio(worker,id):
     """Each material step writes its actual output. Models never receive a write-capable tool."""
     store=worker.store;row=store.one('SELECT * FROM runs WHERE id=?',(id,));s=row['snapshot'];st=s['studio'];r=row['payload']
+    if not approved_run_valid(store, row) or not ws.verify_ledger(store, id)['valid']:
+        raise RuntimeError('APPROVED_SNAPSHOT_INTEGRITY_FAILED')
     async def node(name,fn,reason):
         worker.ensure_running(id);start=time.monotonic()
         worker.event(id,'step_started',{'node':name,'reason':reason})
@@ -228,7 +271,8 @@ async def perform_studio(worker,id):
         node('evidence',lambda:immediate(s['citations']),'使用计划时冻结的企业作用域证据'))
     await node('context',lambda:immediate(st['packing']),'仅发送批准时展示的内容，超预算整条排除')
     outputs=[];calls=[];claims=[];state='not_requested';used_memory=[];sent=[]
-    provider=worker.providers.select(r['provider']) if r['use_llm'] else None
+    from .connections import scoped_providers
+    provider=scoped_providers(worker.providers,row['user_id']).select(r['provider']) if r['use_llm'] else None
     if r['use_llm']:
         if not provider:state='unavailable'
         else:
@@ -241,7 +285,12 @@ async def perform_studio(worker,id):
                     # Already-sent requests cannot be recalled from a remote provider.
                     current=store.one('SELECT * FROM users WHERE id=?',(row['user_id'],))
                     bindings=st['bindings']
-                    changed=not current or current['version']!=bindings['user_version']
+                    changed=not current or current['version']!=bindings['user_version'] or not approved_run_valid(store, row)
+                    data=store.owned('datasets',row['user_id'],row['dataset_id'])
+                    profile=ws.keyed(store,row['user_id'],'profile',s['dataset']['company'])
+                    if not data or (data['version'],data['content_hash']) != (bindings['dataset_version'],bindings['dataset_hash']):changed=True
+                    if (profile['version'] if profile else 0) != bindings['profile_version']:changed=True
+                    if (datetime.now(timezone.utc)-datetime.fromisoformat(row['created_at'])).total_seconds()>86400:changed=True
                     from .identities import execution_service_valid
                     if not execution_service_valid(store,row['user_id'],bindings,r,worker.providers,bindings['provider']):changed=True
                     for m in s['memory']:

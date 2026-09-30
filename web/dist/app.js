@@ -1,11 +1,13 @@
-import { loadLayout, applyLayout, toggleNav, toggleAssistant, clearLayout } from './layout.js';
+import { workflowGuide } from './workflow.js';
+import { invalidateInteractions, interactionGuard } from './interactions.js';
+import { loadLayout, applyLayout, toggleNav, toggleAssistant, clearLayout, closeDrawers } from './layout.js';
 import { copilotShell, copilotPage, mountCopilot, sendCopilot, resetCopilot } from './copilot-ui.js';
 import { servicesPage, trackingPage } from './views-services.js';
 import { setupExperience, restoreIdentity } from './experience.js';
 import { showBrandIntro, restoreMotion, motionSetting } from './brand.js';
 import { evolutionPage, strategyForm, assessmentForm, graphCanvas, runtimeRibbon } from './views-orchestrator.js';
 import { RunLive } from './live.js';
-import { api, workspace, setCsrf, ApiError } from './api.js';
+import { api, workspace, setCsrf, invalidateContext, invalidateView, ApiError } from './api.js';
 import { state, routes, activeDataset, activeIdentity, scopedDatasets, roleNames } from './state.js';
 import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricNames, metricValue } from './components.js';
 import { briefPage, settingsPage, opsPage } from './pages.js';
@@ -28,14 +30,14 @@ function toast(message, error = false) { const host = document.querySelector('#n
         n.remove(); while (host.children.length >= 2)
     host.firstElementChild?.remove(); const e = document.createElement('div'); e.className = 'toast' + (error ? ' error' : ''); e.textContent = message; host.append(e); setTimeout(() => e.remove(), error ? 10000 : 4000); }
 function theme() { const t = state.user?.preferences.theme ?? 'light'; document.documentElement.dataset.theme = t === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t; }
-function dialog(title, body, wide = false) { modal.classList.toggle('wide', wide); modal.innerHTML = `<div class="dialog-head"><h2 id="modal-title">${esc(title)}</h2>${button(icon('close'), 'close-modal', 'icon-button', 'aria-label="关闭窗口"')}</div><div class="dialog-body">${body}</div>`; if (!modal.open)
+function dialog(title, body, wide = false) { invalidateInteractions(); modal.classList.toggle('wide', wide); modal.innerHTML = `<div class="dialog-head"><h2 id="modal-title">${esc(title)}</h2>${button(icon('close'), 'close-modal', 'icon-button', 'aria-label="关闭窗口"')}</div><div class="dialog-body">${body}</div>`; if (!modal.open)
     modal.showModal(); }
-function inspect(title, body) { inspector.innerHTML = `<div class="dialog-head"><h2 id="inspector-title">${esc(title)}</h2>${button(icon('close'), 'close-inspector', 'icon-button', 'aria-label="关闭详情"')}</div><div class="dialog-body">${body}</div>`; if (!inspector.open)
+function inspect(title, body) { invalidateInteractions(); inspector.innerHTML = `<div class="dialog-head"><h2 id="inspector-title">${esc(title)}</h2>${button(icon('close'), 'close-inspector', 'icon-button', 'aria-label="关闭详情"')}</div><div class="dialog-body">${body}</div>`; if (!inspector.open)
     inspector.showModal(); }
 function download(name, data) { const b = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
 function safeToLeave() { return !state.dirty || window.confirm('当前输入尚未保存。离开后这些修改将丢失，是否继续？'); }
 function navigate(path, force = false) { if (!force && !safeToLeave())
-    return; state.dirty = false; if (modal.open)
+    return; invalidateInteractions(); closeDrawers(); state.dirty = false; if (modal.open)
     modal.close(); if (inspector.open)
     inspector.close(); if (location.hash.slice(1) === path) {
     void render();
@@ -49,18 +51,18 @@ async function bootstrap() { const me = await api('/auth/me'); setCsrf(me.csrf);
     state.active = ''; if (!state.active && scopedDatasets().length === 1)
     state.active = scopedDatasets()[0].id; }
 async function refreshData() { const [ds, caps, ids] = await Promise.all([api('/datasets'), api('/capabilities'), api('/services/identities')]); state.datasets = ds.items; state.caps = caps; state.identities = ids.items; if (state.identity && !ids.items.some((x) => x.id === state.identity))
-    state.identity = ''; const me = await api('/auth/me'); state.user = me.user; setCsrf(me.csrf); if (state.active && !state.datasets.find(d => d.id === state.active))
+    state.identity = ''; const me = await api('/auth/me'); state.user = me.user; setCsrf(me.csrf); if (state.active && !scopedDatasets().some(d => d.id === state.active))
     state.active = ''; }
-async function render() { live?.dispose(); live = null; if (!state.user)
+async function render() { invalidateInteractions(); invalidateView(); live?.dispose(); live = null; if (!state.user)
     return auth(); const seq = ++renderEpoch; const [r, ...rest] = (location.hash.slice(1) || 'brief').split(':'); state.route = r in routes ? r : 'brief'; state.id = rest.join(':'); currentHash = location.hash; shell(); showSyncNotice(); const main = document.querySelector('#main'); try {
     const views = { brief: briefPage, copilot: copilotPage, services: servicesPage, tracking: trackingPage, agents: () => agentsPage(state.id), data: dataPage, evidence: evidencePage, lab: () => labPage(state.id), compare: comparePage, reports: reportsPage, actions: actionsPage, memory: memoryPage, ops: opsPage, settings: settingsPage, evolution: evolutionPage };
     const html = await views[state.route]();
     if (seq !== renderEpoch)
         return;
-    main.innerHTML = html;
+    main.innerHTML = workflowGuide(state.route) + html;
     main.dataset.page = state.route;
     applyLayout();
-    void mountCopilot();
+    void mountCopilot().catch(() => { });
     document.title = routes[state.route].label + ' · 锂电智诊';
     main.querySelector('h1')?.setAttribute('tabindex', '-1');
     setupLive();
@@ -76,7 +78,7 @@ catch (e) {
     }
     main.innerHTML = heading('读取未完成', '没有使用缓存或模拟数据替代失败的结果。') + notice(e instanceof Error ? e.message : '读取失败', 'danger') + button('重新读取', 'refresh', 'primary');
 } }
-function resetAuth() { resetCopilot(); clearLayout(); state.identity = ''; state.identities = []; live?.dispose(); live = null; state.user = null; state.cache = {}; state.cursor = 0; syncPending = false; state.datasets = []; state.active = ''; state.query = ''; state.dirty = false; setCsrf(''); if (modal.open)
+function resetAuth() { invalidateInteractions(); resetCopilot(); clearLayout(); state.identity = ''; state.identities = []; live?.dispose(); live = null; state.user = null; state.cache = {}; state.cursor = 0; syncPending = false; state.datasets = []; state.active = ''; state.query = ''; state.dirty = false; setCsrf(''); if (modal.open)
     modal.close(); if (inspector.open)
     inspector.close(); modal.replaceChildren(); inspector.replaceChildren(); document.querySelector('#notifications').replaceChildren(); auth(); }
 function read(form) { const f = new FormData(form); const str = (k) => String(f.get(k) ?? '').trim(); const val = (k, optional = false) => { const s = str(k); if (optional && !s)
@@ -324,7 +326,6 @@ document.addEventListener('click', async (event) => {
         return;
     if (el.dataset.route) {
         event.preventDefault();
-        document.querySelector('#sidebar')?.classList.remove('open');
         navigate(el.dataset.route);
         return;
     }
@@ -334,12 +335,17 @@ document.addEventListener('click', async (event) => {
         return;
     el.dataset.pending = 'true';
     el.setAttribute('aria-busy', 'true');
+    if (['data-quality', 'data-lineage', 'data-revisions', 'assessment-dialog', 'node-details', 'archive-dialog'].includes(act ?? ''))
+        invalidateInteractions();
+    const valid = interactionGuard();
     try {
         switch (act) {
             case 'close-modal':
+                invalidateInteractions();
                 modal.close();
                 break;
             case 'close-inspector':
+                invalidateInteractions();
                 inspector.close();
                 break;
             case 'auth-toggle':
@@ -368,7 +374,7 @@ document.addEventListener('click', async (event) => {
                 break;
             case 'archive-delete':
                 if (confirm('删除该条记录？独立保存的报告、计划或实验快照不会被连带删除。')) {
-                    await workspace('/archive/' + el.dataset.kind + '/' + id, 'DELETE');
+                    await workspace('/archive/' + el.dataset.kind + '/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                     await showArchive();
                     toast('所选记录已删除。');
                 }
@@ -381,7 +387,7 @@ document.addEventListener('click', async (event) => {
                 break;
             case 'show-assistant':
                 toggleAssistant();
-                void mountCopilot();
+                void mountCopilot().catch(() => { });
                 break;
             case 'close-assistant':
                 toggleAssistant(false);
@@ -410,6 +416,8 @@ document.addEventListener('click', async (event) => {
             case 'select-dataset':
                 if (!safeToLeave())
                     return;
+                invalidateContext();
+                state.cache = {};
                 state.active = id;
                 state.dirty = false;
                 await render();
@@ -450,16 +458,23 @@ document.addEventListener('click', async (event) => {
                 }
                 break;
             }
-            case 'data-quality':
-                inspect('数据质量与缺项', qualityPanel(await workspace('/datasets/' + state.active + '/quality')));
+            case 'data-quality': {
+                const quality = await workspace('/datasets/' + state.active + '/quality');
+                if (valid())
+                    inspect('数据质量与缺项', qualityPanel(quality));
                 break;
+            }
             case 'data-lineage': {
                 const r = await workspace('/datasets/' + state.active + '/lineage');
+                if (!valid())
+                    break;
                 inspect('指标血缘', r.items.map((l) => `<details><summary>${esc(l.label)} · ${metricValue(l.id, l.value)}</summary><code>${esc(l.formula)}</code>${jsonView(l.inputs)}</details>`).join(''));
                 break;
             }
             case 'data-revisions': {
                 const r = await workspace('/datasets/' + state.active + '/revisions');
+                if (!valid())
+                    break;
                 dialog('数据修订记录', notice('恢复历史内容会创建新的修订，不会修改或抹除旧报告。') + r.items.slice().reverse().map((v) => `<details><summary>修订 ${v.version} · ${timeText(v.created_at)}</summary>${v.diff.length ? table(['路径', '原值', '新值'], v.diff.map((c) => [esc(c.path), esc(c.before), esc(c.after)])) : '<p>初始保存的内容。</p>'}${button('以此内容创建新修订', 'restore-revision', 'secondary', `data-revision="${v.version}"`)}<p class="micro">${esc(v.content_hash)}</p></details>`).join(''), true);
                 break;
             }
@@ -479,7 +494,7 @@ document.addEventListener('click', async (event) => {
             case 'delete-dataset':
                 if (!confirm('删除数据集及修订历史？被运行引用的数据需先清理对应会话。'))
                     return;
-                await api('/datasets/' + id, 'DELETE');
+                await api('/datasets/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                 await refreshData();
                 await render();
                 break;
@@ -497,7 +512,7 @@ document.addEventListener('click', async (event) => {
             case 'delete-evidence':
                 if (!confirm('删除原始资料？历史报告仍保留当时的引用快照；新任务将不再使用。'))
                     return;
-                await api('/evidence/' + id, 'DELETE');
+                await api('/evidence/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                 await render();
                 break;
             case 'document-dialog':
@@ -528,7 +543,7 @@ document.addEventListener('click', async (event) => {
             case 'delete-memory':
                 if (!confirm('删除记忆？今后不再召回，历史运行中已冻结的内容仍保留。'))
                     return;
-                await api('/memories/' + id, 'DELETE');
+                await api('/memories/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                 await render();
                 break;
             case 'fill-query': {
@@ -572,6 +587,8 @@ document.addEventListener('click', async (event) => {
             }
             case 'assessment-dialog': {
                 const r = await workspace('/runs/' + state.cache.run.id + '/assessment');
+                if (!valid())
+                    break;
                 dialog('报告验收与回放授权', assessmentForm(r.item));
                 break;
             }
@@ -607,7 +624,7 @@ document.addEventListener('click', async (event) => {
                 break;
             }
             case 'cancel-plan':
-                await workspace('/plans/' + id + '/cancel', 'POST', {});
+                await workspace('/plans/' + id + '/cancel?version=' + encodeURIComponent(el.dataset.version ?? ''), 'POST', {});
                 await render();
                 break;
             case 'cancel-run':
@@ -615,8 +632,12 @@ document.addEventListener('click', async (event) => {
                 await render();
                 break;
             case 'node-details': {
-                if (state.route === 'agents' && state.id.startsWith('run-'))
-                    state.cache.audit = await workspace('/runs/' + state.id.slice(4) + '/audit');
+                if (state.route === 'agents' && state.id.startsWith('run-')) {
+                    const audit = await workspace('/runs/' + state.id.slice(4) + '/audit');
+                    if (!valid())
+                        break;
+                    state.cache.audit = audit;
+                }
                 const n = state.cache.nodes?.find((x) => x.id === id);
                 if (!n)
                     throw new Error('节点不在当前执行计划中');
@@ -652,7 +673,7 @@ document.addEventListener('click', async (event) => {
             case 'delete-template':
                 if (!confirm('删除此模板？已生成的计划不受影响。'))
                     return;
-                await workspace('/templates/' + id, 'DELETE');
+                await workspace('/templates/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                 await render();
                 break;
             case 'export-experiment':
@@ -703,7 +724,7 @@ document.addEventListener('click', async (event) => {
             case 'delete-conversation':
                 if (!confirm('永久删除此会话、关联报告与执行记录？进行中的任务会被取消。'))
                     return;
-                await api('/conversations/' + id, 'DELETE');
+                await api('/conversations/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                 await render();
                 break;
             default: throw new Error('此操作尚未识别，没有执行任何写入：' + act);
@@ -728,6 +749,8 @@ document.addEventListener('change', async (event) => { const el = event.target; 
             el.value = state.active;
             return;
         }
+        invalidateContext();
+        state.cache = {};
         state.active = el.value;
         state.dirty = false;
         await render();
@@ -739,6 +762,7 @@ document.addEventListener('change', async (event) => { const el = event.target; 
         }
         try {
             const r = await api('/preferences/role', 'PUT', { role: el.value, version: state.user.version });
+            invalidateContext();
             state.user = r.user;
             state.cache = {};
             state.dirty = false;
@@ -765,10 +789,15 @@ document.addEventListener('change', async (event) => { const el = event.target; 
 catch (e) {
     toast(String(e), true);
 } });
+for (const overlay of [modal, inspector])
+    overlay.addEventListener('cancel', () => invalidateInteractions());
+document.querySelector('.skip-link')?.addEventListener('click', e => { e.preventDefault(); document.querySelector('#main')?.focus(); });
 window.addEventListener('hashchange', () => { if (state.dirty && !safeToLeave()) {
     history.replaceState(null, '', currentHash || '#brief');
     return;
-} state.dirty = false; void render(); });
+} invalidateInteractions(); closeDrawers(); if (modal.open)
+    modal.close(); if (inspector.open)
+    inspector.close(); state.dirty = false; void render(); });
 window.addEventListener('beforeunload', e => { if (state.dirty) {
     e.preventDefault();
     e.returnValue = '';
@@ -845,7 +874,8 @@ catch (e) {
 finally {
     syncing = false;
 } }
-async function showArchive() { const r = await workspace('/archive'); dialog('管理已保存记录', notice(r.notice) + Object.entries(r.collections).map(([kind, collection]) => `<details><summary>${esc({ plan: '执行计划', experiment: '研究实验', action: '行动记录', import_stage: '导入预览', dismissal: '忽略的核查项' }[kind])} · ${collection.total}</summary>${collection.items.length ? table(['记录', '状态', '操作'], collection.items.map((v) => [esc(v.label), status(v.status), button('删除', 'archive-delete', 'text-button danger-text', `data-kind="${esc(kind)}" data-id="${esc(v.id)}"`)])) : '<p class="muted">暂无记录。</p>'}${collection.has_more ? notice('仅显示最近100条，删除后可继续整理较早记录。') : ''}</details>`).join(''), true); }
+async function showArchive() { const valid = interactionGuard(); const r = await workspace('/archive'); if (!valid())
+    return; dialog('管理已保存记录', notice(r.notice) + Object.entries(r.collections).map(([kind, collection]) => `<details><summary>${esc({ plan: '执行计划', experiment: '研究实验', action: '行动记录', import_stage: '导入预览', dismissal: '忽略的核查项' }[kind])} · ${collection.total}</summary>${collection.items.length ? table(['记录', '状态', '操作'], collection.items.map((v) => [esc(v.label), status(v.status), button('删除', 'archive-delete', 'text-button danger-text', `data-kind="${esc(kind)}" data-id="${esc(v.id)}" data-version="${v.version}"`)])) : '<p class="muted">暂无记录。</p>'}${collection.has_more ? notice('仅显示最近100条，删除后可继续整理较早记录。') : ''}</details>`).join(''), true); }
 setInterval(() => void checkSync(), 15000);
 window.addEventListener('online', () => void checkSync());
 function appearancePanel() { return `<section class="panel motion-settings"><div class="row-between"><h2>品牌与动效</h2>${button('重播原始开场', 'replay-intro')}</div><p class="micro">保留原始标识与视频。动画可跳过；无法播放、减少动效或存储不可用都不影响登录与工作。</p><form id="appearance-form" class="stack">${field('动效偏好', select('motion', { system: '跟随系统', reduce: '减少动效', full: '完整动效' }, document.documentElement.dataset.motion ?? 'system'))}${formFooter('应用动效偏好')}</form></section>`; }

@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import secrets
 import time
+import threading
 from collections import OrderedDict,deque
 from fastapi import HTTPException,Request,Response
 from .store import digest, uid, now
@@ -11,6 +12,11 @@ COOKIE='lidian_session'
 
 def fail(code,message,status=400):
     raise HTTPException(status_code=status,detail={'code':code,'message':message})
+
+def check_version(row, expected):
+    """Check only after ownership lookup; call under the mutation transaction."""
+    if expected is None:fail('VERSION_REQUIRED','请提供已查看记录的版本后重试。',428)
+    if row['version']!=expected:fail('VERSION_CONFLICT','记录已改变，请重新查看后确认；未删除新版本。',409)
 
 def password_hash(password):
     salt=secrets.token_hex(16)
@@ -34,6 +40,10 @@ def issue_session(request: Request,response: Response,user):
     token,csrf=secrets.token_urlsafe(40),secrets.token_urlsafe(32)
     config,store=request.app.state.settings,request.app.state.store
     with store.transaction() as db:
+        current=store.one('SELECT * FROM users WHERE id=?',(user['id'],))
+        if not current or not hmac.compare_digest(current['password_hash'],user['password_hash']):
+            fail('CREDENTIALS_CHANGED','凭据在验证期间改变，请重新登录。',401)
+        user=current
         db.execute('DELETE FROM auth_sessions WHERE expires<?',(time.time(),))
         db.execute('INSERT INTO auth_sessions VALUES(?,?,?,?)',(digest(token),user['id'],csrf,time.time()+config.session_hours*3600))
         db.execute('INSERT INTO session_details VALUES(?,?,?,?,?)',(uid(),digest(token),user['id'],request.headers.get('user-agent','')[:250],now()))
@@ -56,11 +66,12 @@ def require_user(request: Request):
     return user
 
 class RateLimiter:
-    def __init__(self,maximum_keys=10000):self.keys=OrderedDict();self.maximum_keys=maximum_keys
+    def __init__(self,maximum_keys=10000):self.keys=OrderedDict();self.maximum_keys=maximum_keys;self._lock=threading.Lock()
     def allow(self,key,limit,window=60):
-        at=time.monotonic();q=self.keys.setdefault(key,deque());self.keys.move_to_end(key)
-        while q and q[0]<=at-window:q.popleft()
-        allowed=len(q)<limit
-        if allowed:q.append(at)
-        while len(self.keys)>self.maximum_keys:self.keys.popitem(last=False)
-        return allowed
+        with self._lock:
+            at=time.monotonic();q=self.keys.setdefault(key,deque());self.keys.move_to_end(key)
+            while q and q[0]<=at-window:q.popleft()
+            allowed=len(q)<limit
+            if allowed:q.append(at)
+            while len(self.keys)>self.maximum_keys:self.keys.popitem(last=False)
+            return allowed

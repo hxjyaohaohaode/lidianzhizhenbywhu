@@ -35,7 +35,7 @@ def test_real_provider_request_parser_rejects_proposed_shell_even_with_valid_tra
         def __init__(self,*args):pass
         def request(self,*args):assert args[0]=='POST' and args[1]=='/approved'
         def getresponse(self):return self
-        def read(self,*args):return json.dumps({'choices':[{'message':{'content':json.dumps({'focus':['shell'],'rationale':'untrusted proposal'})}}]}).encode()
+        def read(self,*args):return json.dumps({'choices':[{'finish_reason':'stop','message':{'content':json.dumps({'focus':['shell'],'rationale':'untrusted proposal'})}}]}).encode()
         def close(self):closed.append(True)
     monkeypatch.setattr(module,'PinnedHTTPS',Conn);monkeypatch.setattr(module,'public_addresses',lambda _:['93.184.216.34'])
     with pytest.raises(ValueError):service._request(p,'bounded','{}',PlannerProposal)

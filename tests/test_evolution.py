@@ -17,6 +17,8 @@ def candidate(a,**kw):
 
 def three_cases(a,example):
     runs=[]
+    source=a.post('/evidence',json={'title':'合成验收证据','text':'核验企业经营变化及现金情况；合成验收数据仅供测试，核查支持资料和反向资料。'*15})
+    assert source.status_code==201,source.text
     for i in range(3):
         d=copy.deepcopy(example);d['name']='验收合成输入'+str(i);d['periods'][-1]['revenue']+=i*1e6
         res=a.post('/datasets',json=d);assert res.status_code==201,res.text
@@ -102,7 +104,8 @@ def test_unsatisfied_forecast_rubric_is_not_counted_as_implemented_success(actor
 
 def test_deleted_run_removes_replay_eligibility(actor,example):
     runs=three_cases(actor,example)
-    assert actor.delete('/conversations/'+runs[0]['session_id']).status_code==200
+    session=next(row for row in actor.get('/conversations').json()['items'] if row['id']==runs[0]['session_id'])
+    assert actor.delete('/conversations/'+session['id']+'?version='+str(session['version'])).status_code==200
     assert actor.get('/workspace/evolution').json()['observations']['consented_cases']==2
 
 
@@ -120,3 +123,90 @@ def test_new_consented_case_invalidates_evaluation_cohort_before_activation(acto
     r=completed(actor,dataset=actor.post('/datasets',json=d).json());assessment(actor,r,expected_capabilities=['forecast'])
     result=actor.post('/workspace/strategies/'+c['id']+'/activate',json={'evaluation_id':e['id'],'expected_active_version':0})
     assert result.status_code==409 and result.json()['error']['code']=='EVALUATION_STALE'
+
+
+@pytest.mark.parametrize('state',['running','queued','interrupted','cancelled','failed'])
+def test_only_completed_reports_can_enter_human_replay(actor,state):
+    row=completed(actor);store=actor.client.app.state.store
+    with store.transaction() as db:db.execute('UPDATE runs SET state=? WHERE id=?',(state,row['id']))
+    response=actor.post('/workspace/runs/'+row['id']+'/assessment',json={'verdict':'useful','note':'尚未完成的记录不可参与回放','expected_capabilities':['quant'],'consent_replay':True})
+    assert response.status_code==409 and response.json()['error']['code']=='NO_REPORT'
+
+
+def test_consent_case_becoming_nonterminal_invalidates_activation(actor,example):
+    runs=three_cases(actor,example);c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()
+    with actor.client.app.state.store.transaction() as db:db.execute("UPDATE runs SET state='interrupted' WHERE id=?",(runs[0]['id'],))
+    response=actor.post('/workspace/strategies/'+c['id']+'/activate',json={'evaluation_id':e['id'],'expected_active_version':0})
+    assert response.status_code==409 and response.json()['error']['code']=='EVALUATION_STALE'
+
+
+def test_declared_empty_evidence_capability_is_not_replay_success(actor):
+    row=completed(actor);assessment(actor,row,expected_capabilities=['evidence','counterevidence'])
+    c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()['payload']
+    replay=e['cases'][0]['candidate']
+    assert set(replay['missing'])=={'evidence','counterevidence'} and replay['recall']==0
+    assert replay['computations']['counterevidence']['status']=='missing'
+    assert replay['computations']['counterevidence']['output_hash']
+    assert not e['eligible'] and not e['improvements']
+
+
+def test_replay_executes_same_local_operations_and_preserves_assumptions(actor):
+    from server.evolution import replay
+    row=completed(actor,execution={'depth':'balanced','scenario':{'price_change':.1,'cost_change':.05,'volume_change':-.1,'fixed_cost_share':.2,'note':'明确用于合成测试的压力假设'}})
+    out=replay(row,['quant','sensitivity'],{'depth':'deep','require_counterevidence':False,'require_gap_analysis':False})
+    assert out['covered']==['quant','sensitivity'] and 'gaps' not in out['planned_capabilities']
+    assert out['computations']['quant']['output_hash']==digest(row['result']['analysis'])
+    assert out['computations']['sensitivity']['output_hash']==digest(row['result']['adaptive']['mathematical_outputs']['sensitivity'])
+    assert out['external_calls']==0
+
+
+@pytest.mark.parametrize('field,value',[('baseline_hash','wrong'),('replay_version','old-evaluator'),('model_version','wrong')])
+def test_stale_baseline_or_replay_engine_blocks_activation(actor,example,field,value):
+    three_cases(actor,example);c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()
+    payload=e['payload'];payload[field]=value
+    with actor.client.app.state.store.transaction() as db:db.execute('UPDATE workspace_objects SET payload=? WHERE id=?',(encode(payload),e['id']))
+    response=actor.post('/workspace/strategies/'+c['id']+'/activate',json={'evaluation_id':e['id'],'expected_active_version':0})
+    assert response.status_code==409 and response.json()['error']['code']=='EVALUATION_STALE'
+
+
+def test_duplicate_human_rubric_rejected(actor):
+    row=completed(actor)
+    response=actor.post('/workspace/runs/'+row['id']+'/assessment',json={'verdict':'useful','note':'重复能力不应扩充验收评分','expected_capabilities':['quant','quant'],'consent_replay':True})
+    assert response.status_code==422
+
+
+def test_forged_eligibility_bit_cannot_bypass_current_case_gate(actor):
+    c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()
+    payload=e['payload'];payload['eligible']=True;payload['blockers']=[]
+    with actor.client.app.state.store.transaction() as db:db.execute('UPDATE workspace_objects SET payload=? WHERE id=?',(encode(payload),e['id']))
+    response=actor.post('/workspace/strategies/'+c['id']+'/activate',json={'evaluation_id':e['id'],'expected_active_version':0})
+    assert response.status_code==409 and response.json()['error']['code']=='EVALUATION_BLOCKED'
+    assert actor.get('/workspace/evolution').json()['active'] is None
+
+
+def test_activation_reexecutes_and_compares_actual_replay_artifacts(actor,example):
+    three_cases(actor,example);c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()
+    payload=e['payload'];payload['cases'][0]['candidate']['computation_hash']='forged'
+    with actor.client.app.state.store.transaction() as db:db.execute('UPDATE workspace_objects SET payload=? WHERE id=?',(encode(payload),e['id']))
+    response=actor.post('/workspace/strategies/'+c['id']+'/activate',json={'evaluation_id':e['id'],'expected_active_version':0})
+    assert response.status_code==409 and response.json()['error']['code']=='EVALUATION_STALE'
+
+
+def test_replay_gates_preserve_archived_mathematical_results(actor,example):
+    runs=three_cases(actor,example);store=actor.client.app.state.store;run=runs[0]
+    result=copy.deepcopy(run['result']);result['analysis']['metrics']['gross_margin']=.987
+    with store.transaction() as db:db.execute('UPDATE runs SET result=? WHERE id=?',(encode(result),run['id']))
+    saved=actor.get('/workspace/runs/'+run['id']+'/assessment').json()['item']
+    assessment(actor,actor.get('/runs/'+run['id']).json(),version=saved['version'])
+    c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()['payload']
+    assert run['id'] in e['regressions'] and not e['eligible']
+
+
+def test_automatic_proposal_never_learns_from_holdout_requirements(actor,example):
+    runs=three_cases(actor,example);ordered=sorted(runs,key=input_signature)
+    for run in ordered[:-1]:
+        saved=actor.get('/workspace/runs/'+run['id']+'/assessment').json()['item']
+        assessment(actor,run,version=saved['version'],expected_capabilities=['quality','quant'])
+    response=actor.post('/workspace/evolution/propose',json={})
+    assert response.status_code==409 and response.json()['error']['code']=='NO_SUPPORTED_IMPROVEMENT'
+    assert actor.get('/workspace/evolution').json()['candidates']==[]

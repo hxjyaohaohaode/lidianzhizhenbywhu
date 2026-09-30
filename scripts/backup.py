@@ -6,7 +6,6 @@ Protect and encrypt the pair outside the machine; this is not encrypted backup.
 """
 from __future__ import annotations
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -30,18 +29,25 @@ def backup(source: Path, target: Path, *, include_key=False) -> dict:
     created=[];target.parent.mkdir(parents=True,exist_ok=True)
     try:
         with closing(sqlite3.connect(source.as_uri()+'?mode=ro',uri=True)) as src:
-            present=bool(src.execute("SELECT 1 FROM sqlite_master WHERE name='private_connections' AND type='table'").fetchone())
-            required=src.execute('SELECT count(*) FROM private_connections').fetchone()[0] if present else 0
-            key_bytes=None
-            if include_key and required:
-                if key.is_symlink() or not key.is_file():raise ValueError('凭据主密钥不存在或是链接，未创建不完整备份。')
-                key_bytes=key.read_bytes()
-                try:assert len(base64.urlsafe_b64decode(key_bytes))==32
-                except Exception:raise ValueError('凭据主密钥格式无效，未创建不完整备份。') from None
             exclusive_file(target);created.append(target)
             with closing(sqlite3.connect(target)) as dst:
                 src.backup(dst)
                 if dst.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise ValueError('数据库完整性检查失败')
+                # Count and verify credentials in the completed snapshot, never a
+                # pre-backup live query that can race a concurrent connection save.
+                present=bool(dst.execute("SELECT 1 FROM sqlite_master WHERE name='private_connections' AND type='table'").fetchone())
+                ciphers=dst.execute('SELECT cipher FROM private_connections').fetchall() if present else []
+                required=len(ciphers)
+                key_bytes=None
+                if include_key and required:
+                    if key.is_symlink() or not key.is_file():raise ValueError('凭据主密钥不存在或是链接，未创建不完整备份。')
+                    key_bytes=key.read_bytes()
+                    try:
+                        from cryptography.fernet import Fernet
+                        cipher=Fernet(key_bytes)
+                        for encrypted, in ciphers:cipher.decrypt(encrypted.encode('ascii'))
+                    except Exception:
+                        raise ValueError('凭据主密钥格式无效或与备份数据不匹配，未创建不可恢复备份。') from None
             if key_bytes:
                 exclusive_file(key_target,key_bytes);created.append(key_target)
             receipt={'output':str(target),'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),

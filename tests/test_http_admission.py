@@ -28,3 +28,21 @@ def test_rejected_before_app_and_filesystem(path,headers):
 def test_trustedhost_rejection_retains_admission_security_headers(actor):
     r=actor.client.get('/api/health',headers={'Host':'untrusted.example'})
     assert r.status_code==400 and r.headers['X-Content-Type-Options']=='nosniff'
+
+
+@pytest.mark.parametrize('extra',[
+    [(b'content-length',b'1'),(b'Content-Length',b'2')],
+    [(b'content-length',b'1'),(b'transfer-encoding',b'chunked')],
+    [(b'origin',b'http://testserver'),(b'origin',b'https://other.example')],
+    [(b'cookie',b'a=one'),(b'cookie',b'a=two')],
+    [(b'x-csrf-token',b'first'),(b'x-csrf-token',b'second')],
+])
+def test_ambiguous_headers_rejected_without_reading_body(extra):
+    messages=[]
+    async def application(*args):raise AssertionError('request must not reach application')
+    async def receive():raise AssertionError('ambiguous request must not read body')
+    async def send(message):messages.append(message)
+    guard=Guard(application,SimpleNamespace(production=False))
+    asyncio.run(guard({'type':'http','headers':[(b'host',b'testserver'),*extra],
+        'path':'/api/datasets','method':'POST','client':('127.0.0.1',1)},receive,send))
+    assert messages[0]['status']==400

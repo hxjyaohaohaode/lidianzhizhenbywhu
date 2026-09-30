@@ -21,7 +21,7 @@ from . import __version__
 from .config import Settings
 from .schemas import Register,Login,Preferences,RoleSwitch,Dataset,DatasetUpdate,Conversation,RunRequest,Evidence,FetchEvidence,Memory,MemoryUpdate,Feedback,PasswordChange,Scenario,CompareRequest,SearchRequest,BatchDelete
 from .store import Store,encode,digest,uid,now
-from .security import require_user,fail,password_hash,password_matches,public_user,issue_session,COOKIE,DUMMY_HASH,RateLimiter
+from .security import require_user,fail,password_hash,password_matches,public_user,issue_session,COOKIE,DUMMY_HASH,RateLimiter,check_version
 from .models import normalize,calculate,scenario,MODEL_VERSION
 from .imports import import_dataset,parse_document_isolated
 from .retrieval import retrieve_indexed
@@ -53,7 +53,8 @@ class Guard:
     def __init__(self,app,settings):self.app=app;self.settings=settings;self.limiter=RateLimiter()
     async def __call__(self,scope,receive,send):
         if scope['type']!='http':return await self.app(scope,receive,send)
-        headers=dict(scope['headers']);path=scope['path'];request_id=uid();method=scope['method']
+        header_items=[(k.lower(),v) for k,v in scope['headers']]
+        headers=dict(header_items);path=scope['path'];request_id=uid();method=scope['method']
         async def reject(status,code,message):
             # Early admission errors receive the same privacy/security defaults.
             h={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY',
@@ -63,11 +64,18 @@ class Guard:
             return await JSONResponse({'error':{'code':code,'message':message},'request_id':request_id},status_code=status,headers=h)(scope,receive,send)
         # Reject ambiguous authorities and Windows UNC/drive paths before routing,
         # URL construction, filesystem resolution, or credential-bearing network I/O.
-        hosts=[v for k,v in scope['headers'] if k.lower()==b'host']
+        hosts=[v for k,v in header_items if k==b'host']
         if len(hosts)!=1 or any(c<=32 or c==127 for c in hosts[0]) or any(c in hosts[0] for c in (b'/',b'\\',b'@')):
             return await reject(400,'INVALID_AUTHORITY','请求地址格式无效。')
         if not path.startswith('/') or path.startswith('//') or '\\' in path or any(ord(c)<32 or ord(c)==127 for c in path) or any(':' in part for part in path.split('/')):
             return await reject(400,'INVALID_PATH','请求路径格式无效。')
+        # Never let the proxy, CSRF guard and application disagree about which
+        # security-sensitive header or request framing is authoritative.
+        for name in (b'content-length',b'transfer-encoding',b'origin',b'cookie',b'x-csrf-token',b'sec-fetch-site'):
+            if sum(k==name for k,_ in header_items)>1:
+                return await reject(400,'AMBIGUOUS_HEADERS','重复的安全或请求长度字段。')
+        if b'content-length' in headers and b'transfer-encoding' in headers:
+            return await reject(400,'AMBIGUOUS_FRAMING','请求长度与传输编码不能同时提供。')
         if path.startswith('/api/'):
             ip=(scope.get('client') or ('unknown',))[0];auth=path.startswith('/api/auth/');key=ip+(':login' if auth else ':api')
             if not self.limiter.allow(key,30 if auth else 600):return await reject(429,'RATE_LIMITED','请求过于频繁，请稍后重试。')
@@ -221,7 +229,10 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         if not await bounded_hash(password_matches,body.current_password,user['password_hash']):fail('INVALID_CREDENTIALS','当前密码错误。',401)
         ph=await bounded_hash(password_hash,body.new_password)
         with store(request).transaction() as db:
-            db.execute('UPDATE users SET password_hash=?,updated_at=? WHERE id=?',(ph,now(),user['id']))
+            require_user(request)
+            changed=db.execute('UPDATE users SET password_hash=?,updated_at=? WHERE id=? AND password_hash=?',
+                (ph,now(),user['id'],user['password_hash'])).rowcount
+            if not changed:fail('CREDENTIALS_CHANGED','凭据已改变，请重新登录后再修改。',409)
             db.execute('DELETE FROM auth_sessions WHERE user_id=?',(user['id'],))
         response.delete_cookie(COOKIE,path='/');return {'ok':True,'relogin_required':True}
     @app.put('/api/preferences')
@@ -257,9 +268,9 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         if not result:fail('VERSION_CONFLICT','数据已被更新；本次修改未覆盖新版本。',409)
         return result
     @app.delete('/api/datasets/{id}')
-    def dataset_delete(id: str,request: Request,user=Depends(require_user)):
+    def dataset_delete(id: str,request: Request,version: int|None=Query(None,ge=1),user=Depends(require_user)):
         db=store(request);owned(db,'datasets',user,id)
-        try:db.delete('datasets',user['id'],id)
+        try:db.delete('datasets',user['id'],id,version)
         except sqlite3.IntegrityError:fail('DATASET_IN_USE','数据集被诊断记录引用；请先删除相关会话。',409)
         return {'ok':True}
     @app.get('/api/datasets/{id}/analysis')
@@ -310,15 +321,21 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         db=store(request);owned(db,'conversations',user,id)
         return {'items':db.all('SELECT * FROM messages WHERE session_id=? AND user_id=? ORDER BY created_at LIMIT 500',(id,user['id']))}
     @app.delete('/api/conversations/{id}')
-    async def delete_conversation(id: str,request: Request,user=Depends(require_user)):
-        db=store(request);owned(db,'conversations',user,id)
-        for row in db.all("SELECT id FROM runs WHERE session_id=? AND user_id=? AND state IN ('queued','running')",(id,user['id'])):app.state.worker.cancel(user['id'],row['id'])
-        db.delete('conversations',user['id'],id);return {'ok':True}
+    async def delete_conversation(id: str,request: Request,version: int|None=Query(None,ge=1),user=Depends(require_user)):
+        db=store(request)
+        with db._lock:
+            row=owned(db,'conversations',user,id);check_version(row,version)
+            for run in db.all("SELECT id FROM runs WHERE session_id=? AND user_id=? AND state IN ('queued','running')",(id,user['id'])):
+                app.state.worker.cancel(user['id'],run['id'])
+            db.delete('conversations',user['id'],id,version)
+        return {'ok':True}
     @app.post('/api/conversations/delete-batch')
     async def delete_batch(body: BatchDelete,request: Request,user=Depends(require_user)):
         db=store(request)
         with db.transaction() as conn:
-            for id in body.ids:owned(db,'conversations',user,id)
+            rows=[owned(db,'conversations',user,id) for id in body.ids]
+            for row in rows:check_version(row,body.versions.get(row['id']))
+            if set(body.versions)!=set(body.ids):fail('VERSION_CONFLICT','版本集合必须与所选会话一致。',409)
             for id in body.ids:
                 for row in db.all("SELECT id FROM runs WHERE session_id=? AND state IN ('queued','running')",(id,)):
                     conn.execute("UPDATE runs SET state='cancelled',updated_at=? WHERE id=?",(now(),row['id']))
@@ -434,8 +451,8 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         except Exception as exc:fail('SOURCE_UNAVAILABLE',f'来源获取失败（{type(exc).__name__}）；未插入样例或伪造证据。',502)
         return create_evidence(store(request),user,{**parsed.model_dump(mode='json'),'source_kind':'public_document','verification':'fetched_not_fact_checked','fetched_at':now()})
     @app.delete('/api/evidence/{id}')
-    def evidence_delete(id: str,request: Request,user=Depends(require_user)):
-        db=store(request);owned(db,'evidence',user,id);db.delete('evidence',user['id'],id)
+    def evidence_delete(id: str,request: Request,version: int|None=Query(None,ge=1),user=Depends(require_user)):
+        db=store(request);owned(db,'evidence',user,id);db.delete('evidence',user['id'],id,version)
         return {'ok':True,'notice':'已从未来检索移除；历史报告引用快照保留。删除相关会话可一并删除历史快照。'}
     @app.get('/api/retrieval')
     def retrieval(request: Request,q: str=Query(...,min_length=1,max_length=2000),user=Depends(require_user)):
@@ -469,8 +486,8 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         if not row:fail('VERSION_CONFLICT','记忆已在其他窗口更新。',409)
         return row
     @app.delete('/api/memories/{id}')
-    def memory_delete(id: str,request: Request,user=Depends(require_user)):
-        db=store(request);owned(db,'memories',user,id);db.delete('memories',user['id'],id)
+    def memory_delete(id: str,request: Request,version: int|None=Query(None,ge=1),user=Depends(require_user)):
+        db=store(request);owned(db,'memories',user,id);db.delete('memories',user['id'],id,version)
         return {'ok':True,'notice':'后续任务不再召回。已提交任务审计快照需删除对应会话才能一并移除。'}
     @app.post('/api/feedback',status_code=201)
     def feedback(body: Feedback,request: Request,user=Depends(require_user)):
@@ -487,15 +504,22 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         return {'items':items,'cursor':items[-1]['seq'] if items else after,'has_more':len(rows)>limit}
     @app.get('/api/account/export')
     def account_export(request: Request,user=Depends(require_user)):
-        db=store(request);export={'format':'lidian-user-export-v3','created_at':now(),'user':public_user(user),'data':{t:db.items(t,user['id'],100000) for t in ('datasets','conversations','memories','evidence','runs','messages','feedback')}}
+        from .exports import export_account
+        export=export_account(store(request),user['id'])
         return Response(encode(export),media_type='application/json',headers={'Content-Disposition':'attachment; filename="lidian-private-backup.json"'})
     @app.delete('/api/account')
     async def account_delete(body: Login,request: Request,response: Response,user=Depends(require_user)):
         if body.email.lower()!=user['email'] or not await bounded_hash(password_matches,body.password,user['password_hash']):fail('INVALID_CREDENTIALS','账户验证失败。',401)
         db=store(request)
-        for row in db.all("SELECT id FROM runs WHERE user_id=? AND state IN ('running','queued')",(user['id'],)):app.state.worker.cancel(user['id'],row['id'])
-        with db.transaction() as conn:
-            conn.execute('DELETE FROM conversations WHERE user_id=?',(user['id'],));conn.execute('DELETE FROM users WHERE id=?',(user['id'],))
+        with db._lock:
+            require_user(request)
+            current=db.one('SELECT password_hash FROM users WHERE id=?',(user['id'],))
+            if not current or current['password_hash']!=user['password_hash']:
+                fail('CREDENTIALS_CHANGED','凭据已改变，请重新登录后再删除账户。',409)
+            for row in db.all("SELECT id FROM runs WHERE user_id=? AND state IN ('running','queued')",(user['id'],)):
+                app.state.worker.cancel(user['id'],row['id'])
+            with db.transaction() as conn:
+                conn.execute('DELETE FROM conversations WHERE user_id=?',(user['id'],));conn.execute('DELETE FROM users WHERE id=?',(user['id'],))
         response.delete_cookie(COOKIE,path='/');return {'ok':True}
     @app.get('/api/ops')
     def ops(request: Request,user=Depends(require_user)):

@@ -223,6 +223,38 @@ def main():
             assert not page.locator('#drawer-backdrop').is_visible();record('移动抽屉真正打开、遮罩、Escape关闭与焦点恢复')
             go('brief');page.locator('[data-action="show-assistant"]').click();wait_box('#assistant-rail',max_x=390);assert page.locator('#assistant-rail').bounding_box()['x']>=-1
             page.locator('[data-action="close-assistant"]').click();record('移动助手抽屉可单独收起')
+            # Current layout acceptance includes constrained desktop, breakpoint,
+            # narrow handset and landscape. These are real browser geometry checks,
+            # not assertions inferred from CSS or historical screenshots.
+            for width,height in [(1440,1000),(1280,900),(1024,768)]:
+                page.set_viewport_size({'width':width,'height':height});go('brief')
+                page.locator('[data-action="show-assistant"]').click();page.wait_for_timeout(250)
+                assert not overflow(),f'{width} desktop assistant overflow'
+                assert page.locator('#main').bounding_box()['width']>=300
+                if width==1024:assert page.locator('#sidebar').bounding_box()['width']<=73
+                page.locator('[data-action="close-assistant"]').click()
+                page.locator('[data-action="menu"]').click();page.wait_for_timeout(250)
+                assert not overflow(),f'{width} desktop navigation overflow'
+            record('1440/1280/1024px桌面导航与助手组合真实几何检查')
+            for width,height in [(900,900),(320,720),(750,500)]:
+                page.set_viewport_size({'width':width,'height':height})
+                for route in (allroutes if width==320 else ['brief','copilot','agents','settings']):
+                    go(route);page.wait_for_timeout(80)
+                    assert not overflow(),f'{width}x{height} {route} overflow'
+                    assert page.locator('#sidebar').evaluate('(el)=>el.inert')
+                go('brief');page.locator('[data-action="menu"]').click();wait_box('#sidebar')
+                assert not page.locator('#sidebar').evaluate('(el)=>el.inert')
+                assert page.locator('.main-shell').evaluate('(el)=>el.inert')
+                page.keyboard.press('Escape');page.wait_for_timeout(250)
+                assert page.locator('#sidebar').evaluate('(el)=>el.inert')
+                assert page.locator('[data-action="menu"]').evaluate('(el)=>el===document.activeElement')
+            record('900px断点、320px全部工作区、750x500横屏及抽屉inert/焦点恢复')
+            page.set_viewport_size({'width':1280,'height':900})
+            page.emulate_media(reduced_motion='reduce')
+            go('settings');page.locator('#preferences-form [name="theme"]').select_option('dark');submit('#preferences-form')
+            assert page.locator('html').get_attribute('data-theme')=='dark'
+            go('copilot');assert not overflow();snap('ui-current-dark.png')
+            record('深色主题与减少动效模式真实渲染，不复用历史截图')
             assert not errors,errors
             assert not [r for r in responses if r['status']>=500],responses
             record('全部上述流程零捕获JavaScript异常、零HTTP5xx')

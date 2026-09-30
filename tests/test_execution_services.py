@@ -31,7 +31,7 @@ def prepare(factory, engine, mutation=None):
         elif mutation=='rotate_key':
             vault.save(actor.user['id'],spec.model_copy(update={'version':1,'api_key':'TEST-ONLY-KEY-ROTATED'}),connection['id'])
         elif mutation=='remove_connection':
-            vault.delete(actor.user['id'],connection['id'])
+            vault.delete(actor.user['id'],connection['id'],connection['version'])
     plan=preview(actor,dataset,identity_id=identity['id'],use_llm=True,
         provider=connection['id'],max_calls=3,
         execution={'parallelism':1} if engine=='adaptive' else None)

@@ -6,7 +6,7 @@ from datetime import date,datetime,timezone
 from .connections import scoped_providers
 from fastapi import APIRouter,Request,Depends,UploadFile,File,Form,Query
 from fastapi.responses import Response
-from .security import require_user,fail
+from .security import require_user,fail,check_version
 from .schemas import Dataset
 from .contracts import (CompanyProfile,PlanDraft,PlanConsent,EvidenceReview,ActionCreate,ActionTransition,
     ExperimentRequest,ImportPreview,RevisionRestore,ClaimReview,TaskTemplate,AssistantRequest,StageCommit,DismissInsight)
@@ -92,10 +92,11 @@ def plan_execute(id:str,body:PlanConsent,request:Request,user=Depends(require_us
 
 
 @router.post('/plans/{id}/cancel')
-def plan_cancel(id:str,request:Request,user=Depends(require_user)):
+def plan_cancel(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
     store=dbof(request)
     with store.transaction() as db:
         row=ws.get(store,user['id'],'plan',id);p=row['payload']
+        check_version(row,version)
         if p['status']=='dispatched':fail('PLAN_DISPATCHED','计划已经派发，请取消其运行任务',409)
         if p['status']=='cancelled':return row
         return ws.save(store,db,user['id'],'plan',{**p,'status':'cancelled'},key=row['natural_key'],expected=row['version'])
@@ -113,9 +114,10 @@ def template_add(body:TaskTemplate,request:Request,user=Depends(require_user)):
 
 
 @router.delete('/templates/{id}')
-def template_delete(id:str,request:Request,user=Depends(require_user)):
-    store=dbof(request);ws.get(store,user['id'],'template',id)
+def template_delete(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+    store=dbof(request)
     with store.transaction() as db:
+        check_version(ws.get(store,user['id'],'template',id),version)
         db.execute('DELETE FROM workspace_objects WHERE id=? AND user_id=?',(id,user['id']));store.audit(db,user['id'],'template',id,'deleted')
     return {'ok':True}
 
@@ -367,32 +369,34 @@ def assistant(body:AssistantRequest,request:Request,user=Depends(require_user)):
 
 @router.get('/export')
 def export_workspace(request:Request,user=Depends(require_user)):
-    store=dbof(request);kinds=sorted(ws.KINDS)
-    payload={'format':'lidian-workspace-export','created_at':now(),
-        'objects':{kind:ws.objects(store,user['id'],kind,10000) for kind in kinds},
-        'data':{t:store.items(t,user['id'],10000) for t in ('datasets','conversations','memories','evidence','runs','messages','feedback')},
-        'run_events':store.all('SELECT e.* FROM run_events e JOIN runs r ON r.id=e.run_id WHERE r.user_id=? ORDER BY e.seq',(user['id'],)),
-        'agent_artifacts':store.all('SELECT a.* FROM agent_artifacts a JOIN runs r ON r.id=a.run_id WHERE r.user_id=? ORDER BY a.created_at',(user['id'],)),
-        'event_integrity':store.all('SELECT e.* FROM event_integrity e JOIN runs r ON r.id=e.run_id WHERE r.user_id=? ORDER BY e.event_seq',(user['id'],)),
-        'adaptive':{t:store.all(f'SELECT a.* FROM {t} a JOIN runs r ON r.id=a.run_id WHERE r.user_id=?',(user['id'],)) for t in ('adaptive_graphs','adaptive_controls','adaptive_checkpoints','adaptive_calls')},
-        'assistant_messages':store.all('SELECT id,thread_id,payload,created_at FROM copilot_messages WHERE user_id=? ORDER BY created_at,id',(user['id'],)),
-        'model_connections':store.all('SELECT id,name,host,path,model,version FROM private_connections WHERE user_id=?',(user['id'],)),
-        'tracking_receipts':store.all('SELECT * FROM tracking_receipts WHERE user_id=?',(user['id'],)),
-        'dataset_revisions':store.all('SELECT * FROM dataset_revisions WHERE user_id=? ORDER BY dataset_id,version',(user['id'],)),
-        'notice':'包含个人业务数据、批准记忆及历史快照；不包含密码、会话凭据和模型密钥。不是可直接覆盖数据库的格式。'}
+    from .exports import export_account
+    payload=export_account(dbof(request),user['id'])
+    data=payload['data']
+    # Retain the original workspace envelope for existing export readers while
+    # sourcing every section from the same owner-scoped database snapshot.
+    payload.update(format='lidian-workspace-export', export_version=4,
+        objects={kind:[r for r in data['workspace_objects'] if r['kind']==kind] for kind in sorted(ws.KINDS)},
+        run_events=data['run_events'],agent_artifacts=data['agent_artifacts'],
+        event_integrity=data['event_integrity'],
+        adaptive={t:data[t] for t in ('adaptive_graphs','adaptive_controls','adaptive_checkpoints','adaptive_calls')},
+        assistant_messages=data['copilot_messages'],model_connections=data['connections'],
+        tracking_receipts=data['tracking_receipts'],dataset_revisions=data['dataset_revisions'],
+        notice=payload['scope']+'。'+payload['restore'])
     return Response(encode(payload),media_type='application/json',headers={'Content-Disposition':'attachment; filename="lidian-workspace.json"'})
 
 
 @router.delete('/archive/{kind}/{id}')
-def archive_delete(kind:str,id:str,request:Request,user=Depends(require_user)):
+def archive_delete(kind:str,id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
     if kind not in {'plan','experiment','action','import_stage','dismissal'}:
         fail('KIND_FORBIDDEN','此类记录不可通过该接口删除',422)
     store=dbof(request)
     with store.transaction() as db:
         row=ws.get(store,user['id'],kind,id)
+        check_version(row,version)
         if kind=='plan' and row['payload']['status']=='dispatched':
             run=store.owned('runs',user['id'],row['payload']['run_id'])
-            if run and run['state'] in ('running','queued'):fail('RUN_ACTIVE','先取消或等待对应任务',409)
+            if run and run['state'] in ('running','queued','interrupted'):
+                fail('RUN_ACTIVE','任务仍在执行或可继续；请先明确取消或完成，再清理批准计划',409)
         db.execute('DELETE FROM workspace_objects WHERE id=? AND user_id=?',(id,user['id']))
         store.audit(db,user['id'],kind,id,'deleted')
     return {'ok':True,'notice':'仅删除选中工作区记录；独立历史运行快照不被改写。'}

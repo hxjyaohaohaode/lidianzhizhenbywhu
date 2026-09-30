@@ -175,6 +175,7 @@ class SearchRequest(StrictModel):
 
 class BatchDelete(StrictModel):
     ids: list[Annotated[str,Field(min_length=1,max_length=80)]] = Field(min_length=1,max_length=20)
+    versions: dict[str,Annotated[int,Field(strict=True,ge=1)]] = Field(default_factory=dict,max_length=20)
     @field_validator('ids')
     @classmethod
     def unique_ids(cls,v):

@@ -121,7 +121,7 @@ def test_circuit_breaker_no_silent_retry(monkeypatch):
 def test_provider_wire_request_usage_contract(monkeypatch):
     import server.providers as m
     captured={};output={'claims':[{'text':'现金回流需核查。','metric_ids':['cash_ratio'],'citation_ids':[],'uncertainty':'high'}],'missing':[]}
-    body={'choices':[{'message':{'content':'```json\n'+json.dumps(output)+'\n```'}}],'usage':{'prompt_tokens':11,'completion_tokens':7,'total_tokens':18,'unknown':'ignored'}}
+    body={'choices':[{'finish_reason':'stop','message':{'content':'```json\n'+json.dumps(output)+'\n```'}}],'usage':{'prompt_tokens':11,'completion_tokens':7,'total_tokens':18,'unknown':'ignored'}}
     class Conn:
         def __init__(self,*a):captured['connection']=a
         def request(self,method,path,raw,headers):captured.update(method=method,path=path,body=json.loads(raw),headers=headers)

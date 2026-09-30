@@ -35,12 +35,20 @@ class ThreadCreate(StrictModel):
     identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(default='', max_length=80)
     title: str = Field(default='新的研究', min_length=1, max_length=100)
+    request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
 
 
 class CopilotMessage(StrictModel):
     text: str = Field(min_length=1, max_length=3000)
     request_id: str = Field(pattern=r'^[a-zA-Z0-9_-]{8,80}$')
     version: int = Field(ge=1)
+
+    @field_validator('text')
+    @classmethod
+    def nonempty_text(cls, value):
+        if not value.strip():
+            raise ValueError('问题不能为空白')
+        return value
 
 
 class ProposalRequest(StrictModel):
@@ -59,6 +67,7 @@ class ProposalRequest(StrictModel):
     operator: Literal['lt', 'gt'] = 'lt'
     threshold: float = Field(default=0.0, strict=True, ge=-1e15, le=1e15)
     due_at: date | None = None
+    expires_at: date | None = None
     acceptance: str = Field(default='', max_length=2000)
 
     @model_validator(mode='after')
@@ -83,6 +92,7 @@ class WatchSpec(StrictModel):
     threshold: float = Field(strict=True, ge=-1e15, le=1e15)
     active: bool = True
     stale_after_days: int = Field(default=180, ge=30, le=1460)
+    expires_at: date | None = None
     version: int = Field(default=0, ge=0)
 
 
@@ -102,6 +112,10 @@ class PrivateConnection(StrictModel):
 
 class Reauthenticate(StrictModel):
     password: str = Field(min_length=1, max_length=128)
+
+
+class ConnectionRemove(Reauthenticate):
+    version: int = Field(ge=1)
 
 
 class SessionRevoke(Reauthenticate):

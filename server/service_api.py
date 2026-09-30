@@ -1,14 +1,15 @@
 """Authenticated product-service APIs. All objects are owned by the current account."""
 from __future__ import annotations
 import asyncio
+import hmac
 import time
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, Query, Response
-from .security import require_user, fail, password_matches, COOKIE
+from .security import require_user, fail, password_matches, COOKIE, check_version
 from .store import digest, encode, now
 from . import workspace_store as ws
 from .service_contracts import (IdentitySpec, ThreadCreate, CopilotMessage, ProposalRequest,
-    ProposalConfirm, WatchSpec, AlertAck, PrivateConnection, Reauthenticate, SessionRevoke)
+    ProposalConfirm, WatchSpec, AlertAck, PrivateConnection, ConnectionRemove, SessionRevoke)
 from .identities import resolve_identity, PERSPECTIVES
 from .connections import scoped_providers
 from .copilot import make_thread, read_thread, send_message, propose, confirm_proposal, evaluate_watches
@@ -31,10 +32,24 @@ async def reauthenticate(request,user,password):
         fail('INVALID_CREDENTIALS','当前密码错误，未执行敏感操作',401)
 
 
+def recheck_reauthentication(request,user):
+    """Call under the mutation lock after the expensive password check completes."""
+    current=require_user(request)  # Recheck this exact cookie/session, including revocation and CSRF.
+    if current['id']!=user['id'] or not hmac.compare_digest(current['password_hash'],user['password_hash']):
+        fail('CREDENTIALS_CHANGED','凭据或登录会话在验证期间已改变，请重新登录后操作',401)
+    return current
+
+
 def verify_datasets(store,user_id,ids):
     for id in ids:
         if not store.owned('datasets',user_id,id):
             fail('NOT_FOUND','身份范围包含不存在或无权访问的数据',404)
+
+
+def versioned_row(store,user_id,kind,id,version):
+    row=ws.get(store,user_id,kind,id)
+    check_version(row,version)
+    return row
 
 
 @router.get('/identities')
@@ -45,10 +60,11 @@ def identities(request:Request,user=Depends(require_user)):
 
 @router.post('/identities',status_code=201)
 def create_identity(body:IdentitySpec,request:Request,user=Depends(require_user)):
-    store=storeof(request);verify_datasets(store,user['id'],body.dataset_ids)
+    store=storeof(request)
     if body.version:
         fail('VERSION_CONFLICT','新身份版本必须为0',409)
     with store.transaction() as db:
+        verify_datasets(store,user['id'],body.dataset_ids)
         if len(ws.objects(store,user['id'],'identity'))>=12:
             fail('RESOURCE_LIMIT','每个账户最多12个服务身份',409)
         return ws.save(store,db,user['id'],'identity',body.model_dump(mode='json',exclude={'version'}))
@@ -56,15 +72,17 @@ def create_identity(body:IdentitySpec,request:Request,user=Depends(require_user)
 
 @router.put('/identities/{id}')
 def update_identity(id:str,body:IdentitySpec,request:Request,user=Depends(require_user)):
-    store=storeof(request);old=ws.get(store,user['id'],'identity',id);verify_datasets(store,user['id'],body.dataset_ids)
+    store=storeof(request)
     with store.transaction() as db:
+        old=ws.get(store,user['id'],'identity',id);verify_datasets(store,user['id'],body.dataset_ids)
         return ws.save(store,db,user['id'],'identity',body.model_dump(mode='json',exclude={'version'}),key=old['natural_key'],expected=body.version)
 
 
 @router.delete('/identities/{id}')
-def delete_identity(id:str,request:Request,user=Depends(require_user)):
-    store=storeof(request);ws.get(store,user['id'],'identity',id)
+def delete_identity(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+    store=storeof(request)
     with store.transaction() as db:
+        versioned_row(store,user['id'],'identity',id,version)
         db.execute('DELETE FROM workspace_objects WHERE id=? AND user_id=?',(id,user['id']))
         store.audit(db,user['id'],'identity',id,'deleted',{'historical_snapshots':'retained','pending_plans':'invalidated'})
     return {'ok':True,'notice':'该身份的新调用已停止。历史报告和独立会话快照保留，可分别清理。'}
@@ -88,9 +106,10 @@ def get_thread(id:str,request:Request,user=Depends(require_user)):
 
 
 @router.delete('/threads/{id}')
-def delete_thread(id:str,request:Request,user=Depends(require_user)):
-    store=storeof(request);ws.get(store,user['id'],'assistant_thread',id)
+def delete_thread(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+    store=storeof(request)
     with store.transaction() as db:
+        versioned_row(store,user['id'],'assistant_thread',id,version)
         # Deleting chat history must not silently cancel or erase independently approved runs.
         db.execute("DELETE FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.thread_id')=?",(user['id'],id))
         db.execute('DELETE FROM workspace_objects WHERE user_id=? AND id=?',(user['id'],id))
@@ -119,9 +138,10 @@ def confirm(id:str,body:ProposalConfirm,request:Request,user=Depends(require_use
 
 
 @router.delete('/proposals/{id}')
-def discard_proposal(id:str,request:Request,user=Depends(require_user)):
-    store=storeof(request);row=ws.get(store,user['id'],'assistant_proposal',id)
+def discard_proposal(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+    store=storeof(request)
     with store.transaction() as db:
+        row=versioned_row(store,user['id'],'assistant_proposal',id,version)
         if row['payload']['status']=='executed':
             fail('PROPOSAL_EXECUTED','提案已经执行，不能用删除提案撤销独立结果',409)
         p={**row['payload'],'status':'discarded'}
@@ -141,25 +161,28 @@ def tracking(request:Request,identity_id:str=Query('',max_length=80),user=Depend
 
 @router.post('/watches',status_code=201)
 def create_watch(body:WatchSpec,request:Request,user=Depends(require_user)):
-    store=storeof(request);resolve_identity(store,user['id'],body.identity_id,body.dataset_id);verify_datasets(store,user['id'],[body.dataset_id])
+    store=storeof(request)
     if body.version:
         fail('VERSION_CONFLICT','新跟踪规则版本必须为0',409)
     with store.transaction() as db:
+        resolve_identity(store,user['id'],body.identity_id,body.dataset_id);verify_datasets(store,user['id'],[body.dataset_id])
         return ws.save(store,db,user['id'],'watch',body.model_dump(mode='json',exclude={'version'}))
 
 
 @router.put('/watches/{id}')
 def update_watch(id:str,body:WatchSpec,request:Request,user=Depends(require_user)):
-    store=storeof(request);old=ws.get(store,user['id'],'watch',id)
-    resolve_identity(store,user['id'],body.identity_id,body.dataset_id);verify_datasets(store,user['id'],[body.dataset_id])
+    store=storeof(request)
     with store.transaction() as db:
+        old=ws.get(store,user['id'],'watch',id)
+        resolve_identity(store,user['id'],body.identity_id,body.dataset_id);verify_datasets(store,user['id'],[body.dataset_id])
         return ws.save(store,db,user['id'],'watch',body.model_dump(mode='json',exclude={'version'}),key=old['natural_key'],expected=body.version)
 
 
 @router.delete('/watches/{id}')
-def delete_watch(id:str,request:Request,user=Depends(require_user)):
-    store=storeof(request);ws.get(store,user['id'],'watch',id)
+def delete_watch(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+    store=storeof(request)
     with store.transaction() as db:
+        versioned_row(store,user['id'],'watch',id,version)
         db.execute('DELETE FROM workspace_objects WHERE id=? AND user_id=?',(id,user['id']))
         store.audit(db,user['id'],'watch',id,'deleted')
     return {'ok':True}
@@ -167,17 +190,19 @@ def delete_watch(id:str,request:Request,user=Depends(require_user)):
 
 @router.post('/alerts/{id}/acknowledge')
 def acknowledge_alert(id:str,body:AlertAck,request:Request,user=Depends(require_user)):
-    store=storeof(request);row=ws.get(store,user['id'],'alert',id)
+    store=storeof(request)
     with store.transaction() as db:
+        row=ws.get(store,user['id'],'alert',id)
         return ws.save(store,db,user['id'],'alert',{**row['payload'],'acknowledged':True,'acknowledged_at':now(),'acknowledgement':body.note},key=row['natural_key'],expected=body.version)
 
 
 @router.delete('/alerts/{id}')
-def delete_alert(id:str,request:Request,user=Depends(require_user)):
-    store=storeof(request);row=ws.get(store,user['id'],'alert',id)
-    if not row['payload'].get('acknowledged'):
-        fail('ACK_REQUIRED','先核对提醒，再清理历史',409)
+def delete_alert(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+    store=storeof(request)
     with store.transaction() as db:
+        row=versioned_row(store,user['id'],'alert',id,version)
+        if not row['payload'].get('acknowledged'):
+            fail('ACK_REQUIRED','先核对提醒，再清理历史',409)
         # A separate minimal receipt prevents regeneration while actually freeing
         # alert capacity. Receipts cascade when the parent watch is deleted.
         db.execute('DELETE FROM workspace_objects WHERE id=? AND user_id=?',(id,user['id']))
@@ -199,7 +224,9 @@ async def create_connection(body:PrivateConnection,request:Request,user=Depends(
     vault=getattr(request.app.state.providers,'vault',None)
     if not vault:
         fail('CONNECTION_CONFIGURATION_UNAVAILABLE','当前服务提供器不支持私有连接配置',503)
-    return vault.save(user['id'],body)
+    with storeof(request)._lock:
+        recheck_reauthentication(request,user)
+        return vault.save(user['id'],body)
 
 
 @router.put('/connections/{id}')
@@ -208,16 +235,20 @@ async def update_connection(id:str,body:PrivateConnection,request:Request,user=D
     vault=getattr(request.app.state.providers,'vault',None)
     if not vault:
         fail('CONNECTION_CONFIGURATION_UNAVAILABLE','当前提供器不支持配置',503)
-    return vault.save(user['id'],body,id)
+    with storeof(request)._lock:
+        recheck_reauthentication(request,user)
+        return vault.save(user['id'],body,id)
 
 
 @router.post('/connections/{id}/remove')
-async def remove_connection(id:str,body:Reauthenticate,request:Request,user=Depends(require_user)):
+async def remove_connection(id:str,body:ConnectionRemove,request:Request,user=Depends(require_user)):
     await reauthenticate(request,user,body.password)
     vault=getattr(request.app.state.providers,'vault',None)
     if not vault:
         fail('CONNECTION_CONFIGURATION_UNAVAILABLE','当前提供器不支持配置',503)
-    vault.delete(user['id'],id)
+    with storeof(request)._lock:
+        recheck_reauthentication(request,user)
+        vault.delete(user['id'],id,body.version)
     return {'ok':True,'notice':'连接已删除；未发送的后续调用将停止。已经发送的远程请求无法撤回。'}
 
 
@@ -243,6 +274,7 @@ async def revoke_session(body:SessionRevoke,request:Request,response:Response,us
     await reauthenticate(request,user,body.password)
     store=storeof(request);current=digest(request.cookies.get(COOKIE,''));removed=0;removed_current=False
     with store.transaction() as db:
+        recheck_reauthentication(request,user)
         rows=store.all('SELECT s.token_hash,d.id FROM auth_sessions s LEFT JOIN session_details d ON d.token_hash=s.token_hash WHERE s.user_id=?',(user['id'],))
         for r in rows:
             public_id=r['id'] or digest(r['token_hash']+'session-id')

@@ -1,16 +1,18 @@
+import { interactionGuard, invalidateInteractions } from './interactions.js';
 import { api, invalidateContext } from './api.js';
 import { state, scopedDatasets } from './state.js';
 import { esc, field, input, textarea, formFooter, notice } from './components.js';
 import { identityForm, connectionForm, watchForm, serviceForm } from './views-services.js';
 import { configureCopilot, chatAction, copilotSubmit, resetCopilot, handoffCopilot } from './copilot-ui.js';
 let hooks;
-export async function selectIdentity(id) { if (id && !state.identities.some(x => x.id === id))
+export async function selectIdentity(id) { if (id === state.identity)
+    return true; if (id && !state.identities.some(x => x.id === id))
     throw new Error('服务身份已失效，请刷新。'); if (state.dirty && !confirm('切换身份将放弃当前未保存表单，是否继续？'))
-    return; invalidateContext(); state.identity = id; state.dirty = false; state.cache = {}; if (state.active && !scopedDatasets().some(x => x.id === state.active))
+    return false; invalidateInteractions(); invalidateContext(); state.identity = id; state.dirty = false; state.cache = {}; if (state.active && !scopedDatasets().some(x => x.id === state.active))
     state.active = ''; try {
     sessionStorage.setItem('lidian:identity:' + state.user.id, id);
 }
-catch { /* optional */ } document.querySelector('#modal')?.close(); await hooks.render(); }
+catch { /* optional */ } document.querySelector('#modal')?.close(); document.querySelector('#inspector')?.close(); await hooks.render(); return true; }
 export function restoreIdentity() { try {
     const id = sessionStorage.getItem('lidian:identity:' + state.user.id) ?? '';
     state.identity = state.identities.some(x => x.id === id) ? id : '';
@@ -18,7 +20,7 @@ export function restoreIdentity() { try {
 catch {
     state.identity = '';
 } }
-function sensitive(title, action, id = '') { hooks.dialog(title, serviceForm(action, notice('需要当前账户密码确认；不会读取或显示其他设备的会话令牌。') + field('当前登录密码', input('password', '', 'type="password" required maxlength="128" autocomplete="current-password"')) + formFooter('验证并执行'), `data-id="${esc(id)}"`)); }
+function sensitive(title, action, id = '', version = 0) { hooks.dialog(title, serviceForm(action, notice('需要当前账户密码确认；不会读取或显示其他设备的会话令牌。') + field('当前登录密码', input('password', '', 'type="password" required maxlength="128" autocomplete="current-password"')) + formFooter('验证并执行'), `data-id="${esc(id)}" data-version="${version}"`)); }
 export function setupExperience(value) {
     hooks = value;
     configureCopilot(value);
@@ -55,7 +57,7 @@ export function setupExperience(value) {
                 case 'identity-delete':
                     if (!confirm('删除此服务身份？尚未外发的关联调用将停止；历史报告与会话快照仍然保留。'))
                         return;
-                    await api('/services/identities/' + id, 'DELETE');
+                    await api('/services/identities/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                     await hooks.refresh();
                     if (state.identity === id)
                         state.identity = '';
@@ -72,7 +74,7 @@ export function setupExperience(value) {
                     break;
                 }
                 case 'connection-delete':
-                    sensitive('删除模型连接', 'remove-connection', id);
+                    sensitive('删除模型连接', 'remove-connection', id, Number(el.dataset.version));
                     break;
                 case 'sessions-others':
                     sensitive('退出其他登录会话', 'revoke-others');
@@ -97,7 +99,7 @@ export function setupExperience(value) {
                 case 'watch-delete':
                     if (!confirm('删除此跟踪规则？过去的提醒保留供你核查。'))
                         return;
-                    await api('/services/watches/' + id, 'DELETE');
+                    await api('/services/watches/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                     await hooks.render();
                     break;
                 case 'alert-ack': {
@@ -106,7 +108,7 @@ export function setupExperience(value) {
                     break;
                 }
                 case 'alert-archive':
-                    await api('/services/alerts/' + id, 'DELETE');
+                    await api('/services/alerts/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
                     await hooks.render();
                     break;
                 case 'alert-investigate': {
@@ -137,6 +139,9 @@ export function setupExperience(value) {
         e.stopImmediatePropagation();
         if (form.dataset.pending)
             return;
+        if (!form.reportValidity())
+            return;
+        const valid = interactionGuard();
         form.dataset.pending = 'true';
         form.setAttribute('aria-busy', 'true');
         const fd = new FormData(form), str = (n) => String(fd.get(n) ?? '');
@@ -162,7 +167,7 @@ export function setupExperience(value) {
                     await api('/services/connections' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { name: str('name'), base_url: str('base_url'), model: str('model'), api_key: str('api_key'), password: str('password'), version });
                     break;
                 case 'remove-connection':
-                    await api('/services/connections/' + id + '/remove', 'POST', { password: str('password') });
+                    await api('/services/connections/' + id + '/remove', 'POST', { password: str('password'), version });
                     break;
                 case 'revoke-others':
                 case 'revoke-session': {
@@ -175,16 +180,20 @@ export function setupExperience(value) {
                     break;
                 }
                 case 'watch':
-                    await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: Number(str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), version });
+                    await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: Number(str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
                     break;
                 case 'alert-ack':
                     await api('/services/alerts/' + id + '/acknowledge', 'POST', { note: str('note'), version });
                     break;
                 default: throw new Error('表单尚未识别，没有执行写入。');
             }
+            if (!valid())
+                return;
             state.dirty = false;
             document.querySelector('#modal')?.close();
             await hooks.refresh();
+            if (!valid())
+                return;
             await hooks.render();
             hooks.toast('已保存。');
         }
@@ -201,6 +210,7 @@ export function setupExperience(value) {
     document.addEventListener('change', async (e) => { const el = e.target; if (el.id !== 'active-identity')
         return; try {
         await selectIdentity(el.value);
+        el.value = state.identity;
     }
     catch (error) {
         hooks.toast(String(error), true);

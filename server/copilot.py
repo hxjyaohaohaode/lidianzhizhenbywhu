@@ -10,7 +10,7 @@ from . import workspace_store as ws
 from .store import uid, now, digest, encode
 from .security import fail
 from .identities import resolve_identity, identity_binding, identity_context, context_user
-from .analytics import calculate, quality_report, forecast_baselines, lineage, period_end, METRIC_LABELS
+from .analytics import calculate, quality_report, forecast_baselines, lineage, period_end, closed_quarter, METRIC_LABELS
 from .intelligence import scoped_retrieve, build_insights
 from .service_contracts import WatchSpec
 
@@ -41,15 +41,33 @@ def thread_context(store,user,thread_id):
 
 
 def make_thread(store,user,body):
-    resolve_identity(store,user['id'],body.identity_id,body.dataset_id)
-    if body.dataset_id and not store.owned('datasets',user['id'],body.dataset_id):
-        fail('NOT_FOUND','企业数据不存在或无权访问',404)
     with store.transaction() as db:
-        return ws.save(store,db,user['id'],'assistant_thread',body.model_dump(mode='json'))
+        identity=resolve_identity(store,user['id'],body.identity_id,body.dataset_id)
+        if body.dataset_id and not store.owned('datasets',user['id'],body.dataset_id):
+            fail('NOT_FOUND','企业数据不存在或无权访问',404)
+        creation=body.model_dump(mode='json',exclude={'request_id'})
+        request_hash=digest(creation)
+        key='request:'+body.request_id if body.request_id else None
+        old=ws.keyed(store,user['id'],'assistant_thread',key) if key else None
+        if old:
+            if old['payload'].get('creation_request_hash')!=request_hash:
+                fail('IDEMPOTENCY_CONFLICT','同一会话提交标识不能对应不同范围或标题',409)
+            return old
+        return ws.save(store,db,user['id'],'assistant_thread',{
+            **creation,'identity_snapshot':identity_context(identity),'creation_request_hash':request_hash},key=key)
 
 
 def read_thread(store,user,id):
-    t,identity,data=thread_context(store,user,id)
+    # Historical conversations remain readable after their live scope is revoked.
+    # Frozen context is display-only and never authorizes a new message or dispatch.
+    from fastapi import HTTPException
+    t=ws.get(store,user['id'],'assistant_thread',id)
+    data=store.owned('datasets',user['id'],t['payload']['dataset_id']) if t['payload']['dataset_id'] else None
+    writable=True;reason='';identity=None
+    try:
+        _,identity,_=thread_context(store,user,id)
+    except HTTPException as exc:
+        writable=False;reason=exc.detail.get('message','当前范围已失效')
     messages=store.all('SELECT id,payload,created_at FROM copilot_messages WHERE user_id=? AND thread_id=? ORDER BY created_at,id',(user['id'],id))
     proposals=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.thread_id')=? ORDER BY created_at,id",(user['id'],id))
     runs=[]
@@ -62,97 +80,208 @@ def read_thread(store,user,id):
                     'updated_at':run['updated_at'],'proposal_id':p['id'],
                     'dataset_version':run['snapshot']['dataset_version'],
                     'current_dataset_version':data['version'] if data else None})
-    return {'thread':t,'identity':identity_context(identity),'messages':messages,'proposals':proposals,'runs':runs,
-            'context':{'dataset_id':data['id'] if data else '', 'dataset_version':data['version'] if data else None}}
+    return {'thread':t,'identity':identity_context(identity) if identity else t['payload'].get('identity_snapshot'),
+            'messages':messages,'proposals':proposals,'runs':runs,
+            'context':{'dataset_id':data['id'] if data else '', 'dataset_version':data['version'] if data else None,
+                       'writable':writable,'unavailable_reason':reason}}
 
 
 def _topics(text):
-    terms={
-        'gross_margin':('毛利','成本','margin'), 'cash_ratio':('现金','回款','cash'),
-        'leverage':('负债','杠杆','资产'), 'revenue_growth':('收入','营收','增长','revenue'),
-        'inventory_turnover':('库存','存货'), 'roe':('净资产','权益','roe'),
+    terms = {
+        'gross_margin': ('毛利', '成本', 'margin'),
+        'revenue': ('收入', '营收', '销售额', 'revenue'),
+        'cost': ('成本', 'cost'),
+        'revenue_growth': ('增速', '增长', '同比', 'growth'),
+        'cash_flow': ('现金流', 'cash flow'),
+        'cash_ratio': ('现金', '回款', 'cash'),
+        'leverage': ('负债', '杠杆', '偿债'),
+        'inventory_turnover': ('库存', '存货', '周转'),
+        'net_profit': ('净利润', '利润额'),
+        'net_margin': ('净利率', '盈利能力'),
+        'rd_ratio': ('研发', 'r&d'),
+        'roe': ('净资产', '权益', 'roe'),
     }
-    return [key for key,words in terms.items() if any(w in text.lower() for w in words)]
+    return [key for key, words in terms.items() if any(w in text.lower() for w in words)]
 
 
-def answer_with_tools(store,user,identity,data,text,history):
-    traces=[];cards=[];facts=[];citations=[];warnings=[];actions=[]
-    started=time.perf_counter()
-    context={'identity':identity_context(identity),'dataset_id':data['id'] if data else '',
-             'dataset_version':data['version'] if data else None,'dataset_hash':data['content_hash'] if data else None,
-             'history_message_ids':[h['id'] for h in history[-4:]]}
-    def tool(name,fn,inputs):
-        t=time.perf_counter()
+_RATIO_METRICS = {'gross_margin', 'net_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'rd_ratio', 'roe', 'margin_change'}
+_AMOUNT_METRICS = {'revenue', 'cost', 'net_profit', 'cash_flow'}
+_DEFAULT_TOPICS = {
+    'operator': ['gross_margin', 'cash_ratio', 'leverage'],
+    'executive': ['revenue', 'revenue_growth', 'cash_ratio'],
+    'investor': ['revenue_growth', 'net_margin', 'cash_ratio'],
+    'researcher': ['revenue_growth', 'gross_margin', 'rd_ratio'],
+    'auditor': ['cash_ratio', 'leverage', 'gross_margin'],
+    'custom': ['gross_margin', 'cash_ratio', 'leverage'],
+}
+
+
+def _metric_text(value, key, *, difference=False):
+    if value is None:
+        return '缺少可用输入'
+    if key in _RATIO_METRICS:
+        return f'{value * 100:,.2f}' + ('个百分点' if difference else '%')
+    return f'{value:,.2f}' + ('元' if key in _AMOUNT_METRICS else '次')
+
+
+def _grounded_facts(data, result, topics, dataset, links, trend_limit):
+    """Present the existing calculator's values, without a second financial engine."""
+    series = result['series']; current = series[-1]
+    baseline = next((p for p in series if p['period'] == result['baseline_period']), None)
+    facts = []
+    for key in topics:
+        link = links.get(key, {})
+        value = current.get(key) if key in _AMOUNT_METRICS else result['metrics'].get(key)
+        inputs = link.get('inputs', [])
+        formula = link.get('formula', '')
+        if key in _AMOUNT_METRICS:
+            inputs = [{'path': f"periods/{current['period']}/{key}", 'field': key, 'value': value, 'unit': 'CNY'}]
+            formula = '已保存的单季度原始输入（标准化为元）'
+        elif key == 'revenue_growth':
+            formula = '本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0'
+            inputs = [{'path': f"periods/{p['period']}/revenue", 'field': 'revenue', 'value': p['revenue'], 'unit': 'CNY'}
+                      for p in [current, baseline] if p]
+        trend = []
+        for point in series[-trend_limit:]:
+            if key == 'revenue_growth':
+                prefix = {**data, 'periods': [p for p in data['periods'] if p['period'] <= point['period']]}
+                point_value = calculate(prefix, result['comparison'])['metrics'][key]
+            else:
+                point_value = point.get(key)
+            trend.append({'period': point['period'], 'value': point_value})
+        base_value = baseline.get(key) if baseline and key != 'revenue_growth' else None
+        change = value - base_value if value is not None and base_value is not None else None
+        facts.append({'id': key, 'label': METRIC_LABELS.get(key, key), 'value': value,
+            'display_value': _metric_text(value, key), 'unit': 'ratio' if key in _RATIO_METRICS else 'CNY' if key in _AMOUNT_METRICS else 'times',
+            'period': result['current_period'], 'dataset_id': dataset['id'], 'dataset_version': dataset['version'],
+            'input_hash': dataset['content_hash'], 'formula': formula, 'inputs': inputs, 'trend': trend,
+            'source_url': data.get('source_url', ''), 'verification': data.get('verification', 'unverified_user_input'),
+            'status': 'missing' if value is None else 'available',
+            'comparison': {'kind': result['comparison'], 'period': result['baseline_period'], 'value': base_value,
+                           'change': change, 'change_unit': 'ratio_points' if key in _RATIO_METRICS else 'CNY' if key in _AMOUNT_METRICS else 'times'}})
+    return facts
+
+
+def answer_with_tools(store, user, identity, data, text, history):
+    traces = []; cards = []; facts = []; citations = []; warnings = []; actions = []; next_steps = []
+    started = time.perf_counter()
+    ip = identity['payload'] if identity else {}
+    context = {'identity': identity_context(identity), 'dataset_id': data['id'] if data else '',
+        'dataset_version': data['version'] if data else None, 'dataset_hash': data['content_hash'] if data else None,
+        'history_message_ids': [h['id'] for h in history[-4:]], 'history_used_for_topics': False}
+
+    def tool(name, fn, inputs):
+        t = time.perf_counter()
         try:
-            result=fn()
+            result = fn()
         except ValueError as exc:
-            result={'status':'blocked','reason':str(exc)[:300]}
-        traces.append({'tool':name,'state':'blocked' if isinstance(result,dict) and result.get('status')=='blocked' else 'succeeded','milliseconds':round((time.perf_counter()-t)*1000,3),
-                       'input':inputs,'output_hash':digest(result),'engine':'local_deterministic'})
+            result = {'status': 'blocked', 'reason': str(exc)[:300]}
+        traces.append({'tool': name, 'state': 'blocked' if isinstance(result, dict) and result.get('status') == 'blocked' else 'succeeded',
+            'milliseconds': round((time.perf_counter() - t) * 1000, 3), 'input': inputs,
+            'output_hash': digest(result), 'engine': 'local_deterministic'})
         return result
-    if not data:
-        items=tool('workspace_inventory',lambda:{
-            'datasets':len(store.items('datasets',user['id'])),
-            'actions':len(ws.objects(store,user['id'],'action')),
-            'reports':store.one('SELECT count(*) AS n FROM runs WHERE user_id=? AND result IS NOT NULL',(user['id'],))['n']}, {})
-        cards.append({'kind':'inventory','title':'当前账户的已保存内容','data':items})
-        answer='先选择企业，然后可在这里连续核查指标、查证据、看数据缺口和任务进展。没有数据时，不生成经营结论。'
-        actions=[{'kind':'navigate','label':'导入企业数据','route':'data'}, {'kind':'navigate','label':'管理服务身份','route':'services'}]
-    else:
-        d=data['payload'];q=text.lower();company=d['company']
-        result=tool('financial_calculation',lambda:calculate(d),{'dataset_id':data['id'],'version':data['version']})
-        topics=_topics(text)
-        if not topics and len(text)<30 and any(w in text for w in ('继续','这些','刚才','为什么','展开','还有')):
-            topics=_topics(' '.join(h['payload']['question'] for h in history[-2:]))
-        topics=topics or ['gross_margin','cash_ratio','leverage']
-        for key in topics:
-            if key not in result['metrics']:
-                continue
-            facts.append({'id':key,'label':METRIC_LABELS.get(key,key),'value':result['metrics'][key],
-                'period':result['current_period'],'dataset_id':data['id'],'dataset_version':data['version'],
-                'input_hash':data['content_hash']})
-        answer=f"已核对{company} {result['current_period']}的已保存输入。数值、资料和后续操作分别列出。"
-        if any(w in q for w in ('来源','怎么算','公式','血缘','依据','trace')):
-            rows=tool('metric_lineage',lambda:lineage(d,result),{'metric_ids':topics})
-            cards.append({'kind':'lineage','title':'字段来源与计算路径','data':rows})
-            answer='这里展示的是实际输入和计算路径；来源声明本身不代表独立核验。'
-        if any(w in q for w in ('缺','质量','核查','异常','完整','更新','风险')):
-            quality=tool('data_quality',lambda:quality_report(d),{'dataset_id':data['id'],'version':data['version']})
-            insights=tool('proactive_findings',lambda:build_insights(store,user['id'],[data]),{'dataset_id':data['id']})
-            cards.append({'kind':'quality','title':'输入质量','data':quality})
-            cards.append({'kind':'findings','title':'需要跟进的事项','data':insights['items']})
-        if any(w in q for w in ('预测','回测','forecast')):
-            metric='cash_flow' if '现金' in q else 'gross_margin' if '毛利' in q else 'cost' if '成本' in q else 'revenue'
-            forecast=tool('forecast_baselines',lambda:forecast_baselines(d,metric,2),{'metric':metric,'horizon':2,'dataset_version':data['version']})
-            cards.append({'kind':'forecast','title':'透明基线回测','data':forecast})
-            warnings.append('这是本地基线和明确的两步预测，不是因果模型或投资收益承诺。需要其他步数时在建模工作区设置。')
-        if any(w in q for w in ('证据','资料','行业','反证','政策','来源','解释','为什么')):
-            citations=tool('scoped_evidence_search',lambda:scoped_retrieve(store,user['id'],text+' '+company,company,6),{'company':company,'query':text})
-            if not citations:
-                warnings.append('当前问题未检索到适用的已保存资料；不能把未查到当成事实不存在。')
-            actions.append({'kind':'navigate','label':'补充或审阅资料','route':'evidence'})
-        if any(w in q for w in ('记忆','偏好','目标','个性')):
-            from .studio import selected_memory
-            memory,excluded=tool('approved_identity_memory',lambda:selected_memory(store,context_user(user,identity),company,True),{'identity_id':identity['id'] if identity else ''})
-            cards.append({'kind':'memory','title':'本次允许使用的记忆','data':{'included':memory,'excluded':excluded,'identity':identity_context(identity)}})
-        if any(w in q for w in ('进度','任务','报告','执行','状态','断点')):
-            runs=tool('run_status',lambda:store.all("SELECT id,state,error,updated_at FROM runs WHERE user_id=? AND dataset_id=? AND COALESCE(json_extract(snapshot,'$.identity.id'),'')=? ORDER BY created_at DESC LIMIT 8",(user['id'],data['id'],identity['id'] if identity else '')),{'dataset_id':data['id']})
-            cards.append({'kind':'runs','title':'真实运行记录','data':runs})
-            actions.extend({'kind':'navigate','label':'查看任务 '+r['id'][:6],'route':'agents:run-'+r['id']} for r in runs[:2])
-        if any(w in q for w in ('行动','待办','跟进','截止')):
-            active=[r for r in ws.objects(store,user['id'],'action') if r['payload'].get('dataset_id')==data['id']]
-            cards.append({'kind':'actions','title':'已保存的跟进行动','data':active})
-        if any(w in q for w in ('情景','敏感','假设','涨价','跌价')):
-            warnings.append('情景变化幅度与固定成本占比需要你填写；没有从自然语言猜测参数后直接执行。')
-            actions.append({'kind':'navigate','label':'填写情景假设','route':'lab'})
-        actions.extend([{'kind':'proposal','type':'research','label':'交给 Agent 深入研判'},
-                        {'kind':'proposal','type':'action','label':'整理为跟进行动'},
-                        {'kind':'proposal','type':'watch','label':'建立指标跟踪'},
-                        {'kind':'proposal','type':'memory','label':'确认后保存为记忆'}])
-    return {'answer':answer,'engine':'local_tool_copilot','facts':facts,'cards':cards,'citations':citations,
-            'warnings':warnings,'actions':actions,'receipts':traces,'context':context,
-            'external_calls':0,'milliseconds':round((time.perf_counter()-started)*1000,3)}
 
+    brief = {'intent': 'workspace_navigation', 'evidence_state': 'not_searched', 'causal_claims_supported': False}
+    if not data:
+        ids = ip.get('dataset_ids', [])
+        lens = identity['id'] if identity else ''
+        items = tool('workspace_inventory', lambda: {
+            'datasets': len([d for d in store.items('datasets', user['id']) if not ids or d['id'] in ids]),
+            'actions': len([a for a in ws.objects(store, user['id'], 'action') if a['payload'].get('identity_id', '') == lens]),
+            'reports': store.one("SELECT count(*) AS n FROM runs WHERE user_id=? AND result IS NOT NULL AND COALESCE(json_extract(snapshot,'$.identity.id'),'')=?", (user['id'], lens))['n']}, {})
+        cards.append({'kind': 'inventory', 'title': '当前服务身份的已保存内容', 'data': items})
+        answer = '先选择企业，然后可在这里连续核查指标、查证据、看数据缺口和任务进展。没有数据时，不生成经营结论。'
+        actions = [{'kind': 'navigate', 'label': '导入企业数据', 'route': 'data'}, {'kind': 'navigate', 'label': '管理服务身份', 'route': 'services'}]
+    else:
+        d = data['payload']; q = text.lower(); company = d['company']
+        comparison = 'previous' if any(w in q for w in ('环比', '上一季度', '上季', 'previous quarter')) else 'year_over_year'
+        topics = _topics(text)
+        effective_query = text
+        if not topics and len(text) < 50 and any(w in text for w in ('继续', '这些', '刚才', '为什么', '展开', '还有')):
+            prior = ' '.join(h['payload']['question'] for h in history[-2:])
+            topics = _topics(prior)
+            effective_query = prior + ' ' + text
+            context['history_used_for_topics'] = bool(topics)
+        topics = topics or _DEFAULT_TOPICS.get(ip.get('perspective', 'operator'), _DEFAULT_TOPICS['operator'])
+        depth = ip.get('depth', 'balanced'); detail_limit = 3 if depth == 'concise' else 6 if depth == 'balanced' else 8
+        topics = topics[:detail_limit]
+        result = tool('financial_calculation', lambda: calculate(d, comparison), {'dataset_id': data['id'], 'version': data['version'], 'comparison': comparison})
+        rows = tool('metric_lineage', lambda: lineage(d, result), {'metric_ids': topics})
+        facts = _grounded_facts(d, result, topics, data, {r['id']: r for r in rows}, 4 if depth == 'concise' else 8)
+        quality = tool('data_quality', lambda: quality_report(d), {'dataset_id': data['id'], 'version': data['version']})
+        citations = tool('scoped_evidence_search', lambda: scoped_retrieve(store, user['id'], effective_query + ' ' + company, company, detail_limit), {'company': company, 'query': effective_query})
+        insights = tool('proactive_findings', lambda: build_insights(store, user['id'], [data]), {'dataset_id': data['id']})
+        causal = any(w in q for w in ('为什么', '原因', '归因', '导致', '证明', 'why', 'cause'))
+        warnings.extend(result['warnings'])
+        if causal:
+            warnings.append('数值变化和词法匹配资料不能证明原因；以下只给出已算事实与待核查路径，没有把相关性写成因果。')
+        if not citations:
+            warnings.append('当前问题未检索到适用的已保存资料；不能把未查到当成事实不存在。')
+        elif any(c['review_state'] != 'accepted' for c in citations):
+            warnings.append('检索片段包含尚未人工通过审阅的资料，匹配不等于结论成立。')
+        if any(c['stale'] for c in citations):
+            warnings.append('部分资料缺少发布日期或距今超过365天，请先核对时效。')
+        observations = []
+        for f in facts:
+            sentence = f"{f['label']}为{f['display_value']}" if f['value'] is not None else f"{f['label']}缺少可用输入，保持空值"
+            cmp = f['comparison']
+            if cmp['change'] is not None:
+                sentence += f"，较{cmp['period']}{'增加' if cmp['change'] > 0 else '减少' if cmp['change'] < 0 else '变化'}{_metric_text(abs(cmp['change']), f['id'], difference=True)}"
+            observations.append(sentence)
+        answer = f"{company} {result['current_period']}：" + '；'.join(observations[:detail_limit]) + '。'
+        answer += '这些数值来自当前已保存输入，未经独立真实性核验。'
+        if causal:
+            answer += '目前不能仅凭这些数据确定原因，需逐项核对原始凭证与相反证据。'
+        cards.append({'kind': 'quality', 'title': '输入质量与缺口', 'data': quality})
+        if any(w in q for w in ('来源', '怎么算', '公式', '血缘', '依据', 'trace')) or ip.get('output_style') == 'evidence_first':
+            cards.append({'kind': 'lineage', 'title': '字段来源与计算路径', 'data': [r for r in rows if r['id'] in topics]})
+        if insights['items']:
+            cards.append({'kind': 'findings', 'title': '需要跟进的事项', 'data': insights['items'][:detail_limit]})
+        next_steps = [{'title': item['title'], 'reason': item['message'], 'route': item['target'], 'acceptance': item['acceptance']}
+                      for item in insights['items'][:3]]
+        if not citations and not any(s['route'] == 'evidence' for s in next_steps):
+            next_steps.append({'title': '补齐本问题的原始证据', 'reason': '当前检索没有适用资料', 'route': 'evidence',
+                               'acceptance': '补充同企业、同期间原始资料，记录来源与支持/反向关系，并人工审阅'})
+        if not next_steps:
+            next_steps.append({'title': '核对数值与原始报表', 'reason': '计算一致性不能代替来源真实性', 'route': 'data',
+                               'acceptance': '逐项核对本次指标的输入字段、期间、单位及来源，记录差异'})
+        brief = {'intent': 'causal_review' if causal else 'grounded_review', 'scope': {'company': company, 'period': result['current_period'],
+            'comparison': comparison, 'baseline_period': result['baseline_period'], 'dataset_version': data['version'], 'depth': depth},
+            'evidence_state': 'retrieved_candidates' if citations else 'no_matching_saved_evidence',
+            'retrieval_method': 'owner_and_company_scoped_lexical_search', 'source_verification': quality['source_state'],
+            'matched_document_count': len({c['document_id'] for c in citations}),
+            'missing_metric_ids': [f['id'] for f in facts if f['value'] is None],
+            'stance_counts': {stance: len({c['document_id'] for c in citations if c['stance'] == stance}) for stance in ('supports', 'contradicts', 'context')},
+            'causal_claims_supported': False, 'objective': ip.get('objective', '')}
+        if any(w in q for w in ('预测', '回测', 'forecast')):
+            metric = 'cash_flow' if '现金' in q else 'gross_margin' if '毛利' in q else 'cost' if '成本' in q else 'revenue'
+            forecast = tool('forecast_baselines', lambda: forecast_baselines(d, metric, 2), {'metric': metric, 'horizon': 2, 'dataset_version': data['version']})
+            cards.append({'kind': 'forecast', 'title': '透明基线回测', 'data': forecast})
+            warnings.append('这是本地基线和明确的两步预测，不是因果模型或投资收益承诺。需要其他步数时在建模工作区设置。')
+        if any(w in q for w in ('记忆', '偏好', '目标', '个性')):
+            from .studio import selected_memory
+            memory, excluded = tool('approved_identity_memory', lambda: selected_memory(store, context_user(user, identity), company, True), {'identity_id': identity['id'] if identity else ''})
+            cards.append({'kind': 'memory', 'title': '本次允许使用的记忆', 'data': {'included': memory, 'excluded': excluded, 'identity': identity_context(identity)}})
+        if any(w in q for w in ('进度', '任务', '报告', '执行', '状态', '断点')):
+            runs = tool('run_status', lambda: store.all("SELECT id,state,error,updated_at FROM runs WHERE user_id=? AND dataset_id=? AND COALESCE(json_extract(snapshot,'$.identity.id'),'')=? ORDER BY created_at DESC LIMIT 8", (user['id'], data['id'], identity['id'] if identity else '')), {'dataset_id': data['id']})
+            cards.append({'kind': 'runs', 'title': '真实运行记录', 'data': runs})
+            actions.extend({'kind': 'navigate', 'label': '查看任务 ' + r['id'][:6], 'route': 'agents:run-' + r['id']} for r in runs[:2])
+        if any(w in q for w in ('行动', '待办', '跟进', '截止')):
+            active = [r for r in ws.objects(store, user['id'], 'action') if r['payload'].get('dataset_id') == data['id']
+                      and r['payload'].get('identity_id', '') == (identity['id'] if identity else '')]
+            cards.append({'kind': 'actions', 'title': '当前身份的跟进行动', 'data': active})
+        if any(w in q for w in ('情景', '敏感', '假设', '涨价', '跌价')):
+            warnings.append('情景变化幅度与固定成本占比需要你填写；没有从自然语言猜测参数后直接执行。')
+            actions.append({'kind': 'navigate', 'label': '填写情景假设', 'route': 'lab'})
+        actions.extend([{'kind': 'navigate', 'label': '补充或审阅资料', 'route': 'evidence'},
+            {'kind': 'proposal', 'type': 'research', 'label': '交给 Agent 深入研判'},
+            {'kind': 'proposal', 'type': 'action', 'label': '整理为跟进行动'},
+            {'kind': 'proposal', 'type': 'watch', 'label': '建立指标跟踪'},
+            {'kind': 'proposal', 'type': 'memory', 'label': '确认后保存为记忆'}])
+    return {'answer': answer, 'engine': 'local_tool_copilot', 'facts': facts, 'cards': cards, 'citations': citations,
+        'warnings': list(dict.fromkeys(warnings)), 'actions': actions, 'next_steps': next_steps, 'research_brief': brief,
+        'receipts': traces, 'context': context, 'external_calls': 0,
+        'milliseconds': round((time.perf_counter() - started) * 1000, 3)}
 
 def send_message(store,user,thread_id,body):
     # The lock spans this short local computation and commit. No provider/network call
@@ -236,7 +365,7 @@ def _propose(store,user,thread_id,body,settings,providers):
             'scope':plan['payload']['consent_scope'],'identity':identity_context(identity)}
     elif body.kind=='watch':
         spec=WatchSpec(title=title,identity_id=thread['payload']['identity_id'],dataset_id=data['id'],
-            metric=body.metric,operator=body.operator,threshold=body.threshold)
+            metric=body.metric,operator=body.operator,threshold=body.threshold,expires_at=body.expires_at)
         p['preview']=spec.model_dump(mode='json')
     elif body.kind=='action':
         if len(body.acceptance.strip())<5:
@@ -278,6 +407,8 @@ def _confirm_proposal(store,user,id,body,settings,providers):
         return row
     if p['status']!='draft' or body.version!=row['version']:
         fail('VERSION_CONFLICT','提案版本或状态已变化',409)
+    if digest({k:v for k,v in p.items() if k!='fingerprint'})!=p['fingerprint']:
+        fail('PROPOSAL_CORRUPT','提案内容与批准指纹不一致，未执行',409)
     t,i,d=thread_context(store,user,p['thread_id'])
     if proposal_binding(t,i,d)!=p['binding']:
         fail('PROPOSAL_STALE','数据或服务身份已变化，请重新预览',409)
@@ -327,14 +458,17 @@ def evaluate_watches(store,user_id,*,today=None):
 Each rule version + input version gets at most one alert. Missing or outdated
 inputs are visible evaluations, never silently converted into safe values.
 """
-    today=today or date.today();evaluations=[]
+    today=today or datetime.now(timezone.utc).date();evaluations=[]
     with store.transaction() as db:
         for rule in ws.objects(store,user_id,'watch'):
             p=rule['payload']
             if not p['active']:
                 continue
             d=store.owned('datasets',user_id,p['dataset_id'])
-            entry={'rule_id':rule['id'],'title':p['title'],'state':'unknown','reason':'数据已删除'}
+            entry={'rule_id':rule['id'],'title':p['title'],'state':'unknown','reason':'数据已删除',
+                   'expires_at':p.get('expires_at'),'rule_version':rule['version']}
+            if p.get('expires_at') and today.isoformat()>p['expires_at']:
+                evaluations.append({**entry,'state':'expired','reason':'已超过跟踪结束日期，不再生成提醒'});continue
             if d:
                 identity=None
                 if p.get('identity_id'):
@@ -345,7 +479,10 @@ inputs are visible evaluations, never silently converted into safe values.
                 value=latest.get(p['metric']) if p['metric'] in ('revenue','cash_flow') else a['metrics'].get(p['metric'])
                 stale=(today-period_end(latest['period'])).days>p['stale_after_days']
                 entry.update({'value':value,'metric':p['metric'],'period':latest['period'],'dataset_version':d['version'],'dataset_id':d['id']})
-                if value is None:
+                if not closed_quarter(latest['period'],today):
+                    entry['reason']='最新输入属于尚未结束或未来季度，不能判断完成季度指标'
+                    entry['state']='incomplete'
+                elif value is None:
                     entry['reason']='所需指标缺失，不判断安全或触发'
                 elif stale:
                     entry['reason']='输入超过规则时效上限，请更新数据'

@@ -13,11 +13,11 @@ import time
 from datetime import date, datetime, timezone
 from pydantic import ValidationError
 from .store import uid, now, digest, encode
-from .models import calculate, MODEL_VERSION
-from .analytics import quality_report, lineage, forecast_baselines, extended_scenario
+from .models import MODEL_VERSION
+from .analytics import lineage
 from .studio import SYSTEM
 from .providers import ModelOutput
-from .autonomy import node, validate_graph, CAPABILITIES, MODEL_CAPS
+from .autonomy import node, validate_graph, CAPABILITIES, MODEL_CAPS, REPLAY_CAPABILITIES, execute_local_capability
 from .autonomy_contracts import PlannerProposal
 from . import workspace_store as ws
 
@@ -51,7 +51,11 @@ class AdaptiveRun:
         self.row = self.store.one('SELECT * FROM runs WHERE id=?', (run_id,))
         self.s = self.row['snapshot']; self.st = self.s['studio']; self.r = self.row['payload']
         self.ex = self.st['execution']; self.user_id = self.row['user_id']
+        from .connections import scoped_providers
+        self.providers = scoped_providers(worker.providers, self.user_id)
         saved = self.store.one('SELECT * FROM adaptive_graphs WHERE run_id=?', (run_id,))
+        if not saved or saved['user_id'] != self.user_id:
+            raise RuntimeError('GRAPH_OWNERSHIP_MISMATCH')
         self.graph = copy.deepcopy(saved['payload']); self.version = saved['version']
         self.outputs = {}; self.node_states = {}; self.restored = set()
         self.latest_review = 'review'; self.started = time.monotonic()
@@ -60,15 +64,29 @@ class AdaptiveRun:
         self.worker.event(self.id, kind, payload)
 
     def graph_update(self, reason):
-        validate_graph(self.graph['nodes'])
+        self.validate_runtime_graph()
+        by_id = {n['id']: n for n in self.graph['nodes']}
+        for checkpoint in self.store.all('SELECT * FROM adaptive_checkpoints WHERE run_id=?', (self.id,)):
+            n = by_id.get(checkpoint['node_id'])
+            if not n or checkpoint['input_hash'] != digest({'snapshot': digest(self.s), 'node': n}):
+                raise RuntimeError('CHECKPOINT_NODE_IMMUTABLE')
         with self.store.transaction() as db:
             self.worker.ensure_running(self.id)
-            changed = db.execute('UPDATE adaptive_graphs SET payload=?,version=version+1,updated_at=? WHERE run_id=? AND version=?',
-                                 (encode(self.graph), now(), self.id, self.version)).rowcount
+            changed = db.execute('UPDATE adaptive_graphs SET payload=?,version=version+1,updated_at=? WHERE run_id=? AND user_id=? AND version=?',
+                                 (encode(self.graph), now(), self.id, self.user_id, self.version)).rowcount
             if not changed: raise RuntimeError('GRAPH_CONFLICT')
             self.version += 1
             self.store.event(db, self.id, 'graph_replanned', {'version':self.version, 'reason':reason,
                 'nodes':self.graph['nodes'], 'graph_hash':digest(self.graph)})
+
+    def validate_runtime_graph(self):
+        validate_graph(self.graph['nodes'], require_mandatory=True)
+        approved = self.st['adaptive']
+        for key in ('envelope', 'provider_bindings', 'fallback_bindings', 'active_strategy_version', 'policy', 'allowed_dynamic'):
+            if self.graph.get(key) != approved.get(key):
+                raise RuntimeError('APPROVAL_ENVELOPE_CHANGED')
+        if len([n for n in self.graph['nodes'] if n['capability'] == 'revision']) > self.ex['max_revisions']:
+            raise RuntimeError('REVISION_BUDGET_CHANGED')
 
     def pause_guard(self):
         self.worker.ensure_running(self.id)
@@ -82,21 +100,58 @@ class AdaptiveRun:
             raise PauseBoundary()
 
     def verify_restore(self):
+        from .studio import approved_run_valid
+        if not approved_run_valid(self.store, self.row):
+            raise RuntimeError('APPROVED_SNAPSHOT_INTEGRITY_FAILED')
+        self.validate_runtime_graph()
+        if not ws.verify_ledger(self.store, self.id)['valid']:
+            raise RuntimeError('CHECKPOINT_EVENT_CHAIN_INVALID')
+        if self.version == 1:
+            if self.graph != self.st['adaptive']:
+                raise RuntimeError('GRAPH_APPROVAL_MISMATCH')
+        else:
+            anchor = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='graph_replanned' ORDER BY seq DESC LIMIT 1", (self.id,))
+            if not anchor or anchor['payload'].get('version') != self.version or anchor['payload'].get('graph_hash') != digest(self.graph):
+                raise RuntimeError('GRAPH_EVENT_ANCHOR_INVALID')
         checkpoints = self.store.all('SELECT * FROM adaptive_checkpoints WHERE run_id=?', (self.id,))
         by_id = {n['id']: n for n in self.graph['nodes']}
+        checkpoint_ids = {c['node_id'] for c in checkpoints}
+        for call in self.store.all('SELECT * FROM adaptive_calls WHERE run_id=?', (self.id,)):
+            n = by_id.get(call['node_id'])
+            anchor = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='external_dispatch' AND json_extract(payload,'$.call_id')=? ORDER BY seq DESC LIMIT 1", (self.id, call['id']))
+            if not n or n['capability'] not in MODEL_CAPS or call['user_id'] != self.user_id or not anchor:
+                raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
+            dispatch = anchor['payload']
+            if any(dispatch.get(k) != call.get(k) for k in ('provider', 'model', 'characters')) or dispatch.get('node') != call['node_id']:
+                raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
+            for key in ('request_hash', 'memory_ids', 'citation_ids', 'tool_output_hashes', 'plan_id', 'plan_fingerprint', 'graph_version'):
+                if dispatch.get(key) != call['payload'].get(key):
+                    raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
+            if call['node_id'] not in checkpoint_ids:
+                # A lost checkpoint does not erase a persisted dispatch reservation.
+                checkpoints.append({'node_id': n['id'], 'capability': n['capability'], 'state': 'running',
+                                    'input_hash': digest({'snapshot': digest(self.s), 'node': n})})
+                checkpoint_ids.add(call['node_id'])
         for c in checkpoints:
             if c['node_id'] not in by_id: raise RuntimeError('CHECKPOINT_GRAPH_MISMATCH')
             name = c['node_id']; n = by_id[name]
+            expected = digest({'snapshot':digest(self.s),'node':n})
+            if c['capability'] != n['capability'] or c['input_hash'] != expected:
+                raise RuntimeError('CHECKPOINT_INTEGRITY_FAILED')
             if c['state'] in FINISHED:
                 a = self.store.one('SELECT * FROM agent_artifacts WHERE id=? AND run_id=? AND node=?', (c['artifact_id'],self.id,name))
                 anchor = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='step_completed' AND json_extract(payload,'$.artifact_id')=? ORDER BY seq DESC LIMIT 1", (self.id,c['artifact_id']))
-                expected = digest({'snapshot':digest(self.s),'node':n})
                 # Runtime node configuration is immutable after a node starts.
-                if not a or not anchor or digest(a['payload']) != a['content_hash'] or anchor['payload']['output_hash'] != a['content_hash'] or c['input_hash'] != expected:
+                if not a or not anchor or digest(a['payload']) != a['content_hash'] or anchor['payload'].get('output_hash') != a['content_hash'] or anchor['payload'].get('node') != name or anchor['payload'].get('checkpoint_state') != c['state']:
                     raise RuntimeError('CHECKPOINT_INTEGRITY_FAILED')
                 self.outputs[name] = a['payload']; self.node_states[name] = c['state']; self.restored.add(name)
                 self.event('checkpoint_reused', {'node':name,'artifact_id':a['id'],'output_hash':a['content_hash']})
             elif n['capability'] in MODEL_CAPS:
+                reservations = self.store.all('SELECT * FROM adaptive_calls WHERE run_id=? AND node_id=?', (self.id, name))
+                if not reservations:
+                    # The node started, but no durable dispatch boundary was crossed.
+                    self.event('local_checkpoint_recompute', {'node':name,'reason':'未产生外部调用预约，可在重新检查授权后首次执行'})
+                    continue
                 # A dispatch reservation survives crashes. An absent completion is NOT permission to bill again.
                 res = {'status':'unknown','agent':name,'error_class':'REMOTE_OUTCOME_UNKNOWN',
                        'output':{'claims':[],'missing':['中断时外部结果未知；没有自动重发，需新计划明确授权重做']}}
@@ -115,10 +170,13 @@ class AdaptiveRun:
         input_hash = digest({'snapshot':digest(self.s),'node':n})
         with self.store.transaction() as db:
             self.worker.ensure_running(self.id)
+            previous = self.store.one('SELECT * FROM adaptive_checkpoints WHERE run_id=? AND node_id=?', (self.id, name))
+            if previous and (previous['state'] in FINISHED or previous['input_hash'] != input_hash or previous['capability'] != n['capability']):
+                raise RuntimeError('CHECKPOINT_IMMUTABLE')
             db.execute('INSERT INTO agent_artifacts VALUES(?,?,?,?,?,?)', (artifact,self.id,name,encode(result),h,now()))
             db.execute('''INSERT INTO adaptive_checkpoints(run_id,node_id,capability,state,input_hash,artifact_id,started_at,finished_at)
                 VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(run_id,node_id) DO UPDATE SET state=excluded.state,
-                artifact_id=excluded.artifact_id,input_hash=excluded.input_hash,finished_at=excluded.finished_at''',
+                artifact_id=excluded.artifact_id,finished_at=excluded.finished_at''',
                 (self.id,name,n['capability'],state,input_hash,artifact,now(),now()))
             self.store.event(db,self.id,'step_completed',{'node':name,'artifact_id':artifact,'output_hash':h,
                 'outcome':result.get('status','completed') if isinstance(result,dict) else 'completed',
@@ -126,6 +184,8 @@ class AdaptiveRun:
         self.outputs[name]=result; self.node_states[name]=state
 
     def authorization_valid(self, binding):
+        from .studio import approved_run_valid
+        if not approved_run_valid(self.store, self.row):return False
         user=self.store.one('SELECT * FROM users WHERE id=?',(self.user_id,))
         b=self.st['bindings']
         if (datetime.now(timezone.utc)-datetime.fromisoformat(self.row['created_at'])).total_seconds()>86400:return False
@@ -141,6 +201,7 @@ class AdaptiveRun:
             if m['id'] not in self.st['packing']['included_memory_ids']:continue
             live=self.store.owned('memories',self.user_id,m['id'])
             if not live or live['version']!=m['version'] or not live['payload']['approved']:return False
+            if m.get('payload_hash') and digest(live['payload']) != m['payload_hash']:return False
             expiry=live['payload'].get('expires_at')
             if expiry and expiry<date.today().isoformat():return False
         for e in b['evidence']:
@@ -152,8 +213,17 @@ class AdaptiveRun:
     def reserve_call(self, n, binding, prompt, disclosure):
         with self.store.transaction() as db:
             self.worker.ensure_running(self.id)
+            role = n['capability']
+            if role not in MODEL_CAPS or n not in self.graph['nodes']:
+                return None, 'UNAPPROVED_NODE'
+            allowed = [self.graph['provider_bindings'].get(role), *self.graph['fallback_bindings']]
+            if binding not in allowed:
+                return None, 'UNAPPROVED_PROVIDER'
+            prior = self.store.all('SELECT * FROM adaptive_calls WHERE run_id=? AND node_id=? ORDER BY created_at,id', (self.id, n['id']))
+            if prior and (any(c['state'] != 'failed' or not re.fullmatch(r'MODEL_HTTP_429(?:_[A-Za-z0-9_]{1,40})?', c['payload'].get('error_class', '')) for c in prior) or any(c['provider'] == binding['id'] for c in prior)):
+                return None, 'NODE_ALREADY_DISPATCHED'
             control=db.execute('SELECT status FROM adaptive_controls WHERE run_id=?',(self.id,)).fetchone()
-            if control['status']!='active':return None,'PAUSE_REQUESTED'
+            if not control or control['status']!='active':return None,'PAUSE_REQUESTED'
             ledger=db.execute('SELECT count(*) AS n,coalesce(sum(characters),0) AS chars FROM adaptive_calls WHERE run_id=?',(self.id,)).fetchone()
             envelope=self.graph['envelope']
             if ledger['n']>=envelope['max_calls']:return None,'CALL_BUDGET'
@@ -161,7 +231,8 @@ class AdaptiveRun:
                 return None,'TOTAL_CONTEXT_BUDGET'
             if not self.st['consent'] or not self.authorization_valid(binding):return None,'AUTHORIZATION_CHANGED'
             call_id=uid();at=now()
-            metadata={'request_hash':digest(prompt),**disclosure,'usage':{}}
+            metadata={**disclosure,'request_hash':digest(prompt),'plan_id':self.st['plan_id'],
+                      'plan_fingerprint':self.st['fingerprint'],'graph_version':self.version,'usage':{}}
             db.execute('INSERT INTO adaptive_calls VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                 (call_id,self.id,self.user_id,n['id'],binding['id'],binding['model'],'sent',len(prompt),encode(metadata),at,at))
             self.store.event(db,self.id,'external_dispatch',{'node':n['id'],'agent':n['id'],'call_id':call_id,
@@ -225,16 +296,20 @@ class AdaptiveRun:
             call_id,error=self.reserve_call(n,b,prompt,disclosure)
             if not call_id:
                 return {'agent':n['id'],'status':'blocked','error_class':error,'output':{'claims':[],'missing':[error]}}
-            p=self.worker.providers.select(b['id'])
             started=time.monotonic()
             try:
+                self.worker.ensure_running(self.id)
+                p=self.providers.select(b['id'])
+                if not p or not self.authorization_valid(b):
+                    self.close_call(call_id,'failed',{'error_class':'AUTHORIZATION_CHANGED','remote_outcome_known':True,'dispatched':False})
+                    return {'agent':n['id'],'status':'blocked','error_class':'AUTHORIZATION_CHANGED','call_id':call_id,'output':{'claims':[],'missing':['外部调用前授权已改变']}}
                 if cap=='planner':
-                    if not hasattr(self.worker.providers,'propose'):raise ValueError('PLANNER_UNSUPPORTED')
-                    result=await self.worker.providers.propose(p,prompt)
+                    if not hasattr(self.providers,'propose'):raise ValueError('PLANNER_UNSUPPORTED')
+                    result=await self.providers.propose(p,prompt)
                     proposal=PlannerProposal.model_validate(result['output']).model_dump()
                     output=proposal
                 else:
-                    result=await self.worker.providers.complete(p,SYSTEM+'\n本次职责：'+CAPABILITIES[cap][1],prompt)
+                    result=await self.providers.complete(p,SYSTEM+'\n本次职责：'+CAPABILITIES[cap][1],prompt)
                     output=ModelOutput.model_validate(result['output']).model_dump()
                 self.worker.ensure_running(self.id)
                 usage=result.get('usage',{})
@@ -244,37 +319,20 @@ class AdaptiveRun:
             except asyncio.CancelledError:
                 self.close_call(call_id,'unknown',{'error_class':'CANCELLED_REMOTE_OUTCOME_UNKNOWN'});raise
             except Exception as exc:
-                code=str(exc) if str(exc).startswith('MODEL_HTTP_') else type(exc).__name__
-                self.close_call(call_id,'unknown' if isinstance(exc,(TimeoutError,OSError)) else 'failed',{'error_class':code,'remote_outcome_known':not isinstance(exc,(TimeoutError,OSError)),'duration_ms':round((time.monotonic()-started)*1000,2)})
+                code=str(exc) if re.fullmatch(r'MODEL_[A-Za-z0-9_]{1,100}',str(exc)) else type(exc).__name__
+                unknown = not isinstance(exc, (ValueError, ValidationError))
+                self.close_call(call_id,'unknown' if unknown else 'failed',{'error_class':code,'remote_outcome_known':not unknown,'duration_ms':round((time.monotonic()-started)*1000,2)})
                 self.worker.ensure_running(self.id)
                 # Only an acknowledged throttle can use an explicitly approved alternate. Timeouts/unknown outcomes do not.
-                if code=='MODEL_HTTP_429' and len(seen)<len({x['id'] for x in candidates}):
-                    self.event('authorized_fallback',{'node':n['id'],'failed_provider':p.id,'reason':'HTTP_429','counts_toward_budget':True});continue
-                return {'agent':n['id'],'status':'failed','error_class':code,'call_id':call_id,'output':{'claims':[],'missing':['模型未成功返回；保留本地结果，不伪造解释']}}
+                if re.fullmatch(r'MODEL_HTTP_429(?:_[A-Za-z0-9_]{1,40})?',code) and len(seen)<len({x['id'] for x in candidates}):
+                    self.event('authorized_fallback',{'node':n['id'],'failed_provider':b['id'],'reason':'HTTP_429','counts_toward_budget':True});continue
+                return {'agent':n['id'],'status':'unknown' if unknown else 'failed','error_class':code,'call_id':call_id,'output':{'claims':[],'missing':['模型未成功返回；保留本地结果，不伪造解释']}}
         return {'agent':n['id'],'status':'failed','output':{'claims':[],'missing':[]}}
 
     def local(self,n):
         cap=n['capability'];data=self.s['dataset']
-        if cap=='quality':return quality_report(data)
-        if cap=='quant':return calculate(data,self.r['comparison'])
-        if cap=='evidence':return {'items':self.s['citations'],'source':'frozen_approved_scope','status':'completed' if self.s['citations'] else 'missing'}
-        if cap=='counterevidence':
-            groups={'supports':[],'contradicts':[],'context':[]}
-            for c in self.s['citations']:groups.get(c.get('stance','context'),groups['context']).append(c['id'])
-            return {'groups':groups,'conflicting_labels':bool(groups['supports'] and groups['contradicts']),
-                'status':'completed' if self.s['citations'] else 'missing','limitation':'标签对照不是自动语义矛盾检测'}
-        if cap=='gaps':
-            q=self.outputs['quality'];missing=q['field_coverage']['missing']
-            return {'items':[{'field':k,'action':'补充同口径的原始报表字段并保存新修订','auto_imputed':False} for k in missing],
-                    'findings':q['findings'],'status':'needs_input' if missing else 'completed'}
-        if cap=='forecast':
-            out=forecast_baselines(data,self.ex['forecast_metric'],self.ex['horizon'])
-            return {**out,'status':'completed' if out.get('status') not in ('insufficient_data','unavailable') else out['status']}
-        if cap=='sensitivity':
-            a=self.ex['scenario']
-            if not a:return {'status':'blocked','reason':'没有授权情景假设，拒绝生成'}
-            return {**extended_scenario(data,a['price_change'],a['cost_change'],a['volume_change'],a['fixed_cost_share']),
-                    'approved_assumptions':a,'status':'completed'}
+        if cap in REPLAY_CAPABILITIES:
+            return execute_local_capability(cap, self.s, self.r, self.ex, self.outputs)
         if cap=='context':return self.st['packing']
         if cap=='review':
             claims=[]
@@ -311,6 +369,9 @@ class AdaptiveRun:
         input_hash=digest({'snapshot':digest(self.s),'node':n})
         with self.store.transaction() as db:
             self.worker.ensure_running(self.id)
+            previous = self.store.one('SELECT * FROM adaptive_checkpoints WHERE run_id=? AND node_id=?', (self.id, n['id']))
+            if previous and (previous['state'] in FINISHED or previous['input_hash'] != input_hash):
+                raise RuntimeError('CHECKPOINT_IMMUTABLE')
             db.execute('''INSERT INTO adaptive_checkpoints(run_id,node_id,capability,state,input_hash,artifact_id,started_at,finished_at)
                 VALUES(?,?,?,?,?,NULL,?,NULL) ON CONFLICT(run_id,node_id) DO UPDATE SET state='running',started_at=excluded.started_at''',
                 (self.id,n['id'],n['capability'],'running',input_hash,now()))

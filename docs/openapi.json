@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "锂电智诊 API",
-    "version": "4.0.0"
+    "version": "4.1.0"
   },
   "paths": {
     "/api/workspace/brief": {
@@ -261,6 +261,23 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -356,6 +373,23 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -1334,6 +1368,23 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -1900,6 +1951,23 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -2067,6 +2135,23 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -2245,6 +2330,23 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -2465,6 +2567,23 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -2554,6 +2673,23 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -2708,7 +2844,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Reauthenticate"
+                "$ref": "#/components/schemas/ConnectionRemove"
               }
             }
           }
@@ -3180,6 +3316,23 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -3528,6 +3681,23 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -4016,6 +4186,23 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -4222,6 +4409,23 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -4631,6 +4835,15 @@
             "maxItems": 20,
             "minItems": 1,
             "title": "Ids"
+          },
+          "versions": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Versions"
           }
         },
         "additionalProperties": false,
@@ -4880,6 +5093,28 @@
           "dataset_ids"
         ],
         "title": "CompareRequest"
+      },
+      "ConnectionRemove": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password",
+          "version"
+        ],
+        "title": "ConnectionRemove"
       },
       "Conversation": {
         "properties": {
@@ -5247,14 +5482,20 @@
       "ExecutionOptions": {
         "properties": {
           "depth": {
-            "type": "string",
-            "enum": [
-              "concise",
-              "balanced",
-              "deep"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "concise",
+                  "balanced",
+                  "deep"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Depth",
-            "default": "balanced"
+            "title": "Depth"
           },
           "model_planning": {
             "type": "boolean",
@@ -6458,6 +6699,18 @@
             ],
             "title": "Due At"
           },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "acceptance": {
             "type": "string",
             "maxLength": 2000,
@@ -6472,22 +6725,6 @@
           "request_id"
         ],
         "title": "ProposalRequest"
-      },
-      "Reauthenticate": {
-        "properties": {
-          "password": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Password"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "password"
-        ],
-        "title": "Reauthenticate"
       },
       "Register": {
         "properties": {
@@ -7004,6 +7241,18 @@
             "minLength": 1,
             "title": "Title",
             "default": "新的研究"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{8,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "additionalProperties": false,
@@ -7107,6 +7356,18 @@
             "minimum": 30.0,
             "title": "Stale After Days",
             "default": 180
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
           },
           "version": {
             "type": "integer",

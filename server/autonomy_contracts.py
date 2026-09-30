@@ -15,7 +15,9 @@ class ScenarioAssumptions(StrictModel):
     note: str = Field(min_length=5, max_length=1000)
 
 class ExecutionOptions(StrictModel):
-    depth: Literal['concise', 'balanced', 'deep'] = 'balanced'
+    # None means a planning default; every explicit choice, including balanced,
+    # must survive policy activation and replay unchanged.
+    depth: Literal['concise', 'balanced', 'deep'] | None = None
     model_planning: bool = False
     max_revisions: int = Field(default=1, ge=0, le=2)
     local_recovery: bool = True
@@ -59,6 +61,11 @@ class RunAssessment(StrictModel):
     expected_capabilities: list[Literal['quality', 'quant', 'evidence', 'counterevidence', 'forecast', 'sensitivity', 'gaps']] = Field(default_factory=list, max_length=7)
     consent_replay: bool = False
     version: int = Field(default=0, ge=0)
+    @model_validator(mode='after')
+    def unique_rubric(self):
+        if len(set(self.expected_capabilities)) != len(self.expected_capabilities):
+            raise ValueError('人工验收能力不得重复')
+        return self
 
 class StrategySpec(StrictModel):
     name: str = Field(min_length=2, max_length=80)

@@ -43,10 +43,10 @@ def test_batch_deletion_ownership_atomicity_and_cascade(actor,client):
     a=actor;b=Actor(client);s=a.conversation();foreign=b.conversation();d=a.dataset();r=a.run(d,s).json()
     assert a.post('/conversations/delete-batch',json={'ids':[s['id'],foreign['id']]}).status_code==404
     assert a.get('/conversations/'+s['id']+'/messages').status_code==200 and a.get('/runs/'+r['id']).status_code==200
-    assert a.post('/conversations/delete-batch',json={'ids':[s['id']]}).json()['deleted']==1
+    assert a.post('/conversations/delete-batch',json={'ids':[s['id']],'versions':{s['id']:a.get('/conversations').json()['items'][0]['version']}}).json()['deleted']==1
     assert a.get('/runs/'+r['id']).status_code==404 and b.get('/conversations/'+foreign['id']+'/messages').status_code==200
 def test_local_current_api_reference(client):
     r=client.get('/api/docs');assert r.status_code==200 and '/assets/dist/docs.js' in r.text
     assert 'http' not in r.text.lower().replace('httponly','')
-    schema=client.get('/api/openapi.json').json();assert '/api/research/search' in schema['paths'] and schema['info']['version']=='4.0.0'
+    schema=client.get('/api/openapi.json').json();assert '/api/research/search' in schema['paths'] and schema['info']['version']=='4.1.0'
     assert client.get('/assets/dist/docs.js').status_code==200

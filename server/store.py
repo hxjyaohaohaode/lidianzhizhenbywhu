@@ -151,10 +151,14 @@ class Store:
             self.audit(db,user,table,id,'updated',{'version':version+1})
         return self.owned(table,user,id)
 
-    def delete(self,table,user,id):
+    def delete(self,table,user,id,version=None):
         if table not in TABLES:raise ValueError('invalid table')
         with self.transaction() as db:
-            c=db.execute(f'DELETE FROM {table} WHERE id=? AND user_id=?',(id,user))
+            from .security import check_version,fail
+            row=self.owned(table,user,id)
+            if not row:fail('NOT_FOUND','资源不存在或无访问权限。',404)
+            check_version(row,version)
+            c=db.execute(f'DELETE FROM {table} WHERE id=? AND user_id=? AND version=?',(id,user,version))
             if c.rowcount:self.audit(db,user,table,id,'deleted')
         return bool(c.rowcount)
 

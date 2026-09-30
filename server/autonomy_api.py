@@ -9,9 +9,10 @@ router=APIRouter(prefix='/api/workspace', tags=['Adaptive research'])
 
 @router.get('/orchestration/catalog')
 def catalog(request:Request, user=Depends(require_user)):
+    from .connections import scoped_providers
     return {'capabilities':[{'id':id,'name':v[0],'purpose':v[1],'engine':v[2]} for id,v in CAPABILITIES.items()],
             'limits':{'max_nodes':24,'max_external_calls':8,'max_revisions':2,'external_search':False,'code_execution':False,'business_write':False},
-            'providers':request.app.state.providers.status()}
+            'providers':scoped_providers(request.app.state.providers,user['id']).status()}
 
 @router.get('/runs/{id}/runtime')
 def runtime(id:str,request:Request,user=Depends(require_user)):

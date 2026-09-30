@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 import httpx
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -31,6 +32,12 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--bridge',action='store_true',help='Run separately labeled DOM/API bridge acceptance');args=parser.parse_args()
     mode='bridge' if args.bridge else 'native'
     out=ROOT/'evidence';out.mkdir(exist_ok=True)
+    report=out/('service-browser-check.json' if args.bridge else 'native-service-browser.json')
+    attempt={'attempted_at':datetime.now(timezone.utc).isoformat(),
+        'mode':mode,'all_checks_passed':False,'native_network_e2e':False,
+        'status':'not_completed','checks':[],'count':0,'screenshots':[],
+        'policy_modified':False,'note':'本次执行尚未完成；不继承旧验收成功或历史截图。'}
+    report.write_text(json.dumps(attempt,ensure_ascii=False,indent=2),encoding='utf-8')
     with socket.socket() as sock:
         try:sock.bind(('127.0.0.1',8000))
         except OSError:raise SystemExit('原生验收需要隔离的8000端口；不会终止已占用该端口的服务。')
@@ -51,6 +58,11 @@ def main():
                 result=subprocess.run(command,cwd=ROOT,env=env,timeout=300,capture_output=True,text=True,encoding='utf-8',errors='replace')
                 (out/(mode+'-service-browser.log')).write_text(result.stdout+result.stderr,encoding='utf-8')
                 (out/(mode+'-service-command.json')).write_text(json.dumps({'exit_code':result.returncode,'command':['python','scripts/service_browser_check.py']+([] if args.bridge else ['--native']),'bridge':args.bridge,'isolated':True,'policy_changed':False},indent=2),encoding='utf-8')
+                current=json.loads(report.read_text(encoding='utf-8'))
+                current.update(attempted_at=attempt['attempted_at'],exit_code=result.returncode)
+                if result.returncode and current.get('status')=='not_completed':
+                    current.update(status='failed_before_browser_checks',note='浏览器启动或服务访问未完成；详见本次命令日志。历史截图不代表当前界面。')
+                report.write_text(json.dumps(current,ensure_ascii=False,indent=2),encoding='utf-8')
                 print(result.stdout+result.stderr);return result.returncode
             finally:
                 server.terminate()
