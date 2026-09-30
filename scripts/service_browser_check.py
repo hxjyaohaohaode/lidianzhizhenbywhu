@@ -226,16 +226,29 @@ def main():
             # Current layout acceptance includes constrained desktop, breakpoint,
             # narrow handset and landscape. These are real browser geometry checks,
             # not assertions inferred from CSS or historical screenshots.
-            for width,height in [(1440,1000),(1280,900),(1024,768)]:
+            for width,height in [(1440,1000),(1280,900),(1241,900),(1240,900),(1024,768),(901,768)]:
                 page.set_viewport_size({'width':width,'height':height});go('brief')
                 page.locator('[data-action="show-assistant"]').click();page.wait_for_timeout(250)
+                rail=page.locator('#assistant-rail');rail.wait_for(state='visible')
+                assert rail.evaluate('(el)=>getComputedStyle(el).visibility')=='visible'
+                assert not rail.evaluate('(el)=>el.inert')
+                assert page.locator('[data-action="show-assistant"]').get_attribute('aria-expanded')=='true'
                 assert not overflow(),f'{width} desktop assistant overflow'
-                assert page.locator('#main').bounding_box()['width']>=300
+                main_width=page.locator('#main').bounding_box()['width'];assert main_width>=300
+                rail_width=rail.bounding_box()['width'];nav_width=page.locator('#sidebar').bounding_box()['width']
                 if width==1024:assert page.locator('#sidebar').bounding_box()['width']<=73
                 page.locator('[data-action="close-assistant"]').click()
+                rail.wait_for(state='hidden');page.wait_for_timeout(250)
+                assert rail.evaluate('(el)=>el.inert')
+                assert page.locator('[data-action="show-assistant"]').get_attribute('aria-expanded')=='false'
+                # Closing can restore the user's expanded navigation at <=1100px.
+                # Its measured growth legitimately consumes part of the freed rail.
+                nav_growth=page.locator('#sidebar').bounding_box()['width']-nav_width
+                main_growth=page.locator('#main').bounding_box()['width']-main_width
+                assert main_growth>0 and main_growth>=rail_width-nav_growth-2
                 page.locator('[data-action="menu"]').click();page.wait_for_timeout(250)
                 assert not overflow(),f'{width} desktop navigation overflow'
-            record('1440/1280/1024px桌面导航与助手组合真实几何检查')
+            record('1440/1280/1241/1240/1024/901px桌面助手真实可见、关闭释放空间与导航几何检查')
             for width,height in [(900,900),(320,720),(750,500)]:
                 page.set_viewport_size({'width':width,'height':height})
                 for route in (allroutes if width==320 else ['brief','copilot','agents','settings']):

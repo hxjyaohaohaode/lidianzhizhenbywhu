@@ -1,5 +1,5 @@
 {
-  "files_scanned": 67,
+  "files_scanned": 68,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -63,6 +63,7 @@
     "scripts/full_chain_check.py",
     "scripts/http_check.py",
     "scripts/native_acceptance.py",
+    "scripts/prepare_evidence.py",
     "scripts/publish.py",
     "scripts/service_browser_check.py",
     "scripts/source_guard.py",

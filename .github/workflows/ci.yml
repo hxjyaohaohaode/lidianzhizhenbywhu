@@ -20,6 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - run: python scripts/prepare_evidence.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -37,7 +38,16 @@ jobs:
         if: always()
         with:
           name: acceptance-${{ matrix.os }}
-          path: evidence/
+          path: |
+            evidence/run-context.json
+            evidence/verification.json
+            evidence/full-chain-http.json
+            evidence/native-service-browser.json
+            evidence/native-service-command.json
+            evidence/source-guard.json
+            evidence/*.log
+            evidence/*.xml
+            evidence/ui-current-*.png
           retention-days: 14
   dependency-audit:
     runs-on: ubuntu-latest

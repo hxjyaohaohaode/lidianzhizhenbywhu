@@ -5,8 +5,8 @@
 |执行项|本轮结果|证据|
 |---|---|---|
 |Python 编译、TypeScript 严格类型检查、实际前端构建|通过|`evidence/verification.json`、匹配的 `web/dist`|
-|完整后端回归|585 passed，0 failed；2项上游弃用警告|`evidence/verification.json`，执行生成的 `pytest.log` / JUnit|
-|前端逻辑/DOM合同/异步竞态回归|59 passed，0 failed|`evidence/verification.json`，执行生成的 `frontend-tests.log`|
+|完整后端回归|589 passed，0 failed；2项上游弃用警告|`evidence/verification.json`，执行生成的 `pytest.log` / JUnit|
+|前端逻辑/DOM合同/异步竞态回归|60 passed，0 failed|`evidence/verification.json`，执行生成的 `frontend-tests.log`|
 |真实 Uvicorn / HTTP / SSE / 强制退出恢复 / SQLite 备份|12组通过，无API假响应|`evidence/full-chain-http.json`|
 |限定源码检查 / git diff 空白检查|通过；不是完整漏洞扫描|`evidence/source-guard.json`|
 |Python依赖一致性|`pip check`通过|本轮命令记录|
@@ -39,3 +39,15 @@
 CI原生脚本包含原有15工作区390px流程，另加1440/1280/1024px侧栏和助手组合、900px断点、320px全部工作区、750×500横屏、关闭抽屉inert/焦点恢复、暗色及减少动效。本轮这些新增原生断言只完成编译/审阅，必须由CI实跑才能称通过。
 
 [上一轮2026-09-27 Windows记录](VALIDATION_20260927.md)仅供历史参考。本目录原来的 `ui-current-*.png` 虽保留文件名，其内容来自旧基线，不代表4.1当前屏幕。
+
+## GitHub原生验收揭示的后续修复（2026-09-30）
+
+远端候选 `a39e2041253b130f0e4a49bf984b65edc964570f` 的 Linux 和 Windows 原生任务实际通过了前26组浏览器检查，随后在1024px助手关闭按钮等待时失败。当前CI截图显示助手列保留约404px空白：旧 `styles.css` 的≤1240px规则设置了 `visibility:hidden`，新布局虽覆盖位置和尺寸却遗漏该属性。这是实际产品缺陷，不是将等待条件删去即可接受的脚本问题。
+
+修复在新布局显式定义桌面可见、移动关闭隐藏/打开可见；原失败检查保留并增强，新增1241/1240和901/900边界、实际计算可见性、inert/ARIA及关闭后空间释放检查。源码/级联回归不是浏览器替代，修复后的原生结果仍须新的远端CI确认。
+
+同一候选的一个Windows pytest子进程超过原240秒预算，另一个Windows运行通过同一套测试。完整pytest上限调整为有限的600秒，其他检查仍为240秒，作业总时限20分钟不变；超时时保留已经产生的输出，绝不自动重试或把超时算通过。
+
+CI尝试开始时清理已知生成报告与 `ui-current-*.png`，记录SHA/运行号/尝试号，并仅上传明确的本轮输出，防止原生步骤被跳过时带上源码里的历史成功报告。清理测试证明历史目录、品牌摘要和业务目录不受影响。
+
+已结束的失败运行：[PR运行](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36680213986)、[推送运行](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36680165802)。这些记录证明发现过程，不代表修复后已通过。

@@ -54,6 +54,23 @@ test('layout collapse does not replace the main form and has a reduced motion al
  assert(!source.includes('innerHTML'));assert(!source.includes('replaceChildren'));assert(source.includes('aria-expanded'));
  const css=readFileSync(new URL('../web/workbench.css',import.meta.url),'utf8');assert(css.includes('prefers-reduced-motion'));assert(css.includes('minmax(0,1fr)'));
 });
+test('current rail CSS overrides legacy desktop visibility and explicitly hides closed mobile drawers',()=>{
+ const html=readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
+ const legacy=readFileSync(new URL('../web/styles.css',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../web/workbench.css',import.meta.url),'utf8');
+ // Both sheets really ship. Equal-specificity base rules in the later workbench
+ // sheet must override the legacy <=1240px visibility:hidden drawer rule.
+ assert(html.indexOf('/assets/styles.css')<html.indexOf('/assets/workbench.css'));
+ assert.match(legacy,/@media\(max-width:1240px\)[\s\S]*?\.assistant-rail\{[^}]*visibility:hidden/);
+ const desktop=css.match(/\.assistant-rail\{([^}]+)\}/)?.[1];assert(desktop);
+ assert.match(desktop,/(?:^|;)visibility:visible(?:;|$)/);
+ const mobile=css.slice(css.indexOf('@media(max-width:900px)'));
+ assert.match(mobile,/\.assistant-rail,\.workspace-shell\[data-assistant=hidden\]>\.assistant-rail\{[^}]*visibility:hidden/);
+ assert.match(mobile,/\.assistant-rail\.open\{[^}]*visibility:visible/);
+ assert.match(css,/\.sidebar\{[^}]*visibility:visible/);
+ assert.match(mobile,/\.sidebar,\.workspace-shell\[data-nav=compact\] \.sidebar\{[^}]*visibility:hidden/);
+ assert.match(mobile,/\.sidebar\.open\{[^}]*visibility:visible/);
+});
 
 const {invalidateInteractions}=await import('../web/dist/interactions.js');
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
