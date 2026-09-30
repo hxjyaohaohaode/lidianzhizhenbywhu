@@ -112,7 +112,16 @@ def test_local_thread_context_receipts_and_duplicate_submission(actor):
 def test_assistant_tool_paths_are_real_or_explicitly_blocked(actor,text):
     d=actor.dataset();t=thread(actor,d);r=ok(message(actor,t,text=text),201)['message']['payload']['response']
     assert r['external_calls']==0
-    assert len(r['receipts'])>=1 and r['facts']
+    assert len(r['receipts'])>=1
+    if '预测' in text:
+        assert r['facts']
+    else:
+        # Workspace requests must not be replaced with unrelated margin/cash answers.
+        assert r['facts']==[] and r['context']['question_scope']['status']=='workspace_query'
+        if '记忆' in text:assert any(c['kind']=='memory' for c in r['cards'])
+        if '任务' in text:assert any(c['kind']=='runs' for c in r['cards'])
+        if '行动' in text:assert any(c['kind']=='actions' for c in r['cards'])
+        if '情景' in text:assert any(a.get('route')=='lab' for a in r['actions'])
     assert all(v['state'] in ('succeeded','blocked') for v in r['receipts'])
     if '预测' in text and len(d['payload']['periods'])<6:
         assert next(x for x in r['cards'] if x['kind']=='forecast')['data']['status']=='blocked'

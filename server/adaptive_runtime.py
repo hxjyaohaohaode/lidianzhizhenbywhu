@@ -17,6 +17,7 @@ from .models import MODEL_VERSION
 from .analytics import lineage
 from .studio import SYSTEM
 from .providers import ModelOutput
+from .research_context import CLAIM_CONTRACT_VERSION, project_tools, disclosed_references, omit_tool_details
 from .autonomy import node, validate_graph, CAPABILITIES, MODEL_CAPS, REPLAY_CAPABILITIES, execute_local_capability
 from .autonomy_contracts import PlannerProposal
 from . import workspace_store as ws
@@ -27,22 +28,29 @@ class PauseBoundary(Exception):
     """An intentional, durable suspension, not a workflow failure."""
 
 
-def check_claims(claims, metrics, permitted):
+def check_claims(claims, metrics, permitted, *, disclosures=None):
     """Exact reference checks; no claim of semantic truth or numerical reliability."""
     valid = []; rejected = []; seen = set()
     available = {k for k, v in metrics.items() if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)}
     for raw in claims:
         c = dict(raw); reason = None
-        m = set(c.get('metric_ids', [])); e = set(c.get('citation_ids', []))
-        if not (m or e): reason = '无指标或证据引用'
-        elif not m <= available or not e <= set(permitted): reason = '引用不在实际发送或可计算范围'
+        m = set(c.get('metric_ids', [])); e = set(c.get('citation_ids', [])); t = set(c.get('tool_reference_ids', []))
+        disclosure = (disclosures or {}).get(c.get('agent'), {})
+        citations = set(disclosure.get('citation_ids', [])) if disclosures is not None else set(permitted)
+        references = disclosure.get('tool_references', {})
+        if not (m or e or t): reason = '无指标或证据引用'
+        elif not m <= available or not e <= citations or not t <= set(references): reason = '引用不在实际发送或可计算范围'
         elif re.search(r'\d|https?://|<[^>]+>', c['text']): reason = '存在未经数值合同渲染的数字、链接或标记'
         elif c['text'] in seen: reason = '重复解释'
         if reason:
             rejected.append({'agent': c.get('agent', ''), 'reason': reason}); continue
-        seen.add(c['text']); c['id'] = digest(c)[:24]; c['verification'] = 'requires_human_review'; valid.append(c)
+        seen.add(c['text'])
+        if t:
+            c['tool_references'] = [copy.deepcopy(references[id]) for id in sorted(t)]
+        c['id'] = digest(c)[:24]; c['verification'] = 'requires_human_review'; valid.append(c)
     return {'claims': valid, 'rejected_claims': len(rejected), 'rejections': rejected,
-            'scope': '结构与引用门禁，不证明语义正确、因果关系或模型独立性'}
+            'claim_contract_version': CLAIM_CONTRACT_VERSION,
+            'scope': '结构与逐调用引用门禁，不证明语义正确、因果关系或模型独立性'}
 
 
 class AdaptiveRun:
@@ -124,7 +132,7 @@ class AdaptiveRun:
             dispatch = anchor['payload']
             if any(dispatch.get(k) != call.get(k) for k in ('provider', 'model', 'characters')) or dispatch.get('node') != call['node_id']:
                 raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
-            for key in ('request_hash', 'memory_ids', 'citation_ids', 'tool_output_hashes', 'plan_id', 'plan_fingerprint', 'graph_version'):
+            for key in ('request_hash', 'memory_ids', 'citation_ids', 'tool_output_hashes', 'tool_references', 'claim_contract_version', 'plan_id', 'plan_fingerprint', 'graph_version'):
                 if dispatch.get(key) != call['payload'].get(key):
                     raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
             if call['node_id'] not in checkpoint_ids:
@@ -254,17 +262,7 @@ class AdaptiveRun:
         obj=copy.deepcopy(self.st['context'])
         if self.graph.get('model_proposal'):obj['research_focus']=self.graph['model_proposal']['focus']
         # Summaries derive exclusively from the same approved snapshot. No new data sources.
-        tool_results={}
-        for key in ('forecast','sensitivity','counterevidence','gaps'):
-            value=self.outputs.get(key)
-            if value is None:continue
-            if key=='forecast':
-                tool_results[key]={k:v for k,v in value.items() if k in ('status','reason','metric','forecast_horizon','selected','selected_label','forecast','limitations','locked_holdout','selection')}
-                tool_results[key]['output_hash']=digest(value)
-            elif key=='sensitivity':
-                tool_results[key]={k:v for k,v in value.items() if k in ('status','reason','baseline','scenario','break_even','assumptions','approved_assumptions','warnings')}
-                tool_results[key]['output_hash']=digest(value)
-            else:tool_results[key]=value
+        tool_results=project_tools(self.outputs)
         if tool_results:obj['approved_tool_results']=tool_results
         if cap=='planner':
             obj={'question':obj['question'],'mode':obj['mode'],'objective':obj['objective'],
@@ -284,7 +282,7 @@ class AdaptiveRun:
             # Whole peer hypotheses are expendable; core approved source context is never sliced mid-entry.
             obj.pop('prior_hypotheses',None);prompt=encode(obj)
         if len(prompt)>self.worker.settings.max_context_chars and 'approved_tool_results' in obj:
-            obj['approved_tool_results']={k:{'output_hash':digest(v),'status':v.get('status','completed'),'omitted_detail':'完整工具产物超出上下文预算；请以本地归档为准'} for k,v in tool_results.items()};prompt=encode(obj)
+            obj['approved_tool_results']=omit_tool_details(tool_results);prompt=encode(obj)
         candidates=[binding,*self.graph['fallback_bindings']]
         seen=set()
         for b in candidates:
@@ -292,7 +290,9 @@ class AdaptiveRun:
             seen.add(b['id'])
             disclosure={'memory_ids':[m['id'] for m in obj.get('approved_memory',[])],
                         'citation_ids':[c['id'] for c in obj.get('evidence',[])],
-                        'tool_output_hashes':{k:digest(v) for k,v in obj.get('approved_tool_results',{}).items()}}
+                        'tool_output_hashes':{k:digest(v) for k,v in obj.get('approved_tool_results',{}).items()},
+                        'tool_references':disclosed_references(obj.get('approved_tool_results',{})),
+                        'claim_contract_version':CLAIM_CONTRACT_VERSION}
             call_id,error=self.reserve_call(n,b,prompt,disclosure)
             if not call_id:
                 return {'agent':n['id'],'status':'blocked','error_class':error,'output':{'claims':[],'missing':[error]}}
@@ -332,7 +332,8 @@ class AdaptiveRun:
     def local(self,n):
         cap=n['capability'];data=self.s['dataset']
         if cap in REPLAY_CAPABILITIES:
-            return execute_local_capability(cap, self.s, self.r, self.ex, self.outputs)
+            return execute_local_capability(cap, self.s, self.r, self.ex, self.outputs,
+                                            today=date.fromisoformat(self.s.get('analysis_as_of',self.row['created_at'][:10])))
         if cap=='context':return self.st['packing']
         if cap=='review':
             claims=[]
@@ -343,10 +344,13 @@ class AdaptiveRun:
             for id in sources:
                 res=self.outputs.get(id,{})
                 claims += [{**c,'agent':id} for c in res.get('output',{}).get('claims',[])]
-            permitted=set()
-            for c in self.store.all("SELECT payload FROM adaptive_calls WHERE run_id=? AND state='completed'",(self.id,)):
-                permitted.update(c['payload'].get('citation_ids',[]))
-            return check_claims(claims,self.outputs['quant']['metrics'],permitted)
+            disclosures={}
+            for agent, output in self.outputs.items():
+                call_id=output.get('call_id') if isinstance(output,dict) else None
+                if not call_id:continue
+                call=self.store.one("SELECT * FROM adaptive_calls WHERE id=? AND run_id=? AND node_id=? AND state='completed'",(call_id,self.id,agent))
+                if call:disclosures[agent]=call['payload']
+            return check_claims(claims,self.outputs['quant']['metrics'],[],disclosures=disclosures)
         if cap=='reflection':
             review=self.outputs[self.latest_review]
             calls=self.store.all('SELECT * FROM adaptive_calls WHERE run_id=?',(self.id,))
@@ -411,6 +415,10 @@ class AdaptiveRun:
         if self.ex['local_recovery'] and 'quality' in self.outputs:
             if self.outputs['quality']['field_coverage']['missing']:
                 add_local('gaps',['quality'],'数据核验发现缺失字段，追加只读缺口补全规划')
+        if self.ex['local_recovery'] and 'quality' in self.outputs and 'quant' in self.outputs:
+            from .research_gaps import needs_gap_analysis
+            if needs_gap_analysis(self.outputs['quality'],self.outputs['quant']):
+                add_local('gaps',['quality','quant'],'实际规则存在不可计算项或指定基期缺失，追加具体输入核查')
         if 'evidence' in self.outputs and not self.s['citations']:
             for n in self.graph['nodes']:
                 if n['capability']=='researcher' and n['id'] not in self.outputs and n['enabled']:
@@ -479,7 +487,7 @@ class AdaptiveRun:
         if any(v.get('status')=='blocked' for v in self.outputs.values()):warnings.append('部分能力未达门槛，查看节点产物与缺口清单。')
         return {'title':data['company']+' · 协同研判','query':self.r['query'],'mode':self.r['mode'],
             'dataset_id':self.row['dataset_id'],'dataset_version':self.s['dataset_version'],'dataset_hash':self.s['dataset_hash'],
-            'snapshot_hash':digest(self.s),'model_version':MODEL_VERSION,'analysis':maths,'quality':self.outputs['quality'],
+            'snapshot_hash':digest(self.s),'research_scope':self.s.get('research_scope'),'model_version':MODEL_VERSION,'analysis':maths,'quality':self.outputs['quality'],
             'findings':findings,'citations':self.s['citations'],'lineage':lineage(data,maths),
             'memory_selected':[{'id':x['id'],'version':x['version']} for x in self.s['memory']],
             'memory_used':[{'id':x['id'],'version':x['version']} for x in self.s['memory'] if x['id'] in memory],

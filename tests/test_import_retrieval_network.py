@@ -134,7 +134,7 @@ def test_provider_wire_request_usage_contract(monkeypatch):
     p=ProviderService();provider=Provider('test','api.test.example','/v1/chat/completions','test-model','injected-fixture-key');r=p._request(provider,'system boundary','{"input":"data"}')
     assert captured['headers']['Authorization']=='Bearer injected-fixture-key'
     assert captured['body']['stream'] is False and captured['body']['max_tokens']==1000 and captured['body']['messages'][0]['role']=='system'
-    assert captured['closed'] and r['output']==output and r['usage']=={'prompt_tokens':11,'completion_tokens':7,'total_tokens':18}
+    assert captured['closed'] and r['output']=={**output,'claims':[{**claim,'tool_reference_ids':[]} for claim in output['claims']]} and r['usage']=={'prompt_tokens':11,'completion_tokens':7,'total_tokens':18}
     assert asyncio.run(p.complete(provider,'system','{}'))['model']=='test-model'
 @pytest.mark.parametrize('response',[b'x'*500001,b'not json',b'{"choices":[]}',b'{"choices":[{"message":{"content":[]}}]}'],ids=['oversized-wire','invalid-json','empty-choices','invalid-content'])
 def test_malformed_provider_wire_rejected(monkeypatch,response):

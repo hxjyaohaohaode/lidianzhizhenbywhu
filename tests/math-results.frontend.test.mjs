@@ -27,3 +27,16 @@ test('citation provenance cannot introduce markup or executable source links',()
  const html=citationCard({source_kind:'<img src=x>',verification:'<script>bad',original_source_url:'javascript:alert(1)',retrieved_at:'<svg onload=bad>',excerpt:'<iframe>',url:'javascript:bad'});
  assert(!html.includes('<img src=x>'));assert(!html.includes('<script>bad'));assert(!html.includes('<svg onload'));assert(!html.includes('<iframe>'));assert(!html.includes('href="javascript:'));assert(html.includes('来源类型未记录'));
 });
+
+import {claimMathReferences} from '../web/dist/math-results.js';
+test('claims show frozen mathematical values, units and source hash without fabricating old-report references',()=>{
+ assert.equal(claimMathReferences({text:'历史解释'}),'');
+ const html=claimMathReferences({tool_references:[{id:'sensitivity:result:gross_margin',label:'情景毛利率',value:0,unit:'ratio',period:'2026-Q1',output_hash:'abc123'}, {id:'forecast:forecast:0:value',label:'统计基线点估计',value:12000,unit:'yuan',period:'2026-Q2',output_hash:'def456'}]});
+ for(const word of ['0%','12,000','元','abc123','def456','2026-Q1','已批准假设','不是因果证明'])assert(html.includes(word));
+ assert(!html.includes('undefined'));
+});
+test('mathematical reference rendering escapes all archived labels and identifiers',()=>{
+ const html=claimMathReferences({tool_references:[{id:'<img>',label:'<script>',value:null,unit:'<svg>',period:'<iframe>',output_hash:'<a>'}]});
+ for(const tag of ['<img>','<script>','<svg>','<iframe>','<a>'])assert(!html.includes(tag));
+ assert(!html.includes('0.0000'));
+});

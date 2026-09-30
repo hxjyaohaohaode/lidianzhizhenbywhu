@@ -171,6 +171,18 @@ def main():
             record('同一账户切换研究视角并持久化；已有会话仍可读取')
             page.locator('#assistant-query').fill('继续展开刚才的现金流依据');submit('#assistant-form')
             assert page.locator('.chat-turn').count()==2;record('连续追问保留会话，不是覆盖单条固定回复')
+            page.locator('#assistant-query').fill('市场占有率是多少');submit('#assistant-form')
+            page.locator('.chat-turn').nth(2).wait_for()
+            assert page.locator('.chat-turn').count()==3
+            assert page.locator('.chat-turn').last.locator('.fact-tile').count()==0
+            assert '未匹配可计算' in page.locator('.chat-turn').last.inner_text()
+            record('未知研究问题明确能力边界，不用毛利或现金模板替代答案')
+            page.locator('#assistant-query').fill('2024-Q2经营现金流是多少');submit('#assistant-form')
+            page.locator('.chat-turn').nth(3).wait_for()
+            assert page.locator('.chat-turn').count()==4
+            latest=page.locator('.chat-turn').last
+            assert '2024-Q2' in latest.inner_text() and '12,900.00元' in latest.inner_text()
+            record('指定历史季度显示当期现金流金额与真实来源，不误用最新季度或比率')
             snap('ui-current-copilot.png')
             page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
             f='form[data-service-form="proposal"]';page.locator(f+' details').first.click();page.locator(f+' [name="forecast"]').check()
@@ -183,7 +195,10 @@ def main():
             snap('ui-current-approval.png')
             submit('form[data-service-form="confirm-proposal"]');page.locator('.chat-run-result').wait_for(timeout=25000)
             assert '未调用模型' in page.locator('#assistant-answer').inner_text();record('助手批准→真实Agent运行→数学工具与报告回到原会话')
-            run_id=client.get('/api/runs').json()['items'][0]['id']
+            run_id=client.get('/api/runs').json()['items'][0]['id'];run_row=client.get('/api/runs/'+run_id).json()
+            assert run_row['result']['analysis']['current_period']=='2024-Q2'
+            assert run_row['result']['adaptive']['mathematical_outputs']['forecast']['train_end']=='2024-Q2'
+            record('助手历史问题进入批准计划后，数学输入仍截至同一目标季度')
             go('agents:run-'+run_id)
             math=page.locator('[data-math-kind="forecast"]');math.wait_for()
             assert math.locator('svg.chart').is_visible()
@@ -245,7 +260,7 @@ def main():
             page.locator('#active-identity').select_option('');page.wait_for_timeout(700)
             assert page.locator('.chat-turn').count()==0;record('切换服务身份不混入前身份的研究会话')
             page.locator('#active-identity').select_option(identity_id);page.wait_for_timeout(700)
-            assert page.locator('.chat-turn').count()==2;record('切回身份恢复原会话与独立任务结果')
+            assert page.locator('.chat-turn').count()==4;record('切回身份恢复原会话与独立任务结果')
             print('STEP tracking',flush=True);go('tracking');page.locator('[data-x-action="watch-new"]').click();f='form[data-service-form="watch"]'
             page.locator(f+' [name="title"]').fill('毛利低于40%（验收）');page.locator(f+' [name="threshold"]').fill('0.4');page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
             print('STEP rule submitted',flush=True);page.locator('.alert-card').wait_for();page.locator('[data-x-action="alert-ack"]').click();f='form[data-service-form="alert-ack"]';page.locator(f+' [name="note"]').fill('已核对合成输入，仅用于流程验收');submit(f)

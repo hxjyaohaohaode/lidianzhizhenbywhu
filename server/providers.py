@@ -15,6 +15,7 @@ class Claim(StrictModel):
     text: str = Field(min_length=1, max_length=600)
     metric_ids: list[str] = Field(default_factory=list, max_length=8)
     citation_ids: list[str] = Field(default_factory=list, max_length=8)
+    tool_reference_ids: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(default_factory=list, max_length=8)
     uncertainty: Literal['low', 'medium', 'high'] = 'high'
 
 

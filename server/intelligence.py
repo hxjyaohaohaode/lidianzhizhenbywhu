@@ -4,6 +4,7 @@ from datetime import date
 from .analytics import calculate, quality_report, period_end, lineage, METRIC_LABELS
 from .store import digest
 from . import workspace_store as ws
+from .question_scope import resolve_question, scoped_dataset
 
 
 def profile_for(store,user,company):
@@ -87,18 +88,6 @@ def build_insights(store,user,datasets=None,today=None):
         'evaluated_datasets':len(datasets),'autonomous_external_calls':0}
 
 
-ASSISTANT_TOPICS=(
-    ('gross_margin',('毛利','成本','margin')),
-    ('cash_ratio',('现金','回款','cash')),
-    ('leverage',('负债','杠杆','偿债')),
-    ('revenue_growth',('增长','增速','同比','growth')),
-    ('revenue',('收入','营收','销售额','revenue')),
-    ('net_margin',('净利率','盈利能力')),
-    ('net_profit',('净利润','利润额')),
-    ('inventory_turnover',('库存','存货','周转')),
-    ('rd_ratio',('研发','rd')),
-)
-
 ROLE_QUESTIONS={
     'enterprise':['哪些经营指标偏离自定目标？','现金流和毛利的变化依据是什么？'],
     'investor':['收入增长与现金回流是否一致？','有哪些相反证据需要核查？'],
@@ -119,10 +108,9 @@ def assistant_answer(store,user,query,dataset_id=''):
         return {'engine':'local_navigation','answer':('请选择一家企业；多个数据集不会被助手擅自合并。' if has_data else '先添加真实企业数据，助手才能核查指标与来源。'),
             'facts':[],'insights':[],'evidence_matches':[],'quality':[],'followups':ROLE_QUESTIONS.get(role,ROLE_QUESTIONS['enterprise']),
             'actions':[{'label':'选择企业数据' if has_data else '添加经营数据','route':'data'}], 'external_calls':0}
-    data=d['payload'];analysis=calculate(data);q=query.lower()
-    selected=[field for field,words in ASSISTANT_TOPICS if any(w in q for w in words)]
-    if not selected:selected=['gross_margin','cash_ratio']
-    selected=selected[:5];latest=data['periods'][-1];links={x['id']:x for x in lineage(data,analysis)}
+    question_scope=resolve_question(query,d['payload'],['gross_margin','cash_ratio'])
+    data=scoped_dataset(d['payload'],question_scope);analysis=calculate(data,question_scope['comparison']);q=query.lower()
+    selected=question_scope['topics'][:5];latest=analysis['series'][-1];links={x['id']:x for x in lineage(data,analysis)}
     baseline=next((p for p in data['periods'] if p['period']==analysis['baseline_period']),None)
     facts=[]
     for f in selected:
@@ -130,7 +118,7 @@ def assistant_answer(store,user,query,dataset_id=''):
         if f in ('revenue','cost','net_profit','cash_flow'):
             value=latest.get(f);formula='原始季度录入值';inputs=[{'path':f"periods/{latest['period']}/{f}",'value':value}]
         elif f=='revenue_growth':
-            value=analysis['metrics'][f];formula='本期收入 ÷ 去年同季收入 − 1'
+            value=analysis['metrics'][f];formula='本期收入 ÷ 指定同/环比基期收入 − 1'
             inputs=[{'path':f"periods/{latest['period']}/revenue",'value':latest['revenue']}]
             if baseline:inputs.append({'path':f"periods/{baseline['period']}/revenue",'value':baseline['revenue']})
         elif link:
@@ -140,7 +128,8 @@ def assistant_answer(store,user,query,dataset_id=''):
         trend=[]
         for period in analysis['series'][-8:]:
             prior=next((p for p in data['periods'] if p['period']==f"{int(period['period'][:4])-1}{period['period'][4:]}"),None)
-            point=(period['revenue']/prior['revenue']-1 if prior and prior['revenue']>0 else None) if f=='revenue_growth' else period.get(f)
+            prefix={**data,'periods':[p for p in data['periods'] if p['period']<=period['period']]}
+            point=calculate(prefix,question_scope['comparison'])['metrics'][f] if f=='revenue_growth' else period.get(f)
             trend.append({'period':period['period'],'value':point})
         facts.append({'id':f,'label':METRIC_LABELS[f],'value':value,'period':analysis['current_period'],
             'dataset_id':d['id'],'dataset_version':d['version'],'input_hash':d['content_hash'],
@@ -148,17 +137,18 @@ def assistant_answer(store,user,query,dataset_id=''):
             'verification':data.get('verification','unverified_user_input')})
     quality=quality_report(data)
     evidence=scoped_retrieve(store,owner,query,data['company'],3)
-    tasks=build_insights(store,owner,[d])['items']
+    tasks=build_insights(store,owner,[d])['items'] if question_scope['can_calculate'] and data['periods']==d['payload']['periods'] else []
     causal=any(w in q for w in ('为什么','原因','归因','导致','证明'))
     answer=(f"已核对{data['company']}的{analysis['current_period']}已保存输入与计算口径。"
             +(' 指标和检索片段不能单独证明原因；请在协同研判中提出假设并核对反向证据。' if causal else ' 指标来自用户录入，资料片段仅是待核实候选。'))
-    return {'engine':'local_grounded_router','answer':answer,'scope':{'company':data['company'],'dataset_id':d['id'],
-            'dataset_version':d['version'],'input_hash':d['content_hash'],'source_state':quality['source_state'],
+    if question_scope['notice']:answer=question_scope['notice']
+    return {'question_scope':question_scope,'engine':'local_grounded_router','answer':answer,'scope':{'company':data['company'],'dataset_id':d['id'],
+            'dataset_version':d['version'],'input_hash':d['content_hash'],'period':question_scope['period'] if question_scope['can_calculate'] else None,'source_state':quality['source_state'],
             'role':role,'objective':profile_for(store,owner,data['company']).get('objective','')},
         'facts':facts,'insights':tasks[:4],'evidence_matches':[{'document_id':x['document_id'],'title':x['title'],
             'excerpt':x['excerpt'][:300],'source_url':x['url'],'verification':x['verification'],
             'review_state':x['review_state'],'stance':x['stance'],'content_hash':x['content_hash']} for x in evidence],
-        'quality':quality['findings'][:5],'quality_total':len(quality['findings']),
+        'quality':quality['findings'][:5] if question_scope['can_calculate'] else [],'quality_total':len(quality['findings']) if question_scope['can_calculate'] else 0,
         'followups':ROLE_QUESTIONS.get(role,ROLE_QUESTIONS['enterprise']),
         'actions':[{'label':'按此问题创建诊断计划','route':'agents','query':query,'dataset_id':d['id']},
             {'label':'核对原始数据与公式','route':'data','dataset_id':d['id']},

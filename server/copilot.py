@@ -86,22 +86,7 @@ def read_thread(store,user,id):
                        'writable':writable,'unavailable_reason':reason}}
 
 
-def _topics(text):
-    terms = {
-        'gross_margin': ('毛利', '成本', 'margin'),
-        'revenue': ('收入', '营收', '销售额', 'revenue'),
-        'cost': ('成本', 'cost'),
-        'revenue_growth': ('增速', '增长', '同比', 'growth'),
-        'cash_flow': ('现金流', 'cash flow'),
-        'cash_ratio': ('现金', '回款', 'cash'),
-        'leverage': ('负债', '杠杆', '偿债'),
-        'inventory_turnover': ('库存', '存货', '周转'),
-        'net_profit': ('净利润', '利润额'),
-        'net_margin': ('净利率', '盈利能力'),
-        'rd_ratio': ('研发', 'r&d'),
-        'roe': ('净资产', '权益', 'roe'),
-    }
-    return [key for key, words in terms.items() if any(w in text.lower() for w in words)]
+from .question_scope import topics_for as _topics, resolve_question, scoped_dataset
 
 
 _RATIO_METRICS = {'gross_margin', 'net_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'rd_ratio', 'roe', 'margin_change'}
@@ -202,7 +187,9 @@ def answer_with_tools(store, user, identity, data, text, history):
             topics = _topics(prior)
             effective_query = prior + ' ' + text
             context['history_used_for_topics'] = bool(topics)
-        topics = topics or _DEFAULT_TOPICS.get(ip.get('perspective', 'operator'), _DEFAULT_TOPICS['operator'])
+        question_scope=resolve_question(effective_query,d,_DEFAULT_TOPICS.get(ip.get('perspective','operator'),_DEFAULT_TOPICS['operator']))
+        topics=question_scope['topics'];comparison=question_scope['comparison'];d=scoped_dataset(d,question_scope)
+        context['question_scope']=question_scope
         depth = ip.get('depth', 'balanced'); detail_limit = 3 if depth == 'concise' else 6 if depth == 'balanced' else 8
         topics = topics[:detail_limit]
         result = tool('financial_calculation', lambda: calculate(d, comparison), {'dataset_id': data['id'], 'version': data['version'], 'comparison': comparison})
@@ -230,30 +217,31 @@ def answer_with_tools(store, user, identity, data, text, history):
             observations.append(sentence)
         answer = f"{company} {result['current_period']}：" + '；'.join(observations[:detail_limit]) + '。'
         answer += '这些数值来自当前已保存输入，未经独立真实性核验。'
-        if causal:
+        if question_scope['notice']:answer=question_scope['notice']
+        if causal and question_scope['can_calculate']:
             answer += '目前不能仅凭这些数据确定原因，需逐项核对原始凭证与相反证据。'
-        cards.append({'kind': 'quality', 'title': '输入质量与缺口', 'data': quality})
+        if question_scope['can_calculate']:cards.append({'kind': 'quality', 'title': '输入质量与缺口', 'data': quality})
         if any(w in q for w in ('来源', '怎么算', '公式', '血缘', '依据', 'trace')) or ip.get('output_style') == 'evidence_first':
             cards.append({'kind': 'lineage', 'title': '字段来源与计算路径', 'data': [r for r in rows if r['id'] in topics]})
-        if insights['items']:
+        if insights['items'] and question_scope['can_calculate'] and not question_scope['period_explicit']:
             cards.append({'kind': 'findings', 'title': '需要跟进的事项', 'data': insights['items'][:detail_limit]})
         next_steps = [{'title': item['title'], 'reason': item['message'], 'route': item['target'], 'acceptance': item['acceptance']}
-                      for item in insights['items'][:3]]
+                      for item in insights['items'][:3] if question_scope['can_calculate'] and not question_scope['period_explicit']]
         if not citations and not any(s['route'] == 'evidence' for s in next_steps):
             next_steps.append({'title': '补齐本问题的原始证据', 'reason': '当前检索没有适用资料', 'route': 'evidence',
                                'acceptance': '补充同企业、同期间原始资料，记录来源与支持/反向关系，并人工审阅'})
         if not next_steps:
             next_steps.append({'title': '核对数值与原始报表', 'reason': '计算一致性不能代替来源真实性', 'route': 'data',
                                'acceptance': '逐项核对本次指标的输入字段、期间、单位及来源，记录差异'})
-        brief = {'intent': 'causal_review' if causal else 'grounded_review', 'scope': {'company': company, 'period': result['current_period'],
-            'comparison': comparison, 'baseline_period': result['baseline_period'], 'dataset_version': data['version'], 'depth': depth},
+        brief = {'intent': question_scope['status'] if not question_scope['can_calculate'] else 'causal_review' if causal else 'grounded_review', 'scope': {'company': company, 'period': result['current_period'] if question_scope['can_calculate'] else None,
+            'comparison': comparison, 'baseline_period': result['baseline_period'], 'question_scope':question_scope, 'dataset_version': data['version'], 'depth': depth},
             'evidence_state': 'retrieved_candidates' if citations else 'no_matching_saved_evidence',
             'retrieval_method': 'owner_and_company_scoped_lexical_search', 'source_verification': quality['source_state'],
             'matched_document_count': len({c['document_id'] for c in citations}),
             'missing_metric_ids': [f['id'] for f in facts if f['value'] is None],
             'stance_counts': {stance: len({c['document_id'] for c in citations if c['stance'] == stance}) for stance in ('supports', 'contradicts', 'context')},
             'causal_claims_supported': False, 'objective': ip.get('objective', '')}
-        if any(w in q for w in ('预测', '回测', 'forecast')):
+        if question_scope['can_calculate'] and any(w in q for w in ('预测', '回测', 'forecast')):
             metric = 'cash_flow' if '现金' in q else 'gross_margin' if '毛利' in q else 'cost' if '成本' in q else 'revenue'
             forecast = tool('forecast_baselines', lambda: forecast_baselines(d, metric, 2), {'metric': metric, 'horizon': 2, 'dataset_version': data['version']})
             cards.append({'kind': 'forecast', 'title': '透明基线回测', 'data': forecast})
@@ -346,7 +334,7 @@ def _propose(store,user,thread_id,body,settings,providers):
     if body.kind=='research':
         from .contracts import PlanDraft
         from .studio import build_plan
-        history=[]
+        history=[];scope_query=text
         if body.include_thread_history:
             history=store.all('SELECT id,payload FROM copilot_messages WHERE thread_id=? AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 4',(thread_id,user['id']))
             prior=[h for h in reversed(history) if h['id']!=body.source_message_id]
@@ -357,7 +345,7 @@ def _propose(store,user,thread_id,body,settings,providers):
         draft=PlanDraft(dataset_id=data['id'],identity_id=thread['payload']['identity_id'],query=text,
             mode=body.mode,use_llm=body.use_llm,provider=body.provider,max_calls=body.max_calls,
             execution=body.execution,success_criteria=body.acceptance)
-        plan=build_plan(store,user,draft,settings,providers)
+        plan=build_plan(store,user,draft,settings,providers,scope_query=scope_query)
         p['plan_id']=plan['id'];p['plan_version']=plan['version'];p['plan_fingerprint']=plan['payload']['fingerprint']
         p['preview']={'nodes':plan['payload']['nodes'],'packing':plan['payload']['packing'],
             'provider_bindings':plan['payload'].get('adaptive',{}).get('provider_bindings',{}),

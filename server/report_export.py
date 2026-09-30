@@ -85,7 +85,8 @@ def markdown_report(result):
     parts = ['# ' + text(result.get('title')), '## 任务与归档依据',
         table(['项目', '保存值'], [['原始研究问题', result.get('query')], ['执行状态', ctx.get('execution_state')],
             ['报告保存时间', result.get('created_at')], ['归档模型 / 规则版本', result.get('model_version', '历史记录未提供')],
-            ['数据版本', result.get('dataset_version')], ['数据哈希', result.get('dataset_hash')],
+            ['财务目标季度', result.get('research_scope', {}).get('period') if result.get('research_scope') else analysis.get('current_period')],
+            ['期间范围边界', (result.get('research_scope') or {}).get('notice')], ['数据版本', result.get('dataset_version')], ['数据哈希', result.get('dataset_hash')],
             ['快照哈希', result.get('snapshot_hash')], ['企业研究目标', ctx.get('research_goal')],
             ['人工验收标准', ctx.get('success_criteria')]]),
         '工作身份（执行时快照）：', code(ctx.get('identity')), '## 已保存计算结论',
@@ -99,6 +100,11 @@ def markdown_report(result):
     for claim in result.get('llm', {}).get('review', {}).get('claims', []):
         parts += [text(claim.get('text')), '指标：' + text('、'.join(claim.get('metric_ids', []))),
                   '引用：' + text('、'.join(claim.get('citation_ids', []))),
+                  '数学依据（仅显示已保存的逐调用核对结果）：',
+                  table(['依据', '期间', '数值', '单位', '产物引用', '产物 SHA256'],
+                    [[ref.get('label'), ref.get('period'), number(ref.get('value'), ref.get('unit') == 'ratio'),
+                      '%' if ref.get('unit') == 'ratio' else ref.get('unit'), ref.get('id'), ref.get('output_hash')]
+                     for ref in claim.get('tool_references', [])]),
                   code([r['payload'] for r in reviews if r.get('payload', {}).get('claim_id') == claim.get('id')])]
     parts += ['模型调用状态：' + text(result.get('llm', {}).get('state')), '## 原始证据与定位']
     for c in result.get('citations', []):

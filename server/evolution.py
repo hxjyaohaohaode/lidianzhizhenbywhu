@@ -14,7 +14,7 @@ from .autonomy_contracts import ExecutionOptions
 from .models import MODEL_VERSION
 from . import workspace_store as ws
 
-REPLAY_VERSION = 'local-capability-replay-v2'
+REPLAY_VERSION = 'local-capability-replay-v3'
 COMPLETED_STATES = {'succeeded', 'degraded'}
 
 
@@ -61,7 +61,9 @@ def replay(run, rubric, spec):
     graph = compile_graph(payload, policy=spec)
     as_of = date.fromisoformat(run['result']['quality'].get('as_of', run['created_at'][:10]))
     q = execute_local_capability('quality', s, r, ex, {}, today=as_of)
-    if ex['local_recovery'] and q['field_coverage']['missing'] and not any(n['id']=='gaps' for n in graph['nodes']):
+    from .research_gaps import needs_gap_analysis
+    quant=execute_local_capability('quant',s,r,ex,{},today=as_of)
+    if ex['local_recovery'] and needs_gap_analysis(q,quant) and not any(n['id']=='gaps' for n in graph['nodes']):
         graph['nodes'].append(node('gaps', ['quality']))
         next(n for n in graph['nodes'] if n['id']=='context')['depends_on'].append('gaps')
     layers = validate_graph(graph['nodes'], require_mandatory=True)
@@ -87,7 +89,8 @@ def replay(run, rubric, spec):
 
 
 def input_signature(run):
-    d=run['snapshot']['dataset']
+    from .question_scope import analysis_dataset
+    d=analysis_dataset(run['snapshot'])
     return digest({k:d.get(k) for k in ('currency','amount_unit','volume_unit','period_basis','periods')})
 
 

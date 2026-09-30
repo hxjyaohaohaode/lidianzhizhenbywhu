@@ -1,5 +1,5 @@
 {
-  "files_scanned": 71,
+  "files_scanned": 74,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -22,8 +22,11 @@
     "server/network.py",
     "server/parse_worker.py",
     "server/providers.py",
+    "server/question_scope.py",
     "server/report_export.py",
     "server/research.py",
+    "server/research_context.py",
+    "server/research_gaps.py",
     "server/retrieval.py",
     "server/schemas.py",
     "server/security.py",

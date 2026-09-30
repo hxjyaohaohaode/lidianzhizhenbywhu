@@ -82,3 +82,12 @@ CI原生脚本包含原有15工作区390px流程，另加1440/1280/1024px侧栏�
 CI尝试开始时清理已知生成报告与 `ui-current-*.png`，记录SHA/运行号/尝试号，并仅上传明确的本轮输出，防止原生步骤被跳过时带上源码里的历史成功报告。清理测试证明历史目录、品牌摘要和业务目录不受影响。
 
 已结束的失败运行：[PR运行](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36680213986)、[推送运行](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36680165802)。这些记录证明发现过程，不代表修复后已通过。
+
+
+## 第三轮研究闭环最终本地执行（2026-09-30）
+
+基线 `2efcf387cdadcd41ed5c880a8f484049b92a07c5`。最终执行时间 `2026-09-30T14:51:01.853512+00:00`。Python编译、TypeScript类型/构建、694项后端、107项前端、源码检查、真实HTTP/SSE/重启/备份12组全部通过。独立复核另执行73项范围/数学/回放/导出测试，无剩余复核阻塞。最后对新增原生脚本等待条件的调整另通过Python编译与4项CI证据测试。
+
+本轮修复内容见 [研究闭环说明](RESEARCH_GROUNDING_20260930.md)，逐项结果见 `evidence/verification.json`、`evidence/research-grounding-20260930.json`。原生脚本增加未知问题、历史现金金额、Agent目标季度保持三组断言；本机未重新运行原生浏览器，不将历史socket限制或上一提交的CI当成当前成功。当前提交的Linux/Windows原生CI及发布由独立远端结果确认。
+
+模型供应商/公开搜索调用为0。原始PNG/MP4 SHA256重新核对一致。没有改公式、阈值、权重，没有重算旧报告或写入运行时合成企业数据。保留Starlette/httpx弃用警告，不宣称零警告或无限范围覆盖。

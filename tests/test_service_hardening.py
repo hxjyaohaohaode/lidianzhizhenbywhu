@@ -174,7 +174,9 @@ def test_lens_defaults_and_actions_do_not_mix_with_other_identity(actor):
     p=ok(proposal(actor,ti,'action',acceptance='核对同期间财报并记录原始来源'),201);ok(confirm(actor,p))
     r=ok(message(actor,tj,text='需要做哪些跟进行动'),201)['message']['payload']['response']
     assert next(c for c in r['cards'] if c['kind']=='actions')['data']==[]
-    assert [f['id'] for f in r['facts']]==['cash_ratio','leverage','gross_margin']
+    assert r['facts']==[] and r['context']['question_scope']['status']=='workspace_query'
+    overview=ok(message(actor,tj,text='经营概览',key='overview-after-actions',version=2),201)['message']['payload']['response']
+    assert [f['id'] for f in overview['facts']]==['cash_ratio','leverage','gross_margin']
     ok(message(actor,tj,text='   ',key='whitespace-message',version=2),422)
 
 

@@ -780,7 +780,11 @@ document.addEventListener('click', async (event) => {
                 await ask(el.dataset.query ?? '');
                 break;
             case 'assistant-route': {
-                const route = el.dataset.route;
+                const route = el.dataset.route, dataset = el.dataset.datasetId;
+                if (dataset && scopedDatasets().some(d => d.id === dataset))
+                    state.active = dataset;
+                if (el.dataset.query)
+                    state.query = el.dataset.query;
                 if (route && route in routes)
                     navigate(route);
                 break;

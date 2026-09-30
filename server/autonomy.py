@@ -31,11 +31,12 @@ def execute_local_capability(capability, snapshot, request, execution, outputs, 
     """The same read-only operations serve production execution and local replay."""
     from .analytics import quality_report, forecast_baselines, extended_scenario
     from .models import calculate
-    data = snapshot['dataset']
+    from .question_scope import analysis_dataset
+    data = analysis_dataset(snapshot)
     if capability == 'quality':
         return quality_report(data, today=today)
     if capability == 'quant':
-        return calculate(data, request.get('comparison', 'year_over_year'))
+        return calculate(data, request.get('comparison', 'year_over_year'), today=today)
     if capability == 'evidence':
         return {'items': snapshot['citations'], 'source': 'frozen_approved_scope',
                 'status': 'completed' if snapshot['citations'] else 'missing'}
@@ -47,9 +48,9 @@ def execute_local_capability(capability, snapshot, request, execution, outputs, 
                 'status': 'completed' if snapshot['citations'] else 'missing',
                 'limitation': '标签对照不是自动语义矛盾检测'}
     if capability == 'gaps':
-        quality = outputs['quality']; missing = quality['field_coverage']['missing']
-        return {'items': [{'field': key, 'action': '补充同口径的原始报表字段并保存新修订', 'auto_imputed': False} for key in missing],
-                'findings': quality['findings'], 'status': 'needs_input' if missing else 'completed'}
+        from .research_gaps import research_gaps
+        quant=outputs.get('quant') or calculate(data,request.get('comparison','year_over_year'),today=today)
+        return research_gaps(data,outputs['quality'],quant)
     if capability == 'forecast':
         try:
             out = forecast_baselines(data, execution['forecast_metric'], execution['horizon'], today=today)
