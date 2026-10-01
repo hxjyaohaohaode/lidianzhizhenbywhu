@@ -20,6 +20,16 @@ from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
 
 
+def assert_form_errors(page, selector):
+    """Read one DOM snapshot; a successful transition may remove the old form.
+
+    Absence is not success: every caller still waits for its specific next state.
+    Never count a locator and then wait for elements that may already be gone.
+    """
+    for text in page.locator(selector+' .form-error').all_text_contents():
+        if text.strip():raise AssertionError(text.strip())
+
+
 class FixtureRequestBudget:
     """Admission pacing for synthetic setup, never a retry of business requests.
 
@@ -94,9 +104,7 @@ def main():
         def submit(selector):
             page.locator(selector+' button[type="submit"]').click()
             page.wait_for_timeout(500)
-            err=page.locator(selector+' .form-error')
-            for i in range(err.count()):
-                if err.nth(i).inner_text().strip():raise AssertionError(err.nth(i).inner_text())
+            assert_form_errors(page,selector)
         def go(route):
             page.evaluate('(r)=>location.hash=r',route)
             page.locator('#main[data-page="'+route.split(':')[0]+'"] h1').wait_for(timeout=12000)

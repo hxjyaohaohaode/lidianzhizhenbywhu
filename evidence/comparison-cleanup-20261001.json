@@ -2,11 +2,11 @@
   "date": "2026-10-01",
   "baseline_remote_sha": "67b84e0f8547f31e4c114087419330eef54a67b0",
   "baseline_tree": "a9c5681379be5e67f1136b670a5ba58ff9bb6464",
-  "verification_completed_at": "2026-10-01T12:34:04.524750+00:00",
+  "verification_completed_at": "2026-10-01T13:07:26.903706+00:00",
   "local": {
     "seven_stages_passed": true,
     "backend": {
-      "passed": 995,
+      "passed": 998,
       "skipped": 0,
       "upstream_warnings": 1
     },
@@ -42,6 +42,16 @@
       "product_code_changed_by_fix": false,
       "fix": "Capacity fixture moved after normal screenshots; remove extra bulk cleanup; reserve300 of existing600/min API admission window using actual timestamps, bounded65 seconds and never retry HTTP",
       "regression": "3 controlled-clock fixture-budget tests passed"
+    },
+    "second_ci": {
+      "sha": "f19ceb5a0cb386e4fbba0c3b9e5d86edc52477a5",
+      "linux_and_pr_windows": "Both Linux jobs and PR Windows passed48 native checks and all7 stages",
+      "push_windows_attempt1": "Initial page navigation timeout before any browser check; no success claimed",
+      "push_windows_attempt2": "31 checks passed; old form error count/inner_text race after successful preview replacement",
+      "screenshot_observation": "The import confirmation preview had rendered; no JS errors or HTTP5xx",
+      "fix": "Read error text in one all_text_contents snapshot; preserve all subsequent success conditions and timeout budgets",
+      "product_code_changed_by_fix": false,
+      "current_ci": "Pending the new exact commit"
     }
   },
   "unchanged_sha256": {
