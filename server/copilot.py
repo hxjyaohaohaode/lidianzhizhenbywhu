@@ -305,9 +305,9 @@ def proposal_binding(thread,identity,data):
 
 
 def propose(store,user,thread_id,body,settings,providers):
-    # Lock proposal generation without nesting SQL transactions; duplicate previews
-    # cannot create orphaned plans under simultaneous idempotent submissions.
-    with store._lock:
+    # Preview and proposal persist as one unit. A failed save or process exit
+    # cannot leave even a non-executable preview orphan behind.
+    with store.transaction():
         return with_source_impact(store,user['id'],_propose(store,user,thread_id,body,settings,providers))
 
 
@@ -361,7 +361,7 @@ def _propose(store,user,thread_id,body,settings,providers):
             mode=body.mode,use_llm=body.use_llm,provider=body.provider,max_calls=body.max_calls,
             execution=body.execution,experiment=body.experiment,comparison_artifact=body.comparison_artifact,
             success_criteria=body.acceptance)
-        plan=build_plan(store,user,draft,settings,providers,scope_query=scope_query)
+        plan=build_plan(store,user,draft,settings,providers,scope_query=scope_query,proposal_id=proposal_id)
         p['plan_id']=plan['id'];p['plan_version']=plan['version'];p['plan_fingerprint']=plan['payload']['fingerprint']
         p['preview']={'nodes':plan['payload']['nodes'],'packing':plan['payload']['packing'],
             'provider_bindings':plan['payload'].get('adaptive',{}).get('provider_bindings',{}),
@@ -401,10 +401,19 @@ def _propose(store,user,thread_id,body,settings,providers):
 
 
 def confirm_proposal(store,user,id,body,settings,providers):
-    # Serialize local confirmation with discard/update; dispatch itself is idempotent.
-    # No external model request occurs while this lock is held.
-    with store._lock:
+    # Serialize confirmation with discard/update, and commit the approved run
+    # and executed proposal together. No external request occurs in this unit.
+    with store.transaction():
         return with_source_impact(store,user['id'],_confirm_proposal(store,user,id,body,settings,providers))
+
+
+def cancel_proposal_preview(store,db,user_id,proposal):
+    """Revoke linked legacy previews too, while retaining independent runs."""
+    plan_id=proposal['payload'].get('plan_id')
+    if not plan_id:return
+    plan=store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='plan' AND id=?",(user_id,plan_id))
+    if plan and plan['payload']['status'] not in ('dispatched','cancelled'):
+        ws.save(store,db,user_id,'plan',{**plan['payload'],'status':'cancelled'},key=plan['natural_key'],expected=plan['version'])
 
 
 def _confirm_proposal(store,user,id,body,settings,providers):
@@ -426,10 +435,9 @@ def _confirm_proposal(store,user,id,body,settings,providers):
     if p['kind']=='research':
         from .contracts import PlanConsent
         from .studio import dispatch_plan
-        run=dispatch_plan(store,user,p['plan_id'],PlanConsent(version=p['plan_version'],fingerprint=p['plan_fingerprint'],external_consent=body.external_consent),settings,providers)
+        run=dispatch_plan(store,user,p['plan_id'],PlanConsent(version=p['plan_version'],fingerprint=p['plan_fingerprint'],external_consent=body.external_consent),settings,providers,proposal_id=id)
         result={'run_id':run['id'],'route':'agents:run-'+run['id']}
-        # dispatch_plan is itself transactionally idempotent. A crash between the two
-        # commits leaves a recoverable proposal, not a duplicated paid task.
+        # Nested saves remain inside confirm_proposal's outer transaction.
         with store.transaction() as db:
             current=ws.get(store,user['id'],'assistant_proposal',id)
             if current['payload']['status']=='executed':

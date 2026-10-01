@@ -24,6 +24,8 @@ from .autonomy_contracts import PlannerProposal
 from . import workspace_store as ws
 
 FINISHED = {'succeeded', 'degraded', 'failed', 'skipped', 'unknown'}
+NOT_DISPATCHED_ERRORS = {'AUTHORIZATION_CHANGED', 'MODEL_AUTHORIZATION_CHANGED',
+                         'MODEL_TRANSPORT_BUSY', 'MODEL_CIRCUIT_OPEN'}
 
 class PauseBoundary(Exception):
     """An intentional, durable suspension, not a workflow failure."""
@@ -125,6 +127,7 @@ class AdaptiveRun:
         checkpoints = self.store.all('SELECT * FROM adaptive_checkpoints WHERE run_id=?', (self.id,))
         by_id = {n['id']: n for n in self.graph['nodes']}
         checkpoint_ids = {c['node_id'] for c in checkpoints}
+        closed_calls = {}; legacy_no_sends = {}
         for call in self.store.all('SELECT * FROM adaptive_calls WHERE run_id=?', (self.id,)):
             n = by_id.get(call['node_id'])
             anchor = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='external_dispatch' AND json_extract(payload,'$.call_id')=? ORDER BY seq DESC LIMIT 1", (self.id, call['id']))
@@ -136,6 +139,15 @@ class AdaptiveRun:
             for key in ('request_hash', 'memory_ids', 'citation_ids', 'tool_output_hashes', 'tool_references', 'claim_contract_version', 'plan_id', 'plan_fingerprint', 'graph_version'):
                 if dispatch.get(key) != call['payload'].get(key):
                     raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
+            closure = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='external_call_closed' AND json_extract(payload,'$.call_id')=? ORDER BY seq DESC LIMIT 1", (self.id, call['id']))
+            if not closure and call['payload'].get('dispatched') is False:
+                legacy_no_sends.setdefault(call['node_id'], []).append(call)
+            if closure:
+                if (closure['seq'] <= anchor['seq'] or closure['payload'].get('node') != call['node_id'] or
+                    closure['payload'].get('state') != call['state'] or
+                    closure['payload'].get('payload_hash') != digest(call['payload'])):
+                    raise RuntimeError('CALL_CLOSURE_INTEGRITY_FAILED')
+                closed_calls[call['id']] = closure['seq']
             if call['node_id'] not in checkpoint_ids:
                 # A lost checkpoint does not erase a persisted dispatch reservation.
                 checkpoints.append({'node_id': n['id'], 'capability': n['capability'], 'state': 'running',
@@ -147,12 +159,23 @@ class AdaptiveRun:
             expected = digest({'snapshot':digest(self.s),'node':n})
             if c['capability'] != n['capability'] or c['input_hash'] != expected:
                 raise RuntimeError('CHECKPOINT_INTEGRITY_FAILED')
+            if c['state'] not in FINISHED and name in legacy_no_sends:
+                raise RuntimeError('CALL_CLOSURE_INTEGRITY_FAILED')
             if c['state'] in FINISHED:
                 a = self.store.one('SELECT * FROM agent_artifacts WHERE id=? AND run_id=? AND node=?', (c['artifact_id'],self.id,name))
                 anchor = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='step_completed' AND json_extract(payload,'$.artifact_id')=? ORDER BY seq DESC LIMIT 1", (self.id,c['artifact_id']))
                 # Runtime node configuration is immutable after a node starts.
                 if not a or not anchor or digest(a['payload']) != a['content_hash'] or anchor['payload'].get('output_hash') != a['content_hash'] or anchor['payload'].get('node') != name or anchor['payload'].get('checkpoint_state') != c['state']:
                     raise RuntimeError('CHECKPOINT_INTEGRITY_FAILED')
+                # Old releases had no closure event. Only an independently anchored
+                # matching failure can validate legacy no-send disclosure flags.
+                for call in legacy_no_sends.get(name, []):
+                    result = a['payload']; code = call['payload'].get('error_class')
+                    if (call['state'] != 'failed' or call['payload'].get('remote_outcome_known') is not True or
+                        code not in NOT_DISPATCHED_ERRORS or not isinstance(result, dict) or
+                        result.get('status') not in ('failed', 'blocked') or result.get('call_id') != call['id'] or
+                        result.get('error_class') != code):
+                        raise RuntimeError('CALL_CLOSURE_INTEGRITY_FAILED')
                 self.outputs[name] = a['payload']; self.node_states[name] = c['state']; self.restored.add(name)
                 self.event('checkpoint_reused', {'node':name,'artifact_id':a['id'],'output_hash':a['content_hash']})
             elif n['capability'] in MODEL_CAPS:
@@ -161,6 +184,22 @@ class AdaptiveRun:
                     # The node started, but no durable dispatch boundary was crossed.
                     self.event('local_checkpoint_recompute', {'node':name,'reason':'未产生外部调用预约，可在重新检查授权后首次执行'})
                     continue
+                if all(call['id'] in closed_calls and call['state'] == 'failed' and
+                       call['payload'].get('remote_outcome_known') is True for call in reservations):
+                    # A reservation is not evidence that bytes reached a provider.
+                    # Only event-anchored closure data may establish a known verdict;
+                    # unclosed reservations remain conservative and are never retried.
+                    last = max(reservations, key=lambda call: closed_calls[call['id']])
+                    code = last['payload'].get('error_class')
+                    if last['payload'].get('dispatched') is False and code in NOT_DISPATCHED_ERRORS:
+                        res = {'status':'blocked' if code == 'AUTHORIZATION_CHANGED' else 'failed',
+                               'agent':name,'error_class':code,'call_id':last['id'],
+                               'output':{'claims':[],'missing':['外部调用未发送；保留已记录的失败，不自动重试']}}
+                        self.record(n, res, 'degraded')
+                        self.restored.add(name)
+                        self.event('known_call_failure_reused', {'node':name,'call_id':last['id'],
+                            'error_class':code,'remote_outcome_known':True,'dispatched':False})
+                        continue
                 # A dispatch reservation survives crashes. An absent completion is NOT permission to bill again.
                 res = {'status':'unknown','agent':name,'error_class':'REMOTE_OUTCOME_UNKNOWN',
                        'output':{'claims':[],'missing':['中断时外部结果未知；没有自动重发，需新计划明确授权重做']}}
@@ -255,10 +294,13 @@ class AdaptiveRun:
     def close_call(self, call_id, state, metadata):
         with self.store.transaction() as db:
             # A cancelled/deleted run cannot acquire a late response artefact. A still-existing ledger records uncertainty.
-            row=self.store.one('SELECT payload FROM adaptive_calls WHERE id=?',(call_id,))
+            row=self.store.one('SELECT * FROM adaptive_calls WHERE id=? AND run_id=? AND user_id=?',(call_id,self.id,self.user_id))
             if row:
+                payload={**row['payload'],**metadata}
                 db.execute('UPDATE adaptive_calls SET state=?,payload=?,updated_at=? WHERE id=?',
-                           (state,encode({**row['payload'],**metadata}),now(),call_id))
+                           (state,encode(payload),now(),call_id))
+                self.store.event(db,self.id,'external_call_closed',{'node':row['node_id'],'call_id':call_id,
+                    'state':state,'payload_hash':digest(payload)})
 
     async def model(self,n):
         cap=n['capability']; bindings=self.graph['provider_bindings'];role='revision' if cap=='revision' else cap
@@ -336,7 +378,7 @@ class AdaptiveRun:
             except Exception as exc:
                 code=str(exc) if re.fullmatch(r'MODEL_[A-Za-z0-9_]{1,100}',str(exc)) else type(exc).__name__
                 unknown = not isinstance(exc, (ValueError, ValidationError))
-                not_dispatched = isinstance(exc, ValueError) and code in {'MODEL_AUTHORIZATION_CHANGED','MODEL_TRANSPORT_BUSY','MODEL_CIRCUIT_OPEN'}
+                not_dispatched = isinstance(exc, ValueError) and code in NOT_DISPATCHED_ERRORS
                 self.close_call(call_id,'unknown' if unknown else 'failed',{'error_class':code,'remote_outcome_known':not unknown,
                     **({'dispatched':False} if not_dispatched else {}),'duration_ms':round((time.monotonic()-started)*1000,2)})
                 self.worker.ensure_running(self.id)
@@ -460,7 +502,7 @@ class AdaptiveRun:
                         critic=next((x for x in self.graph['nodes'] if x['id']=='challenger'),None)
                         if critic:critic['depends_on'].append('researcher')
                 for n in self.graph['nodes']:
-                    if n['capability'] in ('analyst','researcher') and n['capability'] not in selected and n['id'] not in self.outputs:
+                    if n['capability'] in ('analyst','researcher','challenger') and n['capability'] not in selected and n['id'] not in self.outputs:
                         n['enabled']=False;n['skip_reason']='规划专家未选择此可选分工，保留工具与复核门禁'
                 by_id={n['id']:n for n in self.graph['nodes']}
                 if all(k in by_id and k not in self.outputs for k in ('analyst','researcher')):

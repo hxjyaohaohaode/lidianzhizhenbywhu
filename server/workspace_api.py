@@ -489,19 +489,11 @@ def reports(request:Request,identity_id:str|None=Query(None,max_length=80),datas
 @router.get('/runs/{id}/audit')
 def run_audit(id:str,request:Request,user=Depends(require_user)):
     store=dbof(request);run=owned(store,user,'runs',id)
-    artifacts=store.all('SELECT * FROM agent_artifacts WHERE run_id=? ORDER BY created_at,id',(id,))
-    trace=store.all('SELECT * FROM run_events WHERE run_id=? ORDER BY seq',(id,))
-    anchors={e['payload'].get('artifact_id'):e['payload'].get('output_hash') for e in trace if e['type']=='step_completed'}
-    for artifact in artifacts:
-        artifact['integrity_valid']=artifact['content_hash']==digest(artifact['payload'])
-        artifact['event_anchor_valid']=anchors.get(artifact['id'])==artifact['content_hash']
-    final=next((a for a in artifacts if a['node']=='report'),None)
-    report_valid=(digest(run['result'])==final['content_hash']) if final and run['result'] else None
-    snapshot_valid=(digest(run['snapshot'])==run['result'].get('snapshot_hash')) if run['result'] else None
     from .business_provenance import report_impact
-    return {'source_impact':report_impact(store,user['id'],run) if run['result'] else None,'ledger':ws.verify_ledger(store,id),'artifacts':artifacts,'trace':trace,
-        'snapshot_hash':digest(run['snapshot']),'snapshot_hash_valid':snapshot_valid,'report_hash_valid':report_valid,
-        'data_hash_valid':digest(run['snapshot']['dataset'])==run['snapshot']['dataset_hash']}
+    from .report_integrity import inspect_report_integrity
+    audit=inspect_report_integrity(store,run)
+    return {**audit,'source_impact':report_impact(store,user['id'],run,integrity=audit['report_integrity'])
+        if run['result'] or run['state'] in {'succeeded','degraded'} else None}
 
 
 

@@ -58,19 +58,30 @@ def assessment(store, user, run_id, body):
                         'result_hash': digest(run['result']), 'dataset_hash': run['snapshot']['dataset_hash'],
                         'request_hash': digest(run['payload']), 'feedback_context_hash':reviews['hash'],
                         'claim_reviews':reviews['items'],'action_feedback':reviews['related_actions']})
-        return ws.save(store, db, user['id'], 'assessment', payload, key=run_id, expected=body.version)
+        row = ws.save(store, db, user['id'], 'assessment', payload, key=run_id, expected=body.version)
+        current_active(store, user['id'])
+        return row
+
+
+def current_case(store, user_id, a):
+    """Share the current ownership, consent and immutable-input gate everywhere."""
+    try:
+        if not a or a['user_id'] != user_id or not a['payload']['consent_replay'] or not a['payload'].get('expected_capabilities'): return None
+        run = store.owned('runs', user_id, a['payload']['run_id'])
+        if not run or a['natural_key'] != run['id'] or run['state'] not in COMPLETED_STATES or not run['result']: return None
+        if digest(run['snapshot']) != a['payload']['snapshot_hash'] or digest(run['result']) != a['payload']['result_hash']: return None
+        if a['payload'].get('request_hash', digest(run['payload'])) != digest(run['payload']): return None
+        if a['payload'].get('feedback_context_hash',a['payload'].get('claim_review_hash',digest([]))) != review_context(store,user_id,run['id'])['hash']: return None
+        return run
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def cases(store, user_id):
     rows = []
     for a in ws.objects(store, user_id, 'assessment', 1000):
-        if not a['payload']['consent_replay'] or not a['payload'].get('expected_capabilities'): continue
-        run = store.owned('runs', user_id, a['payload']['run_id'])
-        if not run or run['state'] not in COMPLETED_STATES or not run['result']: continue
-        if digest(run['snapshot']) != a['payload']['snapshot_hash'] or digest(run['result']) != a['payload']['result_hash']:continue
-        if a['payload'].get('request_hash', digest(run['payload'])) != digest(run['payload']):continue
-        if a['payload'].get('feedback_context_hash',a['payload'].get('claim_review_hash',digest([])))!=review_context(store,user_id,run['id'])['hash']:continue
-        rows.append((a, run))
+        run = current_case(store, user_id, a)
+        if run: rows.append((a, run))
     return rows
 
 
@@ -78,6 +89,80 @@ def binding(a, run):
     return {'assessment_id': a['id'], 'assessment_version': a['version'], 'run_id': run['id'],
             'snapshot_hash': digest(run['snapshot']), 'result_hash': digest(run['result']),
             'request_hash': digest(run['payload']), 'assessment_hash': digest(a['payload'])}
+
+
+def policy_context(store, user_id, payload):
+    """Resolve only this policy's still-consenting, unchanged replay sources.
+
+    New or unrelated cases do not revoke an already-approved policy. Activation
+    still checks the complete current cohort; continued use and rollback must
+    retain every original source, including its owner and review-context binding.
+    """
+    if not isinstance(payload,dict):return None
+    try:
+        evaluation = store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='strategy_evaluation' AND id=?",
+                               (user_id, payload.get('evaluation_id')))
+        candidate = store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='strategy' AND id=?",
+                              (user_id, payload.get('candidate_id')))
+        if not evaluation or not candidate or not isinstance(evaluation['payload'],dict) or not isinstance(candidate['payload'],dict): return None
+        report = evaluation['payload']
+        if (not report['eligible'] or report['candidate_id'] != candidate['id'] or
+                report['candidate_version'] != candidate['version'] or
+                report['candidate_hash'] != digest(candidate['payload']) or
+                payload['spec'] != candidate['payload'] or
+                report['baseline_hash'] != digest(report['baseline']) or
+                report['replay_version'] != REPLAY_VERSION or report['model_version'] != MODEL_VERSION):
+            return None
+        saved = report['case_bindings']
+        if not saved or len({b['assessment_id'] for b in saved}) != len(saved): return None
+        selected = []
+        for b in saved:
+            a = store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assessment' AND id=?",
+                          (user_id, b['assessment_id']))
+            run = current_case(store, user_id, a)
+            if not run or binding(a, run) != b: return None
+            selected.append((a, run))
+        return report, grouped_cases(selected)
+    except (KeyError, TypeError, ValueError):
+        # Incomplete legacy provenance and malformed evidence cannot authorize
+        # future planning. Keep the original records available for inspection.
+        return None
+
+
+def policy_history_entry(payload):
+    return {key: payload.get(key) for key in ('spec', 'candidate_id', 'evaluation_id')}
+
+
+def current_active(store, user_id):
+    """Fail closed and advance the binding version without rewriting reports.
+
+    Mutations call this eagerly in their transaction. Consumption also calls it
+    for legacy deletions, changed review context and other stale source records.
+    """
+    with store.transaction() as db:
+        active = ws.keyed(store, user_id, 'strategy_active', 'active')
+        if not active:
+            return active
+        raw = active['payload']
+        if isinstance(raw,dict) and raw.get('spec') is None:return active
+        old = raw if isinstance(raw,dict) else {}
+        if policy_context(store, user_id, old) is not None:
+            return active
+        invalidated_at = now()
+        # Corrupt optional history must never roll back a user's consent
+        # withdrawal or source deletion. Only structured entries can be reused.
+        history = old.get('history')
+        history = [entry for entry in history if isinstance(entry,dict)] if isinstance(history,list) else []
+        payload = {'spec': None, 'candidate_id': None, 'evaluation_id': None,
+                   'history': [*history, policy_history_entry(old)][-20:],
+                   'invalidated_at': invalidated_at,
+                   'invalidation_reason': '回放来源、人工验收或授权已变化，当前使用内置规划规则；恢复策略须重新通过验证',
+                   'scope': '仅撤销之后计划的策略依据，不修改历史报告或回放证据'}
+        row = ws.save(store, db, user_id, 'strategy_active', payload, key='active', expected=active['version'])
+        store.audit(db, user_id, 'strategy', old.get('candidate_id') or active['id'], 'invalidated',
+                    {'evaluation_id': old.get('evaluation_id'), 'reason': 'source_or_consent_changed',
+                     'active_version': row['version']})
+        return row
 
 
 def replay(run, rubric, spec):
@@ -183,7 +268,7 @@ def activate(store, user, candidate_id, body):
     with store.transaction() as db:
         candidate = ws.get(store, user['id'], 'strategy', candidate_id)
         report = ws.get(store, user['id'], 'strategy_evaluation', body.evaluation_id)['payload']
-        current = ws.keyed(store, user['id'], 'strategy_active', 'active')
+        current = current_active(store, user['id'])
         version = current['version'] if current else 0
         if version != body.expected_active_version or report['active_version'] != version:
             fail('VERSION_CONFLICT', '当前策略或评估基线已变化，请重新回放', 409)
@@ -205,7 +290,7 @@ def activate(store, user, candidate_id, body):
         if any(report.get(key) != value for key, value in verified.items()):
             fail('EVALUATION_STALE', '评估产物与当前实际回放不一致，请重新评估', 409)
         old = current['payload'] if current else {'spec': None, 'candidate_id': None, 'history': []}
-        history = [*old.get('history', []), {'spec': old.get('spec'), 'candidate_id': old.get('candidate_id'), 'evaluation_id': old.get('evaluation_id')}][-20:]
+        history = [*old.get('history', []), policy_history_entry(old)][-20:]
         p = {'spec': candidate['payload'], 'candidate_id': candidate_id, 'evaluation_id': body.evaluation_id,
              'history': history, 'activated_at': now(), 'scope': '仅影响之后创建的计划，不修改历史报告、模型权重或程序'}
         row = ws.save(store, db, user['id'], 'strategy_active', p, key='active', expected=version)
@@ -220,6 +305,16 @@ def rollback(store, user, body):
         history = current['payload'].get('history', [])
         if not history:fail('NO_ROLLBACK','没有可恢复的前一策略',409)
         previous = history[-1]
+        if previous.get('spec') is not None:
+            context = policy_context(store, user['id'], previous)
+            if context is None:
+                fail('EVALUATION_STALE', '此前策略的验收记录、授权或来源已经变化，不能回滚；请重新评估', 409)
+            report, grouped = context
+            verified = replay_cohort(grouped, report['baseline'], previous['spec'])
+            if not verified['eligible']:
+                fail('EVALUATION_BLOCKED', '此前策略未通过当前本地回放门槛，不能回滚', 409)
+            if any(report.get(key) != value for key, value in verified.items()):
+                fail('EVALUATION_STALE', '此前策略的评估与当前实际回放不一致，不能回滚', 409)
         p = {**previous, 'history': history[:-1], 'activated_at': now(), 'evaluation_id': previous.get('evaluation_id'), 'scope':'显式恢复此前本地规划策略'}
         return ws.save(store, db, user['id'], 'strategy_active', p, key='active', expected=current['version'])
 
@@ -229,7 +324,7 @@ def overview(store, user_id):
     counts = {}
     for r in rows:counts[r['state']] = counts.get(r['state'], 0) + 1
     rejects = sum((r['result'] or {}).get('llm',{}).get('review',{}).get('rejected_claims',0) for r in rows)
-    active=ws.keyed(store,user_id,'strategy_active','active')
+    active=current_active(store,user_id)
     return {'active':active,'candidates':ws.objects(store,user_id,'strategy'),'evaluations':ws.objects(store,user_id,'strategy_evaluation',200),
         'assessments':[assessment_context(store,user_id,a) for a in ws.objects(store,user_id,'assessment',200)],
         'observations':{'observed_runs':len(rows),'states':counts,'structural_rejections':rejects,

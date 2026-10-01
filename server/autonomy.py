@@ -111,7 +111,8 @@ def migrate(store):
 
 
 def strategy(store, user_id):
-    active = ws.keyed(store, user_id, 'strategy_active', 'active')
+    from .evolution import current_active
+    active = current_active(store, user_id)
     return (active['payload'].get('spec') if active else None), (active['version'] if active else 0)
 
 

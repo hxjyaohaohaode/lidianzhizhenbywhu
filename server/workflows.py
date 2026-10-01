@@ -140,7 +140,10 @@ class Worker:
         with self.store.transaction() as db:
             if not db.execute("UPDATE runs SET state=?,result=?,updated_at=? WHERE id=? AND state='running'",(state,encode(result),now(),id)).rowcount:return
             db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?)',(uid(),row['user_id'],row['session_id'],id,'assistant',encode({'text':'\n'.join(result['findings']),'run_id':id}),now()))
-            self.store.event(db,id,state,{'state':state,'llm_state':llm_state,'report_ready':True});self.store.audit(db,row['user_id'],'runs',id,state)
+            # The legacy worker has no studio artifacts. Anchor new whole-output
+            # digests atomically with publication; never retrofit older reports.
+            self.store.event(db,id,state,{'state':state,'llm_state':llm_state,'report_ready':True,
+                'report_hash':digest(result)});self.store.audit(db,row['user_id'],'runs',id,state)
 
     def cancel(self,user,id):
         with self.store.transaction() as db:

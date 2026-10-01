@@ -76,7 +76,7 @@ def pack_context(snapshot,query,mode,limit):
         'unit':'characters_not_tokens','token_count':'供应商响应usage才是实测token数'}
 
 
-def build_plan(store,user,body,settings,providers, *, scope_query=None):
+def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal_id=None):
     from .connections import scoped_providers, provider_binding
     from .identities import resolve_identity, context_user, identity_context, identity_binding
     providers=scoped_providers(providers,user['id'])
@@ -157,6 +157,10 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None):
         p=comparison_artifact['payload']
         payload['consent_scope'].append('已选企业比较的共同季度、比较基期、计算日期、可比性说明与派生指标；不发送完整同行财务快照')
         payload['consent_scope'].extend(m['company']+' · 数据集 '+m['id']+' · 修订 '+str(m['version'])+' · '+p['period']+' 比较指标' for m in p['members'])
+    if proposal_id:
+        # This frozen preview can only be dispatched by its proposal's atomic
+        # confirmation path, never by the ordinary plan approval endpoint.
+        payload.update(status='proposal_preview',proposal_id=proposal_id)
     payload['fingerprint']=digest(payload)
     with store.transaction() as db:return ws.save(store,db,user['id'],'plan',payload)
 
@@ -164,7 +168,7 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None):
 def plan_fingerprint_valid(payload):
     """Dispatch state is mutable; the content approved in draft is not."""
     original = {k: v for k, v in payload.items() if k != 'fingerprint'}
-    original.update(status='draft', run_id=None)
+    original.update(status='proposal_preview' if payload.get('proposal_id') else 'draft', run_id=None)
     return payload.get('fingerprint') == digest(original)
 
 
@@ -241,7 +245,7 @@ def check_bindings(store,user,plan,providers):
         fail('PLAN_EXPIRED','计划超过24小时，请重新预览',409)
 
 
-def dispatch_plan(store,user,id,body,settings,providers):
+def dispatch_plan(store,user,id,body,settings,providers, *, proposal_id=None):
     with store.transaction() as db:
         plan=ws.get(store,user['id'],'plan',id);p=plan['payload']
         if not plan_fingerprint_valid(p):fail('PLAN_INTEGRITY','计划内容与原始指纹不一致，请重新预览',409)
@@ -250,7 +254,18 @@ def dispatch_plan(store,user,id,body,settings,providers):
             row=store.owned('runs',user['id'],p['run_id'])
             if not row:fail('RUN_REMOVED','对应执行记录已删除，请创建新计划',409)
             return row
-        if p['status']!='draft' or plan['version']!=body.version:fail('PLAN_STATE','计划状态或版本已改变',409)
+        # Also recognize linked previews written by older versions, whose plans
+        # did not carry the immutable proposal marker yet.
+        proposal=store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.plan_id')=?",(user['id'],id))
+        bound_proposal=p.get('proposal_id') or (proposal['id'] if proposal else None)
+        if bound_proposal:
+            if not proposal_id or proposal_id!=bound_proposal or not proposal or proposal['id']!=bound_proposal:
+                fail('PROPOSAL_CONFIRMATION_REQUIRED','该计划仅为助手提案预览，请返回原提案确认；删除或放弃后不能执行',409)
+            q=proposal['payload']
+            if q['status']!='draft' or q.get('plan_version')!=plan['version'] or q.get('plan_fingerprint')!=p['fingerprint'] or digest({k:v for k,v in q.items() if k!='fingerprint'})!=q.get('fingerprint'):
+                fail('PROPOSAL_STALE','提案状态或批准内容已变化，请重新预览',409)
+        expected_status='proposal_preview' if p.get('proposal_id') else 'draft'
+        if p['status']!=expected_status or plan['version']!=body.version:fail('PLAN_STATE','计划状态或版本已改变',409)
         if p['blockers']:fail('PLAN_BLOCKED','请先处理计划中的阻塞项',409)
         if p['request']['use_llm'] and not body.external_consent:fail('EXTERNAL_CONSENT','必须明确同意该计划的数据外发范围',403)
         check_bindings(store,user,plan,providers)

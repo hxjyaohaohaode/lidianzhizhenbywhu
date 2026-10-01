@@ -44,15 +44,14 @@ def test_evolution_exposes_every_retained_evaluation_for_cleanup(actor):
 
 
 def test_two_real_activations_and_rollback_retain_evaluation_evidence(actor,example):
-    from test_evolution import three_cases, candidate as make_candidate, assessment
-    runs=three_cases(actor,example)
-    first=make_candidate(actor)
+    from test_evolution import three_cases, candidate as make_candidate
+    three_cases(actor,example)
+    # Both policies must keep the same current source assessments so the first
+    # remains a legitimate rollback target. The second improves node economy.
+    first=make_candidate(actor,require_gap_analysis=True)
     ea=ok(actor.post('/workspace/strategies/'+first['id']+'/evaluate'),201)
     active=ok(actor.post('/workspace/strategies/'+first['id']+'/activate',json={'evaluation_id':ea['id'],'expected_active_version':0}))
-    for run in runs:
-        prior=ok(actor.get('/workspace/runs/'+run['id']+'/assessment'))['item']
-        assessment(actor,run,version=prior['version'],expected_capabilities=['quality','quant','counterevidence','gaps'])
-    second=make_candidate(actor,name='进一步核查缺口',require_gap_analysis=True)
+    second=make_candidate(actor,name='减少非必要缺口节点',require_gap_analysis=False)
     eb=ok(actor.post('/workspace/strategies/'+second['id']+'/evaluate'),201)
     active=ok(actor.post('/workspace/strategies/'+second['id']+'/activate',json={'evaluation_id':eb['id'],'expected_active_version':active['version']}))
     assert active['payload']['history'][-1]['evaluation_id']==ea['id']

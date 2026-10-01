@@ -13,7 +13,7 @@ from .service_contracts import (IdentitySpec, ThreadCreate, CopilotMessage, Prop
     ProposalConfirm, WatchSpec, AlertAck, PrivateConnection, ConnectionRemove, SessionRevoke)
 from .identities import resolve_identity, PERSPECTIVES
 from .connections import scoped_providers
-from .copilot import make_thread, read_thread, send_message, propose, confirm_proposal, evaluate_watches
+from .copilot import cancel_proposal_preview, make_thread, read_thread, send_message, propose, confirm_proposal, evaluate_watches
 from .business_provenance import resolve_source, with_source_impact
 
 router=APIRouter(prefix='/api/services',tags=['Identity, Copilot and Security'])
@@ -113,6 +113,8 @@ def delete_thread(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX
     with store.transaction() as db:
         versioned_row(store,user['id'],'assistant_thread',id,version)
         # Deleting chat history must not silently cancel or erase independently approved runs.
+        proposals=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.thread_id')=?",(user['id'],id))
+        for proposal in proposals:cancel_proposal_preview(store,db,user['id'],proposal)
         db.execute("DELETE FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.thread_id')=?",(user['id'],id))
         db.execute('DELETE FROM workspace_objects WHERE user_id=? AND id=?',(user['id'],id))
         store.audit(db,user['id'],'assistant_thread',id,'deleted',{'independent_runs':'retained'})
@@ -147,6 +149,7 @@ def discard_proposal(id:str,request:Request,version:int|None=Query(None,ge=1,le=
         row=versioned_row(store,user['id'],'assistant_proposal',id,version)
         if row['payload']['status']=='executed':
             fail('PROPOSAL_EXECUTED','提案已经执行，不能用删除提案撤销独立结果',409)
+        cancel_proposal_preview(store,db,user['id'],row)
         p={**row['payload'],'status':'discarded'}
         return ws.save(store,db,user['id'],'assistant_proposal',p,key=row['natural_key'],expected=row['version'])
 

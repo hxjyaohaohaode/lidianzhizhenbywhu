@@ -12,6 +12,7 @@ from .store import digest, now
 from .security import fail
 from . import workspace_store as ws
 from .identities import resolve_identity, identity_binding
+from .report_integrity import inspect_report_integrity
 
 
 class SourceRef(StrictModel):
@@ -115,7 +116,8 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
     """Resolve client IDs to immutable server-owned origin, rejecting stale approval.
 
     allow_historical acknowledges changed business facts, never bypasses ownership,
-    current identity scope, a missing source record or a malformed reference.
+    current identity scope, corrupt report evidence, a missing source record or a
+    malformed reference.
     """
     ref=source_ref.model_dump() if isinstance(source_ref,SourceRef) else dict(source_ref or {})
     if run_id and ref and (ref.get('kind')!='report' or ref.get('run_id')!=run_id):
@@ -126,7 +128,10 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
     kind=ref['kind'];extra={};evidence=[];baseline=None;binding=None
     if kind=='report':
         run=_owned(store,user_id,'runs',ref['run_id']);snapshot=run['snapshot'];result=run['result']
-        if not result:fail('NOT_READY','来源运行尚未产生报告',409)
+        if not result and run['state'] not in {'succeeded','degraded'}:
+            fail('NOT_READY','来源运行尚未产生报告',409)
+        if not inspect_report_integrity(store,run)['report_integrity']['valid']:
+            fail('REPORT_INTEGRITY','来源报告与冻结产物、事件或输入快照校验不一致；不能作为新的业务依据',409)
         _same_scope(identity_id,dataset_id,(snapshot.get('identity') or {}).get('id',''),run['dataset_id'])
         dataset_id=run['dataset_id'];baseline={'dataset_id':dataset_id,'dataset_version':snapshot.get('dataset_version'),
             'dataset_hash':snapshot.get('dataset_hash'),'company':snapshot['dataset']['company']}
@@ -230,6 +235,10 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         **baseline,'identity_id':identity_id,'identity_binding':binding,'evidence':evidence,
         **extra,'historical_acknowledged':bool(ref.get('allow_historical'))}
     impact=source_impact(store,user_id,provenance)
+    # Inherited action origins must pass the same checks as direct reports.
+    # Historical acknowledgement covers changed business facts, never corruption.
+    if any(r['code'] in {'report_integrity_failed','report_changed'} for r in impact['reasons']):
+        fail('REPORT_INTEGRITY','来源报告与已记录的完整性证据不一致；不能通过保留历史依据继续使用',409)
     if impact['state']!='current' and not ref.get('allow_historical'):
         fail('SOURCE_CHANGED','来源已变化或完整来源不可核验；请重新核对，或明确保留历史依据',409)
     return provenance
@@ -282,12 +291,12 @@ def source_impact(store,user_id,provenance):
         if not run:
             reasons.append({'code':'report_removed','message':'原报告已删除；历史来源记录仍保留'});unavailable=True
         elif p.get('report_hash')!=digest(run['result']):
-            reasons.append({'code':'report_changed','message':'原报告内容与记录指纹不一致'})
+            reasons.append({'code':'report_changed','message':'原报告内容与记录指纹不一致'});unavailable=True
         if run:
             # The report helper deliberately omits run_id in its base provenance,
             # avoiding recursion while rechecking original contextual dependencies.
             extra_codes={'memory_removed','memory_withdrawn','memory_changed','objective_changed',
-                'experiment_removed','experiment_changed'}
+                'experiment_removed','experiment_changed','report_integrity_failed'}
             if not p.get('claim_id'):extra_codes.add('human_review_disputes')
             report_dependencies=report_impact(store,user_id,run)
             if report_dependencies['state']=='unavailable':unavailable=True
@@ -396,9 +405,19 @@ def with_source_impact(store,user_id,row):
     return out
 
 
-def report_impact(store,user_id,run):
+def report_impact(store,user_id,run,*,integrity=None):
     """Historical report truth and present-day applicability are separate read models."""
     from .clock import utc_today
+    reviews=store.all("SELECT payload FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND json_extract(payload,'$.run_id')=?",(user_id,run['id']))
+    disputed=sum(r['payload']['verdict']!='accepted' for r in reviews)
+    integrity=integrity or inspect_report_integrity(store,run)['report_integrity']
+    if not integrity['valid']:
+        # Do not derive business context from a known-corrupt snapshot. This is
+        # an overlay only: existing reports, actions and watches remain unchanged.
+        return {'state':'unavailable','reasons':[{'code':'report_integrity_failed',
+            'message':'原报告的冻结产物、事件或输入快照完整性校验失败',
+            'checks':integrity['failures']}],'baseline':None,'current':None,
+            'historical_report_preserved':True,'human_review_count':len(reviews),'human_disputes':disputed}
     snapshot=run['snapshot'];bindings=snapshot.get('studio',{}).get('bindings',{})
     p={'schema_version':1,'kind':'report','dataset_id':run['dataset_id'],
        'dataset_version':snapshot.get('dataset_version'),'dataset_hash':snapshot.get('dataset_hash'),
@@ -428,8 +447,6 @@ def report_impact(store,user_id,run):
         comparison_impact=current_impact(store,user_id,comparison)
         reasons.extend(comparison_impact['reasons'])
         if comparison_impact['state']=='unavailable':impact['state']='unavailable'
-    reviews=store.all("SELECT payload FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND json_extract(payload,'$.run_id')=?",(user_id,run['id']))
-    disputed=sum(r['payload']['verdict']!='accepted' for r in reviews)
     if disputed:reasons.append({'code':'human_review_disputes','message':f'{disputed} 条解释存在人工拒绝或待补证意见；这不自动否定本地数学计算'})
     if impact['state']=='current' and reasons:impact['state']='changed'
     return {**impact,'historical_report_preserved':True,'human_review_count':len(reviews),'human_disputes':disputed}

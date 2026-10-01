@@ -266,6 +266,12 @@ class Store:
         for child in rows:
             db.execute('DELETE FROM workspace_objects WHERE id=? AND user_id=? AND kind=?',(child['id'],user,child['kind']))
             self.audit(db,user,child['kind'],child['id'],'deleted_with_parent',{'parent_resource':table,'parent_id':id})
+        if table=='conversations':
+            # Both single and batch deletion use this transaction-bound path.
+            # Removed assessments revoke future strategy/plan bindings, while
+            # archived evaluations and unrelated users' policies stay untouched.
+            from .evolution import current_active
+            current_active(self,user)
 
     def delete(self,table,user,id,version=None):
         if table not in TABLES:raise ValueError('invalid table')
