@@ -6,7 +6,9 @@ No browser policy or application security header is weakened for either mode.
 """
 from __future__ import annotations
 import argparse
+import atexit
 import base64
+import hashlib
 import json
 import os
 import re
@@ -17,6 +19,10 @@ from urllib.parse import urlsplit
 from pathlib import Path
 import httpx
 from playwright.sync_api import sync_playwright
+try:
+    from .acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
+except ImportError:
+    from acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
 
 
@@ -59,7 +65,11 @@ class FixtureRequestBudget:
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--native',action='store_true');args=parser.parse_args();native=args.native
     checks=[];errors=[];responses=[];screens=[];completed=False;api_budget=FixtureRequestBudget();fixture_budget_wait=0
-    def record(label):checks.append(label);print('PASS',label,flush=True)
+    journal=EventJournal(OUT/('native-browser-events.jsonl' if native else 'bridge-browser-events.jsonl'))
+    atexit.register(journal.close)
+    def record(label):
+        checks.append(label);journal.emit('check_passed',number=len(checks),label=label)
+        print('PASS',label,flush=True)
     with httpx.Client(base_url='http://127.0.0.1:8000',trust_env=False,timeout=30,event_hooks={'request':[lambda request:api_budget.record(str(request.url))]}) as client,sync_playwright() as p:
         launch={'headless':True};executable=os.getenv('CHROMIUM_PATH')
         if executable:launch['executable_path']=executable
@@ -67,6 +77,7 @@ def main():
         b=p.chromium.launch(**launch)
         page=b.new_page(viewport={'width':1520,'height':1080},device_scale_factor=1)
         page.set_default_timeout(10000)
+        attach_browser_diagnostics(page,journal)
         if native:page.on('request',lambda request:api_budget.record(request.url))
         page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
         def call(payload):
@@ -106,9 +117,11 @@ def main():
             page.wait_for_timeout(500)
             assert_form_errors(page,selector)
         def go(route):
+            journal.emit('navigation_started',**route_metadata(route),viewport=page.viewport_size)
             page.evaluate('(r)=>location.hash=r',route)
             page.locator('#main[data-page="'+route.split(':')[0]+'"] h1').wait_for(timeout=12000)
             assert page.locator('#main h1').inner_text()!='读取未完成',page.locator('#main').inner_text()
+            journal.emit('navigation_completed',**route_metadata(route),viewport=page.viewport_size)
         def snap(name,full_page=True):
             page.wait_for_timeout(250)
             page.screenshot(path=str(OUT/name),full_page=full_page);screens.append(name)
@@ -616,11 +629,14 @@ def main():
             record('全部上述流程零捕获JavaScript异常、零HTTP5xx')
             completed=True
         except Exception as exc:
+            journal.emit('acceptance_failed',error_type=type(exc).__name__,checks_completed=len(checks))
             snap('ui-current-failure.png');print('FAIL',type(exc).__name__,str(exc),flush=True)
             raise
         finally:
             status_counts={str(status):sum(row['status']==status for row in responses) for status in sorted({row['status'] for row in responses})}
             http={'requests':len(responses),'status_counts':status_counts,'server_errors':[row for row in responses if row['status']>=500]}
-            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'policy_modified':False,'fixture_budget_wait_seconds':fixture_budget_wait,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
+            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'screenshot_sha256':{name:hashlib.sha256((OUT/name).read_bytes()).hexdigest() for name in screens},'run_identity':{key:os.getenv(key,'') for key in ('GITHUB_SHA','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},'policy_modified':False,'fixture_budget_wait_seconds':fixture_budget_wait,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
+            journal.emit('browser_cleanup_requested',all_checks_passed=completed)
             b.close()
+            journal.close()
 if __name__=='__main__':main()

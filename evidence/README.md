@@ -1,21 +1,33 @@
 # 验收证据索引（2026-10-01）
 
-当前权威范围及已验收源码树见 `docs/VALIDATION.md` 顶部；较早阶段记录不替代当前结果。
+当前候选范围见 `docs/CANDIDATE_ACCEPTANCE_20261001.md`，最终精确提交与 CI 终态见 [PR #2 顶部](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。历史文件、旧数量和旧同名截图不替代新提交结果。
 
-- `verification.json`：2026-10-01 04:22:20 UTC最终本地compile/typecheck/build、953后端、162前端与source-guard六阶段结果；此次命令未含HTTP阶段，另行执行的HTTP记录见下方
-- `execution-resilience-20261001.json`：同轮详细数量、传输/授权/整数/实时读取合同、源码摘要、迭代及明确未验证范围
-- `full-chain-http.json`：16组真实Uvicorn/HTTP/SSE/强制退出重启/在线备份检查；不是原生浏览器验收
-- `premerge-acceptance-20261001.json`：同树补充本地16组HTTP重跑、4组重启/重放探针、multipart边界与121项重点逆向测试；121项与953项重叠，不相加
-- `native-service-browser.json`、`native-service-command.json`：本地Chromium宿主socket权限受限的记录，保留失败事实；不代表远端CI状态
-- 当前成功的原生验收来自GitHub运行 [36806115964](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36806115964) 与 [36806117503](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36806117503)。四份Windows/Linux报告各44组原生检查、11张图；工件/源码树/截图摘要见 `docs/copyright-screenshot-sources.json`
-- `dependency-audit-current.json`、`npm-audit-current.json`：已有联网依赖审计快照；无已知报告不是零漏洞保证，Python安装解析差异与许可核对见 `docs/THIRD_PARTY_NOTICES.md`
-- `source-guard.json`：限定语法/模式检查，不是全量安全审计
-- `brand-integrity.json`：原始PNG/MP4来源与摘要，当前核对未改变，不是素材授权证明
+## 当前生成记录
 
-## 历史证据与保存边界
+- `verification.json`：最近一次本地聚合的实际时间、逐阶段命令、退出码、耗时及未测范围；带 `--full-chain` 的运行有七阶段，不与早先六阶段混同。后端/前端具体计数见对应同次日志和CI工件
+- `full-chain-http.json`：当前17组实际Uvicorn/HTTP/SSE/强制退出恢复/在线备份旅程；不是原生浏览器验收
+- `launcher-smoke-20261001.json`：复制当前受版本控制的应用与启动器到无.env/业务库的临时目录，实际通过start.py注册、读取前端静态资源、关闭后重启再登录；本地Linux，未执行Windows批处理双击
+- `comparison-cleanup-20261001.json`、`copilot-research-inputs-20261001.json`：各自功能轮次的合同与回归；记录当时的数量，不随新测试自动变成新结果
+- `source-guard.json`：限定语法/模式检查，不是完整安全审计；`brand-integrity.json`为原始PNG/MP4来源与摘要，不是素材授权证明
 
-`ui-current-*.png`、`service-browser-check.json`、`bridge-service-command.json`、`dependency-audit.json`与`history/`是历史基线资料。尽管已有当前CI截图，仓库内这些同名旧图片没有被替换，不能当作当前源码的视觉证明。较早日期的专题JSON记录各自范围，完整结果以当前索引为准。
+## 原生工件身份
 
-日志及JUnit由命令生成，GitHub Actions另存独立工件；CI清理旧生成输出并写入 `run-context.json` 标识SHA/运行号/尝试号。工件有保存期限，应在过期前保存所需原始证据。截图存在不等于已经整理成正式提交用插图。
+最近已核对的应用基线为 `865a43abbd14aeecd0d388bb8b989b092e3afdf8` / tree `859bd2632e4dea97a85b6eeb794c80b9a7ac2df7`。成功原生来源是运行 [36866612001](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36866612001) 与 [36866617534](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36866617534) 的四份Windows/Linux报告，各48检查、14图、998后端、239前端和17HTTP。PR Windows成功为attempt 2，首次44项后连接读取失败仍保留，原因未确认。
 
-测试账户与财报仅使用临时合成输入；不提交数据库、密钥、.env、依赖缓存或运行时业务样例。补充清单只保留检查名、计数、边界及安全摘要，不含账户、请求ID、凭据或机器绝对路径。真实模型/公开搜索供应商调用为0；没有部署或合并。
+本次只补诊断/测试/材料，应用字节不变，但新精确提交仍须新CI实跑。每次CI首先清理已知生成输出并写 `run-context.json`，只认匹配SHA、运行号及尝试号的新报告：
+
+- `native-service-browser.json`：实际业务结果、原生/桥接区别、截图名称、逐图SHA-256和run_identity
+- `native-service-command.json`：子命令退出码；没有产生报告的阶段不能算通过
+- `native-browser-events.jsonl`：有界原生请求/失败/console分类与页面时间；路径模板化，不记录任意console正文、请求/响应体、headers、cookies或查询值
+- `native-process-events.jsonl`：隔离服务、健康探测、子进程、清理与观察退出码时间；不是自动重试或成功替代品
+- `*.log`、`pytest.xml`：同次实际输出。依赖审计由同SHA独立job提供，当时未报告漏洞不等于零漏洞保证
+
+仓库本地的 `native-service-browser.json`、`native-service-command.json`仍是先前宿主Chromium受限记录，保留失败事实，不表示远端当前CI状态。不得绕过策略或混用桥接结果。
+
+## 历史与图证边界
+
+`docs/copyright-screenshot-sources.json`是上述应用基线四份工件及56张图片的已核对摘要。后续诊断候选的新图摘要直接在新CI报告中生成，以精确SHA身份复核；不把基线工件冒充新运行。8张新增清理确认图逐一看过，其他做来源/摘要核验和移动端抽查，不宣称56张均做完整视觉审阅。
+
+仓库里的 `ui-current-*.png`、`service-browser-check.json`、`bridge-service-command.json`、`dependency-audit.json`及`history/`为历史资料，没有因同名自动成为当前视觉证据。`premerge-acceptance-20261001.json`、`execution-resilience-20261001.json`等专题保留其当时范围；重叠用例不加总。工件会过期，需及时保存所需证据；图片存在不等于正式申报插图完成。
+
+只使用临时合成账户与输入，不提交数据库、密钥、.env、依赖缓存。真实供应商调用、真实企业样本、生产负载、公网部署及正式登记仍未验证或完成。

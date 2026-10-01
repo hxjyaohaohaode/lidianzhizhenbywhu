@@ -20,3 +20,6 @@ credentials.key
 *.db
 evidence/*.log
 evidence/*.xml
+
+evidence/*-browser-events.jsonl
+evidence/*-process-events.jsonl

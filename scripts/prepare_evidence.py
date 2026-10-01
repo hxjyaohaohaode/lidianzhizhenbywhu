@@ -16,6 +16,8 @@ def prepare(root=ROOT):
     targets={out/name for name in REPORTS}
     targets.update(out.glob('ui-current-*.png'))
     targets.update(out.glob('*.log'))
+    targets.update(out.glob('*-browser-events.jsonl'))
+    targets.update(out.glob('*-process-events.jsonl'))
     removed=[]
     for path in sorted(targets):
         if path.is_file() or path.is_symlink():

@@ -69,6 +69,6 @@ python scripts/native_acceptance.py
 
 ## 发布
 
-仓库：`https://github.com/hxjyaohaohaode/lidianzhizhenbywhu`，交付版本以 `main` 为准。`python scripts/publish.py` 是未来变更的预览及审阅分支辅助工具，`--confirm` 才会测试并推送；不会强推或合并 main。推送 SHA 核对、GitHub CI 成功、第三方模型可用和公网生产验收是四项不同结果。
+仓库：`https://github.com/hxjyaohaohaode/lidianzhizhenbywhu`，当前交付候选在 [PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2) 的 `feat/research-workbench-hardening` 分支，尚未合并到 `main`；请按PR顶部记录的精确SHA取得本轮代码，不把main或旧ZIP当作该候选。`python scripts/publish.py` 是未来变更的预览及审阅分支辅助工具，`--confirm` 才会测试并推送；不会强推或合并 main。推送 SHA 核对、GitHub CI 成功、第三方模型可用和公网生产验收是四项不同结果。
 
 本地/远端验收状态以本次交付报告和命令记录为准。没有宣称零漏洞、所有环境都验证过或软件著作权已审批。

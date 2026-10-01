@@ -1,0 +1,38 @@
+{
+  "executed_at": "2026-10-01T13:56:34.834198+00:00",
+  "platform": "linux",
+  "all_checks_passed": true,
+  "checks": [
+    "clean-source-copy-excludes-env-business-db-and-credentials",
+    "launcher-register-assets-empty-data",
+    "launcher-restart-login-preserves-account-with-empty-business-data"
+  ],
+  "details": [
+    {
+      "cycle": 1,
+      "ready_seconds": 2.073,
+      "application": "lidian-workbench",
+      "exit_after_requested_cleanup": -15
+    },
+    {
+      "cycle": 2,
+      "ready_seconds": 1.235,
+      "application": "lidian-workbench",
+      "exit_after_requested_cleanup": -15
+    }
+  ],
+  "launch_command": [
+    "python",
+    "scripts/start.py",
+    "--port",
+    "<isolated-loopback-port>"
+  ],
+  "source_start_sha256": "c06a522b8d23345aa97891bc38db4c733ab86ef8905b0ce45de743b005c25269",
+  "source_files_copied": 97,
+  "data": "temporary synthetic account only; no model or supplier call",
+  "not_verified": [
+    "Windows batch double-click",
+    "dependency installation on a clean user machine",
+    "production deployment"
+  ]
+}

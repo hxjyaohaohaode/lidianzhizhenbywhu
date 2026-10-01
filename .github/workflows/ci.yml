@@ -45,6 +45,8 @@ jobs:
             evidence/native-service-browser.json
             evidence/native-service-command.json
             evidence/source-guard.json
+            evidence/*-browser-events.jsonl
+            evidence/*-process-events.jsonl
             evidence/*.log
             evidence/*.xml
             evidence/ui-current-*.png

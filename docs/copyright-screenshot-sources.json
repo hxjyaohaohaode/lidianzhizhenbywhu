@@ -1,220 +1,303 @@
 {
   "verified_at": "2026-10-01",
-  "source_head": "9dd8068edbb347274c36d8f6fdd9a69e3dc462a8",
-  "source_tree": "08a467e26e7734fab6d0b3101af21a2e1ad4abe6",
-  "note": "Actual CI artifact and screenshot hashes; image files are in CI artifacts, not replaced historical evidence images. Not a completed filing screenshot set.",
+  "source_head": "865a43abbd14aeecd0d388bb8b989b092e3afdf8",
+  "source_tree": "859bd2632e4dea97a85b6eeb794c80b9a7ac2df7",
+  "note": "Verified baseline CI artifact and screenshot hashes. Later diagnostic/document-only candidate does not change application bytes; its exact new-run identity and image digests are emitted into CI artifacts, not inferred from this baseline. Not a completed filing screenshot set.",
   "artifacts": [
     {
-      "artifact_id": 11138165717,
+      "artifact_id": 11164602781,
       "name": "acceptance-ubuntu-latest",
-      "run_id": 36806115964,
-      "archive_sha256": "4f43936333157daa63c1a2091146f6b5de3bd31b28357ff00ed9142a1c058e3f",
-      "expires_at": "2026-10-15T02:33:59Z",
+      "run_id": 36866612001,
+      "run_attempt": "1",
+      "tested_commit": "865a43abbd14aeecd0d388bb8b989b092e3afdf8",
+      "archive_sha256": "b1a51362b654983b2d21b1d7b5ba8aa8a57f5a5f8e4fa4db443b9aee437a2fe2",
+      "expires_at": "2026-10-15T13:15:09Z",
+      "native_checks": 48,
       "screenshots": [
-        {
-          "filename": "ui-current-agent-math.png",
-          "sha256": "906dfee4336384c574b67fc17d973ba3617bd8ca2a7164adea6290f7d66c5cb0"
-        },
-        {
-          "filename": "ui-current-approval.png",
-          "sha256": "8d2c229e8969166b408e107a94dc95b0b3d6bbabb8e6762fe3688cb1ad2e614d"
-        },
-        {
-          "filename": "ui-current-comparison-report.png",
-          "sha256": "aaf61071e1a08d78c2d570782863ed472556a1c61b9c8070b51f6e718b51c4f7"
-        },
-        {
-          "filename": "ui-current-copilot.png",
-          "sha256": "b539fbb6a80603fe97d223ea04bb12ae8c37ae7a6ef849b355d24d1e48df0315"
-        },
-        {
-          "filename": "ui-current-dark.png",
-          "sha256": "ede3499ed7e16667f953a10945d3f6320f743ca7e4ddad8d1fe57e0e6b54aa83"
-        },
         {
           "filename": "ui-current-empty.png",
           "sha256": "e674676fffeaf637693658f1285c1b52bd8628418b07ae6c59f3fb9f1cd9d147"
         },
         {
-          "filename": "ui-current-mobile.png",
-          "sha256": "a22b955d395c03fdb976e16792e3dfbe8bfa8dd81f0fdeba90756008e80a5950"
-        },
-        {
           "filename": "ui-current-revisions.png",
-          "sha256": "3b042e0346f25959b501c8c0490acfd9d510a3122a38a4f3bf76bda4ce40a671"
+          "sha256": "c6b3bb4e9e0727dcccb02f5499e581c1c28d74ad402f8cb9d076e6a00ecfb8d9"
         },
         {
-          "filename": "ui-current-saved-comparison.png",
-          "sha256": "68364bad2ece63bb8c3407ac84df1e197e60fec371201d0916d698be1f5bc26a"
+          "filename": "ui-current-copilot.png",
+          "sha256": "0554e69a65a2cac0b30561334f1d088215cab0f7c89a7824ff4f2b62cd69fbed"
+        },
+        {
+          "filename": "ui-current-approval.png",
+          "sha256": "b36349d4e28d0d478d5bc47dfe725e8a79eec3830c35e0adcd11eb8d64d11d8e"
+        },
+        {
+          "filename": "ui-current-agent-math.png",
+          "sha256": "2627a9417fcd70608c5ad06f97ce5bc15fe7ef9136e2aeec21906a2c549e2a47"
         },
         {
           "filename": "ui-current-saved-experiment.png",
-          "sha256": "7fadcc6b82ae81169a01be177459813b05322391a8c11ff86dce10229c89ed93"
+          "sha256": "6237d1af56ce40d74a4547aa773928008ec5d46045f0d0033f6db19f30be920f"
+        },
+        {
+          "filename": "ui-current-saved-comparison.png",
+          "sha256": "e4919c56b3d3a311255f864426bbebb23367e302f579863c070ee79dd16f0885"
+        },
+        {
+          "filename": "ui-current-comparison-report.png",
+          "sha256": "53038a61fd8ca1227c4a08e8cae6d0b6b709c6452ef34e7b8d763145a98b1b01"
+        },
+        {
+          "filename": "ui-current-copilot-saved-inputs.png",
+          "sha256": "5174f2c949bde8d6a45c6d9222d572baa72c541054be7decdfc8ba3b87f61d8b"
+        },
+        {
+          "filename": "ui-current-comparison-cleanup.png",
+          "sha256": "cee2c9411f65f7a355efc1462dfb85c37a8dbbe072060a0842918485500eca0d"
         },
         {
           "filename": "ui-current-services.png",
-          "sha256": "ea48fab0500db52223de30663e9dc892ff90d6d64a7cb9bc6f7c063382fbfe7a"
+          "sha256": "c251dc525112007d7d06aed19966e0004f0bfbdaf97edc596b3a87f7bb45b931"
+        },
+        {
+          "filename": "ui-current-mobile.png",
+          "sha256": "837a3fe1ef1523185878ba08d92968f5542b830a635065613f991318ae4437b8"
+        },
+        {
+          "filename": "ui-current-dark.png",
+          "sha256": "58bfece257261c1dc753991db27528481ba8920ed8ff629f914578d4ec3bd182"
+        },
+        {
+          "filename": "ui-current-history-comparison-cleanup.png",
+          "sha256": "21a62e7c699a6cda3426fb874aefb5c176b7796e5909f5b289795bc94fd2d549"
         }
       ]
     },
     {
-      "artifact_id": 11137573396,
+      "artifact_id": 11164559975,
       "name": "acceptance-windows-latest",
-      "run_id": 36806115964,
-      "archive_sha256": "9ac8969da98306505dbeb894b3aa1bd43385d3b864f3468342f560b13d219518",
-      "expires_at": "2026-10-15T02:40:22Z",
+      "run_id": 36866612001,
+      "run_attempt": "1",
+      "tested_commit": "865a43abbd14aeecd0d388bb8b989b092e3afdf8",
+      "archive_sha256": "2e5de27fdf6e4a0b7aa8b4bd87a679ff9523e5623c7ef5bf8e5ca548e4288aee",
+      "expires_at": "2026-10-15T13:25:26Z",
+      "native_checks": 48,
       "screenshots": [
-        {
-          "filename": "ui-current-agent-math.png",
-          "sha256": "f23ca45d5890cd4289963dd86eb283c16abbbb922d5ca347938edbb378edf8dd"
-        },
-        {
-          "filename": "ui-current-approval.png",
-          "sha256": "e1f47e3c73ce0a9b1727e2d8122cf5a82f6e902b421e1e0f91246765ca6613e1"
-        },
-        {
-          "filename": "ui-current-comparison-report.png",
-          "sha256": "6153eb380c6ecf26e7d720b9f68fccd84aca2b9830f19a33982617a96e5a7419"
-        },
-        {
-          "filename": "ui-current-copilot.png",
-          "sha256": "ec63ff525c59b0f19fd2eba18e2ca0d328c20f4847ecaab68857459bb989eedc"
-        },
-        {
-          "filename": "ui-current-dark.png",
-          "sha256": "7328585299695dabb3111d3dfe902fb4ba8f2d736c81ea86d385d82d353e4ac3"
-        },
         {
           "filename": "ui-current-empty.png",
           "sha256": "0399fc8a9ca0ab0653dfcd741d99128bfdb157d915391ec853ece5ad1d26878d"
         },
         {
-          "filename": "ui-current-mobile.png",
-          "sha256": "c753124ca550eb29c343de7d03405b59bde6fdeb4201f7aa3557d70f6ebcfe95"
-        },
-        {
           "filename": "ui-current-revisions.png",
-          "sha256": "02311d1aa03159c05db5b84658b78e2c8672df24178d741b36d816a53ab0b7c9"
-        },
-        {
-          "filename": "ui-current-saved-comparison.png",
-          "sha256": "e75d98e16d786ae83be4ab9ca74901dd76ba36455057486d7a61178870831e89"
-        },
-        {
-          "filename": "ui-current-saved-experiment.png",
-          "sha256": "bcda69f829aad544a233ecccea34e504fbb8055e89a7b4ebc30e56e8dcb95b33"
-        },
-        {
-          "filename": "ui-current-services.png",
-          "sha256": "8561cfd494f1e9c672c91ee8589256483362646671904c7c077915903ec764ec"
-        }
-      ]
-    },
-    {
-      "artifact_id": 11138335864,
-      "name": "acceptance-windows-latest",
-      "run_id": 36806117503,
-      "archive_sha256": "a0232d4f12f0b0aba3b93dfddb64bc45a2e60df3c523431584761b41cf970912",
-      "expires_at": "2026-10-15T02:39:56Z",
-      "screenshots": [
-        {
-          "filename": "ui-current-agent-math.png",
-          "sha256": "f23ca45d5890cd4289963dd86eb283c16abbbb922d5ca347938edbb378edf8dd"
-        },
-        {
-          "filename": "ui-current-approval.png",
-          "sha256": "e1f47e3c73ce0a9b1727e2d8122cf5a82f6e902b421e1e0f91246765ca6613e1"
-        },
-        {
-          "filename": "ui-current-comparison-report.png",
-          "sha256": "caa6953cc8e59c5650838b61c521ff991863dd64a862aa3812f3e8f47fc835a5"
+          "sha256": "a18a08505f2c14211854494cdfc0c709ea8170da5c2f6215f5728a053058fcae"
         },
         {
           "filename": "ui-current-copilot.png",
-          "sha256": "ec63ff525c59b0f19fd2eba18e2ca0d328c20f4847ecaab68857459bb989eedc"
+          "sha256": "bf39c38d185f81ff6a04fd5a985941084aa525f612eda7e9ce86a8ce2735b307"
         },
         {
-          "filename": "ui-current-dark.png",
-          "sha256": "7328585299695dabb3111d3dfe902fb4ba8f2d736c81ea86d385d82d353e4ac3"
+          "filename": "ui-current-approval.png",
+          "sha256": "47a331dda00a29dc87d84e9a2a591d28f7b28926a6dd4dd157900088b1fd6bbd"
         },
         {
-          "filename": "ui-current-empty.png",
-          "sha256": "0399fc8a9ca0ab0653dfcd741d99128bfdb157d915391ec853ece5ad1d26878d"
-        },
-        {
-          "filename": "ui-current-mobile.png",
-          "sha256": "c753124ca550eb29c343de7d03405b59bde6fdeb4201f7aa3557d70f6ebcfe95"
-        },
-        {
-          "filename": "ui-current-revisions.png",
-          "sha256": "e411e9140d67d71553591524fa57caf858f377d06f5306f344fd300847f0b95b"
-        },
-        {
-          "filename": "ui-current-saved-comparison.png",
-          "sha256": "cf01da609df2375d4e7f491deee163278159fad3abd775905ab5a6146e659242"
+          "filename": "ui-current-agent-math.png",
+          "sha256": "b7affd34d368cd32cc2a149ad8938678bcf3985a362e0c175e018c0225b0426d"
         },
         {
           "filename": "ui-current-saved-experiment.png",
-          "sha256": "b45eb8f4bdf2fec8f0b904eb9b836c8ee57645c611ddf9116552dc87a1438598"
+          "sha256": "38a43e10297803d26c6b15d33ab76c43043f063418f9852d2c3a03e58c771f6a"
+        },
+        {
+          "filename": "ui-current-saved-comparison.png",
+          "sha256": "c9901fa3e6959a39ed9908b4c5177909547368ee9fbf78c188b53faa610c4aec"
+        },
+        {
+          "filename": "ui-current-comparison-report.png",
+          "sha256": "6692bbe0e3ad651d2524e533665c7e5b902306f45c375096c014697cc9c94938"
+        },
+        {
+          "filename": "ui-current-copilot-saved-inputs.png",
+          "sha256": "f82df9ed927849840e7464f841c39e6a55ecd3db343d057f929dd9bd5914d1be"
+        },
+        {
+          "filename": "ui-current-comparison-cleanup.png",
+          "sha256": "73903280aad3a1fcb6eec44306bfba1071e3c2f2b3e5fe8b6b92a374e63ffa5d"
         },
         {
           "filename": "ui-current-services.png",
-          "sha256": "ed04382b8ceab9e11bfb2ba7ad731f7d61e38b04246953b0281ee776789717ec"
+          "sha256": "a69f8f64d2a32eb60f9280424a024e0b55a109393a7171ec1a1bb12c70e2fe54"
+        },
+        {
+          "filename": "ui-current-mobile.png",
+          "sha256": "a0d984fd3f57d8b0066637a526709cbe0e1bdcfd129d5763446cf83b5538b283"
+        },
+        {
+          "filename": "ui-current-dark.png",
+          "sha256": "63f9ee6b6a06814f27cbf01d1fa69d05c3abd3c5dc17b0df0a304391db44b3ac"
+        },
+        {
+          "filename": "ui-current-history-comparison-cleanup.png",
+          "sha256": "5a6847143f49275e944813bc6185e5b4fb767d7d7dc0aa343009e5f99bc6d8ef"
         }
       ]
     },
     {
-      "artifact_id": 11137299617,
+      "artifact_id": 11164627601,
       "name": "acceptance-ubuntu-latest",
-      "run_id": 36806117503,
-      "archive_sha256": "53dbd7411fef696e2a4aa39dac09b1d1a50bbd2717a3e6ef82bf34e75db2ae81",
-      "expires_at": "2026-10-15T02:34:08Z",
+      "run_id": 36866617534,
+      "run_attempt": "1",
+      "tested_commit": "3a1201f3296103fc048b93616cc872a2d43141e5",
+      "archive_sha256": "38912b5228222a494d6dc0b82fa9837a8d0b63637976e6dee3df52e28f11226d",
+      "expires_at": "2026-10-15T13:14:29Z",
+      "native_checks": 48,
       "screenshots": [
-        {
-          "filename": "ui-current-agent-math.png",
-          "sha256": "f7c9b2d50f5e65e3b25c03e9a311c03b3943847e4d825b30336f2a94f2bd515d"
-        },
-        {
-          "filename": "ui-current-approval.png",
-          "sha256": "8d2c229e8969166b408e107a94dc95b0b3d6bbabb8e6762fe3688cb1ad2e614d"
-        },
-        {
-          "filename": "ui-current-comparison-report.png",
-          "sha256": "bf919b52a3aca528824d471ff91a629a6f1d31b22833d41838a67c6a06f2f9d0"
-        },
-        {
-          "filename": "ui-current-copilot.png",
-          "sha256": "b539fbb6a80603fe97d223ea04bb12ae8c37ae7a6ef849b355d24d1e48df0315"
-        },
-        {
-          "filename": "ui-current-dark.png",
-          "sha256": "ede3499ed7e16667f953a10945d3f6320f743ca7e4ddad8d1fe57e0e6b54aa83"
-        },
         {
           "filename": "ui-current-empty.png",
           "sha256": "e674676fffeaf637693658f1285c1b52bd8628418b07ae6c59f3fb9f1cd9d147"
         },
         {
-          "filename": "ui-current-mobile.png",
-          "sha256": "a22b955d395c03fdb976e16792e3dfbe8bfa8dd81f0fdeba90756008e80a5950"
-        },
-        {
           "filename": "ui-current-revisions.png",
-          "sha256": "3b042e0346f25959b501c8c0490acfd9d510a3122a38a4f3bf76bda4ce40a671"
+          "sha256": "95caa7105db950b938bb2b42df7f540b8a7d686dad845bd9a37d09af5050c896"
         },
         {
-          "filename": "ui-current-saved-comparison.png",
-          "sha256": "4b3f017293eb989f21d1e6d2e360594acb10485e13e40243017e9f9bb98f7601"
+          "filename": "ui-current-copilot.png",
+          "sha256": "0554e69a65a2cac0b30561334f1d088215cab0f7c89a7824ff4f2b62cd69fbed"
+        },
+        {
+          "filename": "ui-current-approval.png",
+          "sha256": "b36349d4e28d0d478d5bc47dfe725e8a79eec3830c35e0adcd11eb8d64d11d8e"
+        },
+        {
+          "filename": "ui-current-agent-math.png",
+          "sha256": "1af8e96da405f5be5c5d5b36f28dbad4cadc4e081516bc515732d05a026430c6"
         },
         {
           "filename": "ui-current-saved-experiment.png",
-          "sha256": "952511d670ad0cdaa76dce21fa70ed77a42ad82cad9b65f18f0a70cf0ff44f67"
+          "sha256": "c8df8796cdc253f47c0bcc92122f74c291deb01f385a59329bfc0c0b9d8e2dee"
+        },
+        {
+          "filename": "ui-current-saved-comparison.png",
+          "sha256": "ce3322a321583e77c5d4684a8c76ea4306009045697bda21a0ec5c22288318cb"
+        },
+        {
+          "filename": "ui-current-comparison-report.png",
+          "sha256": "2756af5e78422546b6a877ed0355c5aa4f79878b2a82cb632299d63685f88fd6"
+        },
+        {
+          "filename": "ui-current-copilot-saved-inputs.png",
+          "sha256": "e77fa771408dc0c6f7a6b58f48207943ec641eea7e377932f16a997c108f6f83"
+        },
+        {
+          "filename": "ui-current-comparison-cleanup.png",
+          "sha256": "57db5406ef29ffbf7394f9ae55fc3ef4dce6685c24b606e9751e25afab12ee67"
         },
         {
           "filename": "ui-current-services.png",
-          "sha256": "3e03aed7467053b6abdb8b375c8ff5911b6242e0fd5a326478fa4410454e2b31"
+          "sha256": "9cc8b8866315e55dce801a4f33197c00c3b15fa81c33a630aa9b03b234f1c17e"
+        },
+        {
+          "filename": "ui-current-mobile.png",
+          "sha256": "837a3fe1ef1523185878ba08d92968f5542b830a635065613f991318ae4437b8"
+        },
+        {
+          "filename": "ui-current-dark.png",
+          "sha256": "58bfece257261c1dc753991db27528481ba8920ed8ff629f914578d4ec3bd182"
+        },
+        {
+          "filename": "ui-current-history-comparison-cleanup.png",
+          "sha256": "2423ec9132a4c699d7e0ab3c2553433d72025bc079ae07094fd4faf14dd73325"
+        }
+      ]
+    },
+    {
+      "artifact_id": 11166482422,
+      "name": "acceptance-windows-latest",
+      "run_id": 36866617534,
+      "run_attempt": "2",
+      "tested_commit": "3a1201f3296103fc048b93616cc872a2d43141e5",
+      "archive_sha256": "d3a07429ca3a3b3d2a7967b44ad0a417d971a2206503b5f5fe12b988a2ae2c1a",
+      "expires_at": "2026-10-15T13:36:55Z",
+      "native_checks": 48,
+      "screenshots": [
+        {
+          "filename": "ui-current-empty.png",
+          "sha256": "0399fc8a9ca0ab0653dfcd741d99128bfdb157d915391ec853ece5ad1d26878d"
+        },
+        {
+          "filename": "ui-current-revisions.png",
+          "sha256": "273bc49c2d82f124d7ce0d5ebb1b4be0c605f675f1a0cd081fae1dffb1df0c0a"
+        },
+        {
+          "filename": "ui-current-copilot.png",
+          "sha256": "bf39c38d185f81ff6a04fd5a985941084aa525f612eda7e9ce86a8ce2735b307"
+        },
+        {
+          "filename": "ui-current-approval.png",
+          "sha256": "47a331dda00a29dc87d84e9a2a591d28f7b28926a6dd4dd157900088b1fd6bbd"
+        },
+        {
+          "filename": "ui-current-agent-math.png",
+          "sha256": "4b3307ae3681e0e5baed34492f8937161294c8aa7210f357c4bd8b98d08e39c6"
+        },
+        {
+          "filename": "ui-current-saved-experiment.png",
+          "sha256": "1551383395fcf77c5d39662bcecfe43132e37ced5fa088ac8162bdaee4433ee0"
+        },
+        {
+          "filename": "ui-current-saved-comparison.png",
+          "sha256": "eee13deb01a8f406792ea0ca1f4b2e4a1cb3ea57b27f05bc11aea86384f7a417"
+        },
+        {
+          "filename": "ui-current-comparison-report.png",
+          "sha256": "324ebc10ae91e74abfc3933356114b6ac2030bba159ca3144d2d0134594d8003"
+        },
+        {
+          "filename": "ui-current-copilot-saved-inputs.png",
+          "sha256": "54049ad5b96dbd3424854fb80af5cca28dee11c5cf52da24d8ce90362053a4a2"
+        },
+        {
+          "filename": "ui-current-comparison-cleanup.png",
+          "sha256": "89c577a4795936393f1390dcacba41e3fd4662306da46a93fd01041301755548"
+        },
+        {
+          "filename": "ui-current-services.png",
+          "sha256": "9bd6deeee4051606f2b1f26efe71fee9817b1802b870eff2e98e00beaff40e92"
+        },
+        {
+          "filename": "ui-current-mobile.png",
+          "sha256": "8181083c83a6adf2f98663035ef0b9a74a4f43ade126c0e92815bf126adf2fc2"
+        },
+        {
+          "filename": "ui-current-dark.png",
+          "sha256": "63f9ee6b6a06814f27cbf01d1fa69d05c3abd3c5dc17b0df0a304391db44b3ac"
+        },
+        {
+          "filename": "ui-current-history-comparison-cleanup.png",
+          "sha256": "97a588e7ab89a1dd418d99ff1da68bbc1da697eb51ea0bee0907f62df30d13aa"
         }
       ]
     }
-  ]
+  ],
+  "visual_review": {
+    "new_confirmation_images_inspected": 8,
+    "scope": "Both ordinary and orphan-history confirmation dialogs from all four current Linux/Windows reports; mobile spot-check",
+    "finding": "No blocking clipping or unreadable new control found in inspected images",
+    "all_screenshot_sources_and_hashes_verified": 56,
+    "not_claimed": "Full accessibility certification or final copyright screenshot packet"
+  },
+  "preserved_failure": {
+    "run_id": 36866617534,
+    "run_attempt": 1,
+    "artifact_id": 11164449195,
+    "checks_before_failure": 44,
+    "cause": "Unconfirmed Agent read connection failure; same-SHA Windows retry passed. Do not relabel the failed attempt."
+  },
+  "historical_sources": {
+    "source_head": "9dd8068edbb347274c36d8f6fdd9a69e3dc462a8",
+    "source_tree": "08a467e26e7734fab6d0b3101af21a2e1ad4abe6",
+    "runs": [
+      36806115964,
+      36806117503
+    ],
+    "note": "Previous full manifest remains in Git history; not the current application baseline."
+  }
 }
