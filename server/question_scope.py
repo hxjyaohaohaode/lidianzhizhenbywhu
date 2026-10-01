@@ -12,12 +12,11 @@ TOPICS = (
     ('cash_flow', ('现金流', '现金', '回款', 'cash flow')),
     ('cash_ratio', ('现金收入比', '现金流收入比', 'cash ratio')),
     ('leverage', ('负债率', '杠杆', '偿债', '负债', 'leverage')),
-    ('revenue_growth', ('增长', '增速', '同比', 'growth')),
     ('revenue', ('收入', '营收', '销售额', 'revenue')),
     ('cost', ('成本', 'cost')),
     ('net_margin', ('净利率', '盈利能力', 'net margin')),
     ('net_profit', ('净利润', '利润额', 'net profit')),
-    ('inventory_turnover', ('库存', '存货', '周转', 'inventory turnover')),
+    ('inventory_turnover', ('库存', '存货', 'inventory turnover')),
     ('rd_ratio', ('研发', 'r&d')),
     ('roe', ('净资产收益', 'roe')),
     ('asset_turnover', ('资产周转', 'asset turnover')),
@@ -33,12 +32,17 @@ def matches(text, term):
 def topics_for(text):
     q=text.lower()
     topics=[key for key, words in TOPICS if any(matches(q,word) for word in words)]
+    # A comparison word selects the baseline; it does not identify revenue.
+    revenue_growth = re.search(
+        r'(?:营业收入|收入|营收|销售额)\s*(?:的\s*)?(?:同比|环比|增长|增速)'
+        r'|(?<![a-z0-9])(?:revenue\s+(?:growth|year over year|quarter over quarter)'
+        r'|growth\s+(?:in\s+)?revenue)(?![a-z0-9])', q)
+    if revenue_growth and 'revenue' in topics:
+        topics.insert(topics.index('revenue'), 'revenue_growth')
     if 'cash_ratio' in topics:
         topics=[key for key in topics if key not in ('cash_flow','revenue')]
     elif 'cash_flow' in topics:
         topics.insert(topics.index('cash_flow')+1,'cash_ratio')
-    if 'asset_turnover' in topics:
-        topics=[key for key in topics if key!='inventory_turnover']
     if not topics and matches(q,'margin'):topics=['gross_margin']
     if not topics and matches(q,'cash'):topics=['cash_flow']
     return topics
@@ -48,6 +52,16 @@ def resolve_question(text, data, defaults):
     q=text.lower();topics=topics_for(text)
     overview=any(w in q for w in ('经营','诊断','概览','全景','整体','数据质量','数据缺口','核查指标','overview','summary'))
     if not topics and overview:topics=list(defaults)
+    # Remove only named supported turnover phrases. Any remaining turnover
+    # request is unsupported, even alongside another recognized metric.
+    turnover_remainder=re.sub(r'(?:库存|存货|资产)\s*(?:的\s*)?周转'
+        r'|(?<![a-z0-9])(?:inventory|asset)\s+turnover(?![a-z0-9])','',q)
+    # Named rate capabilities do not include a different asset denominator or days.
+    turnover_subtype=re.search(r'(?:固定|流动)资产\s*(?:的\s*)?周转'
+        r'|周转\s*(?:率\s*)?(?:天数|天|周期)'
+        r'|(?<![a-z0-9])(?:fixed|current)\s+asset\s+turnover(?![a-z0-9])'
+        r'|(?<![a-z0-9])turnover\s+(?:days|period)(?![a-z0-9])',q)
+    unsupported_turnover=bool(turnover_subtype) or '周转' in turnover_remainder or matches(turnover_remainder,'turnover')
     previous=any(w in q for w in ('环比','上一季度','上季','previous quarter'))
     yearly=any(w in q for w in ('同比','上年同季','去年同季','year over year'))
     comparison='previous' if previous else 'year_over_year'
@@ -76,6 +90,8 @@ def resolve_question(text, data, defaults):
         status='needs_clarification';notice='当前数据按单季度保存；年度、月份、无效季度或额外年份不会擅自当作最近一季或自动汇总，请明确单个目标季度。'
     elif quarters and period not in available:
         status='period_unavailable';notice=f'已保存输入没有{period}，不能用最近一季代替；请先补充该季度原始数据。'
+    elif unsupported_turnover:
+        status='unsupported_topic';notice='当前不支持该周转指标或未明确对象的周转问题；本地仅可核查存货/库存周转率与总资产周转率，不支持应收账款、固定/流动资产周转或周转天数。请将受支持指标单独提问，不用另一指标或单位代替。'
     elif not topics and any(w in q for w in ('证据','资料','记忆','偏好','任务','执行','断点','行动','待办','跟进','截止','情景','敏感','假设','涨价','跌价')):
         status='workspace_query';notice='已按当前企业与工作身份查询相关资料或工作记录；本问题没有指定财务指标，因此不附加无关指标结论。'
     elif not topics:
