@@ -1,4 +1,8 @@
-# 当前依赖审计（2026-09-30）
+# 依赖与许可核对
+
+2026-10-01：依赖用途/漏洞记录与许可核对分开维护，见 [第三方许可来源清单](THIRD_PARTY_NOTICES.md)。直接运行依赖还包括 `cryptography==50.0.1`，用于私有连接加密。Python仅锁定直接依赖，以下“锁定清单”不代表全部传递依赖可重现；本地安装与既有审计快照的四项版本差异见清单。
+
+## 依赖审计历史记录（2026-09-30）
 
 本轮锁定清单在Linux/Python3.12.14/Node24.19.0安装，pip check通过；pip-audit解析20项Python依赖、npm audit检查1项开发依赖，当次均未报告已知漏洞。记录见evidence/dependency-audit-current.json和npm-audit-current.json。该结果不是未来漏洞或生产安全保证。
 

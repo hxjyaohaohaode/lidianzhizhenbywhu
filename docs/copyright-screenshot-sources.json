@@ -1,0 +1,220 @@
+{
+  "verified_at": "2026-10-01",
+  "source_head": "9dd8068edbb347274c36d8f6fdd9a69e3dc462a8",
+  "source_tree": "08a467e26e7734fab6d0b3101af21a2e1ad4abe6",
+  "note": "Actual CI artifact and screenshot hashes; image files are in CI artifacts, not replaced historical evidence images. Not a completed filing screenshot set.",
+  "artifacts": [
+    {
+      "artifact_id": 11138165717,
+      "name": "acceptance-ubuntu-latest",
+      "run_id": 36806115964,
+      "archive_sha256": "4f43936333157daa63c1a2091146f6b5de3bd31b28357ff00ed9142a1c058e3f",
+      "expires_at": "2026-10-15T02:33:59Z",
+      "screenshots": [
+        {
+          "filename": "ui-current-agent-math.png",
+          "sha256": "906dfee4336384c574b67fc17d973ba3617bd8ca2a7164adea6290f7d66c5cb0"
+        },
+        {
+          "filename": "ui-current-approval.png",
+          "sha256": "8d2c229e8969166b408e107a94dc95b0b3d6bbabb8e6762fe3688cb1ad2e614d"
+        },
+        {
+          "filename": "ui-current-comparison-report.png",
+          "sha256": "aaf61071e1a08d78c2d570782863ed472556a1c61b9c8070b51f6e718b51c4f7"
+        },
+        {
+          "filename": "ui-current-copilot.png",
+          "sha256": "b539fbb6a80603fe97d223ea04bb12ae8c37ae7a6ef849b355d24d1e48df0315"
+        },
+        {
+          "filename": "ui-current-dark.png",
+          "sha256": "ede3499ed7e16667f953a10945d3f6320f743ca7e4ddad8d1fe57e0e6b54aa83"
+        },
+        {
+          "filename": "ui-current-empty.png",
+          "sha256": "e674676fffeaf637693658f1285c1b52bd8628418b07ae6c59f3fb9f1cd9d147"
+        },
+        {
+          "filename": "ui-current-mobile.png",
+          "sha256": "a22b955d395c03fdb976e16792e3dfbe8bfa8dd81f0fdeba90756008e80a5950"
+        },
+        {
+          "filename": "ui-current-revisions.png",
+          "sha256": "3b042e0346f25959b501c8c0490acfd9d510a3122a38a4f3bf76bda4ce40a671"
+        },
+        {
+          "filename": "ui-current-saved-comparison.png",
+          "sha256": "68364bad2ece63bb8c3407ac84df1e197e60fec371201d0916d698be1f5bc26a"
+        },
+        {
+          "filename": "ui-current-saved-experiment.png",
+          "sha256": "7fadcc6b82ae81169a01be177459813b05322391a8c11ff86dce10229c89ed93"
+        },
+        {
+          "filename": "ui-current-services.png",
+          "sha256": "ea48fab0500db52223de30663e9dc892ff90d6d64a7cb9bc6f7c063382fbfe7a"
+        }
+      ]
+    },
+    {
+      "artifact_id": 11137573396,
+      "name": "acceptance-windows-latest",
+      "run_id": 36806115964,
+      "archive_sha256": "9ac8969da98306505dbeb894b3aa1bd43385d3b864f3468342f560b13d219518",
+      "expires_at": "2026-10-15T02:40:22Z",
+      "screenshots": [
+        {
+          "filename": "ui-current-agent-math.png",
+          "sha256": "f23ca45d5890cd4289963dd86eb283c16abbbb922d5ca347938edbb378edf8dd"
+        },
+        {
+          "filename": "ui-current-approval.png",
+          "sha256": "e1f47e3c73ce0a9b1727e2d8122cf5a82f6e902b421e1e0f91246765ca6613e1"
+        },
+        {
+          "filename": "ui-current-comparison-report.png",
+          "sha256": "6153eb380c6ecf26e7d720b9f68fccd84aca2b9830f19a33982617a96e5a7419"
+        },
+        {
+          "filename": "ui-current-copilot.png",
+          "sha256": "ec63ff525c59b0f19fd2eba18e2ca0d328c20f4847ecaab68857459bb989eedc"
+        },
+        {
+          "filename": "ui-current-dark.png",
+          "sha256": "7328585299695dabb3111d3dfe902fb4ba8f2d736c81ea86d385d82d353e4ac3"
+        },
+        {
+          "filename": "ui-current-empty.png",
+          "sha256": "0399fc8a9ca0ab0653dfcd741d99128bfdb157d915391ec853ece5ad1d26878d"
+        },
+        {
+          "filename": "ui-current-mobile.png",
+          "sha256": "c753124ca550eb29c343de7d03405b59bde6fdeb4201f7aa3557d70f6ebcfe95"
+        },
+        {
+          "filename": "ui-current-revisions.png",
+          "sha256": "02311d1aa03159c05db5b84658b78e2c8672df24178d741b36d816a53ab0b7c9"
+        },
+        {
+          "filename": "ui-current-saved-comparison.png",
+          "sha256": "e75d98e16d786ae83be4ab9ca74901dd76ba36455057486d7a61178870831e89"
+        },
+        {
+          "filename": "ui-current-saved-experiment.png",
+          "sha256": "bcda69f829aad544a233ecccea34e504fbb8055e89a7b4ebc30e56e8dcb95b33"
+        },
+        {
+          "filename": "ui-current-services.png",
+          "sha256": "8561cfd494f1e9c672c91ee8589256483362646671904c7c077915903ec764ec"
+        }
+      ]
+    },
+    {
+      "artifact_id": 11138335864,
+      "name": "acceptance-windows-latest",
+      "run_id": 36806117503,
+      "archive_sha256": "a0232d4f12f0b0aba3b93dfddb64bc45a2e60df3c523431584761b41cf970912",
+      "expires_at": "2026-10-15T02:39:56Z",
+      "screenshots": [
+        {
+          "filename": "ui-current-agent-math.png",
+          "sha256": "f23ca45d5890cd4289963dd86eb283c16abbbb922d5ca347938edbb378edf8dd"
+        },
+        {
+          "filename": "ui-current-approval.png",
+          "sha256": "e1f47e3c73ce0a9b1727e2d8122cf5a82f6e902b421e1e0f91246765ca6613e1"
+        },
+        {
+          "filename": "ui-current-comparison-report.png",
+          "sha256": "caa6953cc8e59c5650838b61c521ff991863dd64a862aa3812f3e8f47fc835a5"
+        },
+        {
+          "filename": "ui-current-copilot.png",
+          "sha256": "ec63ff525c59b0f19fd2eba18e2ca0d328c20f4847ecaab68857459bb989eedc"
+        },
+        {
+          "filename": "ui-current-dark.png",
+          "sha256": "7328585299695dabb3111d3dfe902fb4ba8f2d736c81ea86d385d82d353e4ac3"
+        },
+        {
+          "filename": "ui-current-empty.png",
+          "sha256": "0399fc8a9ca0ab0653dfcd741d99128bfdb157d915391ec853ece5ad1d26878d"
+        },
+        {
+          "filename": "ui-current-mobile.png",
+          "sha256": "c753124ca550eb29c343de7d03405b59bde6fdeb4201f7aa3557d70f6ebcfe95"
+        },
+        {
+          "filename": "ui-current-revisions.png",
+          "sha256": "e411e9140d67d71553591524fa57caf858f377d06f5306f344fd300847f0b95b"
+        },
+        {
+          "filename": "ui-current-saved-comparison.png",
+          "sha256": "cf01da609df2375d4e7f491deee163278159fad3abd775905ab5a6146e659242"
+        },
+        {
+          "filename": "ui-current-saved-experiment.png",
+          "sha256": "b45eb8f4bdf2fec8f0b904eb9b836c8ee57645c611ddf9116552dc87a1438598"
+        },
+        {
+          "filename": "ui-current-services.png",
+          "sha256": "ed04382b8ceab9e11bfb2ba7ad731f7d61e38b04246953b0281ee776789717ec"
+        }
+      ]
+    },
+    {
+      "artifact_id": 11137299617,
+      "name": "acceptance-ubuntu-latest",
+      "run_id": 36806117503,
+      "archive_sha256": "53dbd7411fef696e2a4aa39dac09b1d1a50bbd2717a3e6ef82bf34e75db2ae81",
+      "expires_at": "2026-10-15T02:34:08Z",
+      "screenshots": [
+        {
+          "filename": "ui-current-agent-math.png",
+          "sha256": "f7c9b2d50f5e65e3b25c03e9a311c03b3943847e4d825b30336f2a94f2bd515d"
+        },
+        {
+          "filename": "ui-current-approval.png",
+          "sha256": "8d2c229e8969166b408e107a94dc95b0b3d6bbabb8e6762fe3688cb1ad2e614d"
+        },
+        {
+          "filename": "ui-current-comparison-report.png",
+          "sha256": "bf919b52a3aca528824d471ff91a629a6f1d31b22833d41838a67c6a06f2f9d0"
+        },
+        {
+          "filename": "ui-current-copilot.png",
+          "sha256": "b539fbb6a80603fe97d223ea04bb12ae8c37ae7a6ef849b355d24d1e48df0315"
+        },
+        {
+          "filename": "ui-current-dark.png",
+          "sha256": "ede3499ed7e16667f953a10945d3f6320f743ca7e4ddad8d1fe57e0e6b54aa83"
+        },
+        {
+          "filename": "ui-current-empty.png",
+          "sha256": "e674676fffeaf637693658f1285c1b52bd8628418b07ae6c59f3fb9f1cd9d147"
+        },
+        {
+          "filename": "ui-current-mobile.png",
+          "sha256": "a22b955d395c03fdb976e16792e3dfbe8bfa8dd81f0fdeba90756008e80a5950"
+        },
+        {
+          "filename": "ui-current-revisions.png",
+          "sha256": "3b042e0346f25959b501c8c0490acfd9d510a3122a38a4f3bf76bda4ce40a671"
+        },
+        {
+          "filename": "ui-current-saved-comparison.png",
+          "sha256": "4b3f017293eb989f21d1e6d2e360594acb10485e13e40243017e9f9bb98f7601"
+        },
+        {
+          "filename": "ui-current-saved-experiment.png",
+          "sha256": "952511d670ad0cdaa76dce21fa70ed77a42ad82cad9b65f18f0a70cf0ff44f67"
+        },
+        {
+          "filename": "ui-current-services.png",
+          "sha256": "3e03aed7467053b6abdb8b375c8ff5911b6242e0fd5a326478fa4410454e2b31"
+        }
+      ]
+    }
+  ]
+}
