@@ -148,6 +148,34 @@ def main():
             comparison_action=require(c.post('/api/workspace/actions',json={
                 'title':'核查对照口径','acceptance':'确认共同季度与两家企业来源的实际可比性',
                 'dataset_id':d['id'],'source_ref':{'kind':'report','run_id':comparison_run['id']}}),201)
+            experiment=require(c.post('/api/workspace/experiments',json={'dataset_id':d['id'],
+                'dataset_version':d['version'],'dataset_hash':d['content_hash'],'name':'助手冻结情景（合成验收）',
+                'kind':'scenario','price_change':.05,'cost_change':.02,'volume_change':0.,'fixed_cost_share':.3,
+                'assumptions':'只验证已保存假设与同会话批准链，不代表实际企业预测'}),201)
+            assistant_thread=require(c.post('/api/services/threads',json={'dataset_id':d['id']}),201)
+            for version,text in enumerate([comparison['payload']['period']+'毛利率同比核查','继续展开刚才的原因','继续展开','继续展开'],1):
+                msg=require(c.post('/api/services/threads/'+assistant_thread['id']+'/messages',json={
+                    'version':version,'text':text,'request_id':'http-followup-'+str(version)}),201)['message']
+                assert msg['payload']['response']['context']['question_scope']['period']==comparison['payload']['period']
+                assert msg['payload']['response']['facts']
+            draft={'kind':'research','text':'','source_message_id':msg['id'],'request_id':'http-saved-inputs',
+                'experiment':{'id':experiment['id'],'version':experiment['version'],'hash':experiment['experiment_hash']},
+                'comparison_artifact':ref}
+            proposal=require(c.post('/api/services/threads/'+assistant_thread['id']+'/proposals',json=draft),201)
+            assert other.get('/api/services/proposals/'+proposal['id']).status_code==404
+            srv.stop(hard=True);srv.start()
+            assert require(c.post('/api/services/threads/'+assistant_thread['id']+'/proposals',json=draft),201)['id']==proposal['id']
+            confirmation={'version':proposal['version'],'fingerprint':proposal['payload']['fingerprint']}
+            confirmed=require(c.post('/api/services/proposals/'+proposal['id']+'/confirm',json=confirmation))
+            assistant_run=wait_run(c,confirmed['payload']['result']['run_id'])
+            assert assistant_run['result']['analysis']['current_period']==comparison['payload']['period']
+            assert assistant_run['result']['adaptive']['mathematical_outputs']['sensitivity']['result']==experiment['payload']['result']['result']
+            assert assistant_run['result']['comparison_provenance']['hash']==ref['hash']
+            assert require(c.post('/api/services/proposals/'+proposal['id']+'/confirm',json=confirmation))['payload']['result']['run_id']==assistant_run['id']
+            conversation=require(c.get('/api/services/threads/'+assistant_thread['id']))
+            assert conversation['runs'][0]['result']==assistant_run['result']
+            assert conversation['runs'][0]['source_impact']['state']=='current'
+            record('连续追问→原季度/基期→明确保存实验与全部对照成员→硬重启后幂等批准→数学和报告回到同会话')
             peer_update=copy.deepcopy(peer_data);peer_update['version']=peer['version'];peer_update['periods'][-1]['revenue']+=1
             require(c.put('/api/datasets/'+peer['id'],json=peer_update))
             assert c.post('/api/workspace/plans',json={'dataset_id':d['id'],'query':'核对'+comparison['payload']['period']+'企业对照',
@@ -158,6 +186,9 @@ def main():
             impacted=next(x for x in action_rows if x['id']==comparison_action['id'])
             assert impacted['payload']==comparison_action['payload']
             assert any(r['code'].startswith('comparison_') for r in impacted['source_impact']['reasons'])
+            conversation=require(c.get('/api/services/threads/'+assistant_thread['id']))
+            assert conversation['runs'][0]['result']==assistant_run['result']
+            assert any(r['code']=='comparison_member_changed' for r in conversation['runs'][0]['source_impact']['reasons'])
             require(c.delete('/api/workspace/comparisons/'+ref['id'],params={'identity_id':'','version':ref['version']}))
             assert require(c.get('/api/runs/'+comparison_run['id']))['result']['comparison_artifact']==frozen_comparison
             record('双企业共同季度对照→版本冻结→明确批准Agent→报告引用→另一企业修订/清理→行动适用性变化且历史不改写')

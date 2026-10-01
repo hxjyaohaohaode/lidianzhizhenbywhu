@@ -22,6 +22,8 @@ TOPICS = (
     ('roe', ('净资产收益', 'roe')),
     ('asset_turnover', ('资产周转', 'asset turnover')),
 )
+PERIOD_PATTERNS = (r'(?<!\d)((?:19|20)\d{2})\s*年\s*第?\s*([1-4一二三四])\s*季度',
+                   r'(?<!\d)((?:19|20)\d{2})\s*[-/]?\s*q([1-4])(?!\d|\.\d)')
 
 
 def matches(text, term):
@@ -50,9 +52,7 @@ def resolve_question(text, data, defaults):
     yearly=any(w in q for w in ('同比','上年同季','去年同季','year over year'))
     comparison='previous' if previous else 'year_over_year'
     quarters=[]; spans=[]
-    patterns=(r'(?<!\d)((?:19|20)\d{2})\s*年\s*第?\s*([1-4一二三四])\s*季度',
-              r'(?<!\d)((?:19|20)\d{2})\s*[-/]?\s*q([1-4])(?!\d|\.\d)')
-    for pattern in patterns:
+    for pattern in PERIOD_PATTERNS:
         for match in re.finditer(pattern,q):
             year,quarter=match.groups()
             value=f"{year}-Q{dict(zip('一二三四','1234')).get(quarter,quarter)}"
@@ -66,7 +66,9 @@ def resolve_question(text, data, defaults):
     available=sorted(p['period'] for p in data['periods'])
     period=quarters[0] if len(quarters)==1 else available[-1]
     status='supported';notice=''
-    if (previous and yearly) or '同环比' in q:
+    if any(word in q for word in ('不继续','不要继续','停止继续','别继续')):
+        status='needs_clarification';notice='已停止沿用上一轮范围；请单独写明新的指标与目标季度，避免把被否定的指标仍作为核查对象。'
+    elif (previous and yearly) or '同环比' in q:
         status='needs_clarification';notice='一次计划使用一个比较基期；请明确同比或环比，避免静默选择。'
     elif len(quarters)>1:
         status='needs_clarification';notice='本地助手一次核查一个目标季度及其同/环比基期；请指定一个目标季度，或在企业对照工作区选择比较范围。'
@@ -86,6 +88,56 @@ def resolve_question(text, data, defaults):
 
 def scoped_dataset(data, scope):
     return {**data,'periods':[p for p in data['periods'] if p['period']<=scope['period']]} if scope['can_calculate'] else data
+
+
+def resolve_followup(text, data, defaults, previous=None):
+    """Inherit only a bounded continuation's normalized scope, never prior prose.
+
+    The immediately preceding response is authoritative for continuity. We do not
+    skip unrelated/unsupported turns to discover a convenient older question.
+    Explicit ambiguous periods remain unresolved instead of being repaired here.
+    """
+    scope = resolve_question(text, data, defaults)
+    q = text.strip().lower()
+    if (not previous or not previous.get('can_calculate') or len(q) > 80
+            or scope['status'] in ('needs_clarification', 'period_unavailable')
+            or any(word in q for word in ('最新', '最近', '换个', '新问题', '重新开始', 'latest'))):
+        return scope
+    cue = any(word in q for word in ('继续', '刚才', '接着', '那么', '那', '还有'))
+    frame=q
+    for pattern in PERIOD_PATTERNS:frame=re.sub(pattern,'',frame)
+    for term in ('previous quarter','year over year','上一季度','上年同季','去年同季','同比','环比','上季'):
+        frame=frame.replace(term,'')
+    bare = re.fullmatch(r'(?:请|继续|再|接着|展开|分析|解释|核查|看|说说|刚才|上述|这些|之前|那么|那|还有|的|为什么|原因|依据|内容|结果|问题|吧|呢|一下|与|比较|[？?。！!，、\s])*', frame)
+    if not ((cue and scope['topics']) or (bare and q and (cue or any(w in q for w in ('为什么', '展开', '这些'))))):
+        return scope
+    inherited = []
+    if not scope['period_explicit']:
+        scope['period'] = previous['period']; scope['period_explicit'] = True
+        inherited.append('period')
+    if not scope['comparison_explicit']:
+        scope['comparison'] = previous['comparison']; scope['comparison_explicit'] = True
+        inherited.append('comparison')
+    # In a scope-only follow-up, “同比” chooses the baseline, not revenue growth.
+    if bare or not scope['topics']:
+        scope['topics'] = list(previous['topics']); inherited.append('topics')
+    scope['inherited_fields'] = inherited
+    if scope['period'] not in scope['available_periods']:
+        scope.update(status='period_unavailable', can_calculate=False, topics=[],
+            notice='追问所指的原季度已不在当前数据中，请补充原始输入或明确新的季度。')
+    else:
+        scope.update(status='supported', can_calculate=True, notice='')
+    return scope
+
+
+def scoped_handoff_query(text, scope):
+    """Make a sourced question's normalized scope explicit in the approval text."""
+    if not scope or not scope.get('can_calculate'):
+        return text
+    from .analytics import METRIC_LABELS
+    topics = '、'.join(METRIC_LABELS.get(key, key) for key in scope['topics'])
+    comparison = '环比' if scope['comparison'] == 'previous' else '同比'
+    return f"核查范围：{scope['period']}，{comparison}，{topics}。\n当前目标：{text}"
 
 
 def analysis_dataset(snapshot):

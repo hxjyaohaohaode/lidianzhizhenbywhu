@@ -10,6 +10,7 @@ from pydantic import Field, model_validator, field_validator
 from .schemas import StorageInteger, StrictModel
 from .autonomy_contracts import ExecutionOptions
 from .business_provenance import SourceRef
+from .contracts import ExperimentReference
 
 
 class IdentitySpec(StrictModel):
@@ -63,6 +64,8 @@ class ProposalRequest(StrictModel):
     provider: str = Field(default='', max_length=40)
     max_calls: int = Field(default=3, ge=0, le=8)
     execution: ExecutionOptions = Field(default_factory=ExecutionOptions)
+    experiment: ExperimentReference | None = None
+    comparison_artifact: ExperimentReference | None = None
     mode: Literal['operational', 'margin', 'industry', 'investment', 'deep_dive'] = 'operational'
     metric: Literal['gross_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'cash_flow', 'revenue'] = 'gross_margin'
     operator: Literal['lt', 'gt'] = 'lt'
@@ -75,6 +78,10 @@ class ProposalRequest(StrictModel):
     def no_irrelevant_external(self):
         if self.kind != 'research' and self.use_llm:
             raise ValueError('此类操作不需要外部模型')
+        if self.kind != 'research' and (self.experiment or self.comparison_artifact):
+            raise ValueError('数学实验和企业对照只能明确加入研究提案')
+        if self.kind == 'research' and len(self.acceptance) > 1000:
+            raise ValueError('研究验收标准最多1000个字符')
         return self
 
 

@@ -7688,6 +7688,26 @@
           "execution": {
             "$ref": "#/components/schemas/ExecutionOptions"
           },
+          "experiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparison_artifact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "mode": {
             "type": "string",
             "enum": [

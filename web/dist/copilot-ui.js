@@ -1,11 +1,13 @@
+import { scopedResearchInputs, researchInputFields, syncResearchInputControls, researchInputRequest, researchApprovalInputs, researchRunOutputs } from './copilot-research-inputs.js';
 import { unchangedInputGuard } from './saved-experiments.js';
 import { claimMathReferences } from './math-results.js';
 import { interactionGuard, invalidateInteractions, renewSavedDraft } from './interactions.js';
 import { api, workspace, ApiError } from './api.js';
 import { assistantView } from './assistant.js';
-import { state, activeDataset, activeIdentity } from './state.js';
+import { state, activeDataset, activeIdentity, scopedDatasets } from './state.js';
 import { esc, icon, notice, badge, status, jsonView, metricValue, num, timeText, citationCard, field, textarea, input, select, formFooter, heading, routeButton, table, safeLink } from './components.js';
 import { xbutton, serviceForm } from './views-services.js';
+let researchForm = null;
 let hooks;
 let contextKey = '', threadId = '', current = null, epoch = 0, sending = false, loading = false, polling = false;
 let draft = '', pendingKey = '', pendingText = '', creationKey = '';
@@ -17,10 +19,10 @@ const traces = new Map();
 function token() { return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join(''); }
 function key() { return (state.user?.id ?? '') + '|' + (state.user?.preferences.role ?? 'enterprise') + '|' + state.identity + '|' + state.active; }
 export function configureCopilot(value) { hooks = value; }
-export function resetCopilot() { epoch++; contextKey = ''; threadId = ''; current = null; draft = ''; pendingKey = ''; pendingText = ''; creationKey = ''; freshThread = false; loadTask = null; creationTask = null; readSequence++; remembered.clear(); drafts.clear(); traces.clear(); sending = false; loading = false; }
+export function resetCopilot() { researchForm = null; epoch++; contextKey = ''; threadId = ''; current = null; draft = ''; pendingKey = ''; pendingText = ''; creationKey = ''; freshThread = false; loadTask = null; creationTask = null; readSequence++; remembered.clear(); drafts.clear(); traces.clear(); sending = false; loading = false; }
 export function currentThread() { return current; }
 function switchContext() { const next = key(); if (next === contextKey)
-    return; if (contextKey)
+    return; researchForm = null; if (contextKey)
     drafts.set(contextKey, draft); contextKey = next; threadId = remembered.get(next) ?? ''; draft = drafts.get(next) ?? ''; current = null; pendingKey = ''; pendingText = ''; creationKey = ''; freshThread = false; loadTask = null; creationTask = null; readSequence++; traces.clear(); epoch++; sending = false; loading = false; }
 export function copilotShell(full = false) { switchContext(); const d = activeDataset(), i = activeIdentity(); return `<${full ? 'section' : 'aside'} id="${full ? 'copilot-full' : 'assistant-rail'}" class="${full ? 'copilot-full' : 'assistant-rail'}" aria-label="研究助手">${full ? '' : '<div id="assistant-resize" class="rail-resize" role="separator" aria-orientation="vertical" aria-label="调整研究助手宽度" tabindex="0" aria-valuenow="390" aria-valuemin="320" aria-valuemax="560"></div>'}<div class="copilot-header"><div class="copilot-title"><span class="copilot-orb">${icon('spark')}</span><div><h2>研究助手</h2><small>工具核查 · Agent 深入研判</small></div></div><div class="inline-actions">${xbutton(icon('plus'), 'chat-new', 'aria-label="新建研究会话" title="新建会话"', 'icon-button')}${xbutton(icon('clock'), 'chat-history', 'aria-label="查看历史会话" title="历史会话"', 'icon-button')}${full ? '' : `<button type="button" data-route="copilot" class="icon-button" aria-label="在主工作区打开研究助手" title="在主工作区打开">${icon('arrow')}</button>`} ${full ? '' : `<button type="button" data-action="close-assistant" class="icon-button" aria-label="收起助手">${icon('close')}</button>`}</div></div><div class="copilot-context"><span>${icon('memory')} ${esc(i?.payload.name ?? '默认身份')}</span><strong>${esc(d?.payload.company ?? '尚未选择企业')}</strong><span class="micro">${d ? '数据修订 ' + d.version : '先选择企业以获得业务分析'}</span></div><div class="copilot-messages" id="assistant-answer" aria-label="研究会话"><div class="loading"><span class="spinner"></span>读取会话…</div></div><div id="copilot-pending" class="copilot-pending" hidden></div><form id="assistant-form" class="assistant-composer"><label class="sr-only" for="assistant-query">研究问题</label><textarea id="assistant-query" name="query" rows="3" maxlength="3000" placeholder="查指标、证据与缺口；或明确要交给 Agent 的研究问题…" required>${esc(draft)}</textarea><div class="composer-footer"><span id="copilot-composer-status">本地工具不外发数据</span><button type="submit" class="primary icon-button" aria-label="发送研究问题">${icon('arrow')}</button></div><p class="form-error" role="alert"></p></form></${full ? 'section' : 'aside'}>`; }
 export async function copilotPage() { return heading('连续研究，逐步求证', '在同一会话中核查事实、生成可审阅计划，并把结论转成行动与跟踪。') + copilotShell(true); }
@@ -54,7 +56,7 @@ export function messageView(m) {
     const r = m.payload.response, trace = traces.get(m.id), receipts = r.receipts ?? [], facts = r.facts ?? [];
     return `<article class="chat-turn" data-message="${esc(m.id)}"><div class="user-message"><span>你 · ${timeText(m.created_at)}</span><p>${esc(m.payload.question)}</p></div><div class="copilot-response"><div class="response-heading">${icon('spark')}<strong>研究核查</strong>${badge(receipts.length + ' 次本地工具')}</div><p class="research-answer">${esc(r.answer)}</p>${researchBrief(r)}${facts.length ? `<div class="fact-grid">${facts.map(factView).join('')}</div>` : ''}${(r.cards ?? []).map(renderCard).join('')}${(r.citations ?? []).length ? `<section class="answer-evidence"><h4>匹配的原文证据</h4>${r.citations.map(citationCard).join('')}</section>` : ''}${(r.warnings ?? []).map((w) => notice(w, 'warm')).join('')}${r.next_steps?.length ? `<section class="research-next"><div class="section-heading"><span class="eyebrow">继续求证</span><h4>下一步要解决的问题</h4></div>${r.next_steps.map((n, index) => `<article><span class="next-index">${index + 1}</span><div><strong>${esc(n.title)}</strong><p>${esc(n.reason)}</p>${n.acceptance ? `<details><summary>怎样算核查完成</summary><p>${esc(n.acceptance)}</p></details>` : ''}${n.route ? routeButton('前往核查 ' + icon('arrow'), n.route, 'text-button') : ''}</div></article>`).join('')}</section>` : ''}<details class="tool-receipts"><summary>调用凭据与输入范围 · ${receipts.length} 项</summary>${receipts.map((t) => `<div><strong>${esc(t.tool)}</strong><span> ${num(t.milliseconds, 1)} ms · ${esc(t.state)}</span><p class="hash-label">输出 ${esc(t.output_hash)}</p></div>`).join('')}${jsonView(r.context)}<small>外部调用 ${r.external_calls ?? 0} 次；不是隐藏推理过程。</small></details><div class="trace-container">${trace ? notice('以下复核使用当前数据修订，原始会话结果保留在上方。') + assistantView(m.payload.question, trace) : xbutton('按当前输入复核公式与季度轨迹', 'chat-trace', `data-message="${esc(m.id)}"`, 'text-button')}</div><div class="response-actions">${(r.actions ?? []).map((a) => a.kind === 'navigate' ? routeButton(esc(a.label), a.route, 'text-button') : xbutton(esc(a.label), 'chat-propose', `data-kind="${esc(a.type)}" data-message="${esc(m.id)}"`, 'secondary')).join('')}</div></div></article>`;
 }
-function proposalCard(row) { const p = row.payload; const run = current.runs.find((r) => r.proposal_id === row.id); return `<article class="proposal-card" data-proposal="${esc(row.id)}"><div class="row-between"><span class="eyebrow">${{ research: 'Agent 研判', action: '跟进行动', watch: '指标跟踪', memory: '长期记忆' }[p.kind]}</span>${badge(p.status === 'draft' ? '待你确认' : p.status === 'executed' ? '已确认执行' : '已放弃', p.status === 'executed' ? 'good' : 'warm')}</div><h4>${esc(p.title)}</h4>${run ? `<div class="row-between">${status(run.state)}${routeButton('查看节点与审阅结果', 'agents:run-' + run.id)}</div>${run.error ? notice(run.error, 'danger') : ''}${run.current_dataset_version !== run.dataset_version ? notice('企业数据已有新修订，以下报告仍依据当时的输入。', 'warm') : ''}${run.result ? `<div class="chat-run-result">${run.result.findings.slice(0, 4).map((f) => `<p>${esc(f)}</p>`).join('')}<h4>模型解释</h4>${status(run.result.llm.state)}${run.result.llm.review.claims.map((c) => `<p>${esc(c.text)}</p>${claimMathReferences(c)}`).join('') || '<p class="micro">本次没有通过结构核验的模型解释，不用模板内容替代。</p>'}${run.result.missing?.length ? `<details><summary>尚需核对的问题</summary>${run.result.missing.map((v) => `<p>${esc(v)}</p>`).join('')}</details>` : ''}</div>` : ''}` : ''}<div class="inline-actions">${p.status === 'draft' ? xbutton('查看范围并确认', 'chat-review', `data-id="${esc(row.id)}"`, 'primary') : p.result?.route && !run ? routeButton('查看已创建记录', p.result.route) : ''}${xbutton('查看完整提案', 'chat-detail', `data-id="${esc(row.id)}"`, 'text-button')}</div></article>`; }
+function proposalCard(row) { const p = row.payload; const run = current.runs.find((r) => r.proposal_id === row.id); return `<article class="proposal-card" data-proposal="${esc(row.id)}"><div class="row-between"><span class="eyebrow">${{ research: 'Agent 研判', action: '跟进行动', watch: '指标跟踪', memory: '长期记忆' }[p.kind]}</span>${badge(p.status === 'draft' ? '待你确认' : p.status === 'executed' ? '已确认执行' : '已放弃', p.status === 'executed' ? 'good' : 'warm')}</div><h4>${esc(p.title)}</h4>${run ? `<div class="row-between">${status(run.state)}${routeButton('查看节点与审阅结果', 'agents:run-' + run.id)}</div>${run.error ? notice(run.error, 'danger') : ''}${run.source_impact && run.source_impact.state !== 'current' ? notice('当前适用性需复核：' + (run.source_impact.reasons ?? []).map((r) => r.message ?? r.code).join('；') + '。以下报告与计算仍是原始冻结内容。', 'warm') : run.current_dataset_version !== run.dataset_version ? notice('企业数据已有新修订，以下报告仍依据当时的输入。', 'warm') : ''}${run.result ? `<div class="chat-run-result">${run.result.findings.slice(0, 4).map((f) => `<p>${esc(f)}</p>`).join('')}${researchRunOutputs(run.result, state.user?.preferences?.amount_unit ?? 'wan')}<h4>模型解释</h4>${status(run.result.llm.state)}${run.result.llm.review.claims.map((c) => `<p>${esc(c.text)}</p>${claimMathReferences(c)}`).join('') || '<p class="micro">本次没有通过结构核验的模型解释，不用模板内容替代。</p>'}${run.result.missing?.length ? `<details><summary>尚需核对的问题</summary>${run.result.missing.map((v) => `<p>${esc(v)}</p>`).join('')}</details>` : ''}</div>` : ''}` : ''}<div class="inline-actions">${p.status === 'draft' ? xbutton('查看范围并确认', 'chat-review', `data-id="${esc(row.id)}"`, 'primary') : p.result?.route && !run ? routeButton('查看已创建记录', p.result.route) : ''}${xbutton('查看完整提案', 'chat-detail', `data-id="${esc(row.id)}"`, 'text-button')}</div></article>`; }
 function detailState(host) { const map = new Map(); host.querySelectorAll('[data-message],[data-proposal]').forEach(row => map.set(row.dataset.message ?? row.dataset.proposal ?? '', [...row.querySelectorAll('details')].flatMap((d, i) => d.open ? [i] : []))); return map; }
 function paint(scroll = false) {
     const host = document.querySelector('#assistant-answer');
@@ -267,6 +269,7 @@ export async function chatAction(action, el) {
         sending = false;
         threadId = '';
         current = null;
+        researchForm = null;
         draft = '';
         pendingKey = '';
         pendingText = '';
@@ -309,6 +312,7 @@ export async function chatAction(action, el) {
         readSequence++;
         traces.clear();
         current = loaded;
+        researchForm = null;
         draft = '';
         pendingKey = '';
         pendingText = '';
@@ -384,13 +388,21 @@ async function proposalForm(kind, messageId, valid) {
     const source = current.messages.find((m) => m.id === messageId);
     const text = source?.payload.question ?? draft;
     const i = activeIdentity();
-    let body = field('具体目标或要保存的内容', textarea('text', text, 'required minlength="5" maxlength="3000" rows="4"'));
+    let inputs = null;
+    let body = field('具体目标或要保存的内容', textarea('text', text, `required minlength="${kind === 'research' && source ? 1 : 5}" maxlength="3000" rows="4"`));
     if (kind === 'research') {
-        const c = await api('/services/connections');
+        const identityId = state.identity, datasetId = state.active, bound = current.thread.payload;
+        if (bound?.identity_id !== undefined && bound.identity_id !== identityId || bound?.dataset_id !== undefined && bound.dataset_id !== datasetId)
+            throw new Error('历史会话与当前身份或企业不一致，请切回原范围后再生成提案。');
+        if (!datasetId || !scopedDatasets().some(d => d.id === datasetId))
+            throw new Error('请先选择当前身份范围内的企业，再生成研判提案。');
+        const query = '?' + new URLSearchParams({ identity_id: identityId, dataset_id: datasetId });
+        const [c, experiments, comparisons] = await Promise.all([api('/services/connections'), workspace('/experiments' + query), workspace('/comparisons' + query)]);
         if (!valid())
             return;
+        inputs = scopedResearchInputs(identityId, datasetId, experiments, comparisons, scopedDatasets());
         const opts = c.items.filter((x) => x.configured).map((x) => ({ value: x.id, label: (x.name ?? x.id) + ' · ' + x.model }));
-        body += `<div class="form-grid">${field('任务类型', select('mode', { operational: '经营诊断', margin: '毛利压力', industry: '行业证据', investment: '投资研究', deep_dive: '深入核验' }))}${field('深度', select('depth', { '': '遵循已激活策略', concise: '聚焦要点', balanced: '均衡', deep: '深入' }, i?.payload.depth ?? 'balanced'))}</div>${field('希望结果满足什么标准', textarea('acceptance', '', 'rows="2" maxlength="2000" placeholder="例如：区分数据变化、解释假设、替代原因和缺失证据"'))}<details><summary>模型参与与数学工具</summary><div class="stack">${field('已配置模型', select('provider', [{ value: '', label: '选择连接（不选择则只使用本地工具）' }, ...opts]))}<label class="check-label"><input type="checkbox" name="use_llm" ${i && !i.payload.allow_external ? 'disabled' : ''}>允许在确认后调用模型${i && !i.payload.allow_external ? '（当前身份禁止外部调用）' : ''}</label>${field('全部外部尝试上限', input('max_calls', Math.min(i?.payload.max_calls ?? 3, 3), 'type="number" min="0" max="' + (i?.payload.max_calls ?? 8) + '" required'))}<label class="check-label"><input type="checkbox" name="include_thread_history">纳入本会话最近4轮原问题，完整内容在确认页展示</label><label class="check-label"><input type="checkbox" name="model_planning">在相同预算内允许模型调整编排</label><label class="check-label"><input type="checkbox" name="forecast">加入本地预测与回测</label>${field('预测目标', select('forecast_metric', { revenue: '营业收入', cost: '营业成本', cash_flow: '经营现金流', gross_margin: '毛利率' }))}${field('预测步数（季度）', input('horizon', 2, 'type="number" min="1" max="4" required'))}</div></details>`;
+        body += `<div class="form-grid">${field('任务类型', select('mode', { operational: '经营诊断', margin: '毛利压力', industry: '行业证据', investment: '投资研究', deep_dive: '深入核验' }))}${field('深度', select('depth', { '': '遵循已激活策略', concise: '聚焦要点', balanced: '均衡', deep: '深入' }, i?.payload.depth ?? 'balanced'))}</div>${researchInputFields(inputs)}${field('希望结果满足什么标准', textarea('acceptance', '', 'rows="2" maxlength="1000" placeholder="例如：区分数据变化、解释假设、替代原因和缺失证据"'))}<details><summary>模型参与与数学工具</summary><div class="stack">${field('已配置模型', select('provider', [{ value: '', label: '选择连接（不选择则只使用本地工具）' }, ...opts]))}<label class="check-label"><input type="checkbox" name="use_llm" ${i && !i.payload.allow_external ? 'disabled' : ''}>允许在确认后调用模型${i && !i.payload.allow_external ? '（当前身份禁止外部调用）' : ''}</label>${field('全部外部尝试上限', input('max_calls', Math.min(i?.payload.max_calls ?? 3, 3), 'type="number" min="0" max="' + (i?.payload.max_calls ?? 8) + '" required'))}<label class="check-label"><input type="checkbox" name="include_thread_history">纳入本会话最近4轮原问题，完整内容在确认页展示</label><label class="check-label"><input type="checkbox" name="model_planning">在相同预算内允许模型调整编排</label><label class="check-label"><input type="checkbox" name="forecast">加入本地预测与回测</label>${field('预测目标', select('forecast_metric', { revenue: '营业收入', cost: '营业成本', cash_flow: '经营现金流', gross_margin: '毛利率' }))}${field('预测步数（季度）', input('horizon', 2, 'type="number" min="1" max="4" required'))}</div></details>`;
     }
     else if (kind === 'action') {
         body += field('验收标准', textarea('acceptance', '', 'rows="3" minlength="5" required maxlength="2000"')) + field('截止日期', input('due_at', '', 'type="date"'));
@@ -400,8 +412,10 @@ async function proposalForm(kind, messageId, valid) {
     }
     else
         body += notice('确认后作为当前服务身份的已批准记忆保存。请勿写入密钥、口令或不必要的敏感信息。');
+    const formKey = token();
     body += formFooter('生成提案，不立即执行');
-    hooks.dialog({ research: '交给 Agent 深入研判', action: '创建跟进行动提案', watch: '创建指标跟踪提案', memory: '保存记忆提案' }[kind], serviceForm('proposal', body, `data-thread="${esc(threadId)}" data-kind="${esc(kind)}" data-message="${esc(messageId)}" data-key="${token()}"`), true);
+    hooks.dialog({ research: '交给 Agent 深入研判', action: '创建跟进行动提案', watch: '创建指标跟踪提案', memory: '保存记忆提案' }[kind], serviceForm('proposal', body, `data-thread="${esc(threadId)}" data-kind="${esc(kind)}" data-message="${esc(messageId)}" data-key="${formKey}" data-research-inputs="${formKey}"`), true);
+    researchForm = inputs ? { ...inputs, key: formKey, threadId, valid: interactionGuard() } : null;
 }
 export async function reviewProposal(row, valid = interactionGuard()) {
     if (!valid())
@@ -416,7 +430,7 @@ export async function reviewProposal(row, valid = interactionGuard()) {
         const plan = await api('/workspace/plans/' + p.plan_id), d = plan.payload;
         if (!valid())
             return;
-        body += `<div class="proposal-nodes">${d.nodes.filter((n) => n.enabled !== false).map((n) => `<div>${icon(n.engine === 'optional_llm' ? 'spark' : 'network')}<span><strong>${esc(n.name ?? n.label)}</strong><small>${esc(n.purpose ?? n.engine)}</small></span></div>`).join('')}</div>${d.blockers.map((v) => notice(v, 'danger')).join('')}<div class="micro-row"><span>外部调用最多 ${d.max_calls} 次</span><span>上下文 ${d.packing.characters} 字符</span></div><details><summary>必须核对：实际上下文、证据与外发对象</summary>${jsonView({ context: d.context, models: d.adaptive?.provider_bindings, scope: d.consent_scope, excluded: d.packing.dropped })}</details>` + serviceForm('confirm-proposal', `${d.max_calls ? '<label class="check-label consent"><input type="checkbox" name="external_consent" required>已核对上述实际上下文与接收方，同意在列明范围和累计预算内外发。</label>' : '<p class="micro">本任务不会调用模型或自动检索网络。</p>'}${formFooter('批准并执行')}`, `data-thread="${esc(threadId)}" data-id="${esc(row.id)}" data-version="${row.version}" data-fingerprint="${esc(p.fingerprint)}"`);
+        body += researchApprovalInputs(d) + `<div class="proposal-nodes">${d.nodes.filter((n) => n.enabled !== false).map((n) => `<div>${icon(n.engine === 'optional_llm' ? 'spark' : 'network')}<span><strong>${esc(n.name ?? n.label)}</strong><small>${esc(n.purpose ?? n.engine)}</small></span></div>`).join('')}</div>${d.blockers.map((v) => notice(v, 'danger')).join('')}<div class="micro-row"><span>外部调用最多 ${d.max_calls} 次</span><span>上下文 ${d.packing.characters} 字符</span></div><details><summary>必须核对：实际上下文、证据与外发对象</summary>${jsonView({ context: d.context, models: d.adaptive?.provider_bindings, scope: d.consent_scope, excluded: d.packing.dropped })}</details>` + serviceForm('confirm-proposal', `${d.max_calls ? '<label class="check-label consent"><input type="checkbox" name="external_consent" required>已核对上述实际上下文与接收方，同意在列明范围和累计预算内外发。</label>' : '<p class="micro">本任务不会调用模型或自动检索网络。</p>'}${formFooter('批准并执行')}`, `data-thread="${esc(threadId)}" data-id="${esc(row.id)}" data-version="${row.version}" data-fingerprint="${esc(p.fingerprint)}"`);
     }
     else {
         body += `<details open><summary>将要创建的记录</summary>${jsonView(p.preview)}</details>` + serviceForm('confirm-proposal', formFooter('确认创建'), `data-thread="${esc(threadId)}" data-id="${esc(row.id)}" data-version="${row.version}" data-fingerprint="${esc(p.fingerprint)}"`);
@@ -425,7 +439,7 @@ export async function reviewProposal(row, valid = interactionGuard()) {
     hooks.dialog('核对后确认', body, true);
 }
 export async function copilotSubmit(form, fd) {
-    if (form.dataset.thread !== threadId)
+    if (form.dataset.thread !== threadId || contextKey !== key())
         throw new Error('会话已切换，请从当前会话重新打开提案。');
     const valid = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null), e = epoch, scope = contextKey;
     const active = () => valid() && validContext(e, scope);
@@ -434,9 +448,12 @@ export async function copilotSubmit(form, fd) {
         const kind = form.dataset.kind;
         const body = { kind, text: get('text'), source_message_id: form.dataset.message, request_id: form.dataset.key, use_llm: fd.has('use_llm') };
         if (kind === 'research') {
+            if (!researchForm || researchForm.key !== form.dataset.researchInputs || researchForm.threadId !== threadId || !researchForm.valid())
+                throw new Error('提案窗口或范围已变化，请重新打开后选择研究依据。');
+            const selected = researchInputRequest(fd, researchForm, state.identity, state.active, scopedDatasets());
             if (body.use_llm && !get('provider'))
                 throw new Error('先选择一个已经配置的模型连接。');
-            Object.assign(body, { include_thread_history: fd.has('include_thread_history'), provider: get('provider'), mode: get('mode'), acceptance: get('acceptance'), max_calls: Number(get('max_calls')), execution: { depth: get('depth') || null, model_planning: body.use_llm && fd.has('model_planning'), forecast: fd.has('forecast'), forecast_metric: get('forecast_metric'), horizon: Number(get('horizon')) } });
+            Object.assign(body, { ...selected.references, include_thread_history: fd.has('include_thread_history'), provider: get('provider'), mode: get('mode'), acceptance: get('acceptance'), max_calls: Number(get('max_calls')), execution: { depth: get('depth') || null, model_planning: body.use_llm && fd.has('model_planning'), ...selected.forecast } });
         }
         else if (kind === 'action')
             Object.assign(body, { acceptance: get('acceptance'), due_at: get('due_at') || null });
@@ -495,3 +512,7 @@ catch (error) {
 finally {
     polling = false;
 } }, 2200);
+// Selection changes are synchronous and belong only to the currently open scoped form.
+document.addEventListener('change', e => { const el = e.target; if (!['copilot-experiment', 'copilot-comparison'].includes(el.id))
+    return; const form = el.form; if (!form || !researchForm || form.dataset.researchInputs !== researchForm.key || form.dataset.thread !== threadId || contextKey !== key() || !researchForm.valid())
+    return; syncResearchInputControls(form, researchForm, scopedDatasets()); });

@@ -1,5 +1,5 @@
 {
-  "executed_at": "2026-10-01T04:22:20.373700+00:00",
+  "executed_at": "2026-10-01T11:20:03.993672+00:00",
   "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
   "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
   "checks": [
@@ -14,7 +14,7 @@
         "scripts"
       ],
       "exit_code": 0,
-      "seconds": 0.094,
+      "seconds": 0.071,
       "timeout_seconds": 240
     },
     {
@@ -27,7 +27,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 3.796,
+      "seconds": 1.646,
       "timeout_seconds": 240
     },
     {
@@ -39,7 +39,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 3.851,
+      "seconds": 2.646,
       "timeout_seconds": 240
     },
     {
@@ -52,7 +52,7 @@
         "--junitxml=evidence/pytest.xml"
       ],
       "exit_code": 0,
-      "seconds": 180.553,
+      "seconds": 209.851,
       "timeout_seconds": 600
     },
     {
@@ -62,6 +62,7 @@
         "--test",
         "tests/actions.frontend.test.mjs",
         "tests/business-source.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
         "tests/evidence.frontend.test.mjs",
         "tests/frontend.test.mjs",
         "tests/import-navigation.frontend.test.mjs",
@@ -74,7 +75,7 @@
         "tests/workflow-inputs.frontend.test.mjs"
       ],
       "exit_code": 0,
-      "seconds": 0.621,
+      "seconds": 0.713,
       "timeout_seconds": 240
     },
     {
@@ -84,7 +85,17 @@
         "scripts/source_guard.py"
       ],
       "exit_code": 0,
-      "seconds": 0.325,
+      "seconds": 0.329,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "command": [
+        "python",
+        "scripts/full_chain_check.py"
+      ],
+      "exit_code": 0,
+      "seconds": 8.232,
       "timeout_seconds": 240
     }
   ],
@@ -99,5 +110,5 @@
     "Future dependency advisories",
     "Optional patched PDF integration"
   ],
-  "publication_note": "Machine-specific interpreter/compiler paths normalized for publication; check outcomes and timings unchanged. Six-stage local verification on the documentation/evidence candidate based on source tree 08a467e26e7734fab6d0b3101af21a2e1ad4abe6; HTTP/restart checks ran separately as recorded in premerge-acceptance-20261001.json."
+  "publication_note": "Machine-specific interpreter/compiler paths normalized; actual outcomes and timings unchanged. Final full seven-stage verification after all production source changes."
 }

@@ -13,7 +13,7 @@ from .identities import resolve_identity, identity_binding, identity_context, co
 from .analytics import calculate, quality_report, forecast_baselines, lineage, period_end, closed_quarter, METRIC_LABELS
 from .intelligence import scoped_retrieve, build_insights
 from .service_contracts import WatchSpec
-from .business_provenance import resolve_source, assert_source_current, with_source_impact
+from .business_provenance import resolve_source, assert_source_current, with_source_impact, report_impact
 
 
 def migrate(store):
@@ -80,6 +80,7 @@ def read_thread(store,user,id):
                 runs.append({'id':run['id'],'state':run['state'],'error':run['error'],'result':run['result'],
                     'updated_at':run['updated_at'],'proposal_id':p['id'],
                     'dataset_version':run['snapshot']['dataset_version'],
+                    'source_impact':report_impact(store,user['id'],run),
                     'current_dataset_version':data['version'] if data else None})
     return {'thread':t,'identity':identity_context(identity) if identity else t['payload'].get('identity_snapshot'),
             'messages':messages,'proposals':[with_source_impact(store,user['id'],p) for p in proposals],'runs':runs,
@@ -88,7 +89,7 @@ def read_thread(store,user,id):
                        'writable':writable,'unavailable_reason':reason}}
 
 
-from .question_scope import topics_for as _topics, resolve_question, scoped_dataset
+from .question_scope import resolve_followup, scoped_dataset, scoped_handoff_query
 
 
 _RATIO_METRICS = {'gross_margin', 'net_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'rd_ratio', 'roe', 'margin_change'}
@@ -183,14 +184,13 @@ def answer_with_tools(store, user, identity, data, text, history):
     else:
         d = data['payload']; q = text.lower(); company = d['company']
         comparison = 'previous' if any(w in q for w in ('环比', '上一季度', '上季', 'previous quarter')) else 'year_over_year'
-        topics = _topics(text)
         effective_query = text
-        if not topics and len(text) < 50 and any(w in text for w in ('继续', '这些', '刚才', '为什么', '展开', '还有')):
-            prior = ' '.join(h['payload']['question'] for h in history[-2:])
-            topics = _topics(prior)
-            effective_query = prior + ' ' + text
-            context['history_used_for_topics'] = bool(topics)
-        question_scope=resolve_question(effective_query,d,_DEFAULT_TOPICS.get(ip.get('perspective','operator'),_DEFAULT_TOPICS['operator']))
+        previous=history[-1]['payload']['response'].get('context',{}).get('question_scope') if history else None
+        question_scope=resolve_followup(text,d,_DEFAULT_TOPICS.get(ip.get('perspective','operator'),_DEFAULT_TOPICS['operator']),previous)
+        if question_scope.get('inherited_fields'):
+            context['history_used_for_topics']='topics' in question_scope['inherited_fields']
+            context['history_scope_message_id']=history[-1]['id']
+            effective_query=scoped_handoff_query(text,question_scope)
         topics=question_scope['topics'];comparison=question_scope['comparison'];d=scoped_dataset(d,question_scope)
         context['question_scope']=question_scope
         depth = ip.get('depth', 'balanced'); detail_limit = 3 if depth == 'concise' else 6 if depth == 'balanced' else 8
@@ -323,11 +323,16 @@ def _propose(store,user,thread_id,body,settings,providers):
             fail('IDEMPOTENCY_CONFLICT','同一提案标识对应不同内容',409)
         return old
     text=body.text.strip()
+    source=None
     if body.source_message_id:
         source=store.one('SELECT * FROM copilot_messages WHERE id=? AND user_id=? AND thread_id=?',(body.source_message_id,user['id'],thread_id))
         if not source:
             fail('NOT_FOUND','原问题不属于当前会话',404)
         text=text or source['payload']['question']
+    source_scope=None
+    if body.kind=='research' and source and text==source['payload']['question'].strip():
+        source_scope=source['payload']['response'].get('context',{}).get('question_scope')
+        text=scoped_handoff_query(text,source_scope)
     if len(text)<5:
         fail('DETAIL_REQUIRED','请写明至少5个字符的具体研究或操作内容',422)
     title=body.title.strip() or text[:80]
@@ -342,6 +347,8 @@ def _propose(store,user,thread_id,body,settings,providers):
         from .contracts import PlanDraft
         from .studio import build_plan
         history=[];scope_query=text
+        if source_scope and source_scope.get('can_calculate'):
+            p['resolved_source_scope']={k:source_scope[k] for k in ('period','comparison','topics')}
         if body.include_thread_history:
             history=store.all('SELECT id,payload FROM copilot_messages WHERE thread_id=? AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 4',(thread_id,user['id']))
             prior=[h for h in reversed(history) if h['id']!=body.source_message_id]
@@ -349,15 +356,20 @@ def _propose(store,user,thread_id,body,settings,providers):
             if len(combined)>3000:fail('HISTORY_BUDGET','选择的历史与目标超过3000字符；请缩短目标或不纳入历史',422)
             if prior:text=combined
             p['history_message_ids']=[h['id'] for h in prior]
+        if len(text)>3000:fail('HISTORY_BUDGET','解析范围与研究目标超过3000字符，请缩短目标后重新预览',422)
         draft=PlanDraft(dataset_id=data['id'],identity_id=thread['payload']['identity_id'],query=text,
             mode=body.mode,use_llm=body.use_llm,provider=body.provider,max_calls=body.max_calls,
-            execution=body.execution,success_criteria=body.acceptance)
+            execution=body.execution,experiment=body.experiment,comparison_artifact=body.comparison_artifact,
+            success_criteria=body.acceptance)
         plan=build_plan(store,user,draft,settings,providers,scope_query=scope_query)
         p['plan_id']=plan['id'];p['plan_version']=plan['version'];p['plan_fingerprint']=plan['payload']['fingerprint']
         p['preview']={'nodes':plan['payload']['nodes'],'packing':plan['payload']['packing'],
             'provider_bindings':plan['payload'].get('adaptive',{}).get('provider_bindings',{}),
             'max_calls':plan['payload']['max_calls'],'blockers':plan['payload']['blockers'],
-            'scope':plan['payload']['consent_scope'],'identity':identity_context(identity)}
+            'scope':plan['payload']['consent_scope'],'identity':identity_context(identity),
+            'research_scope':plan['payload']['snapshot']['research_scope'],
+            'selected_experiment':plan['payload']['context'].get('selected_experiment'),
+            'selected_comparison':plan['payload']['context'].get('selected_comparison')}
     elif body.kind=='watch':
         spec=WatchSpec(title=title,identity_id=thread['payload']['identity_id'],dataset_id=data['id'],
             metric=body.metric,operator=body.operator,threshold=body.threshold,expires_at=body.expires_at)

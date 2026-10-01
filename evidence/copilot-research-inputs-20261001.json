@@ -1,0 +1,51 @@
+{
+  "executed_at": "2026-10-01T11:20:03.993672+00:00",
+  "baseline_remote_commit": "da2613b4f6b4b751c3cd5890f3a6cac7fd2ad8e1",
+  "baseline_tree": "73c6e8bc77c48a1c13d29398c44667997ca0683c",
+  "final_checks": {
+    "backend_passed": 989,
+    "backend_skipped": 0,
+    "backend_upstream_deprecation_warnings": 1,
+    "frontend_passed": 198,
+    "frontend_skipped": 0,
+    "http_journeys": 17,
+    "all_seven_stages_passed": true,
+    "dependency_consistency": "pip check passed",
+    "openapi_runtime_matches": true,
+    "original_brand_and_calculators_unchanged": true
+  },
+  "independent_review": {
+    "backend_focused_passed": 201,
+    "frontend_focused_passed": 91,
+    "final_backend_focused_passed": 66,
+    "overlaps_full_suite": true,
+    "remaining_blockers_in_reviewed_scope": 0
+  },
+  "iterations_disclosed": [
+    "Initial new replay test expected the wrong covered-capability order; assertion corrected without changing production replay order.",
+    "Independent scope-only baseline follow-up misrouting fixed in production; historical period and metric retained.",
+    "Short sourced follow-up rejected before normalization in HTTP and API tests; server normalization order and HTML constraints fixed.",
+    "Explicit negated continuation now asks for clarification and cannot dispatch a guessed plan.",
+    "An intermediate aggregate run used compiled JS from before the last compatibility wording change: 986 backend passed but one frontend failed; rebuilt and ran all seven stages again."
+  ],
+  "real_external_supplier_calls": 0,
+  "native_browser_current_commit": "pending GitHub CI; known local host permission restriction not bypassed",
+  "not_verified": [
+    "real enterprise samples",
+    "live DeepSeek/GLM/MiMo/Qwen accounts or billed usage",
+    "public deployment",
+    "production load",
+    "copyright filing readiness"
+  ],
+  "tested_source_sha256": {
+    "server/copilot.py": "d3cc2047324a593534c3c0965ec6673c289681a67dfbf7285fcda9a1287d4982",
+    "server/question_scope.py": "6277b3a2d6182376a615fd4129b4ea0ac64f9a5c1c7d7c7077356811c504c0a3",
+    "server/service_contracts.py": "44dec5a79cb5b188360a36d32a22e2eb8bb9b3d2cd339e0fd0fa08561fc2ef67",
+    "web/copilot-ui.ts": "a947209bbf6031ac82aad5a9d081e790787a477f3a9cd5ccd02ed4c72ccc4839",
+    "web/copilot-research-inputs.ts": "2901cdb86a2073d69adfe5b65b8388b4ebd39c57685222ccaf69baa4b79c9bae",
+    "web/dist/copilot-ui.js": "0640fb21885b8823be6e38109e761c1a5c0465500c227ea156fc83cf746be32a",
+    "web/dist/copilot-research-inputs.js": "086cb1a73159145237f88be2cb22796a24fc96e23f4933198bcdd01a0ff04713",
+    "scripts/full_chain_check.py": "12e121948b9c0df44e29640e6474126187ab9e21f3cd268688ab2252166512fb",
+    "scripts/service_browser_check.py": "8c45fd7aaad2388f17afcb1766fa73893d5ea7303f2904ada660179f301de18f"
+  }
+}

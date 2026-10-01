@@ -197,7 +197,7 @@ def main():
             record('指定历史季度显示当期现金流金额与真实来源，不误用最新季度或比率')
             snap('ui-current-copilot.png')
             page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
-            f='form[data-service-form="proposal"]';page.locator(f+' details').first.click();page.locator(f+' [name="forecast"]').check()
+            f='form[data-service-form="proposal"]';page.locator(f+' summary').filter(has_text='模型参与与数学工具').click();page.locator(f+' [name="forecast"]').check()
             assert page.locator(f+' [name="max_calls"]').input_value()=='0'
             assert page.locator(f).evaluate('(form)=>form.checkValidity()')
             submit(f);page.locator('form[data-service-form="confirm-proposal"]').wait_for()
@@ -212,7 +212,7 @@ def main():
             assert run_row['result']['adaptive']['mathematical_outputs']['forecast']['train_end']=='2024-Q2'
             record('助手历史问题进入批准计划后，数学输入仍截至同一目标季度')
             go('agents:run-'+run_id)
-            math=page.locator('[data-math-kind="forecast"]');math.wait_for()
+            math=page.locator('#main [data-math-kind="forecast"]');math.wait_for()
             assert math.locator('svg.chart').is_visible()
             assert '相同滚动起点回测' in math.inner_text() and '点估计' in math.inner_text()
             assert page.locator('#main a[href$="export?format=json"]').is_visible()
@@ -371,6 +371,41 @@ def main():
             assert peer['payload']['company'] in page.locator('[data-comparison-stage="report"]').inner_text()
             assert not overflow();snap('ui-current-comparison-report.png')
             record('共同季度对照经界面保存，明确主企业与额外企业输入，批准后报告保留原比较指纹和数值')
+            # Save a new experiment against the current primary revision; the older
+            # experiment above intentionally remains tied to its original inputs.
+            go('lab');page.locator('#experiment-form [name="name"]').fill('助手复用实验（合成验收）')
+            page.locator('#experiment-form [name="price_change"]').fill('3')
+            page.locator('#experiment-form [name="assumptions"]').fill('明确保存假设后由助手引用，仅为隔离流程验收')
+            submit('#experiment-form')
+            chat_experiment=client.get('/api/workspace/experiments').json()['items'][0]
+            go('copilot');page.locator('[data-x-action="chat-new"]').first.click()
+            for index,question in enumerate([comparison_row['payload']['period']+'毛利率同比核查','继续展开刚才的原因','继续展开','那环比呢']):
+                page.locator('#assistant-query').fill(question);submit('#assistant-form')
+                page.locator('.chat-turn').nth(index).wait_for()
+                assert comparison_row['payload']['period'] in page.locator('.chat-turn').last.inner_text()
+            assert '毛利率' in page.locator('.chat-turn').last.locator('.fact-tile').first.inner_text()
+            # Explicitly switch back to the comparison's saved year-over-year basis.
+            page.locator('#assistant-query').fill('那同比呢');submit('#assistant-form');page.locator('.chat-turn').nth(4).wait_for()
+            page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
+            f='form[data-service-form="proposal"]';page.locator('#copilot-experiment').select_option(chat_experiment['id'])
+            page.locator('#copilot-comparison').select_option(comparison_id)
+            assert '明确保存假设' in page.locator('#copilot-experiment-details').inner_text()
+            assert peer['payload']['company'] in page.locator('#copilot-comparison-details').inner_text()
+            assert page.locator(f).evaluate('(form)=>form.checkValidity()')
+            submit(f);page.locator('form[data-service-form="confirm-proposal"]').wait_for()
+            assert comparison_row['payload']['period'] in page.locator('#modal').inner_text()
+            assert peer['payload']['company'] in page.locator('#modal').inner_text()
+            assert '明确保存假设' in page.locator('#modal').inner_text()
+            submit('form[data-service-form="confirm-proposal"]')
+            page.locator('.chat-math-results [data-math-kind="comparison"]').wait_for(timeout=25000)
+            assert page.locator('.chat-math-results [data-math-kind="sensitivity"]').is_visible()
+            assert peer['payload']['company'] in page.locator('.chat-math-results').inner_text()
+            chat_run=client.get('/api/runs/'+client.get('/api/runs').json()['items'][0]['id']).json()
+            assert chat_run['result']['experiment']['hash']==chat_experiment['experiment_hash']
+            assert chat_run['result']['comparison_provenance']['hash']==comparison_row['comparison_hash']
+            assert chat_run['result']['analysis']['current_period']==comparison_row['payload']['period']
+            assert not overflow();snap('ui-current-copilot-saved-inputs.png')
+            record('连续短追问保持季度和指标→助手显式选实验/全体对照→批准→同会话真实数学与对照结果')
             go('data');page.locator('#active-dataset').select_option(peer['id'])
             page.locator('#dataset-editor').wait_for()
             page.locator('#dataset-editor [name="notes"]').fill('仅同行修订说明：历史对照仍须冻结')
@@ -379,6 +414,11 @@ def main():
             assert page.locator('#comparison-transfer-form').count()==0 or page.locator('#comparison-transfer-form button[type="submit"]').is_disabled()
             assert client.get('/api/runs/'+comparison_run_id).json()['result']==comparison_run['result']
             record('同行单独修订后已保存对照不再当成当前Agent输入，原报告比较结果不被重写')
+            page.locator('#active-dataset').select_option(original['id']);go('copilot')
+            page.locator('.chat-math-results').wait_for()
+            assert '财务输入已修订' in page.locator('.proposal-card').last.inner_text()
+            assert client.get('/api/runs/'+chat_run['id']).json()['result']==chat_run['result']
+            record('同行修订在原助手会话显示来源适用性变化，冻结数学与报告不重算')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')
