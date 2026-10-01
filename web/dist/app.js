@@ -1,10 +1,10 @@
-import { displayedComparisonMembers, comparisonPreviewDraft, comparisonSaveForm, comparisonCreateRequest, selectedComparisonRequest, syncComparisonControls } from './saved-comparisons.js';
+import { displayedComparisonMembers, comparisonPreviewDraft, comparisonSaveForm, comparisonCreateRequest, selectedComparisonRequest, syncComparisonControls, comparisonRemovalTarget, comparisonDeleteForm, removeSavedComparison, refreshComparisonReferences } from './saved-comparisons.js';
 import { syncExperimentControls, selectedExperimentRequest, unchangedInputGuard } from './saved-experiments.js';
 import { formSource, continueInsightDraft } from './business-source.js';
 import { workflowGuide } from './workflow.js';
 import { invalidateInteractions, interactionGuard, finishMutation, renewSavedDraft } from './interactions.js';
 import { loadLayout, applyLayout, toggleNav, toggleAssistant, clearLayout, closeDrawers } from './layout.js';
-import { copilotShell, copilotPage, mountCopilot, sendCopilot, resetCopilot } from './copilot-ui.js';
+import { copilotShell, copilotPage, mountCopilot, sendCopilot, resetCopilot, forgetCopilotComparison } from './copilot-ui.js';
 import { servicesPage, trackingPage } from './views-services.js';
 import { setupExperience, restoreIdentity } from './experience.js';
 import { showBrandIntro, restoreMotion, motionSetting } from './brand.js';
@@ -343,6 +343,21 @@ document.addEventListener('submit', async (event) => {
                 }
                 break;
             }
+            case 'comparison-delete-form': {
+                if (!check('confirm_delete'))
+                    throw new Error('请先核对并确认永久删除及关联影响');
+                const target = comparisonRemovalTarget(form.dataset.id ?? '', Number(form.dataset.version), form.dataset.identityId ?? '', form.dataset.source === 'history' ? 'history' : undefined);
+                const removed = await removeSavedComparison(target, () => { refreshComparisonReferences(document, target); forgetCopilotComparison(target); });
+                if (removed) {
+                    if (submittedCurrent()) {
+                        modal.close();
+                        if (state.route === 'compare' && state.id === target.id)
+                            navigate('compare', true);
+                    }
+                    toast('企业对照已永久清理；历史冻结结果保留，关联计划后续外发将停止。');
+                }
+                break;
+            }
             case 'comparison-transfer-form': {
                 if ((form.dataset.identityId ?? '') !== state.identity)
                     throw new Error('服务身份已经变化，请重新选择企业对照');
@@ -430,6 +445,8 @@ document.addEventListener('submit', async (event) => {
         }
     }
     catch (e) {
+        if (form.id === 'comparison-delete-form' && (!submittedContext() || !submittedCurrent()))
+            return;
         const msg = e instanceof Error ? e.message : '操作失败';
         if (error && error.isConnected)
             error.textContent = msg;
@@ -839,6 +856,11 @@ document.addEventListener('click', async (event) => {
             case 'export-experiment':
                 download('analysis-experiment.json', state.cache.experiment);
                 break;
+            case 'delete-comparison': {
+                const target = comparisonRemovalTarget(id, Number(el.dataset.version), el.dataset.identityId ?? '', el.dataset.source === 'history' ? 'history' : undefined);
+                dialog('确认永久清理企业对照', comparisonDeleteForm(target));
+                break;
+            }
             case 'export-comparison':
                 download('saved-enterprise-comparison.json', state.cache.comparison);
                 break;
@@ -922,7 +944,7 @@ document.addEventListener('click', async (event) => {
 document.addEventListener('input', (event) => { const el = event.target; if (el.id === 'command-filter') {
     document.querySelectorAll('#command-results button').forEach(b => b.hidden = !b.textContent.includes(el.value));
     return;
-} const form = el.closest('form'); if (form && !['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'public-search-form'].includes(form.id))
+} const form = el.closest('form'); if (form && !['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'comparison-delete-form', 'public-search-form'].includes(form.id))
     state.dirty = true; });
 document.addEventListener('change', async (event) => { const el = event.target; try {
     if (el.id === 'plan-experiment')

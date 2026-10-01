@@ -1,7 +1,147 @@
 /** Saved comparison presentation and exact, explicit multi-company input bindings. */
-import { viewWorkspace as workspace } from './api.js';
+import { viewWorkspace as workspace, workspace as writeWorkspace, contextGuard, ApiError } from './api.js';
 import { state, scopedDatasets, scopeQuery } from './state.js';
 import { esc, field, input, textarea, select, notice, jsonView, table, pct, heading, routeButton, button, badge, empty, timeText, formFooter } from './components.js';
+/** Mutation revision only, not another comparison store. Re-read GET batches whose
+ * response could predate a confirmed removal, before publishing any cache or UI. */
+let comparisonRevision = 0;
+const pendingRemovals = new Set();
+export async function currentComparisonRead(read) {
+    const valid = contextGuard();
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const revision = comparisonRevision;
+        const value = await read();
+        if (!valid())
+            throw new ApiError('账户或服务身份已变化，已丢弃旧对照读取。', 409, 'STALE_SESSION', '');
+        if (revision === comparisonRevision)
+            return value;
+    }
+    throw new ApiError('企业对照在读取期间已变化，请重新读取当前记录。', 409, 'COMPARISON_CHANGED', '');
+}
+export function comparisonRemovalTarget(id, version, identityId, source) {
+    if (source === 'history') {
+        const history = state.cache.serviceHistory;
+        const row = history?.scope === 'account_owned_orphan_history' && !!state.user?.id && state.cache.serviceHistoryOwner === state.user.id ? history.items.find((r) => r.id === id && r.kind === 'comparison') : null;
+        if (!row || row.identity_id !== identityId || row.payload?.identity_id !== identityId || !Number.isSafeInteger(version) || version < 1 || row.version !== version)
+            throw new Error('账户历史对照已变化或尚未加载，请从历史列表重新核对');
+        return { id: row.id, version: row.version, identityId, name: row.payload.name, period: row.payload.period, source: 'history' };
+    }
+    if (identityId !== state.identity)
+        throw new Error('服务身份已经变化，请在当前身份中重新打开清理窗口');
+    const rows = [state.cache.comparison, ...(state.cache.comparisons ?? []), ...(state.cache.planComparisons ?? [])].filter(Boolean);
+    const row = rows.find(r => r.id === id && (r.payload?.identity_id ?? '') === identityId);
+    if (!row || !Number.isSafeInteger(version) || version < 1 || row.version !== version)
+        throw new Error('当前显示的对照已变化或不可用，请刷新核对后重新清理');
+    return { id: row.id, version: row.version, identityId, name: row.payload.name, period: row.payload.period };
+}
+export function comparisonDeleteForm(target) {
+    return `<form id="comparison-delete-form" class="stack" data-id="${esc(target.id)}" data-version="${target.version}" data-identity-id="${esc(target.identityId)}" data-source="${target.source ?? 'current'}">${target.source === 'history' ? notice('这是当前账户已加载的失效范围历史对照，原服务身份：' + (target.identityId || '默认身份') + '。这里只清理原始记录，不恢复历史身份的执行或编辑权限。', 'warm') : ''}<p>即将永久清理已保存企业对照 <strong>${esc(target.name)}</strong></p><p><strong>共同季度：</strong>${esc(target.period)} · <strong>记录版本：</strong>v${target.version}</p><p class="micro">对象 ID：${esc(target.id)}</p>${notice('删除后不可恢复。这份原始对照及其完整输入快照将被移除，不能再加入新计划；引用它的计划后续外发将停止，关联来源将标记为不可用。', 'danger')}${notice('已批准计划、历史报告和已归档摘要保留当时的冻结内容，不会连带删除或重新计算。当前草稿中对此对照的选择会取消，其他输入保留。')}<p class="micro">${target.source === 'history' ? '此处是当前账户的失效范围历史，清理后释放账户的对照记录容量，无需切回已删除的原身份；其他类型的历史记录仍仅供只读核查。' : '清理后释放账户的对照记录容量。当前列表仅显示本身份与企业筛选范围，其他记录需切换范围查看。原身份已删除或范围已失效时，请到“身份与连接 → 已失效研究范围的历史”只读核查并清理原对照。'}</p><label class="check-label"><input type="checkbox" name="confirm_delete" required>我已核对上述对象、季度和版本，确认永久删除并了解关联影响</label><p class="form-error" role="alert"></p><div class="form-footer">${button('取消', 'close-modal')}<button class="primary" type="submit">永久删除这份对照</button></div></form>`;
+}
+export function comparisonHistoryDeleteButton(row) { return row.kind === 'comparison' ? button('永久清理原对照', 'delete-comparison', 'text-button danger-text', `data-id="${esc(row.id)}" data-version="${row.version}" data-identity-id="${esc(row.identity_id)}" data-source="history"`) : ''; }
+function comparisonDeleteButton(row) { return button('清理对照', 'delete-comparison', 'text-button danger-text', `data-id="${esc(row.id)}" data-version="${row.version}" data-identity-id="${esc(row.payload.identity_id ?? '')}" aria-label="清理对照：${esc(row.payload.name)}"`); }
+/** Remove only live object references. Approved plans, reports and receipts stay frozen. */
+export function forgetComparison(target) {
+    const history = state.cache.serviceHistory;
+    if (history && state.cache.serviceHistoryOwner === state.user?.id) {
+        const before = history.items.length;
+        history.items = history.items.filter((r) => r.kind !== 'comparison' || r.id !== target.id || r.identity_id !== target.identityId);
+        if (history.next_offset !== null && history.next_offset !== undefined)
+            history.next_offset = Math.max(0, history.next_offset - (before - history.items.length));
+    }
+    for (const key of ['comparisons', 'planComparisons'])
+        if (Array.isArray(state.cache[key]))
+            state.cache[key] = state.cache[key].filter((r) => r.id !== target.id || (r.payload?.identity_id ?? '') !== target.identityId);
+    if (state.cache.comparison?.id === target.id && (state.cache.comparison.payload?.identity_id ?? '') === target.identityId)
+        delete state.cache.comparison;
+}
+export function removeComparisonOption(selector, id) {
+    if (!selector)
+        return false;
+    const selected = selector.value === id;
+    for (const option of [...selector.options])
+        if (option.value === id)
+            option.remove();
+    if (selected)
+        selector.value = '';
+    return selected;
+}
+export function refreshComparisonReferences(root, target) {
+    const selected = target.identityId === state.identity && removeComparisonOption(root.querySelector('#plan-comparison'), target.id);
+    syncComparisonControls(root, state.cache.planComparisons ?? [], scopedDatasets(), state.identity);
+    if (selected) {
+        const detail = root.querySelector('#selected-comparison-details');
+        if (detail)
+            detail.innerHTML = notice('原选企业对照已清理，已取消该引用；研究问题和其他输入保留，请核对后再生成计划。', 'warm');
+    }
+    for (const marker of root.querySelectorAll('[data-history-comparison]'))
+        if (marker.dataset.historyComparison === target.id)
+            marker.closest('tr,article')?.remove();
+    for (const more of root.querySelectorAll('[data-x-action="history-more"]'))
+        if (state.cache.serviceHistory?.next_offset != null)
+            more.dataset.offset = String(state.cache.serviceHistory.next_offset);
+    for (const detail of root.querySelectorAll('[data-comparison-history-detail]'))
+        if (detail.dataset.comparisonHistoryDetail === target.id)
+            detail.innerHTML = notice('这份原始历史对照已永久清理；历史报告、已批准计划和归档摘要仍保留冻结内容。', 'warm');
+    for (const row of root.querySelectorAll('[data-comparison-record]'))
+        if (row.dataset.comparisonRecord === target.id)
+            row.remove();
+    const rows = root.querySelector('[data-comparison-rows]');
+    if (rows && !rows.querySelector('[data-comparison-record]'))
+        rows.innerHTML = empty('当前范围没有已保存对照', '可继续保存新的对照，或切换服务身份与企业范围查看其他记录。');
+    for (const detail of root.querySelectorAll('[data-comparison-detail]'))
+        if (detail.dataset.comparisonDetail === target.id)
+            detail.innerHTML = heading('此企业对照已清理', '原始对照不可恢复；已批准计划、历史报告和摘要中的冻结内容仍保留。', routeButton('返回企业对照', 'compare', 'secondary'));
+}
+/** The form's explicit confirmation precedes this call; never retry a DELETE. */
+export async function removeSavedComparison(target, onRemoved = () => { }) {
+    const owner = state.user?.id, identity = state.identity, dataset = state.active, sameContext = contextGuard();
+    const sameOwnerIdentity = () => state.user?.id === owner && state.identity === identity;
+    const key = JSON.stringify([owner, target.identityId, target.id]);
+    if (pendingRemovals.has(key))
+        return false;
+    const current = comparisonRemovalTarget(target.id, target.version, target.identityId, target.source);
+    if (current.name !== target.name || current.period !== target.period)
+        throw new Error('清理对象已变化，请重新核对名称、季度和版本');
+    pendingRemovals.add(key);
+    try {
+        try {
+            const result = await writeWorkspace('/comparisons/' + encodeURIComponent(target.id) + '?' + new URLSearchParams({ identity_id: target.identityId, version: String(target.version) }), 'DELETE');
+            if (result.deleted !== true)
+                throw new Error('未收到明确的删除结果，请刷新核对；不会自动重试。');
+        }
+        catch (error) {
+            if (error instanceof ApiError && error.code === 'STALE_SESSION' && sameOwnerIdentity() && state.active !== dataset) {
+                // A dataset switch discards the write response. Verify absence in the new
+                // context instead of assuming success or repeating the destructive request.
+                const checkedContext = contextGuard();
+                try {
+                    await writeWorkspace('/comparisons/' + encodeURIComponent(target.id) + '?' + new URLSearchParams({ identity_id: target.identityId }));
+                    return false;
+                }
+                catch (check) {
+                    if (!checkedContext() || !sameOwnerIdentity())
+                        return false;
+                    if (!(check instanceof ApiError && check.status === 404 && check.code === 'NOT_FOUND'))
+                        return false;
+                }
+            }
+            else {
+                if (!sameContext() || !sameOwnerIdentity())
+                    return false;
+                throw error;
+            }
+        }
+        if (!sameOwnerIdentity())
+            return false;
+        forgetComparison(target);
+        onRemoved();
+        return true;
+    }
+    finally {
+        comparisonRevision++;
+        pendingRemovals.delete(key);
+    }
+}
 export const comparisonModes = { year_over_year: '上年同季', previous: '上一季度' };
 const hashPattern = /^[a-f0-9]{64}$/;
 export function frozenComparisonMembers(ids, datasets) {
@@ -137,17 +277,17 @@ export function syncComparisonControls(root, rows, datasets, identityId) {
     }
 }
 export async function savedComparisonPage(id) {
-    const row = await workspace('/comparisons/' + encodeURIComponent(id) + '?' + new URLSearchParams({ identity_id: state.identity }));
+    const row = await currentComparisonRead(() => workspace('/comparisons/' + encodeURIComponent(id) + '?' + new URLSearchParams({ identity_id: state.identity })));
     state.cache.comparison = row;
     const p = row.payload;
     const problem = comparisonProblem(row, scopedDatasets(), state.identity);
-    return heading(p.name, '保留共同季度、明确可比性说明与全部输入快照；当前数据更新不改写这份历史对照。', routeButton('返回企业对照', 'compare', 'secondary') + button('导出完整对照', 'export-comparison')) + (problem ? notice('当前适用性需核对：' + problem + '。下方仍展示原始保存结果。', 'warm') : notice('来源版本仍匹配当前企业数据；这不等于已证明业务口径可比。')) + comparisonArtifactView(row, '已保存企业对照') +
-        `<section class="panel"><h2>明确交给 Agent 研判</h2>${problem ? notice('此对照当前不能加入新计划，请核对原始来源并重新保存。', 'warm') : `<form id="comparison-transfer-form" class="stack" data-id="${esc(row.id)}" data-version="${row.version}" data-hash="${esc(row.comparison_hash)}" data-identity-id="${esc(state.identity)}">${field('主企业（须是本对照成员）', select('primary_dataset_id', [{ value: '', label: '请选择本次报告的主企业' }, ...p.members.map((m) => ({ value: m.id, label: m.company + ' · ' + m.id }))], '', 'required'))}<p>目标季度固定为 <strong>${esc(p.period)}</strong>；将同时纳入以上 ${p.members.length} 份成员的对照派生指标和来源信息；主企业选择不会隐去额外成员。完整同行财务快照不会因此自动外发。</p><p class="micro">下一步仍需生成计划、审阅外发范围并明确批准；此按钮不会执行模型。</p>${formFooter('带入 Agent 计划草稿')}</form>`}</section><section class="panel"><details><summary>完整冻结输入快照</summary>${jsonView(p.members)}</details></section>`;
+    return `<div data-comparison-detail="${esc(row.id)}">` + heading(p.name, '保留共同季度、明确可比性说明与全部输入快照；当前数据更新不改写这份历史对照。', routeButton('返回企业对照', 'compare', 'secondary') + button('导出完整对照', 'export-comparison') + comparisonDeleteButton(row)) + (problem ? notice('当前适用性需核对：' + problem + '。下方仍展示原始保存结果。', 'warm') : notice('来源版本仍匹配当前企业数据；这不等于已证明业务口径可比。')) + comparisonArtifactView(row, '已保存企业对照') +
+        `<section class="panel"><h2>明确交给 Agent 研判</h2>${problem ? notice('此对照当前不能加入新计划，请核对原始来源并重新保存。', 'warm') : `<form id="comparison-transfer-form" class="stack" data-id="${esc(row.id)}" data-version="${row.version}" data-hash="${esc(row.comparison_hash)}" data-identity-id="${esc(state.identity)}">${field('主企业（须是本对照成员）', select('primary_dataset_id', [{ value: '', label: '请选择本次报告的主企业' }, ...p.members.map((m) => ({ value: m.id, label: m.company + ' · ' + m.id }))], '', 'required'))}<p>目标季度固定为 <strong>${esc(p.period)}</strong>；将同时纳入以上 ${p.members.length} 份成员的对照派生指标和来源信息；主企业选择不会隐去额外成员。完整同行财务快照不会因此自动外发。</p><p class="micro">下一步仍需生成计划、审阅外发范围并明确批准；此按钮不会执行模型。</p>${formFooter('带入 Agent 计划草稿')}</form>`}</section><section class="panel"><details><summary>完整冻结输入快照</summary>${jsonView(p.members)}</details></section></div>`;
 }
 export function savedComparisonList(rows, hasMore = false) {
-    return `<section class="panel"><div class="section-heading"><h2>已保存企业对照</h2><p class="micro">按当前身份与企业筛选，保留原始结果和来源版本。</p></div>${rows.length ? rows.map(row => `<button class="list-link" data-route="compare:${esc(row.id)}"><span><strong>${esc(row.payload.name)}</strong><small>${esc(row.payload.period)} · ${esc(row.payload.members.map((m) => m.company).join(' / '))} · ${timeText(row.created_at)}</small><small>${row.source_impact?.state === 'current' ? '来源版本匹配' : '来源需复核'} · ${esc(comparisonModes[row.payload.comparison] ?? row.payload.comparison)}</small></span>${badge('v' + row.version)}</button>`).join('') : empty('尚未保存对照', '先计算共同季度，再明确命名、说明可比性并保存。')}${hasMore ? notice('仅显示最近记录；更早记录仍保留，可从账户导出查阅。') : ''}</section>`;
+    return `<section class="panel"><div class="section-heading"><h2>已保存企业对照</h2><p class="micro">仅显示当前身份与企业筛选范围，保留原始结果和来源版本。清理不再需要的记录可释放账户的对照容量；其他身份或企业的记录需切换范围查看。原身份已失效的对照可到“身份与连接 → 已失效研究范围的历史”核查并清理。</p></div><div data-comparison-rows>${rows.length ? rows.map(row => `<div class="saved-comparison-row" data-comparison-record="${esc(row.id)}"><button class="list-link" data-route="compare:${esc(row.id)}"><span><strong>${esc(row.payload.name)}</strong><small>${esc(row.payload.period)} · ${esc(row.payload.members.map((m) => m.company).join(' / '))} · ${timeText(row.created_at)}</small><small>${row.source_impact?.state === 'current' ? '来源版本匹配' : '来源需复核'} · ${esc(comparisonModes[row.payload.comparison] ?? row.payload.comparison)}</small></span>${badge('v' + row.version)}</button>${comparisonDeleteButton(row)}</div>`).join('') : empty('尚未保存对照', '先计算共同季度，再明确命名、说明可比性并保存。')}</div>${hasMore ? notice('仅显示最近记录；清理后重新读取可继续整理更早记录，或从账户导出查阅。') : ''}</section>`;
 }
-export async function comparisonIndex() { const rows = await workspace('/comparisons' + scopeQuery()); state.cache.comparisons = rows.items; return savedComparisonList(rows.items, rows.has_more); }
+export async function comparisonIndex() { const rows = await currentComparisonRead(() => workspace('/comparisons' + scopeQuery())); state.cache.comparisons = rows.items; return savedComparisonList(rows.items, rows.has_more); }
 /** Bounded historical receipt, usable after the original report/artifact is removed. */
 export function comparisonReceiptView(reference) {
     if (!reference?.payload)

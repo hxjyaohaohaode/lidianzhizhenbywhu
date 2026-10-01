@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-01",
+  "baseline_remote_sha": "67b84e0f8547f31e4c114087419330eef54a67b0",
+  "baseline_tree": "a9c5681379be5e67f1136b670a5ba58ff9bb6464",
+  "verification_completed_at": "2026-10-01T12:17:15.075985+00:00",
+  "local": {
+    "seven_stages_passed": true,
+    "backend": {
+      "passed": 992,
+      "skipped": 0,
+      "upstream_warnings": 1
+    },
+    "frontend": {
+      "passed": 239,
+      "skipped": 0
+    },
+    "real_http_journeys": 17,
+    "final_typecheck_build_and_pip_check": "passed after final UI edits"
+  },
+  "capacity_cases": [
+    "200 synthetic comparisons across identities; invalid owner, identity, version and CSRF cannot delete; valid deletion frees exactly one slot",
+    "200 synthetic comparisons in subsequently deleted identity; loaded owner history permits original identity/version cleanup, capacity recovers without reviving the identity"
+  ],
+  "review_fixes": [
+    "Preserve background unsaved comparison draft and navigation guard; confirmation checkbox is not a business edit",
+    "Reconcile dataset-switch discarded deletion response only with a same-account/identity read and explicit NOT_FOUND; never retry DELETE",
+    "Discard or re-read delayed current and orphan comparison catalogs; preserve unrelated pagination and historical snapshots"
+  ],
+  "native_browser": {
+    "status": "pending current-commit CI",
+    "script_expected_checks": 48,
+    "new_confirmations": [
+      "ui-current-comparison-cleanup.png",
+      "ui-current-history-comparison-cleanup.png"
+    ],
+    "local_policy_bypassed": false
+  },
+  "unchanged_sha256": {
+    "web/brand/logo.png": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+    "web/brand/loading-video.mp4": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd",
+    "server/models.py": "d4b98e8b0912dcbc18fa1f6f712b06afcef54d724435237f5095093107f15047",
+    "server/analytics.py": "39dbda87088fa49e4d6df282c796468e07c89a46dea3343f1ddc19980ca074d3"
+  },
+  "not_verified": [
+    "Live suppliers or API credentials",
+    "Real battery/enterprise inputs",
+    "Public production deployment",
+    "Production load or multi-process scale"
+  ],
+  "external_supplier_calls": 0,
+  "deletion_scope": "Only isolated synthetic test accounts and fixtures; no real user business records deleted"
+}

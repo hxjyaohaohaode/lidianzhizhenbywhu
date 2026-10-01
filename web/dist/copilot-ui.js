@@ -1,3 +1,4 @@
+import { currentComparisonRead, removeComparisonOption } from './saved-comparisons.js';
 import { scopedResearchInputs, researchInputFields, syncResearchInputControls, researchInputRequest, researchApprovalInputs, researchRunOutputs } from './copilot-research-inputs.js';
 import { unchangedInputGuard } from './saved-experiments.js';
 import { claimMathReferences } from './math-results.js';
@@ -20,6 +21,22 @@ function token() { return typeof crypto.randomUUID === 'function' ? crypto.rando
 function key() { return (state.user?.id ?? '') + '|' + (state.user?.preferences.role ?? 'enterprise') + '|' + state.identity + '|' + state.active; }
 export function configureCopilot(value) { hooks = value; }
 export function resetCopilot() { researchForm = null; epoch++; contextKey = ''; threadId = ''; current = null; draft = ''; pendingKey = ''; pendingText = ''; creationKey = ''; freshThread = false; loadTask = null; creationTask = null; readSequence++; remembered.clear(); drafts.clear(); traces.clear(); sending = false; loading = false; }
+/** Invalidate the current editable catalog only; archived proposals/results stay intact. */
+export function forgetCopilotComparison(target) {
+    if (!researchForm || researchForm.identityId !== target.identityId || researchForm.identityId !== state.identity || researchForm.datasetId !== state.active || contextKey !== key())
+        return;
+    researchForm.comparisons = researchForm.comparisons.filter(r => r.id !== target.id);
+    const form = document.querySelector('form[data-research-inputs]');
+    if (!form || form.dataset.researchInputs !== researchForm.key || form.dataset.thread !== threadId || !researchForm.valid())
+        return;
+    const selected = removeComparisonOption(form.querySelector('[name="comparison_artifact_id"]'), target.id);
+    syncResearchInputControls(form, researchForm, scopedDatasets());
+    if (selected) {
+        const detail = form.querySelector('#copilot-comparison-details');
+        if (detail)
+            detail.innerHTML = notice('原选企业对照已清理，已取消该引用；研究问题和其他输入保留，请核对后再生成提案。', 'warm');
+    }
+}
 export function currentThread() { return current; }
 function switchContext() { const next = key(); if (next === contextKey)
     return; researchForm = null; if (contextKey)
@@ -408,7 +425,7 @@ async function proposalForm(kind, messageId, valid) {
         if (!datasetId || !scopedDatasets().some(d => d.id === datasetId))
             throw new Error('请先选择当前身份范围内的企业，再生成研判提案。');
         const query = '?' + new URLSearchParams({ identity_id: identityId, dataset_id: datasetId });
-        const [c, experiments, comparisons] = await Promise.all([api('/services/connections'), workspace('/experiments' + query), workspace('/comparisons' + query)]);
+        const [c, experiments, comparisons] = await currentComparisonRead(() => Promise.all([api('/services/connections'), workspace('/experiments' + query), workspace('/comparisons' + query)]));
         if (!valid())
             return;
         inputs = scopedResearchInputs(identityId, datasetId, experiments, comparisons, scopedDatasets());

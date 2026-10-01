@@ -27,3 +27,5 @@ dialog{border:1px solid var(--line);border-radius:18px;background:var(--paper);c
 .menu-close{display:none}@media(max-width:800px){.menu-close{display:inline-flex;position:absolute;right:9px;top:19px;width:29px;min-width:29px;height:29px;min-height:29px;padding:5px}.sidebar .brand{font-size:17px}}
 
 .agent-node.stopped{background:var(--warm-bg);border-color:var(--warm);color:var(--text)}.agent-node.not-reached{opacity:.55;border-style:dashed}
+
+.saved-comparison-row{display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--line)}.saved-comparison-row:last-child{border-bottom:0}.saved-comparison-row .list-link{flex:1;min-width:0;border-bottom:0}.saved-comparison-row>.danger-text{flex-shrink:0}

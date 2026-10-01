@@ -72,9 +72,9 @@ def main():
             page.evaluate('(r)=>location.hash=r',route)
             page.locator('#main[data-page="'+route.split(':')[0]+'"] h1').wait_for(timeout=12000)
             assert page.locator('#main h1').inner_text()!='读取未完成',page.locator('#main').inner_text()
-        def snap(name):
+        def snap(name,full_page=True):
             page.wait_for_timeout(250)
-            page.screenshot(path=str(OUT/name),full_page=True);screens.append(name)
+            page.screenshot(path=str(OUT/name),full_page=full_page);screens.append(name)
         def overflow():return page.evaluate('document.documentElement.scrollWidth > innerWidth + 1')
         def wait_box(selector, min_x=-1, max_x=None):
             # Poll geometry through Playwright's native locator, outside page eval.
@@ -433,6 +433,79 @@ def main():
             assert '财务输入已修订' in current_proposal.inner_text()
             assert client.get('/api/runs/'+chat_run['id']).json()['result']==chat_run['result']
             record('同行修订在原助手会话显示来源适用性变化，冻结数学与报告不重算')
+            # Delete only the comparison created by this isolated browser account.
+            # Cancel leaves it intact; permanent cleanup preserves historical runs
+            # while both live proposal selectors stop offering the removed record.
+            go('compare:'+comparison_id)
+            page.locator('[data-action="delete-comparison"][data-id="'+comparison_id+'"]').click()
+            cleanup='#comparison-delete-form';page.locator(cleanup).wait_for()
+            assert comparison_row['payload']['name'] in page.locator('#modal').inner_text()
+            assert comparison_id in page.locator('#modal').inner_text()
+            assert comparison_row['payload']['period'] in page.locator('#modal').inner_text()
+            assert not page.locator(cleanup).evaluate('(form)=>form.checkValidity()')
+            assert not overflow();snap('ui-current-comparison-cleanup.png',full_page=False)
+            page.locator('#modal [data-action="close-modal"]').first.click()
+            assert client.get('/api/workspace/comparisons/'+comparison_id,params={'identity_id':identity_id}).status_code==200
+            page.locator('[data-action="delete-comparison"][data-id="'+comparison_id+'"]').click()
+            page.locator(cleanup+' [name="confirm_delete"]').check();submit(cleanup)
+            page.locator('#modal').wait_for(state='hidden')
+            page.locator('#compare-form').wait_for()
+            assert page.locator('#main [data-route="compare:'+comparison_id+'"]').count()==0
+            assert client.get('/api/workspace/comparisons/'+comparison_id,params={'identity_id':identity_id}).status_code==404
+            assert client.get('/api/runs/'+comparison_run_id).json()['result']==comparison_run['result']
+            go('agents');page.locator('#plan-form').wait_for()
+            assert page.locator('#plan-comparison option[value="'+comparison_id+'"]').count()==0
+            go('copilot');current_proposal=page.locator('[data-proposal="'+chat_proposal_id+'"]')
+            current_proposal.get_by_text('原始企业比较已删除或不可访问',exact=False).wait_for()
+            assert client.get('/api/runs/'+chat_run['id']).json()['result']==chat_run['result']
+            page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
+            page.locator('#copilot-comparison').wait_for()
+            assert page.locator('#copilot-comparison option[value="'+comparison_id+'"]').count()==0
+            page.locator('#modal [data-action="close-modal"]').first.click()
+            record('对照清理明确对象和影响→取消保留→确认删除→列表与双计划选择器移除→同会话来源失效且原报告保留')
+            # Capacity fixture setup uses authenticated HTTP on this temporary
+            # account; the owner cleanup and confirmation below are native UI.
+            client.headers['X-CSRF-Token']=client.get('/api/auth/me').json()['csrf']
+            setup=client.post('/api/services/identities',json={'name':'清理容量专用合成身份','dataset_ids':[original['id'],peer['id']]})
+            assert setup.status_code==201,setup.text
+            orphan_identity=setup.json()
+            current_members=[client.get('/api/datasets/'+d['id']).json() for d in (original,peer)]
+            capacity_payload={'name':'失效范围容量合成对照','identity_id':orphan_identity['id'],
+                'datasets':[{'id':d['id'],'version':d['version'],'hash':d['content_hash']} for d in current_members],
+                'comparison':'year_over_year','comparability_note':'隔离容量边界验收，仅使用合成输入，不用于业务判断'}
+            orphan_rows=[]
+            for index in range(200):
+                created=client.post('/api/workspace/comparisons',json={**capacity_payload,'name':capacity_payload['name']+' '+str(index)})
+                assert created.status_code==201,created.text
+                orphan_rows.append(created.json())
+            assert client.delete('/api/services/identities/'+orphan_identity['id'],params={'version':orphan_identity['version']}).status_code==200
+            replacement_payload={**capacity_payload,'identity_id':identity_id,'name':'清理失效范围后恢复容量（合成验收）'}
+            full=client.post('/api/workspace/comparisons',json=replacement_payload)
+            assert full.status_code==409 and full.json()['error']['code']=='RESOURCE_LIMIT'
+            go('services')
+            archived=next(row for row in client.get('/api/services/history').json()['items'] if row['kind']=='comparison')
+            page.locator('[data-x-action="history-detail"][data-id="'+archived['id']+'"]').click()
+            page.locator('#inspector [data-action="delete-comparison"][data-id="'+archived['id']+'"]').click()
+            page.locator(cleanup).wait_for()
+            assert archived['id'] in page.locator('#modal').inner_text()
+            assert page.locator(cleanup).get_attribute('data-identity-id')==orphan_identity['id']
+            assert page.locator('#active-identity').input_value()==identity_id
+            assert not overflow();snap('ui-current-history-comparison-cleanup.png',full_page=False)
+            page.locator(cleanup+' [name="confirm_delete"]').check();submit(cleanup)
+            page.locator('#modal').wait_for(state='hidden')
+            assert client.get('/api/workspace/comparisons/'+archived['id'],params={'identity_id':orphan_identity['id']}).status_code==404
+            recovered=client.post('/api/workspace/comparisons',json=replacement_payload)
+            assert recovered.status_code==201,recovered.text
+            assert orphan_identity['id'] not in [row['id'] for row in client.get('/api/services/identities').json()['items']]
+            assert page.locator('#active-identity').input_value()==identity_id
+            record('200份失效身份对照占满容量→账户历史逐项确认清理→容量恢复，原身份与研究执行权不恢复')
+            # Remove the remaining synthetic setup records through their existing
+            # API, keeping subsequent screenshots small; never touch user data.
+            for row in [r for r in orphan_rows if r['id']!=archived['id']]+[recovered.json()]:
+                cleaned=client.delete('/api/workspace/comparisons/'+row['id'],params={'identity_id':row['payload']['identity_id'],'version':row['version']})
+                assert cleaned.status_code==200,cleaned.text
+            if page.locator('#inspector').is_visible():page.locator('#inspector [data-action="close-inspector"]').click()
+            go('brief')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')

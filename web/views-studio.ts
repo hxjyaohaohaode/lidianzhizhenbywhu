@@ -1,4 +1,4 @@
-import {comparisonSelection,comparisonArtifactView,comparisonProblem} from './saved-comparisons.js';
+import {comparisonSelection,comparisonArtifactView,comparisonProblem,currentComparisonRead} from './saved-comparisons.js';
 import {claimMathReferences} from './math-results.js';
 import {experimentSelection,experimentProvenance,experimentProblem} from './saved-experiments.js';
 import {adaptiveOptions,graphCanvas,runtimeRibbon,adaptiveReport,runNeedsReconcile} from './views-orchestrator.js';
@@ -9,7 +9,7 @@ import {qualityPanel} from './views-data.js';
 export const modeNames={operational:'经营全景',margin:'毛利承压',industry:'行业证据',investment:'投资研究',deep_dive:'专项核查'};
 export function datasetOptions(){return scopedDatasets().map(d=>({value:d.id,label:d.payload.company+' · '+d.payload.name}));}
 export async function agentsPage(id=''){
- const [catalog,plans,templates,conversations,experiments,comparisons]=await Promise.all([workspace('/orchestration/catalog'),workspace('/plans'+scopeQuery()),workspace('/templates'),api('/conversations'),workspace('/experiments?'+new URLSearchParams({identity_id:state.identity}).toString()),workspace('/comparisons?'+new URLSearchParams({identity_id:state.identity}).toString())]);state.cache.audit=null;state.cache.agents=catalog.capabilities;state.cache.nodes=catalog.capabilities;state.cache.plans=plans.items;state.cache.templates=templates.items;state.cache.planExperiments=experiments.items;state.cache.planComparisons=comparisons.items;
+ const [catalog,plans,templates,conversations,experiments,comparisons]=await currentComparisonRead(()=>Promise.all([workspace('/orchestration/catalog'),workspace('/plans'+scopeQuery()),workspace('/templates'),api('/conversations'),workspace('/experiments?'+new URLSearchParams({identity_id:state.identity}).toString()),workspace('/comparisons?'+new URLSearchParams({identity_id:state.identity}).toString())]));state.cache.audit=null;state.cache.agents=catalog.capabilities;state.cache.nodes=catalog.capabilities;state.cache.plans=plans.items;state.cache.templates=templates.items;state.cache.planExperiments=experiments.items;state.cache.planComparisons=comparisons.items;
  if(id.startsWith('plan-'))return planPage(id.slice(5));
  if(id.startsWith('run-'))return runPage(id.slice(4));
  const selectedExperiment=id.startsWith('experiment-')?experiments.items.find((e:Json)=>e.id===id.slice(11)):null;

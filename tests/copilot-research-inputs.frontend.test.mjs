@@ -237,3 +237,15 @@ test('deleting the current thread during remount clears its busy state and rejec
   await chat.sendCopilot('删除后继续新的研究问题');assert.equal(created,1);assert.equal(sent,1);assert.equal(chat.currentThread().thread.id,'thread-new');assert(!button.disabled);
  }finally{globalThis.confirm=oldConfirm;h.restore();}
 });
+
+const {removeSavedComparison,comparisonRemovalTarget}=await import('../web/dist/saved-comparisons.js');
+test('confirmed comparison cleanup clears only the active proposal reference and keeps text, forecast, and archived results',async()=>{
+ const h=await harness();try{const form=await h.open();form.nodes.comparison_artifact_id.value=comparison.id;form.nodes.experiment_id.value=experiment.id;listeners.get('change')({target:{id:'copilot-comparison',form}});const text=form.nodes.text.value,forecast=form.nodes.horizon.value;const select=form.nodes.comparison_artifact_id;select.options=[{value:''},{value:comparison.id}].map(o=>({...o,remove(){select.options=select.options.filter(x=>x!==this);}}));document.querySelector=s=>s==='form[data-research-inputs]'?form:null;
+ const historical={comparison_artifact:structuredClone(frozenComparison)};chat.currentThread().runs.push({id:'historical',result:historical});const frozen=JSON.stringify(historical);state.cache={comparison};globalThis.fetch=async()=>response({deleted:true});const t=comparisonRemovalTarget(comparison.id,comparison.version,state.identity);await removeSavedComparison(t,()=>chat.forgetCopilotComparison(t));assert.equal(select.value,'');assert.equal(form.nodes.text.value,text);assert.equal(form.nodes.horizon.value,forecast);assert(form.nodes.horizon.disabled);assert(form.details['copilot-comparison-details'].innerHTML.includes('已取消该引用'));assert.equal(JSON.stringify(chat.currentThread().runs[0].result),frozen);
+ const stale=new FormData(form);stale.set('comparison_artifact_id',comparison.id);await assert.rejects(chat.copilotSubmit(form,stale),/所选企业对照不在/);
+ }finally{h.restore();}
+});
+test('deleted comparison does not reappear in a late assistant catalog batch',async()=>{
+ const h=await harness();let resolve;try{state.cache={comparison};let experimentReads=0,comparisonReads=0;globalThis.fetch=(url,init)=>{if(init.method==='DELETE')return Promise.resolve(response({deleted:true}));if(url.includes('/experiments?')&&++experimentReads===1)return new Promise(r=>resolve=r);if(url.includes('/comparisons?'))return Promise.resolve(response({items:++comparisonReads===1?[comparison]:[]}));return h.normal(url,init);};const opening=h.open();await turn();await removeSavedComparison(comparisonRemovalTarget(comparison.id,comparison.version,state.identity));resolve(response({items:[experiment]}));await opening;assert.equal(comparisonReads,2);assert.equal(h.shown.length,1);assert(!h.shown[0].html.includes('value="'+comparison.id+'"'));
+ }finally{h.restore();}
+});

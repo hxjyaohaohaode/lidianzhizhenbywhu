@@ -191,6 +191,12 @@ def main():
             assert any(r['code']=='comparison_member_changed' for r in conversation['runs'][0]['source_impact']['reasons'])
             require(c.delete('/api/workspace/comparisons/'+ref['id'],params={'identity_id':'','version':ref['version']}))
             assert require(c.get('/api/runs/'+comparison_run['id']))['result']['comparison_artifact']==frozen_comparison
+            assert c.get('/api/workspace/comparisons/'+ref['id']).status_code==404
+            assert not any(row['id']==ref['id'] for row in require(c.get('/api/workspace/comparisons'))['items'])
+            conversation=require(c.get('/api/services/threads/'+assistant_thread['id']))
+            assert conversation['runs'][0]['result']==assistant_run['result']
+            assert conversation['runs'][0]['source_impact']['state']=='unavailable'
+            assert any(reason['code']=='comparison_removed' for reason in conversation['runs'][0]['source_impact']['reasons'])
             record('双企业共同季度对照→版本冻结→明确批准Agent→报告引用→另一企业修订/清理→行动适用性变化且历史不改写')
             with c.stream('GET','/api/runs/'+run['id']+'/events') as response:
                 assert response.status_code==200 and response.headers['content-type'].startswith('text/event-stream')

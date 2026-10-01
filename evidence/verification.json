@@ -1,5 +1,5 @@
 {
-  "executed_at": "2026-10-01T11:36:35.059216+00:00",
+  "executed_at": "2026-10-01T12:17:15.075985+00:00",
   "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
   "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
   "checks": [
@@ -14,7 +14,7 @@
         "scripts"
       ],
       "exit_code": 0,
-      "seconds": 0.071,
+      "seconds": 0.1,
       "timeout_seconds": 240
     },
     {
@@ -27,7 +27,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 2.179,
+      "seconds": 2.303,
       "timeout_seconds": 240
     },
     {
@@ -39,7 +39,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 2.628,
+      "seconds": 2.814,
       "timeout_seconds": 240
     },
     {
@@ -52,7 +52,7 @@
         "--junitxml=evidence/pytest.xml"
       ],
       "exit_code": 0,
-      "seconds": 215.951,
+      "seconds": 292.687,
       "timeout_seconds": 600
     },
     {
@@ -62,6 +62,7 @@
         "--test",
         "tests/actions.frontend.test.mjs",
         "tests/business-source.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
         "tests/copilot-research-inputs.frontend.test.mjs",
         "tests/evidence.frontend.test.mjs",
         "tests/frontend.test.mjs",
@@ -75,7 +76,7 @@
         "tests/workflow-inputs.frontend.test.mjs"
       ],
       "exit_code": 0,
-      "seconds": 0.672,
+      "seconds": 1.218,
       "timeout_seconds": 240
     },
     {
@@ -85,7 +86,7 @@
         "scripts/source_guard.py"
       ],
       "exit_code": 0,
-      "seconds": 0.358,
+      "seconds": 1.02,
       "timeout_seconds": 240
     },
     {
@@ -95,7 +96,7 @@
         "scripts/full_chain_check.py"
       ],
       "exit_code": 0,
-      "seconds": 7.527,
+      "seconds": 15.523,
       "timeout_seconds": 240
     }
   ],
@@ -110,5 +111,5 @@
     "Future dependency advisories",
     "Optional patched PDF integration"
   ],
-  "publication_note": "Machine-specific command paths normalized; outcomes and timings unchanged. Final seven stages include the compiled remount/delete lifecycle fixes and 202 frontend tests."
+  "command_location_note": "Only executor-specific Python and repository prefixes were normalized; command arguments, outcomes, timestamps and durations are unchanged."
 }
