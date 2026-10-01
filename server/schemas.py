@@ -8,6 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator, field_valida
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True, allow_inf_nan=False)
 
+# IDs/cursors and optimistic versions must survive SQLite binding and browser JSON
+# without overflow or rounding. Financial amounts retain their existing contracts.
+MAX_SAFE_INTEGER = 2**53 - 1
+StorageInteger = Annotated[int, Field(le=MAX_SAFE_INTEGER)]
+
 Text = Annotated[str, Field(min_length=1, max_length=200)]
 Number = Annotated[float, Field(strict=True, ge=-1e15, le=1e15)]
 Nonnegative = Annotated[float, Field(strict=True, ge=0, le=1e15)]
@@ -40,11 +45,11 @@ class Preferences(StrictModel):
     watchlist: list[Text] = Field(default_factory=list,max_length=20)
     memory_enabled: bool = True
     name: Text
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 class RoleSwitch(StrictModel):
     role: Persona
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 class Period(StrictModel):
     period: str = Field(pattern=r'^20\d{2}-Q[1-4]$')
@@ -94,7 +99,7 @@ class Dataset(StrictModel):
         return v
 
 class DatasetUpdate(Dataset):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 class Conversation(StrictModel):
     title: Text = '新的经营诊断'
@@ -137,7 +142,7 @@ class EvidenceMetadata(StrictModel):
     title: Text
     source_url: str = Field(default='', max_length=1000)
     published_at: date | None = None
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     _safe_url = field_validator('source_url')(Evidence.safe_url.__func__)
     _no_future_date = field_validator('published_at')(Evidence.no_future_date.__func__)
 
@@ -159,7 +164,7 @@ class Memory(StrictModel):
     source: str = Field(default='user',max_length=120)
 
 class MemoryUpdate(Memory):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 class Feedback(StrictModel):
     run_id: str = Field(min_length=1,max_length=80)
@@ -192,7 +197,7 @@ class SearchRequest(StrictModel):
 
 class BatchDelete(StrictModel):
     ids: list[Annotated[str,Field(min_length=1,max_length=80)]] = Field(min_length=1,max_length=20)
-    versions: dict[str,Annotated[int,Field(strict=True,ge=1)]] = Field(default_factory=dict,max_length=20)
+    versions: dict[str,Annotated[StorageInteger,Field(strict=True,ge=1)]] = Field(default_factory=dict,max_length=20)
     @field_validator('ids')
     @classmethod
     def unique_ids(cls,v):

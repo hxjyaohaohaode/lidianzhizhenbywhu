@@ -1,7 +1,7 @@
 import copy
 import pytest
 from conftest import Actor
-from test_adaptive import completed, preview, dispatch
+from test_adaptive import completed, preview, dispatch, short_dataset
 from server.store import encode, digest
 from server.evolution import input_signature
 
@@ -95,7 +95,7 @@ def test_automatic_candidate_uses_observed_human_gaps_and_requires_activation(ac
 
 
 def test_unsatisfied_forecast_rubric_is_not_counted_as_implemented_success(actor):
-    r=completed(actor,query='做收入预测并说明适用边界');assessment(actor,r,expected_capabilities=['forecast'])
+    r=completed(actor,dataset=short_dataset(actor),query='做收入预测并说明适用边界');assessment(actor,r,expected_capabilities=['forecast'])
     c=candidate(actor);res=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={});assert res.status_code==201,res.text
     case=res.json()['payload']['cases'][0]
     assert case['candidate']['missing']==['forecast'] and case['candidate']['recall']==0

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 from pydantic import Field, model_validator
-from .schemas import StrictModel, Text, Mode, Dataset
+from .schemas import StorageInteger, StrictModel, Text, Mode, Dataset
 from .autonomy_contracts import ExecutionOptions
 from .business_provenance import SourceRef, EvidenceRef
 
@@ -17,12 +17,12 @@ class CompanyProfile(StrictModel):
     cash_floor: float | None = Field(default=None, ge=-5, le=5, strict=True)
     leverage_ceiling: float | None = Field(default=None, ge=0, le=5, strict=True)
     stale_after_days: int = Field(default=180, ge=30, le=730)
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
 
 
 class ExperimentReference(StrictModel):
     id: str = Field(min_length=1, max_length=80)
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     hash: str = Field(pattern='^[a-f0-9]{64}$')
 
 
@@ -72,7 +72,7 @@ class PlanDraft(StrictModel):
 
 
 class PlanConsent(StrictModel):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     fingerprint: str = Field(pattern='^[a-f0-9]{64}$')
     external_consent: bool = False
 
@@ -85,7 +85,7 @@ class EvidenceReview(StrictModel):
     stance: Literal['context', 'supports', 'contradicts'] = 'context'
     note: str = Field(default='', max_length=2000)
     expires_at: date | None = None
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
     @model_validator(mode='after')
     def reasoning(self):
         if not self.company and not self.global_scope and self.status != 'rejected':
@@ -119,7 +119,7 @@ class ActionCreate(StrictModel):
 
 
 class ActionEdit(StrictModel):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     title: Text
     priority: Literal['high', 'normal', 'low']
     owner: str = Field(max_length=100)
@@ -135,7 +135,7 @@ class ActionEdit(StrictModel):
 
 
 class ActionTransition(StrictModel):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     status: Literal['open', 'in_progress', 'blocked', 'done', 'dismissed']
     note: str = Field(default='', max_length=2000)
     evidence_ids: list[str] = Field(default_factory=list, max_length=10)
@@ -149,7 +149,7 @@ class ActionTransition(StrictModel):
 
 class ExperimentRequest(StrictModel):
     dataset_id: str = Field(min_length=1, max_length=80)
-    dataset_version: int | None = Field(default=None, ge=1)
+    dataset_version: StorageInteger | None = Field(default=None, ge=1)
     dataset_hash: str | None = Field(default=None, pattern='^[a-f0-9]{64}$')
     target_period: str | None = Field(default=None, pattern='^(19|20)[0-9]{2}-Q[1-4]$')
     name: Text
@@ -167,7 +167,7 @@ class ImportPreview(StrictModel):
     dataset: Dataset
     basis: Literal['standalone_quarter', 'year_to_date'] = 'standalone_quarter'
     target_id: str = Field(default='', max_length=80)
-    target_version: int = Field(default=0, ge=0)
+    target_version: StorageInteger = Field(default=0, ge=0)
     @model_validator(mode='after')
     def target(self):
         if bool(self.target_id) != bool(self.target_version):
@@ -176,15 +176,15 @@ class ImportPreview(StrictModel):
 
 
 class RevisionRestore(StrictModel):
-    version: int = Field(ge=1)
-    target_revision: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
+    target_revision: StorageInteger = Field(ge=1)
 
 
 class ClaimReview(StrictModel):
     claim_id: str = Field(min_length=1, max_length=100)
     verdict: Literal['accepted', 'rejected', 'needs_evidence']
     note: str = Field(min_length=5, max_length=2000)
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
 
 
 class TaskTemplate(StrictModel):
@@ -201,7 +201,7 @@ class AssistantRequest(StrictModel):
 
 class StageCommit(StrictModel):
     fingerprint: str = Field(pattern='^[a-f0-9]{64}$')
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 
 class DismissInsight(StrictModel):

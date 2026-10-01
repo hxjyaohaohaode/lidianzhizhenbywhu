@@ -1,5 +1,6 @@
 """Workspace API: explicit preview/commit, plan consent, evidence review and execution follow-through."""
 from __future__ import annotations
+from .schemas import MAX_SAFE_INTEGER
 import asyncio
 import json
 import hashlib
@@ -105,7 +106,7 @@ def plan_execute(id:str,body:PlanConsent,request:Request,user=Depends(require_us
 
 
 @router.post('/plans/{id}/cancel')
-def plan_cancel(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def plan_cancel(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=dbof(request)
     with store.transaction() as db:
         row=ws.get(store,user['id'],'plan',id);p=row['payload']
@@ -127,7 +128,7 @@ def template_add(body:TaskTemplate,request:Request,user=Depends(require_user)):
 
 
 @router.delete('/templates/{id}')
-def template_delete(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def template_delete(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=dbof(request)
     with store.transaction() as db:
         check_version(ws.get(store,user['id'],'template',id),version)
@@ -165,7 +166,7 @@ def revisions(id:str,request:Request,user=Depends(require_user)):
 
 
 @router.get('/datasets/{id}/lineage')
-def dataset_lineage(id:str,request:Request,revision:int=Query(0,ge=0),user=Depends(require_user)):
+def dataset_lineage(id:str,request:Request,revision:int=Query(0,ge=0,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=dbof(request);row=owned(store,user,'datasets',id)
     if revision:
         row=store.dataset_revision(user['id'],id,revision)
@@ -461,7 +462,7 @@ def comparison_get(id:str,request:Request,identity_id:str=Query('',max_length=80
 
 
 @router.delete('/comparisons/{id}')
-def comparison_delete(id:str,request:Request,identity_id:str=Query('',max_length=80),version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def comparison_delete(id:str,request:Request,identity_id:str=Query('',max_length=80),version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=dbof(request)
     with store.transaction() as db:
         row=owned_comparison(store,user['id'],id,identity_id);check_version(row,version)
@@ -563,7 +564,7 @@ def export_workspace(request:Request,user=Depends(require_user)):
 
 
 @router.delete('/archive/{kind}/{id}')
-def archive_delete(kind:str,id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def archive_delete(kind:str,id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     if kind not in {'plan','experiment','action','import_stage','dismissal'}:
         fail('KIND_FORBIDDEN','此类记录不可通过该接口删除',422)
     store=dbof(request)

@@ -308,6 +308,16 @@ class AdaptiveRun:
                 if not p or not self.authorization_valid(b):
                     self.close_call(call_id,'failed',{'error_class':'AUTHORIZATION_CHANGED','remote_outcome_known':True,'dispatched':False})
                     return {'agent':n['id'],'status':'blocked','error_class':'AUTHORIZATION_CHANGED','call_id':call_id,'output':{'claims':[],'missing':['外部调用前授权已改变']}}
+                # A slow DNS/TLS handshake is another revocation boundary. Copy
+                # the selected configuration: server providers are shared across
+                # concurrent runs, so a callback must never mutate their object.
+                from .providers import Provider
+                if isinstance(p, Provider):
+                    p = copy.copy(p)
+                    def dispatch_guard(binding=b):
+                        current = self.store.one('SELECT state FROM runs WHERE id=?', (self.id,))
+                        return bool(current and current['state']=='running' and self.authorization_valid(binding))
+                    p.dispatch_guard = dispatch_guard
                 if cap=='planner':
                     if not hasattr(self.providers,'propose'):raise ValueError('PLANNER_UNSUPPORTED')
                     result=await self.providers.propose(p,prompt)
@@ -326,7 +336,9 @@ class AdaptiveRun:
             except Exception as exc:
                 code=str(exc) if re.fullmatch(r'MODEL_[A-Za-z0-9_]{1,100}',str(exc)) else type(exc).__name__
                 unknown = not isinstance(exc, (ValueError, ValidationError))
-                self.close_call(call_id,'unknown' if unknown else 'failed',{'error_class':code,'remote_outcome_known':not unknown,'duration_ms':round((time.monotonic()-started)*1000,2)})
+                not_dispatched = isinstance(exc, ValueError) and code in {'MODEL_AUTHORIZATION_CHANGED','MODEL_TRANSPORT_BUSY','MODEL_CIRCUIT_OPEN'}
+                self.close_call(call_id,'unknown' if unknown else 'failed',{'error_class':code,'remote_outcome_known':not unknown,
+                    **({'dispatched':False} if not_dispatched else {}),'duration_ms':round((time.monotonic()-started)*1000,2)})
                 self.worker.ensure_running(self.id)
                 # Only an acknowledged throttle can use an explicitly approved alternate. Timeouts/unknown outcomes do not.
                 if re.fullmatch(r'MODEL_HTTP_429(?:_[A-Za-z0-9_]{1,40})?',code) and len(seen)<len({x['id'] for x in candidates}):
@@ -484,7 +496,7 @@ class AdaptiveRun:
         ledger=self.store.all('SELECT * FROM adaptive_calls WHERE run_id=? ORDER BY created_at,id',(self.id,))
         success=[c for c in ledger if c['state']=='completed'];sent=set();memory=set()
         for c in ledger:
-            if c['state'] not in ('reserved',):
+            if c['state'] not in ('reserved',) and c['payload'].get('dispatched') is not False:
                 sent.update(c['payload'].get('citation_ids',[]));memory.update(c['payload'].get('memory_ids',[]))
         requested=self.r['use_llm'];state='not_requested' if not requested else 'completed' if ledger and len(success)==len(ledger) else 'partial' if success else 'failed'
         model_nodes=[v for k,v in self.outputs.items() if any(n['id']==k and n['capability'] in MODEL_CAPS for n in self.graph['nodes'])]

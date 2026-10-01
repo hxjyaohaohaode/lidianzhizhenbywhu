@@ -1,4 +1,5 @@
 """User-owned control and evaluation API. All mutations inherit auth/CSRF checks."""
+from .schemas import MAX_SAFE_INTEGER
 from fastapi import APIRouter, Depends, Request, Query
 from .security import require_user
 from .autonomy import CAPABILITIES, runtime_view, control_run
@@ -61,10 +62,10 @@ def propose_strategy(request:Request,user=Depends(require_user)):
 
 
 @router.delete('/strategies/{id}')
-def delete_strategy(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def delete_strategy(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     return evolution.delete_record(request.app.state.store,user,'strategy',id,version)
 
 
 @router.delete('/strategy-evaluations/{id}')
-def delete_evaluation(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def delete_evaluation(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     return evolution.delete_record(request.app.state.store,user,'strategy_evaluation',id,version)

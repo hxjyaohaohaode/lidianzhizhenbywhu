@@ -171,6 +171,20 @@ def main():
             resumed=[int(l.split(':',1)[1]) for l in tail.splitlines() if l.startswith('id:')];assert resumed==[i for i in ids if i>mid]
             assert c.get('/api/runs/'+run['id']+'/events',headers={'Last-Event-ID':'bad'}).status_code==422
             record('真实HTTP流式SSE、单调事件ID、Last-Event-ID精确续读与非法游标拒绝')
+            # Invalid cursors must fail before SSE headers commit; a 200 empty
+            # stream would otherwise look like another transient disconnect.
+            for bad in [str(2**53),str(2**63),'9'*100]:
+                for path in ['/api/sync?after=','/api/runs?offset=',
+                             '/api/runs/'+run['id']+'/events?after=',
+                             '/api/workspace/datasets/'+d['id']+'/lineage?revision=']:
+                    response=c.get(path+bad)
+                    assert response.status_code==422 and response.headers['content-type'].startswith('application/json')
+                response=c.get('/api/runs/'+run['id']+'/events',headers={'Last-Event-ID':bad})
+                assert response.status_code==422 and response.json()['error']['code']=='INVALID_CURSOR'
+            with c.stream('GET','/api/runs/'+run['id']+'/events',headers={'Last-Event-ID':str(2**53-1)}) as response:
+                assert response.status_code==200 and 'event: end' in '\n'.join(response.iter_lines())
+            require(c.get('/api/sync?after='+str(2**53-1)))
+            record('真实HTTP超界整数在查询/续读头/修订入口提前422拒绝，合法上界SSE仍返回终态，无空200断流')
             # Explicitly pause while queued, hard-kill, restart, then resume from the durable state.
             paused=None
             for attempt in range(8):

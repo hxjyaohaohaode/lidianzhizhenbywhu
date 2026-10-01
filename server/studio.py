@@ -334,27 +334,31 @@ async def perform_studio(worker,id):
                     nonlocal used_memory,sent
                     # Revocation governs NOT-YET-dispatched calls, even after queue approval.
                     # Already-sent requests cannot be recalled from a remote provider.
-                    current=store.one('SELECT * FROM users WHERE id=?',(row['user_id'],))
-                    bindings=st['bindings']
-                    changed=not current or current['version']!=bindings['user_version'] or not approved_run_valid(store, row)
-                    data=store.owned('datasets',row['user_id'],row['dataset_id'])
-                    profile=ws.keyed(store,row['user_id'],'profile',s['dataset']['company'])
-                    if not data or (data['version'],data['content_hash']) != (bindings['dataset_version'],bindings['dataset_hash']):changed=True
-                    if (profile['version'] if profile else 0) != bindings['profile_version']:changed=True
-                    if (datetime.now(timezone.utc)-datetime.fromisoformat(row['created_at'])).total_seconds()>86400:changed=True
-                    from .identities import execution_service_valid
-                    if not execution_service_valid(store,row['user_id'],bindings,r,worker.providers,bindings['provider']):changed=True
-                    for m in s['memory']:
-                        if m['id'] not in st['packing']['included_memory_ids']:continue
-                        live=store.owned('memories',row['user_id'],m['id'])
-                        if not live or live['version']!=m['version'] or not live['payload']['approved'] or (live['payload'].get('expires_at') and live['payload']['expires_at']<utc_today().isoformat()):changed=True
-                    for c in s['citations']:
-                        if c['id'] not in planned_citations:continue
-                        live=store.owned('evidence',row['user_id'],c['document_id'])
-                        rev=ws.keyed(store,row['user_id'],'evidence_review',c['document_id'])
-                        if not live or live['content_hash']!=c['document_hash'] or (rev['version'] if rev else 0)!=c.get('review_version',0):changed=True
-                        if rev and (rev['payload']['status']=='rejected' or (rev['payload'].get('expires_at') and rev['payload']['expires_at']<utc_today().isoformat())):changed=True
-                    if changed:
+                    def dispatch_guard():
+                        run=store.one('SELECT state FROM runs WHERE id=?',(id,))
+                        if not run or run['state']!='running':return False
+                        current=store.one('SELECT * FROM users WHERE id=?',(row['user_id'],))
+                        bindings=st['bindings']
+                        changed=not current or current['version']!=bindings['user_version'] or not approved_run_valid(store, row)
+                        data=store.owned('datasets',row['user_id'],row['dataset_id'])
+                        profile=ws.keyed(store,row['user_id'],'profile',s['dataset']['company'])
+                        if not data or (data['version'],data['content_hash']) != (bindings['dataset_version'],bindings['dataset_hash']):changed=True
+                        if (profile['version'] if profile else 0) != bindings['profile_version']:changed=True
+                        if (datetime.now(timezone.utc)-datetime.fromisoformat(row['created_at'])).total_seconds()>86400:changed=True
+                        from .identities import execution_service_valid
+                        if not execution_service_valid(store,row['user_id'],bindings,r,worker.providers,bindings['provider']):changed=True
+                        for m in s['memory']:
+                            if m['id'] not in st['packing']['included_memory_ids']:continue
+                            live=store.owned('memories',row['user_id'],m['id'])
+                            if not live or live['version']!=m['version'] or not live['payload']['approved'] or (live['payload'].get('expires_at') and live['payload']['expires_at']<utc_today().isoformat()):changed=True
+                        for c in s['citations']:
+                            if c['id'] not in planned_citations:continue
+                            live=store.owned('evidence',row['user_id'],c['document_id'])
+                            rev=ws.keyed(store,row['user_id'],'evidence_review',c['document_id'])
+                            if not live or live['content_hash']!=c['document_hash'] or (rev['version'] if rev else 0)!=c.get('review_version',0):changed=True
+                            if rev and (rev['payload']['status']=='rejected' or (rev['payload'].get('expires_at') and rev['payload']['expires_at']<utc_today().isoformat())):changed=True
+                        return not changed
+                    if not dispatch_guard():
                         return {'agent':name,'status':'blocked','error_class':'AUTHORIZATION_CHANGED','output':{'claims':[],'missing':['审批后记忆、证据、偏好或模型配置发生变化，未继续外发，请重新预览计划']}}
                     obj=dict(st['context'])
                     if name=='challenger':
@@ -369,7 +373,11 @@ async def perform_studio(worker,id):
                         'characters':len(prompt),'memory_ids':st['packing']['included_memory_ids'],
                         'citation_ids':sent,'request_hash':digest(prompt),'consent':st['consent']})
                     try:
-                        result=await worker.providers.complete(provider,SYSTEM+'\n本次职责：'+next(a['purpose'] for a in AGENTS if a['id']==name),prompt)
+                        from .providers import Provider
+                        from copy import copy
+                        selected=copy(provider) if isinstance(provider,Provider) else provider
+                        if isinstance(selected,Provider):selected.dispatch_guard=dispatch_guard
+                        result=await worker.providers.complete(selected,SYSTEM+'\n本次职责：'+next(a['purpose'] for a in AGENTS if a['id']==name),prompt)
                         return {'agent':name,'status':'completed',**result}
                     except Exception as exc:
                         return {'agent':name,'status':'failed','error_class':type(exc).__name__,'output':{'claims':[],'missing':[]}}

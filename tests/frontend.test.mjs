@@ -79,3 +79,60 @@ test('separate run and runtime reads straddling completion force a coherent repo
  assert(runNeedsReconcile({state:'queued'},{state:'paused',run_state:'interrupted'}));
  assert(!runNeedsReconcile({state:'running'},{state:'running',run_state:'running'}));
 });
+
+test('disposed monitor suppresses late failure labels and every queued SSE callback',async()=>{
+ const h=liveHarness();const pending=[];let writes=0;const monitor=new RunLive('r',()=>writes++,()=>writes++,()=>writes++);
+ try{
+  globalThis.fetch=()=>new Promise((_,reject)=>pending.push(reject));monitor.start();
+  const stream=monitor.stream;monitor.dispose();const before=writes;
+  for(const reject of pending)reject(Error('late offline'));
+  stream.onopen();stream.onerror();h.handlers.get('trace')({data:'{"seq":2}'});h.handlers.get('auth_expired')();h.handlers.get('end')();
+  await tick();await tick();assert.equal(writes,before);assert.equal(monitor.timer,null);
+ }finally{monitor.dispose();h.restore();}
+});
+
+test('duplicate monitor start cannot leak another stream or initial read',async()=>{
+ const h=liveHarness();let calls=0;const monitor=new RunLive('r',()=>{},()=>{},()=>{});
+ try{
+  globalThis.fetch=async url=>{calls++;return new Response(JSON.stringify(url.includes('/runtime')?{state:'running'}:{items:[]}),{headers:{'Content-Type':'application/json'}});};
+  monitor.start();const stream=monitor.stream;monitor.start();await tick();await tick();
+  assert.equal(monitor.stream,stream);assert.equal(calls,2);
+ }finally{monitor.dispose();h.restore();}
+});
+
+for(const status of [403,404])test('deleted or inaccessible run stops read recovery: '+status,async()=>{
+ const h=liveHarness();const labels=[];const monitor=new RunLive('r',()=>assert.fail('must not receive missing run'),()=>assert.fail('must not report completion'),s=>labels.push(s));
+ try{
+  globalThis.fetch=async()=>new Response(JSON.stringify({error:{code:'NOT_FOUND',message:'gone'}}),{status,headers:{'Content-Type':'application/json'}});
+  monitor.start();await tick();await tick();assert.equal(monitor.timer,null);assert(monitor.disposed);assert(labels.at(-1).includes('停止读取'));
+ }finally{monitor.dispose();h.restore();}
+});
+
+test('context switch during a rejected read stops without writing to the new view',async()=>{
+ const h=liveHarness();const pending=[];let writes=0;setCsrf('old-monitor-context');
+ const monitor=new RunLive('r',()=>writes++,()=>writes++,()=>writes++);
+ try{
+  globalThis.fetch=()=>new Promise((_,reject)=>pending.push(reject));monitor.start();setCsrf('new-monitor-context');
+  for(const reject of pending)reject(Error('offline'));await tick();await tick();
+  assert(monitor.disposed);assert.equal(writes,0);assert.equal(monitor.timer,null);
+ }finally{monitor.dispose();h.restore();setCsrf('');}
+});
+
+for(const seq of ['2',0,-1,1.5,Number.MAX_SAFE_INTEGER+1,null])test('invalid live event cursor degrades without advancing: '+seq,async()=>{
+ const h=liveHarness();const monitor=new RunLive('r',()=>{},()=>{},()=>{});
+ try{
+  globalThis.fetch=async url=>new Response(JSON.stringify(url.includes('/runtime')?{state:'running'}:{items:[]}),{headers:{'Content-Type':'application/json'}});
+  monitor.start();await tick();await tick();h.handlers.get('trace')({data:JSON.stringify({seq})});
+  assert.equal(monitor.cursor,0);assert.equal(monitor.stream,null);assert(monitor.timer);
+ }finally{monitor.dispose();h.restore();}
+});
+
+test('callbacks from a closed stream cannot override polling or declare auth failure',async()=>{
+ const h=liveHarness();const labels=[];let reads=0;const monitor=new RunLive('r',()=>{},()=>{},s=>labels.push(s));
+ try{
+  globalThis.fetch=async url=>{reads++;return new Response(JSON.stringify(url.includes('/runtime')?{state:'running'}:{items:[]}),{headers:{'Content-Type':'application/json'}});};
+  monitor.start();await tick();await tick();const stream=monitor.stream;stream.onerror();const before=[labels.length,reads];
+  stream.onopen();h.handlers.get('trace')({data:'{"seq":100}'});h.handlers.get('auth_expired')();h.handlers.get('end')();stream.onerror();
+  await tick();await tick();assert.deepEqual([labels.length,reads],before);assert.equal(monitor.cursor,0);assert(!monitor.disposed);assert(monitor.timer);
+ }finally{monitor.dispose();h.restore();}
+});

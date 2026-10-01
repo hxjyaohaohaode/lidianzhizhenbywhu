@@ -7,7 +7,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Literal
 from pydantic import Field, model_validator
-from .schemas import StrictModel
+from .schemas import StorageInteger, StrictModel
 from .store import digest, now
 from .security import fail
 from . import workspace_store as ws
@@ -23,9 +23,9 @@ class SourceRef(StrictModel):
     source_key: str = Field(default='', max_length=200)
     alert_id: str = Field(default='', max_length=80)
     action_id: str = Field(default='', max_length=80)
-    action_version: int | None = Field(default=None, ge=1)
+    action_version: StorageInteger | None = Field(default=None, ge=1)
     action_hash: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
-    dataset_version: int | None = Field(default=None, ge=1)
+    dataset_version: StorageInteger | None = Field(default=None, ge=1)
     dataset_hash: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     allow_historical: bool = False
 
@@ -47,9 +47,9 @@ class SourceRef(StrictModel):
 
 class EvidenceRef(StrictModel):
     id: str = Field(min_length=1, max_length=80)
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     content_hash: str = Field(pattern=r'^[a-f0-9]{64}$')
-    review_version: int = Field(ge=0)
+    review_version: StorageInteger = Field(ge=0)
 
 
 def _owned(store, user_id, table, id):

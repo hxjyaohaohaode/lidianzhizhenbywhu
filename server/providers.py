@@ -4,11 +4,12 @@ import asyncio
 import json
 import os
 import time
+import threading
 from dataclasses import dataclass, field
-from typing import Literal, Annotated
+from typing import Literal, Annotated, Callable
 from pydantic import Field
 from .schemas import StrictModel
-from .network import PinnedHTTPS, public_addresses
+from .network import PinnedHTTPS, public_addresses, RequestDeadline
 
 
 class Claim(StrictModel):
@@ -31,6 +32,7 @@ class Provider:
     path: str
     model: str
     key: str = field(repr=False)
+    dispatch_guard: Callable[[], bool] | None = field(default=None, repr=False, compare=False)
 
 
 # Preserve existing deployments' model choices. All model names remain configurable;
@@ -70,11 +72,15 @@ def _http_error(status, raw):
 
 
 class ProviderService:
-    def __init__(self, timeout=20):
+    def __init__(self, timeout=20, max_inflight=8):
         self.timeout = timeout
         self.providers = {id: Provider(id, host, path, os.getenv(model_env, model), os.getenv(key_env, ''))
                           for id, host, path, model, key_env, model_env in DEFAULTS}
         self.failures = {}; self.open_until = {}; self.vault = None
+        # Include abandoned DNS/transport workers, not just awaiting coroutines.
+        # Fail closed at capacity; never queue an unbounded number of paid sends.
+        self._slots = threading.BoundedSemaphore(max_inflight)
+        self._transport = threading.local()
 
     def status(self):
         return [{'id': p.id, 'model': p.model, 'configured': bool(p.key and not p.key.startswith('your_')),
@@ -105,11 +111,21 @@ class ProviderService:
         else:
             payload['max_tokens'] = 1000
         body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode()
-        conn = PinnedHTTPS(p.host, public_addresses(p.host)[0], self.timeout)
+        deadline = getattr(self._transport, 'deadline', None) or RequestDeadline(self.timeout)
+        deadline.remaining()
+        addresses = public_addresses(p.host)
+        # A cancelled DNS lookup must not begin a new HTTP request when it ends.
+        conn = PinnedHTTPS(p.host, addresses[0], deadline.remaining())
+        conn.deadline = deadline
         try:
+            deadline.remaining()
+            guard = getattr(p, 'dispatch_guard', None)
+            deadline.guard = guard
+            deadline.authorize()
             conn.request('POST', p.path, body, {'Authorization': f'Bearer {p.key}',
                          'Content-Type': 'application/json', 'Accept-Encoding': 'identity'})
             res = conn.getresponse(); raw = res.read(500001)
+            deadline.remaining()
             if len(raw) > 500000:
                 raise ValueError('MODEL_RESPONSE_TOO_LARGE')
             if res.status != 200:
@@ -147,16 +163,52 @@ class ProviderService:
             raise ValueError('MODEL_UNAVAILABLE')
         if time.monotonic() < self.open_until.get(p.id, 0):
             raise ValueError('MODEL_CIRCUIT_OPEN')
+        if not self._slots.acquire(blocking=False):
+            raise ValueError('MODEL_TRANSPORT_BUSY')
+        deadline = RequestDeadline(self.timeout)
+        args = (p, system, context) if output_schema is ModelOutput else (p, system, context, output_schema)
+        startup_lock = threading.Lock()
+        started = retired = False
+        def execute():
+            nonlocal started
+            with startup_lock:
+                # The loop/executor can reject scheduling before a worker ever
+                # starts. A retired wrapper must not consume a reused slot.
+                if retired:raise TimeoutError('MODEL_REQUEST_STOPPED')
+                started = True
+            self._transport.deadline = deadline
+            try:
+                deadline.remaining()
+                return self._request(*args)
+            finally:
+                del self._transport.deadline
+                self._slots.release()
+        task = asyncio.create_task(asyncio.to_thread(execute))
+        # The coroutine can leave first; consume a late failure without treating
+        # it as a result or releasing the worker's admission slot prematurely.
+        def completed(done):
+            nonlocal retired
+            with startup_lock:
+                if not started:
+                    retired = True
+                    deadline.stop()
+                    self._slots.release()
+            if not done.cancelled():done.exception()
+        task.add_done_callback(completed)
         try:
-            args = (p, system, context) if output_schema is ModelOutput else (p, system, context, output_schema)
-            result = await asyncio.wait_for(asyncio.to_thread(self._request, *args), timeout=self.timeout + 1)
+            result = await asyncio.wait_for(asyncio.shield(task), timeout=self.timeout)
             self.failures[p.id] = 0
             return result
-        except Exception:
-            self.failures[p.id] = self.failures.get(p.id, 0) + 1
-            if self.failures[p.id] >= 3:
-                self.open_until[p.id] = time.monotonic() + 60
+        except Exception as exc:
+            # A local consent change is not a supplier outage and must not open
+            # a shared provider circuit for another account's valid work.
+            if str(exc) != 'MODEL_AUTHORIZATION_CHANGED':
+                self.failures[p.id] = self.failures.get(p.id, 0) + 1
+                if self.failures[p.id] >= 3:
+                    self.open_until[p.id] = time.monotonic() + 60
             raise
+        finally:
+            deadline.stop()
 
     async def complete(self, p, system, context):
         return await self._complete(p, system, context)

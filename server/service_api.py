@@ -1,5 +1,6 @@
 """Authenticated product-service APIs. All objects are owned by the current account."""
 from __future__ import annotations
+from .schemas import MAX_SAFE_INTEGER
 import asyncio
 import hmac
 import time
@@ -80,7 +81,7 @@ def update_identity(id:str,body:IdentitySpec,request:Request,user=Depends(requir
 
 
 @router.delete('/identities/{id}')
-def delete_identity(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def delete_identity(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=storeof(request)
     with store.transaction() as db:
         versioned_row(store,user['id'],'identity',id,version)
@@ -107,7 +108,7 @@ def get_thread(id:str,request:Request,user=Depends(require_user)):
 
 
 @router.delete('/threads/{id}')
-def delete_thread(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def delete_thread(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=storeof(request)
     with store.transaction() as db:
         versioned_row(store,user['id'],'assistant_thread',id,version)
@@ -140,7 +141,7 @@ def confirm(id:str,body:ProposalConfirm,request:Request,user=Depends(require_use
 
 
 @router.delete('/proposals/{id}')
-def discard_proposal(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def discard_proposal(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=storeof(request)
     with store.transaction() as db:
         row=versioned_row(store,user['id'],'assistant_proposal',id,version)
@@ -162,7 +163,7 @@ def tracking(request:Request,identity_id:str=Query('',max_length=80),user=Depend
 
 
 @router.get('/history')
-def orphan_history(request:Request,offset:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=200),user=Depends(require_user)):
+def orphan_history(request:Request,offset:int=Query(0,ge=0,le=MAX_SAFE_INTEGER),limit:int=Query(100,ge=1,le=200),user=Depends(require_user)):
     """Account-owned archived context without evaluating rules or restoring access."""
     store=storeof(request)
     identities={r['id']:r for r in ws.objects(store,user['id'],'identity')}
@@ -246,7 +247,7 @@ def update_watch(id:str,body:WatchSpec,request:Request,user=Depends(require_user
 
 
 @router.delete('/watches/{id}')
-def delete_watch(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def delete_watch(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=storeof(request)
     with store.transaction() as db:
         versioned_row(store,user['id'],'watch',id,version)
@@ -264,7 +265,7 @@ def acknowledge_alert(id:str,body:AlertAck,request:Request,user=Depends(require_
 
 
 @router.delete('/alerts/{id}')
-def delete_alert(id:str,request:Request,version:int|None=Query(None,ge=1),user=Depends(require_user)):
+def delete_alert(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=storeof(request)
     with store.transaction() as db:
         row=versioned_row(store,user['id'],'alert',id,version)

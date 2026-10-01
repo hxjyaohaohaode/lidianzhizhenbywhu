@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .schemas import MAX_SAFE_INTEGER
 from .clock import utc_today
 import asyncio
 import hmac
@@ -272,7 +273,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         if not result:fail('VERSION_CONFLICT','数据已被更新；本次修改未覆盖新版本。',409)
         return result
     @app.delete('/api/datasets/{id}')
-    def dataset_delete(id: str,request: Request,version: int|None=Query(None,ge=1),user=Depends(require_user)):
+    def dataset_delete(id: str,request: Request,version: int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
         db=store(request);owned(db,'datasets',user,id)
         try:db.delete('datasets',user['id'],id,version)
         except sqlite3.IntegrityError:fail('DATASET_IN_USE','数据集被诊断记录引用；请先删除相关会话。',409)
@@ -321,7 +322,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         db=store(request);owned(db,'conversations',user,id)
         return {'items':db.all('SELECT * FROM messages WHERE session_id=? AND user_id=? ORDER BY created_at LIMIT 500',(id,user['id']))}
     @app.delete('/api/conversations/{id}')
-    async def delete_conversation(id: str,request: Request,version: int|None=Query(None,ge=1),user=Depends(require_user)):
+    async def delete_conversation(id: str,request: Request,version: int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
         db=store(request)
         with db._lock:
             row=owned(db,'conversations',user,id);check_version(row,version)
@@ -381,7 +382,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             db.event(conn,id,'queued',{'snapshot_hash':digest(snapshot),'dataset_version':dataset['version'],'mode':body.mode});db.audit(conn,user['id'],'runs',id,'queued')
         return db.owned('runs',user['id'],id)
     @app.get('/api/runs')
-    def runs(request: Request,offset: int=Query(0,ge=0),limit: int=Query(200,ge=1,le=200),user=Depends(require_user)):
+    def runs(request: Request,offset: int=Query(0,ge=0,le=MAX_SAFE_INTEGER),limit: int=Query(200,ge=1,le=200),user=Depends(require_user)):
         items=store(request).all('SELECT * FROM runs WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?',(user['id'],limit+1,offset))
         return {'items':[{k:v for k,v in r.items() if k not in ('snapshot','result')} for r in items[:limit]],'has_more':len(items)>limit,'next_offset':offset+min(len(items),limit)}
     @app.get('/api/runs/{id}')
@@ -390,10 +391,10 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     async def cancel(id: str,request: Request,user=Depends(require_user)):
         owned(store(request),'runs',user,id);app.state.worker.cancel(user['id'],id);return store(request).owned('runs',user['id'],id)
     @app.get('/api/runs/{id}/events')
-    async def events(id: str,request: Request,after: int=Query(0,ge=0),user=Depends(require_user)):
+    async def events(id: str,request: Request,after: int=Query(0,ge=0,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
         db=store(request);owned(db,'runs',user,id);raw=request.headers.get('last-event-id','')
         if raw:
-            if not raw.isdigit():fail('INVALID_CURSOR','事件游标无效。',422)
+            if not re.fullmatch(r'[0-9]{1,16}',raw) or int(raw)>MAX_SAFE_INTEGER:fail('INVALID_CURSOR','事件游标无效。',422)
             after=max(after,int(raw))
         async def generate():
             cursor=after;heartbeat=time.monotonic()
@@ -496,7 +497,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             if review:ws.save(db,conn,user['id'],'evidence_review',review['payload'],key=id,expected=review['version'])
         return db.owned('evidence',user['id'],id)
     @app.delete('/api/evidence/{id}')
-    def evidence_delete(id: str,request: Request,version: int|None=Query(None,ge=1),user=Depends(require_user)):
+    def evidence_delete(id: str,request: Request,version: int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
         db=store(request);owned(db,'evidence',user,id);db.delete('evidence',user['id'],id,version)
         return {'ok':True,'notice':'已从未来检索移除；历史报告引用快照保留。删除相关会话可一并删除历史快照。'}
     @app.get('/api/retrieval')
@@ -532,7 +533,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         if not row:fail('VERSION_CONFLICT','记忆已在其他窗口更新。',409)
         return row
     @app.delete('/api/memories/{id}')
-    def memory_delete(id: str,request: Request,version: int|None=Query(None,ge=1),user=Depends(require_user)):
+    def memory_delete(id: str,request: Request,version: int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
         db=store(request);owned(db,'memories',user,id);db.delete('memories',user['id'],id,version)
         return {'ok':True,'notice':'后续任务不再召回。已提交任务审计快照需删除对应会话才能一并移除。'}
     @app.post('/api/feedback',status_code=201)
@@ -542,7 +543,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             conn.execute('INSERT INTO feedback VALUES(?,?,?,?,?)',(id,user['id'],body.run_id,encode(body.model_dump()),now()));db.audit(conn,user['id'],'feedback',id,'created',{'run_id':body.run_id})
         return {'id':id,'notice':'反馈已记录；不会自动篡改模型权重或已完成结论。'}
     @app.get('/api/sync')
-    def sync(request: Request,after: int=Query(0,ge=0),limit: int=Query(100,ge=1,le=500),head: bool=False,user=Depends(require_user)):
+    def sync(request: Request,after: int=Query(0,ge=0,le=MAX_SAFE_INTEGER),limit: int=Query(100,ge=1,le=500),head: bool=False,user=Depends(require_user)):
         if head:
             cursor=store(request).one('SELECT COALESCE(MAX(seq),0) AS cursor FROM audit WHERE user_id=?',(user['id'],))['cursor']
             return {'items':[],'cursor':cursor,'has_more':False}

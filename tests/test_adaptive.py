@@ -47,6 +47,15 @@ def dispatch(actor,plan,consent=True):
 def runtime(actor,run):
     r=actor.get('/workspace/runs/'+run['id']+'/runtime');assert r.status_code==200,r.text;return r.json()
 
+def short_dataset(actor):
+    # This adverse fixture stays below the six-complete-quarter threshold after
+    # UTC quarter boundaries; it must not depend on the wall-clock date.
+    row=actor.dataset();body=editable(row);body['periods']=body['periods'][:5]
+    response=actor.put('/datasets/'+row['id'],json=body)
+    assert response.status_code==200,response.text
+    return response.json()
+
+
 def completed(actor,**kwargs):
     return actor.execute(dispatch(actor,preview(actor,**kwargs)))
 
@@ -93,7 +102,7 @@ def test_local_replanning_outputs_real_checkpoints_and_ledger(actor):
     assert r['result']['adaptive']['reflection']['automatic_code_changes']==0
 
 def test_optional_predictor_blocks_short_series_but_preserves_report(actor):
-    r=completed(actor,query='预测营业收入并说明样本限制')
+    r=completed(actor,dataset=short_dataset(actor),query='预测营业收入并说明样本限制')
     assert r['state']=='degraded' and r['result']['analysis']['metrics']
     assert r['result']['adaptive']['mathematical_outputs']['forecast']['status']=='blocked'
     assert r['result']['llm']['state']=='not_requested'
@@ -268,7 +277,7 @@ def test_model_can_choose_real_specialist_dependencies_inside_consent(factory,or
 
 def test_model_suggested_forecast_uses_same_snapshot_without_new_permission(factory):
     ps=ResearchProviders(proposal={'focus':['forecast'],'specialists':['analyst'],'rationale':'核验历史序列能否建立预测基线'})
-    a=Actor(factory(ps));r=completed(a,use_llm=True,provider='alpha',max_calls=4,execution={'model_planning':True})
+    a=Actor(factory(ps));r=completed(a,dataset=short_dataset(a),use_llm=True,provider='alpha',max_calls=4,execution={'model_planning':True})
     assert r['result'],r
     rt=runtime(a,r);g=rt['graph']['payload'];assert 'forecast' in {n['id'] for n in g['nodes']}
     assert 'forecast' in next(n for n in g['nodes'] if n['id']=='analyst')['depends_on']

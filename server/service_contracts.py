@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 from pydantic import Field, model_validator, field_validator
-from .schemas import StrictModel
+from .schemas import StorageInteger, StrictModel
 from .autonomy_contracts import ExecutionOptions
 from .business_provenance import SourceRef
 
@@ -22,7 +22,7 @@ class IdentitySpec(StrictModel):
     allow_external: bool = False
     max_calls: int = Field(default=3, ge=0, le=8)
     include_shared_memory: bool = True
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
 
     @field_validator('dataset_ids')
     @classmethod
@@ -42,7 +42,7 @@ class ThreadCreate(StrictModel):
 class CopilotMessage(StrictModel):
     text: str = Field(min_length=1, max_length=3000)
     request_id: str = Field(pattern=r'^[a-zA-Z0-9_-]{8,80}$')
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
     @field_validator('text')
     @classmethod
@@ -79,7 +79,7 @@ class ProposalRequest(StrictModel):
 
 
 class ProposalConfirm(StrictModel):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     fingerprint: str = Field(pattern=r'^[a-f0-9]{64}$')
     external_consent: bool = False
 
@@ -96,7 +96,7 @@ class WatchSpec(StrictModel):
     active: bool = True
     stale_after_days: int = Field(default=180, ge=30, le=1460)
     expires_at: date | None = None
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
 
     @model_validator(mode='after')
     def request_id_create_only(self):
@@ -107,7 +107,7 @@ class WatchSpec(StrictModel):
 
 class AlertAck(StrictModel):
     note: str = Field(default='已核对', min_length=2, max_length=1000)
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 
 class PrivateConnection(StrictModel):
@@ -116,7 +116,7 @@ class PrivateConnection(StrictModel):
     model: str = Field(min_length=1, max_length=150)
     api_key: str = Field(default='', max_length=1000)
     password: str = Field(min_length=1, max_length=128)
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
 
 
 class Reauthenticate(StrictModel):
@@ -124,7 +124,7 @@ class Reauthenticate(StrictModel):
 
 
 class ConnectionRemove(Reauthenticate):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 
 class SessionRevoke(Reauthenticate):
