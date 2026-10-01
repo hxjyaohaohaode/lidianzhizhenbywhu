@@ -80,10 +80,10 @@ function setSending() { const p = document.querySelector('#copilot-pending'); if
     p.hidden = !sending;
     p.innerHTML = sending ? '<span class="spinner"></span>正在核查本地数据；没有发出付费请求。' : '';
 } const button = document.querySelector('#assistant-form button[type="submit"]'); if (button) {
-    button.disabled = sending || current?.context?.writable === false;
-    button.setAttribute('aria-busy', String(sending));
+    button.disabled = sending || loading || current?.context?.writable === false;
+    button.setAttribute('aria-busy', String(sending || loading));
 } const label = document.querySelector('#copilot-composer-status'); if (label)
-    label.textContent = current?.context?.writable === false ? (current.context.unavailable_reason ?? '历史会话仅供查阅，请新建会话') : '本地工具不外发数据 · Ctrl/⌘ + Enter 发送'; }
+    label.textContent = loading ? '正在复核会话与来源状态…' : current?.context?.writable === false ? (current.context.unavailable_reason ?? '历史会话仅供查阅，请新建会话') : '本地工具不外发数据 · Ctrl/⌘ + Enter 发送'; }
 function validContext(started, scope) { return started === epoch && scope === contextKey && scope === key(); }
 function acceptThread(loaded, id, started, scope, sequence) {
     if (!validContext(started, scope) || id !== threadId || sequence !== readSequence)
@@ -98,12 +98,15 @@ export async function mountCopilot() {
     switchContext();
     if (loadTask)
         return loadTask;
-    if (current || freshThread) {
+    if (freshThread) {
         paint();
         return;
     }
+    // Completed runs still need live source-impact checks when this view is mounted.
+    // Reuse the in-flight read and retain the composer draft; never rerun the analysis.
     const e = epoch, scope = contextKey, seq = ++readSequence;
     loading = true;
+    setSending();
     const task = (async () => {
         try {
             if (!threadId) {
@@ -121,7 +124,7 @@ export async function mountCopilot() {
                 paint();
         }
         catch (error) {
-            if (!validContext(e, scope))
+            if (!validContext(e, scope) || seq !== readSequence)
                 return;
             const host = document.querySelector('#assistant-answer');
             if (host)
@@ -132,6 +135,7 @@ export async function mountCopilot() {
             if (validContext(e, scope)) {
                 loading = false;
                 loadTask = null;
+                setSending();
             }
         }
     })();
@@ -346,7 +350,14 @@ export async function chatAction(action, el) {
             readSequence++;
             current = null;
             threadId = '';
+            researchForm = null;
             loadTask = null;
+            creationTask = null;
+            creationKey = '';
+            pendingKey = '';
+            pendingText = '';
+            loading = false;
+            sending = false;
             traces.clear();
             remembered.delete(contextKey);
         }

@@ -373,11 +373,21 @@ def main():
             record('共同季度对照经界面保存，明确主企业与额外企业输入，批准后报告保留原比较指纹和数值')
             # Save a new experiment against the current primary revision; the older
             # experiment above intentionally remains tied to its original inputs.
-            go('lab');page.locator('#experiment-form [name="name"]').fill('助手复用实验（合成验收）')
+            go('lab')
+            # A plan's primary enterprise does not change the global workspace
+            # selection. Explicitly choose the original before creating this chat.
+            if page.locator('#active-dataset').input_value()!=original['id']:
+                previous=page.locator('#experiment-form').element_handle()
+                page.locator('#active-dataset').select_option(original['id'])
+                previous.wait_for_element_state('hidden')
+            page.locator('#experiment-form').wait_for()
+            assert page.locator('#experiment-form [name="dataset_id"]').input_value()==original['id']
+            page.locator('#experiment-form [name="name"]').fill('助手复用实验（合成验收）')
             page.locator('#experiment-form [name="price_change"]').fill('3')
             page.locator('#experiment-form [name="assumptions"]').fill('明确保存假设后由助手引用，仅为隔离流程验收')
             submit('#experiment-form')
             chat_experiment=client.get('/api/workspace/experiments').json()['items'][0]
+            assert chat_experiment['payload']['dataset_id']==original['id']
             go('copilot');page.locator('[data-x-action="chat-new"]').first.click()
             for index,question in enumerate([comparison_row['payload']['period']+'毛利率同比核查','继续展开刚才的原因','继续展开','那环比呢']):
                 page.locator('#assistant-query').fill(question);submit('#assistant-form')
@@ -401,6 +411,8 @@ def main():
             assert page.locator('.chat-math-results [data-math-kind="sensitivity"]').is_visible()
             assert peer['payload']['company'] in page.locator('.chat-math-results').inner_text()
             chat_run=client.get('/api/runs/'+client.get('/api/runs').json()['items'][0]['id']).json()
+            assert chat_run['dataset_id']==original['id']
+            chat_proposal_id=page.locator('.proposal-card').last.get_attribute('data-proposal')
             assert chat_run['result']['experiment']['hash']==chat_experiment['experiment_hash']
             assert chat_run['result']['comparison_provenance']['hash']==comparison_row['comparison_hash']
             assert chat_run['result']['analysis']['current_period']==comparison_row['payload']['period']
@@ -415,8 +427,10 @@ def main():
             assert client.get('/api/runs/'+comparison_run_id).json()['result']==comparison_run['result']
             record('同行单独修订后已保存对照不再当成当前Agent输入，原报告比较结果不被重写')
             page.locator('#active-dataset').select_option(original['id']);go('copilot')
-            page.locator('.chat-math-results').wait_for()
-            assert '财务输入已修订' in page.locator('.proposal-card').last.inner_text()
+            current_proposal=page.locator('[data-proposal="'+chat_proposal_id+'"]')
+            current_proposal.wait_for()
+            current_proposal.get_by_text('财务输入已修订',exact=False).wait_for()
+            assert '财务输入已修订' in current_proposal.inner_text()
             assert client.get('/api/runs/'+chat_run['id']).json()['result']==chat_run['result']
             record('同行修订在原助手会话显示来源适用性变化，冻结数学与报告不重算')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'

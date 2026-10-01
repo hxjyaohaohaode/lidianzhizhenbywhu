@@ -189,3 +189,51 @@ test('legacy scenario without recorded target discloses missing provenance rathe
  assert(!form.details['copilot-input-conflicts'].innerHTML.includes('共同季度不一致'));
  assert.throws(()=>researchInputRequest(data({experiment_id:legacy.id,comparison_artifact_id:comparison.id}),inputs,'identity-a',ds.id,datasets),/旧实验摘要未记录目标季度/);
 });
+
+test('remount rechecks same-version peer source impact instead of treating a completed thread cache as current',async()=>{
+ const h=await harness();let resolve;try{
+  const archived={findings:['冻结研究结果'],llm:{state:'not_requested',review:{claims:[]}},comparison_artifact:frozenComparison};
+  const initial={...thread(),proposals:[{...proposal(),payload:{...proposal().payload,status:'executed'}}],runs:[{id:'run-a',proposal_id:'proposal-a',state:'succeeded',dataset_version:3,current_dataset_version:3,source_impact:{state:'current',reasons:[]},result:archived}]};
+  globalThis.fetch=async()=>response(initial);await chat.reloadThread();
+  const host={innerHTML:'',scrollTop:0,scrollHeight:0,clientHeight:0,querySelectorAll(){return []}},composer={value:''},label={textContent:''};
+  document.querySelector=selector=>({'#assistant-answer':host,'#assistant-query':composer,'#copilot-composer-status':label}[selector]??null);
+  let reads=0;globalThis.fetch=(url,init)=>{assert.equal(url,'/api/services/threads/thread-a');assert.equal(init.method,'GET');reads++;return new Promise(r=>resolve=r);};
+  const pending=chat.mountCopilot();assert.equal(reads,1,'a completed cached thread must be revalidated');assert(label.textContent.includes('复核'));
+  const sameRead=chat.mountCopilot();assert.equal(reads,1,'concurrent mounts share the in-flight read');chat.rememberDraft('复核期间刚输入的未发送问题');
+  resolve(response({...initial,runs:[{...initial.runs[0],source_impact:{state:'changed',reasons:[{code:'comparison_member_changed',message:'对照企业的财务输入已修订'}]}}]}));await Promise.all([pending,sameRead]);
+  assert(host.innerHTML.includes('对照企业的财务输入已修订'));assert.equal(composer.value,'复核期间刚输入的未发送问题');assert.deepEqual(chat.currentThread().runs[0].result,archived);assert(!label.textContent.includes('复核'));
+ }finally{h.restore();}
+});
+
+test('late remount cannot roll back a newer source read or overwrite a changed identity',async()=>{
+ const h=await harness();try{
+  const pending=[];globalThis.fetch=()=>new Promise(resolve=>pending.push(resolve));const mounting=chat.mountCopilot();assert.equal(pending.length,1);
+  const newer=chat.reloadThread();pending[1](response({...thread(3),source_marker:'newer-source'}));await newer;pending[0](response({...thread(1),source_marker:'older-source'}));await mounting;assert.equal(chat.currentThread().source_marker,'newer-source');
+  const last=chat.mountCopilot();assert.equal(pending.length,3);state.identity='identity-b';chat.copilotShell();pending[2](response({...thread(4),source_marker:'old-identity'}));await last;assert.equal(chat.currentThread(),null);
+ }finally{h.restore();}
+});
+
+test('sending during remount waits for renewed writability and never posts into newly archived scope',async()=>{
+ const h=await harness();let resolve;try{
+  let posts=0;globalThis.fetch=(url,init)=>{if(init.method==='POST')posts++;return new Promise(r=>resolve=r);};
+  const mounting=chat.mountCopilot(),sending=chat.sendCopilot('复核当前输入');
+  assert.equal(posts,0);resolve(response({...thread(),context:{writable:false,unavailable_reason:'当前身份范围已撤销'}}));await mounting;await assert.rejects(sending,/范围已撤销/);assert.equal(posts,0);
+ }finally{h.restore();}
+});
+
+
+test('deleting the current thread during remount clears its busy state and rejects the late read',async()=>{
+ const h=await harness(),oldConfirm=globalThis.confirm;let resolve;try{
+  globalThis.confirm=()=>true;
+  const host={innerHTML:'',scrollTop:0,scrollHeight:0,clientHeight:0,querySelectorAll(){return []}},button={disabled:false,setAttribute(){}},label={textContent:''};
+  document.querySelector=selector=>({'#assistant-answer':host,'#assistant-form button[type="submit"]':button,'#copilot-composer-status':label}[selector]??null);
+  globalThis.fetch=(url,init)=>init.method==='DELETE'?Promise.resolve(response({deleted:true})):new Promise(r=>resolve=r);
+  const mounting=chat.mountCopilot();assert(button.disabled);assert(label.textContent.includes('复核'));
+  await chat.chatAction('chat-delete',{dataset:{id:'thread-a',version:'1'}});
+  assert.equal(chat.currentThread(),null);assert(!button.disabled);assert(!label.textContent.includes('复核'));
+  resolve(response({...thread(9),source_marker:'deleted-thread-late-read'}));await mounting;
+  assert.equal(chat.currentThread(),null);assert(!button.disabled);assert(!host.innerHTML.includes('deleted-thread-late-read'));
+  let created=0,sent=0;globalThis.fetch=async(url,init)=>{if(url.includes('/threads?'))return response({items:[]});if(url==='/api/services/threads'){created++;return response({id:'thread-new',version:1,payload:{identity_id:'identity-a',dataset_id:ds.id}});}if(url.endsWith('/messages')){sent++;return response({accepted:true});}return response({...thread(2),thread:{...thread(2).thread,id:'thread-new'}});};
+  await chat.sendCopilot('删除后继续新的研究问题');assert.equal(created,1);assert.equal(sent,1);assert.equal(chat.currentThread().thread.id,'thread-new');assert(!button.disabled);
+ }finally{globalThis.confirm=oldConfirm;h.restore();}
+});

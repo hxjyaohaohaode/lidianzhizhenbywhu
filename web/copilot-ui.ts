@@ -48,7 +48,7 @@ function paint(scroll=false){
  if(scroll||atEnd)host.scrollTop=host.scrollHeight;else host.scrollTop=prior;
  const composer=document.querySelector<HTMLTextAreaElement>('#assistant-query');if(composer&&composer.value!==draft)composer.value=draft;setSending();
 }
-function setSending(){const p=document.querySelector<HTMLElement>('#copilot-pending');if(p){p.hidden=!sending;p.innerHTML=sending?'<span class="spinner"></span>正在核查本地数据；没有发出付费请求。':'';}const button=document.querySelector<HTMLButtonElement>('#assistant-form button[type="submit"]');if(button){button.disabled=sending||current?.context?.writable===false;button.setAttribute('aria-busy',String(sending));}const label=document.querySelector('#copilot-composer-status');if(label)label.textContent=current?.context?.writable===false?(current.context.unavailable_reason??'历史会话仅供查阅，请新建会话'):'本地工具不外发数据 · Ctrl/⌘ + Enter 发送';}
+function setSending(){const p=document.querySelector<HTMLElement>('#copilot-pending');if(p){p.hidden=!sending;p.innerHTML=sending?'<span class="spinner"></span>正在核查本地数据；没有发出付费请求。':'';}const button=document.querySelector<HTMLButtonElement>('#assistant-form button[type="submit"]');if(button){button.disabled=sending||loading||current?.context?.writable===false;button.setAttribute('aria-busy',String(sending||loading));}const label=document.querySelector('#copilot-composer-status');if(label)label.textContent=loading?'正在复核会话与来源状态…':current?.context?.writable===false?(current.context.unavailable_reason??'历史会话仅供查阅，请新建会话'):'本地工具不外发数据 · Ctrl/⌘ + Enter 发送';}
 function validContext(started:number,scope:string){return started===epoch&&scope===contextKey&&scope===key();}
 function acceptThread(loaded:Json,id:string,started:number,scope:string,sequence:number){
  if(!validContext(started,scope)||id!==threadId||sequence!==readSequence)return false;
@@ -56,14 +56,16 @@ function acceptThread(loaded:Json,id:string,started:number,scope:string,sequence
  current=loaded;remembered.set(scope,id);return true;
 }
 export async function mountCopilot(){
- switchContext();if(loadTask)return loadTask;if(current||freshThread){paint();return;}
- const e=epoch,scope=contextKey,seq=++readSequence;loading=true;
+ switchContext();if(loadTask)return loadTask;if(freshThread){paint();return;}
+ // Completed runs still need live source-impact checks when this view is mounted.
+ // Reuse the in-flight read and retain the composer draft; never rerun the analysis.
+ const e=epoch,scope=contextKey,seq=++readSequence;loading=true;setSending();
  const task=(async()=>{try{
   if(!threadId){const found=await api('/services/threads?identity_id='+encodeURIComponent(state.identity)+'&dataset_id='+encodeURIComponent(state.active));if(!validContext(e,scope)||seq!==readSequence)return;threadId=found.items[0]?.id??'';}
   if(threadId){const id=threadId,loaded=await api('/services/threads/'+id);if(!acceptThread(loaded,id,e,scope,seq))return;}
   if(validContext(e,scope))paint();
- }catch(error){if(!validContext(e,scope))return;const host=document.querySelector('#assistant-answer');if(host)host.innerHTML=notice(error instanceof Error?error.message:'会话读取失败','danger')+xbutton('重新读取','chat-refresh','','primary');throw error;
- }finally{if(validContext(e,scope)){loading=false;loadTask=null;}}})();
+ }catch(error){if(!validContext(e,scope)||seq!==readSequence)return;const host=document.querySelector('#assistant-answer');if(host)host.innerHTML=notice(error instanceof Error?error.message:'会话读取失败','danger')+xbutton('重新读取','chat-refresh','','primary');throw error;
+ }finally{if(validContext(e,scope)){loading=false;loadTask=null;setSending();}}})();
  loadTask=task;return task;
 }
 async function ensureThread(){
@@ -95,7 +97,7 @@ export async function chatAction(action:string,el:HTMLElement){if(['chat-history
  if(action==='chat-history'){const e=epoch;const r=await api('/services/threads?identity_id='+encodeURIComponent(state.identity)+'&dataset_id='+encodeURIComponent(state.active));if(e!==epoch||!active())return;hooks.dialog('当前身份与企业的研究会话',r.items.length?r.items.map((t:Json)=>`<article class="thread-history"><h3>${esc(t.payload.title)}</h3><small>${timeText(t.updated_at)}</small><div class="inline-actions">${xbutton('打开','chat-open',`data-id="${esc(t.id)}"`)}${xbutton('导出','chat-export',`data-id="${esc(t.id)}"`)}${xbutton('删除','chat-delete',`data-id="${esc(t.id)}" data-version="${t.version}"`,'text-button danger-text')}</div></article>`).join(''):notice('当前上下文没有历史会话。'));return;}
  if(action==='chat-open'){if(sending)throw new Error('当前问题尚在处理，请等待返回后切换会话。');if(draft&&!confirm('当前未发送草稿将清空，继续打开历史会话？'))return;const e=++epoch;const target=contextKey;loading=false;loadTask=null;creationTask=null;const loaded=await api('/services/threads/'+id);if(e!==epoch||target!==contextKey)return;if(!valid()||target!==key())return;threadId=id;readSequence++;traces.clear();current=loaded;researchForm=null;draft='';pendingKey='';pendingText='';drafts.delete(contextKey);remembered.set(contextKey,id);document.querySelector<HTMLDialogElement>('#modal')?.close();paint();return;}
  if(action==='chat-export'){const r=await api('/services/threads/'+id);if(!active())return;const url=URL.createObjectURL(new Blob([JSON.stringify(r,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='研究会话-'+id.slice(0,8)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return;}
- if(action==='chat-delete'){if(!confirm('永久删除此助手会话及提案副本？已批准的任务和报告作为独立记录保留。'))return;await api('/services/threads/'+id+'?version='+encodeURIComponent(el.dataset.version??''),'DELETE');if(!active())return;document.querySelector<HTMLDialogElement>('#modal')?.close();if(threadId===id){epoch++;readSequence++;current=null;threadId='';loadTask=null;traces.clear();remembered.delete(contextKey);}paint();return;}
+ if(action==='chat-delete'){if(!confirm('永久删除此助手会话及提案副本？已批准的任务和报告作为独立记录保留。'))return;await api('/services/threads/'+id+'?version='+encodeURIComponent(el.dataset.version??''),'DELETE');if(!active())return;document.querySelector<HTMLDialogElement>('#modal')?.close();if(threadId===id){epoch++;readSequence++;current=null;threadId='';researchForm=null;loadTask=null;creationTask=null;creationKey='';pendingKey='';pendingText='';loading=false;sending=false;traces.clear();remembered.delete(contextKey);}paint();return;}
  if(action==='chat-propose'){await proposalForm(el.dataset.kind??'research',el.dataset.message??'',active);return;}
  if(action==='chat-review'){const p=await api('/services/proposals/'+id);if(active())await reviewProposal(p,active);return;}
  if(action==='chat-detail'){const row=await api('/services/proposals/'+id);if(active())hooks.inspect('提案、输入绑定与执行结果',jsonView(row));return;}
