@@ -12,23 +12,52 @@ import os
 import re
 import time
 import uuid
+from collections import deque
+from urllib.parse import urlsplit
 from pathlib import Path
 import httpx
 from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
 
 
+class FixtureRequestBudget:
+    """Admission pacing for synthetic setup, never a retry of business requests.
+
+    The application retains its original 600 non-auth API requests / minute.
+    Reserve headroom before a bounded 200-record fixture plus its UI assertions.
+    """
+    def __init__(self, clock=time.monotonic):
+        self.clock=clock;self.requests=deque()
+
+    def record(self, url):
+        path=urlsplit(url).path
+        if path.startswith('/api/') and not path.startswith('/api/auth/'):
+            self.requests.append(self.clock())
+
+    def reserve(self, count, wait=time.sleep):
+        if not 1 <= count <= 600:raise ValueError('Invalid fixture request reservation')
+        start=self.clock();deadline=start+65
+        while True:
+            now=self.clock()
+            while self.requests and self.requests[0]<=now-60:self.requests.popleft()
+            if len(self.requests)+count<=600:return round(now-start,3)
+            delay=max(.05,self.requests[0]+60.05-now)
+            if now+delay>deadline:raise RuntimeError('Fixture request window did not settle within 65 seconds')
+            wait(delay)
+
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--native',action='store_true');args=parser.parse_args();native=args.native
-    checks=[];errors=[];responses=[];screens=[];completed=False
+    checks=[];errors=[];responses=[];screens=[];completed=False;api_budget=FixtureRequestBudget();fixture_budget_wait=0
     def record(label):checks.append(label);print('PASS',label,flush=True)
-    with httpx.Client(base_url='http://127.0.0.1:8000',trust_env=False,timeout=30) as client,sync_playwright() as p:
+    with httpx.Client(base_url='http://127.0.0.1:8000',trust_env=False,timeout=30,event_hooks={'request':[lambda request:api_budget.record(str(request.url))]}) as client,sync_playwright() as p:
         launch={'headless':True};executable=os.getenv('CHROMIUM_PATH')
         if executable:launch['executable_path']=executable
         elif not native:launch['executable_path']='/usr/bin/chromium'
         b=p.chromium.launch(**launch)
         page=b.new_page(viewport={'width':1520,'height':1080},device_scale_factor=1)
         page.set_default_timeout(10000)
+        if native:page.on('request',lambda request:api_budget.record(request.url))
         page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
         def call(payload):
             path=payload['path']
@@ -463,49 +492,6 @@ def main():
             assert page.locator('#copilot-comparison option[value="'+comparison_id+'"]').count()==0
             page.locator('#modal [data-action="close-modal"]').first.click()
             record('对照清理明确对象和影响→取消保留→确认删除→列表与双计划选择器移除→同会话来源失效且原报告保留')
-            # Capacity fixture setup uses authenticated HTTP on this temporary
-            # account; the owner cleanup and confirmation below are native UI.
-            client.headers['X-CSRF-Token']=client.get('/api/auth/me').json()['csrf']
-            setup=client.post('/api/services/identities',json={'name':'清理容量专用合成身份','dataset_ids':[original['id'],peer['id']]})
-            assert setup.status_code==201,setup.text
-            orphan_identity=setup.json()
-            current_members=[client.get('/api/datasets/'+d['id']).json() for d in (original,peer)]
-            capacity_payload={'name':'失效范围容量合成对照','identity_id':orphan_identity['id'],
-                'datasets':[{'id':d['id'],'version':d['version'],'hash':d['content_hash']} for d in current_members],
-                'comparison':'year_over_year','comparability_note':'隔离容量边界验收，仅使用合成输入，不用于业务判断'}
-            orphan_rows=[]
-            for index in range(200):
-                created=client.post('/api/workspace/comparisons',json={**capacity_payload,'name':capacity_payload['name']+' '+str(index)})
-                assert created.status_code==201,created.text
-                orphan_rows.append(created.json())
-            assert client.delete('/api/services/identities/'+orphan_identity['id'],params={'version':orphan_identity['version']}).status_code==200
-            replacement_payload={**capacity_payload,'identity_id':identity_id,'name':'清理失效范围后恢复容量（合成验收）'}
-            full=client.post('/api/workspace/comparisons',json=replacement_payload)
-            assert full.status_code==409 and full.json()['error']['code']=='RESOURCE_LIMIT'
-            go('services')
-            archived=next(row for row in client.get('/api/services/history').json()['items'] if row['kind']=='comparison')
-            page.locator('[data-x-action="history-detail"][data-id="'+archived['id']+'"]').click()
-            page.locator('#inspector [data-action="delete-comparison"][data-id="'+archived['id']+'"]').click()
-            page.locator(cleanup).wait_for()
-            assert archived['id'] in page.locator('#modal').inner_text()
-            assert page.locator(cleanup).get_attribute('data-identity-id')==orphan_identity['id']
-            assert page.locator('#active-identity').input_value()==identity_id
-            assert not overflow();snap('ui-current-history-comparison-cleanup.png',full_page=False)
-            page.locator(cleanup+' [name="confirm_delete"]').check();submit(cleanup)
-            page.locator('#modal').wait_for(state='hidden')
-            assert client.get('/api/workspace/comparisons/'+archived['id'],params={'identity_id':orphan_identity['id']}).status_code==404
-            recovered=client.post('/api/workspace/comparisons',json=replacement_payload)
-            assert recovered.status_code==201,recovered.text
-            assert orphan_identity['id'] not in [row['id'] for row in client.get('/api/services/identities').json()['items']]
-            assert page.locator('#active-identity').input_value()==identity_id
-            record('200份失效身份对照占满容量→账户历史逐项确认清理→容量恢复，原身份与研究执行权不恢复')
-            # Remove the remaining synthetic setup records through their existing
-            # API, keeping subsequent screenshots small; never touch user data.
-            for row in [r for r in orphan_rows if r['id']!=archived['id']]+[recovered.json()]:
-                cleaned=client.delete('/api/workspace/comparisons/'+row['id'],params={'identity_id':row['payload']['identity_id'],'version':row['version']})
-                assert cleaned.status_code==200,cleaned.text
-            if page.locator('#inspector').is_visible():page.locator('#inspector [data-action="close-inspector"]').click()
-            go('brief')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')
@@ -577,6 +563,46 @@ def main():
             assert page.locator('html').get_attribute('data-theme')=='dark'
             go('copilot');assert not overflow();snap('ui-current-dark.png')
             record('深色主题与减少动效模式真实渲染，不复用历史截图')
+            # Capacity fixture setup uses authenticated HTTP on this temporary
+            # account; the owner cleanup and confirmation below are native UI.
+            fixture_budget_wait=api_budget.reserve(300,wait=lambda seconds:page.wait_for_timeout(seconds*1000))
+            page.set_viewport_size({'width':1520,'height':1080})
+            client.headers['X-CSRF-Token']=client.get('/api/auth/me').json()['csrf']
+            setup=client.post('/api/services/identities',json={'name':'清理容量专用合成身份','dataset_ids':[original['id'],peer['id']]})
+            assert setup.status_code==201,setup.text
+            orphan_identity=setup.json()
+            current_members=[client.get('/api/datasets/'+d['id']).json() for d in (original,peer)]
+            capacity_payload={'name':'失效范围容量合成对照','identity_id':orphan_identity['id'],
+                'datasets':[{'id':d['id'],'version':d['version'],'hash':d['content_hash']} for d in current_members],
+                'comparison':'year_over_year','comparability_note':'隔离容量边界验收，仅使用合成输入，不用于业务判断'}
+            orphan_rows=[]
+            for index in range(200):
+                created=client.post('/api/workspace/comparisons',json={**capacity_payload,'name':capacity_payload['name']+' '+str(index)})
+                assert created.status_code==201,created.text
+                orphan_rows.append(created.json())
+            assert client.delete('/api/services/identities/'+orphan_identity['id'],params={'version':orphan_identity['version']}).status_code==200
+            replacement_payload={**capacity_payload,'identity_id':identity_id,'name':'清理失效范围后恢复容量（合成验收）'}
+            full=client.post('/api/workspace/comparisons',json=replacement_payload)
+            assert full.status_code==409 and full.json()['error']['code']=='RESOURCE_LIMIT'
+            go('services')
+            archived=next(row for row in client.get('/api/services/history').json()['items'] if row['kind']=='comparison')
+            page.locator('[data-x-action="history-detail"][data-id="'+archived['id']+'"]').click()
+            page.locator('#inspector [data-action="delete-comparison"][data-id="'+archived['id']+'"]').click()
+            page.locator(cleanup).wait_for()
+            assert archived['id'] in page.locator('#modal').inner_text()
+            assert page.locator(cleanup).get_attribute('data-identity-id')==orphan_identity['id']
+            assert page.locator('#active-identity').input_value()==identity_id
+            assert not overflow();snap('ui-current-history-comparison-cleanup.png',full_page=False)
+            page.locator(cleanup+' [name="confirm_delete"]').check();submit(cleanup)
+            page.locator('#modal').wait_for(state='hidden')
+            assert client.get('/api/workspace/comparisons/'+archived['id'],params={'identity_id':orphan_identity['id']}).status_code==404
+            recovered=client.post('/api/workspace/comparisons',json=replacement_payload)
+            assert recovered.status_code==201,recovered.text
+            assert orphan_identity['id'] not in [row['id'] for row in client.get('/api/services/identities').json()['items']]
+            assert page.locator('#active-identity').input_value()==identity_id
+            record('200份失效身份对照占满容量→账户历史逐项确认清理→容量恢复，原身份与研究执行权不恢复')
+            # The isolated database is destroyed after the browser exits. Do not
+            # create another 200-request DELETE burst merely to tidy test fixtures.
             assert not errors,errors
             assert not [r for r in responses if r['status']>=500],responses
             record('全部上述流程零捕获JavaScript异常、零HTTP5xx')
@@ -587,6 +613,6 @@ def main():
         finally:
             status_counts={str(status):sum(row['status']==status for row in responses) for status in sorted({row['status'] for row in responses})}
             http={'requests':len(responses),'status_counts':status_counts,'server_errors':[row for row in responses if row['status']>=500]}
-            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'policy_modified':False,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
+            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'policy_modified':False,'fixture_budget_wait_seconds':fixture_budget_wait,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
             b.close()
 if __name__=='__main__':main()

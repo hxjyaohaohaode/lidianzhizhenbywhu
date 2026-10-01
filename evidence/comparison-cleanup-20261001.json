@@ -2,11 +2,11 @@
   "date": "2026-10-01",
   "baseline_remote_sha": "67b84e0f8547f31e4c114087419330eef54a67b0",
   "baseline_tree": "a9c5681379be5e67f1136b670a5ba58ff9bb6464",
-  "verification_completed_at": "2026-10-01T12:17:15.075985+00:00",
+  "verification_completed_at": "2026-10-01T12:34:04.524750+00:00",
   "local": {
     "seven_stages_passed": true,
     "backend": {
-      "passed": 992,
+      "passed": 995,
       "skipped": 0,
       "upstream_warnings": 1
     },
@@ -33,7 +33,16 @@
       "ui-current-comparison-cleanup.png",
       "ui-current-history-comparison-cleanup.png"
     ],
-    "local_policy_bypassed": false
+    "local_policy_bypassed": false,
+    "first_ci": {
+      "sha": "17eb492650d5c4a4cc5ec34d3356d7488eb530b5",
+      "status": "failed",
+      "linux": "New deletion and capacity UI journeys passed; unnecessary bulk fixture deletion hit existing600/min limiter",
+      "windows": "Reading services after200 setup writes received429; screenshot confirmed rate-limit error",
+      "product_code_changed_by_fix": false,
+      "fix": "Capacity fixture moved after normal screenshots; remove extra bulk cleanup; reserve300 of existing600/min API admission window using actual timestamps, bounded65 seconds and never retry HTTP",
+      "regression": "3 controlled-clock fixture-budget tests passed"
+    }
   },
   "unchanged_sha256": {
     "web/brand/logo.png": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
