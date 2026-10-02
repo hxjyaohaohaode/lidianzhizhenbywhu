@@ -28,3 +28,9 @@ The dated local execution record is `evidence/workflow-recovery-20261002.json`. 
 DeepSeek, GLM, MiMo and Qwen provider support, supplied logo/video, financial formulas and historical reports remain unchanged. No real provider credentials, paid calls, live business data, merge, deployment or ZIP delivery are part of this iteration.
 
 Existing legacy limits documented in `review-regressions-20261001.md` continue to apply. A separate product-design question remains for displaying and associating the complete report → watch → numerical alert → later-action origin chain in feedback views. A valid numerical alert is independently calculated from its frozen financial inputs; it must not be mislabeled as corrupt merely because an earlier report origin becomes unavailable. That broader lineage/display policy is not changed here.
+
+## First native CI attempt and corrective fixture (e2b7fc5b)
+
+Both Linux jobs completed the seven aggregate stages and 25 native checks, including the new saved-read-failure, dialog isolation and historical trace scenarios. The existing later action smoke path then inherited the newly inserted four-character question “那环比呢” and correctly received the mandatory concrete-content validation error. The action form's purpose had not been explicitly filled by the fixture. Its screenshot shows the validation error; no JavaScript exception or HTTP 5xx was recorded.
+
+The fixture now explicitly enters the action purpose and the separate memory content, retaining the acceptance text, preview and confirmation steps. No application source, minimum-length guard, assertion, timeout or retry policy is relaxed. This was independently reproduced/reviewed as a changed-fixture-context failure. The original failed runs and artifacts remain failures; a new exact-SHA full run is required.

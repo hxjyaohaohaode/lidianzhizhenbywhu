@@ -364,7 +364,7 @@ def main():
                 assert rejected['status']==403 and rejected['body']['error']['code']=='CSRF_REJECTED'
                 record('原生同源写请求缺少CSRF时被拒绝，不影响现有登录会话')
             page.locator('[data-x-action="chat-propose"][data-kind="action"]').last.click()
-            f='form[data-service-form="proposal"]';page.locator(f+' [name="acceptance"]').fill('核对原始财务表，记录输入口径和复核证据');submit(f);submit('form[data-service-form="confirm-proposal"]')
+            f='form[data-service-form="proposal"]';page.locator(f+' [name="text"]').fill('核对2024-Q2经营现金流环比变化与财务原表');page.locator(f+' [name="acceptance"]').fill('核对原始财务表，记录输入口径和复核证据');submit(f);submit('form[data-service-form="confirm-proposal"]')
             assert client.get('/api/workspace/actions').json()['items'];record('助手行动提案→明确验收标准→确认入库')
             action=client.get('/api/workspace/actions').json()['items'][0]
             go('actions');page.locator('[data-action="action-detail"][data-id="'+action['id']+'"]').click()
@@ -380,7 +380,7 @@ def main():
             assert updated['payload']['changes'] and updated['payload']['history']==action['payload']['history']
             record('行动原位调整负责人、期限和优先级，保留身份、来源与完整状态/修改历史')
             go('copilot');page.locator('.chat-turn').first.wait_for()
-            page.locator('[data-x-action="chat-propose"][data-kind="memory"]').last.click();submit(f);submit('form[data-service-form="confirm-proposal"]')
+            page.locator('[data-x-action="chat-propose"][data-kind="memory"]').last.click();page.locator(f+' [name="text"]').fill('2024-Q2经营现金流环比复核须保留财务原表与输入口径');submit(f);submit('form[data-service-form="confirm-proposal"]')
             m=client.get('/api/memories').json()['items'][0];assert m['payload']['identity_id']==identity_id and m['payload']['approved'];record('助手记忆确认与身份作用域持久化')
             page.locator('#active-identity').select_option('');page.wait_for_timeout(700)
             assert page.locator('.chat-turn').count()==0;record('切换服务身份不混入前身份的研究会话')
