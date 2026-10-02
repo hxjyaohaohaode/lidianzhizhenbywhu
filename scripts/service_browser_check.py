@@ -278,6 +278,7 @@ def main():
             page.locator('.chat-turn').first.wait_for()
             record('同一账户切换研究视角并持久化；已有会话仍可读取')
             page.locator('#assistant-query').fill('继续展开刚才的现金流依据');submit('#assistant-form')
+            page.locator('.chat-turn').nth(1).wait_for()
             assert page.locator('.chat-turn').count()==2;record('连续追问保留会话，不是覆盖单条固定回复')
             page.locator('#assistant-query').fill('市场占有率是多少');submit('#assistant-form')
             page.locator('.chat-turn').nth(2).wait_for()
