@@ -1,5 +1,5 @@
 {
-  "files_scanned": 90,
+  "files_scanned": 91,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -86,6 +86,7 @@
     "scripts/native_acceptance.py",
     "scripts/prepare_evidence.py",
     "scripts/publish.py",
+    "scripts/pytest_diagnostics.py",
     "scripts/restart_replay_probe.py",
     "scripts/service_browser_check.py",
     "scripts/source_guard.py",
