@@ -24,6 +24,7 @@ try:
 except ImportError:
     from acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
+UI_TIMEOUT_MS=10000
 
 
 def assert_form_errors(page, selector):
@@ -33,6 +34,44 @@ def assert_form_errors(page, selector):
     Never count a locator and then wait for elements that may already be gone.
     """
     for text in page.locator(selector+' .form-error').all_text_contents():
+        if text.strip():raise AssertionError(text.strip())
+
+
+FORM_COMPLETION = r"""(form, timeout) => new Promise((resolve, reject) => {
+    let timer;
+    const busy = () => form.dataset.submitting === 'true' || form.dataset.pending === 'true';
+    const cleanup = () => { observer.disconnect(); clearTimeout(timer); };
+    const check = () => {
+        if (busy()) return;
+        cleanup();
+        resolve([...form.querySelectorAll('.form-error')].map(el => el.textContent || ''));
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(form, {attributes: true, attributeFilter: ['data-submitting', 'data-pending']});
+    timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('Submission did not finish within ' + timeout + ' ms; submitting=' +
+            form.dataset.submitting + ', pending=' + form.dataset.pending + ', connected=' + form.isConnected));
+    }, timeout);
+    check();
+})"""
+
+
+def submit_form(page, selector):
+    """Observe the original submit lifecycle, including failure and detachment.
+
+    Both production handlers set a busy attribute before their first await and
+    clear it in finally. Keep the original form: navigation or replacement is
+    not completion, and must not discard its error. The observer uses the same
+    10-second budget as page locators, without sleeps, eval polling or retries.
+    Callers must still assert their specific rendered/persisted result.
+    """
+    form=page.locator(selector).element_handle()
+    if form is None:raise AssertionError('Submission form is missing: '+selector)
+    button=form.query_selector('button[type="submit"]')
+    if button is None:raise AssertionError('Submission button is missing: '+selector)
+    button.click()
+    for text in form.evaluate(FORM_COMPLETION,UI_TIMEOUT_MS):
         if text.strip():raise AssertionError(text.strip())
 
 
@@ -76,7 +115,7 @@ def main():
         elif not native:launch['executable_path']='/usr/bin/chromium'
         b=p.chromium.launch(**launch)
         page=b.new_page(viewport={'width':1520,'height':1080},device_scale_factor=1)
-        page.set_default_timeout(10000)
+        page.set_default_timeout(UI_TIMEOUT_MS)
         attach_browser_diagnostics(page,journal)
         if native:page.on('request',lambda request:api_budget.record(request.url))
         page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
@@ -113,9 +152,7 @@ def main():
             page.evaluate("assets=>new MutationObserver(()=>document.querySelectorAll('img,video').forEach(el=>{const src=el.getAttribute('src');if(assets[src])el.src=assets[src]})).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['src']})",brand)
             page.add_script_tag(type='module',content="import 'lidian:app';")
         def submit(selector):
-            page.locator(selector+' button[type="submit"]').click()
-            page.wait_for_timeout(500)
-            assert_form_errors(page,selector)
+            submit_form(page,selector)
         def go(route):
             journal.emit('navigation_started',**route_metadata(route),viewport=page.viewport_size)
             page.evaluate('(r)=>location.hash=r',route)
@@ -658,6 +695,7 @@ def main():
             page.emulate_media(reduced_motion='reduce')
             go('settings');page.locator('#preferences-form [name="theme"]').select_option('dark');submit('#preferences-form')
             assert page.locator('html').get_attribute('data-theme')=='dark'
+            assert client.get('/api/auth/me').json()['user']['preferences']['theme']=='dark'
             go('copilot');assert not overflow();snap('ui-current-dark.png')
             record('深色主题与减少动效模式真实渲染，不复用历史截图')
             # Capacity fixture setup uses authenticated HTTP on this temporary
