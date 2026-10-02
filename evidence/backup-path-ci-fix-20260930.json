@@ -1,0 +1,60 @@
+{
+  "executed_at": "2026-09-30T20:07:39.344900+00:00",
+  "baseline_local_commit": "e64fbffd97d8ca942869157df962c1be25af1960",
+  "scope": "Test-only Windows symlink path-spelling compatibility; production backup guards unchanged",
+  "prior_windows_ci": {
+    "head_prefix": "56935429",
+    "run_id": "36768670243",
+    "tested_pr_merge_commit": "0bbc18ddddd32712ab1de1a166149fd4b832518f",
+    "job_id": "110069174921",
+    "failed_tests": 8,
+    "passed_tests": 878,
+    "failure": "readlink returned Windows extended-length spelling for the unchanged intended target",
+    "pytest_log_sha256": "23e23006be29e04070ac208aaf0193a6dab1f43bf45e17cd1d18f53c8cbc9ae9",
+    "native_browser": "not_executed_after_prior_regression_failure"
+  },
+  "checks": {
+    "aggregate_pass": true,
+    "backend": {
+      "tests": 896,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "frontend": {
+      "passed": 150,
+      "failed": 0
+    },
+    "real_http": {
+      "passed": true,
+      "journeys": 15
+    },
+    "focused_backup_and_startup": {
+      "passed": 56,
+      "skipped": 0
+    },
+    "independent_backup_test_run": {
+      "passed": 32,
+      "skipped": 0
+    },
+    "production_source_fingerprints_unchanged": 110,
+    "current_revision_windows_ci": "pending_remote_execution"
+  },
+  "invariants": [
+    "All 12 existing file/link/dangling-link collision cases still run; no skips",
+    "Conflicts rejected before either SQLite connection opens",
+    "Link remains a symlink and the exact os.readlink target string is unchanged before/after",
+    "Both paths resolve non-strictly to the intended identity even when target is missing",
+    "Sentinel bytes preserved; dangling target remains absent",
+    "10 negative cases reject retargeting, replacement, removal, equivalent-target respelling, or a wrong expected destination"
+  ],
+  "source_sha256": {
+    "tests/test_backup_integrity.py": "a37578fbc2d8b3ccb3cad89cf488e486ae7875e3d944f11f041d998c585fc10d"
+  },
+  "unchanged_source_manifest_sha256": "0e2980eb4251b18dbbfb6f5d59ccbffefbdacb3f799319c871e0ff63fbf35c95",
+  "previous_source_manifest": "evidence/recovery-integrity-20260930.json",
+  "limits": [
+    "Local Linux tests are not Windows acceptance",
+    "No live supplier call, deployment or data migration in this test-only patch"
+  ]
+}

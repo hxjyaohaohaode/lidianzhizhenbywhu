@@ -6,7 +6,7 @@ import concurrent.futures
 from datetime import date
 from pathlib import Path
 import pytest
-from conftest import Actor, editable
+from conftest import Actor, editable, dataset_ref
 from server.store import digest, encode
 from server.copilot import evaluate_watches
 from server.connections import endpoint, ConnectionVault
@@ -61,14 +61,14 @@ def test_identities_are_scoped_owned_versioned_and_not_role_privileges(actor):
     ok(actor.post('/services/identities',json={'name':'冒充管理员','is_admin':True}),422)
     other=Actor(actor.client)
     ok(other.put('/services/identities/'+i['id'],json={**i['payload'],'version':2}),404)
-    ok(other.delete('/services/identities/'+i['id']),404)
+    ok(other.delete('/services/identities/'+i['id']+'?version=2'),404)
     ok(other.post('/services/threads',json={'identity_id':i['id'],'dataset_id':d['id']}),404)
 
 
 def test_identity_scope_applies_to_threads_watch_and_agent_plans(actor):
     d=actor.dataset();d2=actor.dataset();i=identity(actor,d)
     ok(actor.post('/services/threads',json={'identity_id':i['id'],'dataset_id':d2['id']}),403)
-    ok(actor.post('/services/watches',json={'title':'越界规则','identity_id':i['id'],'dataset_id':d2['id'],'metric':'gross_margin','operator':'lt','threshold':0.3}),403)
+    ok(actor.post('/services/watches',json={'source_ref':dataset_ref(d2),'title':'越界规则','identity_id':i['id'],'dataset_id':d2['id'],'metric':'gross_margin','operator':'lt','threshold':0.3}),403)
     ok(actor.post('/workspace/plans',json={'identity_id':i['id'],'dataset_id':d2['id'],'query':'检查不在范围的企业'}),403)
     assert len(ok(actor.get('/datasets'))['items'])==2  # Lens is not another account or organizational RBAC.
 
@@ -112,7 +112,16 @@ def test_local_thread_context_receipts_and_duplicate_submission(actor):
 def test_assistant_tool_paths_are_real_or_explicitly_blocked(actor,text):
     d=actor.dataset();t=thread(actor,d);r=ok(message(actor,t,text=text),201)['message']['payload']['response']
     assert r['external_calls']==0
-    assert len(r['receipts'])>=1 and r['facts']
+    assert len(r['receipts'])>=1
+    if '预测' in text:
+        assert r['facts']
+    else:
+        # Workspace requests must not be replaced with unrelated margin/cash answers.
+        assert r['facts']==[] and r['context']['question_scope']['status']=='workspace_query'
+        if '记忆' in text:assert any(c['kind']=='memory' for c in r['cards'])
+        if '任务' in text:assert any(c['kind']=='runs' for c in r['cards'])
+        if '行动' in text:assert any(c['kind']=='actions' for c in r['cards'])
+        if '情景' in text:assert any(a.get('route')=='lab' for a in r['actions'])
     assert all(v['state'] in ('succeeded','blocked') for v in r['receipts'])
     if '预测' in text and len(d['payload']['periods'])<6:
         assert next(x for x in r['cards'] if x['kind']=='forecast')['data']['status']=='blocked'
@@ -143,7 +152,7 @@ def test_each_assistant_write_needs_frozen_explicit_confirmation(actor,kind):
     ok(confirm(actor,p,fingerprint='0'*64),409)
     result=ok(confirm(actor,p));assert result['payload']['status']=='executed'
     assert ok(confirm(actor,p))['payload']['result']==result['payload']['result']
-    ok(actor.delete('/services/proposals/'+p['id']),409)
+    ok(actor.delete('/services/proposals/'+p['id']+'?version=2'),409)
     if kind=='memory':
         m=ok(actor.get('/memories'))['items'][0]
         assert m['payload']['approved'] and m['payload']['source']=='copilot_explicit_confirmation'
@@ -157,7 +166,7 @@ def test_stale_data_identity_and_expired_proposals_cannot_execute(actor):
     body=editable(d);body['periods'][0]['revenue']+=1;ok(actor.put('/datasets/'+d['id'],json=body))
     ok(confirm(actor,p),409)
     q=ok(proposal(actor,t,'memory',request_id='different-proposal'),201)
-    ok(actor.delete('/services/identities/'+i['id']))
+    ok(actor.delete('/services/identities/'+i['id']+'?version=1'))
     ok(confirm(actor,q),404)
     assert ok(actor.get('/memories'))['items']==[]
 
@@ -177,7 +186,7 @@ def test_proposal_query_history_is_opt_in_and_frozen(actor):
 def test_cross_account_copilot_objects_and_message_references_are_rejected(actor):
     d=actor.dataset();t=thread(actor,d);m=ok(message(actor,t),201)['message'];p=ok(proposal(actor,t),201);other=Actor(actor.client)
     for path in ['/services/threads/'+t['id'],'/services/proposals/'+p['id']]:
-        ok(other.get(path),404);ok(other.delete(path),404)
+        ok(other.get(path),404);ok(other.delete(path+'?version=1'),404)
     ok(message(other,t),404);ok(confirm(other,p),404)
     t2=thread(actor,d)
     ok(proposal(actor,t2,source_message_id=m['id']),404)
@@ -186,7 +195,7 @@ def test_cross_account_copilot_objects_and_message_references_are_rejected(actor
 
 def test_thread_delete_cascades_conversation_not_independent_run(actor):
     d=actor.dataset();t=thread(actor,d);ok(message(actor,t),201);p=ok(proposal(actor,t),201);r=ok(confirm(actor,p))['payload']['result']
-    ok(actor.delete('/services/threads/'+t['id']))
+    ok(actor.delete('/services/threads/'+t['id']+'?version=2'))
     store=actor.client.app.state.store
     assert store.one('SELECT count(*) n FROM copilot_messages WHERE thread_id=?',(t['id'],))['n']==0
     ok(actor.get('/services/proposals/'+p['id']),404)
@@ -205,7 +214,7 @@ def test_private_key_encryption_no_echo_or_export_and_account_isolation(actor):
     assert secret not in encode(c)
     store=actor.client.app.state.store;row=store.one('SELECT * FROM private_connections WHERE id=?',(c['id'],))
     assert row['cipher']!=secret and secret not in store.path.read_bytes().decode('latin1')
-    assert actor.client.app.state.providers.vault.select(c['id']).key==secret
+    assert actor.client.app.state.providers.vault.select(c['id'],actor.user['id']).key==secret
     catalog=ok(actor.get('/services/connections'))
     assert secret not in encode(catalog) and 'cipher' not in encode(catalog)
     exported=ok(actor.get('/workspace/export'))
@@ -213,7 +222,7 @@ def test_private_key_encryption_no_echo_or_export_and_account_isolation(actor):
     assert exported['model_connections'][0]['model']=='fixture-model'
     other=Actor(actor.client)
     assert all(x['id']!=c['id'] for x in ok(other.get('/services/connections'))['items'])
-    ok(other.post('/services/connections/'+c['id']+'/remove',json={'password':other.password}),404)
+    ok(other.post('/services/connections/'+c['id']+'/remove',json={'password':other.password,'version':1}),404)
     ok(other.put('/services/connections/'+c['id'],json={'name':'Hijack','base_url':'https://hijack.example/v1','model':'x','api_key':'x','password':other.password,'version':1}),404)
 
 
@@ -261,7 +270,7 @@ def test_concurrent_key_initialization_is_atomic_and_same_key(actor):
 def test_key_corruption_is_not_silently_overwritten(actor):
     c=ok(connection(actor),201);vault=actor.client.app.state.providers.vault;vault.path.write_text('invalid')
     fresh=ConnectionVault(vault.store,vault.path.parent)
-    with pytest.raises(RuntimeError,match='损坏'):fresh.select(c['id'])
+    with pytest.raises(RuntimeError,match='损坏'):fresh.select(c['id'],actor.user['id'])
     assert vault.path.read_text()=='invalid'
 
 
@@ -287,30 +296,30 @@ def test_revoke_foreign_session_is_rejected(actor):
 
 
 def watch(actor,d,**patch):
-    return ok(actor.post('/services/watches',json={'title':'毛利下限','dataset_id':d['id'],'metric':'gross_margin','operator':'lt','threshold':0.99,'stale_after_days':1460,**patch}),201)
+    return ok(actor.post('/services/watches',json={'source_ref':dataset_ref(d),'title':'毛利下限','dataset_id':d['id'],'metric':'gross_margin','operator':'lt','threshold':0.99,'stale_after_days':1460,**patch}),201)
 
 
 def test_tracking_dedup_missing_stale_and_archive_frees_capacity(actor):
     d=actor.dataset();w=watch(actor,d);store=actor.client.app.state.store
-    a=evaluate_watches(store,actor.user['id'],today=date(2026,1,1))
+    a=evaluate_watches(store,actor.user['id'],today=date(2026,10,1))
     assert a['external_calls']==0 and a['evaluations'][0]['state']=='triggered'
     aid=a['evaluations'][0]['alert_id']
-    b=evaluate_watches(store,actor.user['id'],today=date(2026,1,1));assert b['evaluations'][0]['alert_id']==aid
-    ok(actor.delete('/services/alerts/'+aid),409)
+    b=evaluate_watches(store,actor.user['id'],today=date(2026,10,1));assert b['evaluations'][0]['alert_id']==aid
+    ok(actor.delete('/services/alerts/'+aid+'?version=1'),409)
     ok(actor.post('/services/alerts/'+aid+'/acknowledge',json={'note':'已查原表，安排进一步核查','version':1}))
-    ok(actor.delete('/services/alerts/'+aid))
-    after=evaluate_watches(store,actor.user['id'],today=date(2026,1,1))
+    ok(actor.delete('/services/alerts/'+aid+'?version=2'))
+    after=evaluate_watches(store,actor.user['id'],today=date(2026,10,1))
     assert 'alert_id' not in after['evaluations'][0]
     assert store.one("SELECT count(*) n FROM workspace_objects WHERE kind='alert'")['n']==0
     stale=evaluate_watches(store,actor.user['id'],today=date(2040,1,1));assert stale['evaluations'][0]['state']=='stale'
-    ok(actor.delete('/services/watches/'+w['id']))
+    ok(actor.delete('/services/watches/'+w['id']+'?version=1'))
     assert store.one('SELECT count(*) n FROM tracking_receipts')['n']==0
 
 
 def test_stale_identity_stops_followup_tracking(actor):
     d=actor.dataset();i=identity(actor,d);w=watch(actor,d,identity_id=i['id'])
-    ok(actor.delete('/services/identities/'+i['id']))
-    r=evaluate_watches(actor.client.app.state.store,actor.user['id'],today=date(2026,1,1))
+    ok(actor.delete('/services/identities/'+i['id']+'?version=1'))
+    r=evaluate_watches(actor.client.app.state.store,actor.user['id'],today=date(2026,10,1))
     assert r['evaluations'][0]['state']=='unknown' and '身份' in r['evaluations'][0]['reason']
 
 

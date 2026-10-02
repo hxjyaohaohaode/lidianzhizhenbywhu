@@ -39,12 +39,50 @@ class Store:
         self.path=path;self._lock=threading.RLock()
         self.db=sqlite3.connect(path,timeout=5,check_same_thread=False,isolation_level=None)
         self.db.row_factory=sqlite3.Row
-        if self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_version'").fetchone():
-            version=self.db.execute('SELECT MAX(version) FROM schema_version').fetchone()[0]
-            if version and version>3:self.db.close();raise RuntimeError('数据库版本高于此程序；拒绝降级写入。')
-        self.db.execute('PRAGMA foreign_keys=ON');self.db.execute('PRAGMA journal_mode=WAL')
-        self.db.execute('PRAGMA synchronous=FULL');self.db.execute('PRAGMA busy_timeout=5000')
-        self.db.executescript('''
+        try:
+            # Check every independently versioned extension before writable PRAGMAs
+            # or schema creation. A later extension must not reject an already
+            # partially upgraded database.
+            self._check_schema_versions()
+            self.db.execute('PRAGMA foreign_keys=ON')
+            self._check_foreign_keys()
+            self.db.execute('PRAGMA journal_mode=WAL')
+            self.db.execute('PRAGMA synchronous=FULL');self.db.execute('PRAGMA busy_timeout=5000')
+            with self.transaction():
+                self._check_schema_versions()
+                self._migrate()
+                self._check_foreign_keys()
+        except BaseException:
+            self.db.close()
+            raise
+        for private in (path,Path(str(path)+'-wal'),Path(str(path)+'-shm')):
+            try:os.chmod(private,0o600)
+            except OSError:pass
+
+    def _check_schema_versions(self):
+        for table, maximum in (('schema_version',3), ('workspace_schema',3), ('adaptive_schema',1)):
+            if self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+                version=self.db.execute(f'SELECT MAX(version) FROM {table}').fetchone()[0]
+                if version is not None and version>maximum:
+                    raise RuntimeError('数据库版本高于此程序；拒绝降级写入。')
+
+    def _check_foreign_keys(self):
+        if self.db.execute('PRAGMA foreign_key_check').fetchone():
+            raise RuntimeError('数据库引用完整性检查失败；请保留原库并使用可信备份恢复。')
+
+    def _execute_schema(self, script):
+        # executescript commits an existing transaction implicitly. Execute complete
+        # statements instead, keeping DDL, FTS backfill and extension markers atomic.
+        statement=''
+        for line in script.splitlines():
+            statement+=line+'\n'
+            if sqlite3.complete_statement(statement):
+                self.db.execute(statement)
+                statement=''
+        if statement.strip():raise RuntimeError('数据库迁移语句不完整')
+
+    def _migrate(self):
+        self._execute_schema('''
         CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
         INSERT OR IGNORE INTO schema_version VALUES(1);
         CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,password_hash TEXT NOT NULL,name TEXT NOT NULL,preferences TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
@@ -84,17 +122,26 @@ class Store:
         migrate_connections(self)
         from .copilot import migrate as migrate_copilot
         migrate_copilot(self)
-        with self.transaction() as db:db.execute('INSERT OR IGNORE INTO schema_version VALUES(3)')
-        for private in (path,Path(str(path)+'-wal'),Path(str(path)+'-shm')):
-            try:os.chmod(private,0o600)
-            except OSError:pass
+        self.db.execute('INSERT OR IGNORE INTO schema_version VALUES(3)')
 
     @contextlib.contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
         with self._lock:
-            self.db.execute('BEGIN IMMEDIATE')
-            try:yield self.db;self.db.execute('COMMIT')
-            except BaseException:self.db.execute('ROLLBACK');raise
+            # Extension migrations compose inside one startup transaction. A
+            # nested failure can roll back its own writes without committing the
+            # outer unit, including when the caller catches that failure.
+            nested=self.db.in_transaction
+            savepoint='tx_'+uuid.uuid4().hex if nested else None
+            self.db.execute('SAVEPOINT '+savepoint if nested else 'BEGIN IMMEDIATE')
+            try:
+                yield self.db
+                self.db.execute('RELEASE SAVEPOINT '+savepoint if nested else 'COMMIT')
+            except BaseException:
+                if nested:
+                    self.db.execute('ROLLBACK TO SAVEPOINT '+savepoint)
+                    self.db.execute('RELEASE SAVEPOINT '+savepoint)
+                elif self.db.in_transaction:self.db.execute('ROLLBACK')
+                raise
 
     def one(self,sql: str,params: tuple=()):
         with self._lock:return unpack(self.db.execute(sql,params).fetchone())
@@ -142,19 +189,99 @@ class Store:
             db.execute('INSERT INTO evidence_chunks VALUES(?,?,?,?,?)',(chunk,id,user,start,excerpt))
             db.execute('INSERT INTO evidence_fts(chunk_id,owner,terms) VALUES(?,?,?)',(chunk,user,' '.join(terms(excerpt))))
 
+    @staticmethod
+    def validate_dataset_identity(current,payload):
+        """Company is the shared business key; a revision cannot reassign its history."""
+        from .security import fail
+        if current['payload']['company'] != payload['company']:
+            fail('COMPANY_MISMATCH','不能在修订中更换企业身份，请创建新数据集',409)
+
     def update(self,table,user,id,version,payload):
         if table not in {'datasets','memories','conversations'}:raise ValueError('invalid table')
         with self.transaction() as db:
+            if table=='datasets':
+                current=self.owned(table,user,id)
+                if not current or current['version']!=version:return None
+                self.validate_dataset_identity(current,payload)
             extra,args=(',content_hash=?',[digest(payload)]) if table=='datasets' else ('',[])
             c=db.execute(f'UPDATE {table} SET payload=?,version=version+1,updated_at=?{extra} WHERE id=? AND user_id=? AND version=?',(encode(payload),now(),*args,id,user,version))
             if c.rowcount!=1:return None
             self.audit(db,user,table,id,'updated',{'version':version+1})
         return self.owned(table,user,id)
 
-    def delete(self,table,user,id):
+    @staticmethod
+    def validate_dataset_revision(row):
+        """Verify persisted history before using it as a live input, never repair it."""
+        from .security import fail
+        from .schemas import Dataset
+        try:
+            payload=row['payload']
+            if not isinstance(payload,dict) or digest(payload)!=row['content_hash']:
+                raise ValueError('hash mismatch')
+            Dataset.model_validate({k:v for k,v in payload.items() if k in Dataset.model_fields})
+            if payload.get('amount_unit')!='yuan':raise ValueError('not normalized')
+        except (ValueError,TypeError,KeyError):
+            fail('REVISION_INTEGRITY','历史修订内容或校验值不一致；未采用该内容，请保留原记录并检查可信备份',409)
+        return row
+
+    def dataset_revision(self,user,id,version):
+        from .security import fail
+        try:
+            row=self.one('SELECT * FROM dataset_revisions WHERE dataset_id=? AND user_id=? AND version=?',(id,user,version))
+        except (ValueError,TypeError):
+            fail('REVISION_INTEGRITY','历史修订无法读取；未采用该内容，请保留原记录并检查可信备份',409)
+        if not row:fail('NOT_FOUND','历史修订不存在',404)
+        return self.validate_dataset_revision(row)
+
+    def restore_dataset_revision(self,user,id,version,target_revision):
+        from .security import check_version,fail
+        with self.transaction() as db:
+            current=self.owned('datasets',user,id)
+            if not current:fail('NOT_FOUND','资源不存在或无访问权限',404)
+            check_version(current,version)
+            old=self.dataset_revision(user,id,target_revision)
+            row=self.update('datasets',user,id,version,old['payload'])
+            if not row:fail('VERSION_CONFLICT','当前版本已变，请刷新',409)
+            self.audit(db,user,'datasets',id,'revision_restored',{
+                'from_version':version,'target_revision':target_revision,
+                'source_hash':old['content_hash'],'version':row['version']})
+            return row
+
+    def _delete_current_reviews(self,db,table,user,id):
+        """Remove live children only, after the caller validates their root revision.
+
+        Reviews in workspace_objects have logical rather than foreign-key parents.
+        Independent plans, actions and evaluation/report snapshots keep their frozen
+        provenance; their payloads and all original audit entries remain unchanged.
+        """
+        if table=='evidence':
+            rows=db.execute("SELECT id,kind FROM workspace_objects WHERE user_id=? AND kind='evidence_review' AND natural_key=?",(user,id)).fetchall()
+        elif table=='conversations':
+            rows=db.execute('''SELECT w.id,w.kind FROM workspace_objects w JOIN runs r
+                ON r.user_id=w.user_id AND (
+                    (w.kind='assessment' AND w.natural_key=r.id) OR
+                    (w.kind='claim_review' AND json_extract(w.payload,'$.run_id')=r.id))
+                WHERE w.user_id=? AND r.session_id=?''',(user,id)).fetchall()
+        else:return
+        for child in rows:
+            db.execute('DELETE FROM workspace_objects WHERE id=? AND user_id=? AND kind=?',(child['id'],user,child['kind']))
+            self.audit(db,user,child['kind'],child['id'],'deleted_with_parent',{'parent_resource':table,'parent_id':id})
+        if table=='conversations':
+            # Both single and batch deletion use this transaction-bound path.
+            # Removed assessments revoke future strategy/plan bindings, while
+            # archived evaluations and unrelated users' policies stay untouched.
+            from .evolution import current_active
+            current_active(self,user)
+
+    def delete(self,table,user,id,version=None):
         if table not in TABLES:raise ValueError('invalid table')
         with self.transaction() as db:
-            c=db.execute(f'DELETE FROM {table} WHERE id=? AND user_id=?',(id,user))
+            from .security import check_version,fail
+            row=self.owned(table,user,id)
+            if not row:fail('NOT_FOUND','资源不存在或无访问权限。',404)
+            check_version(row,version)
+            self._delete_current_reviews(db,table,user,id)
+            c=db.execute(f'DELETE FROM {table} WHERE id=? AND user_id=? AND version=?',(id,user,version))
             if c.rowcount:self.audit(db,user,table,id,'deleted')
         return bool(c.rowcount)
 

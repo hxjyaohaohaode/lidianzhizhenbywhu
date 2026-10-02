@@ -13,7 +13,8 @@ def test_assistant_traces_saved_inputs_without_claiming_causality(actor):
     assert facts['gross_margin']['formula']=='(收入−成本)/收入'
     assert {'revenue','cost'}=={x['path'].split('/')[-1] for x in facts['gross_margin']['inputs']}
     assert facts['cash_ratio']['trend'][-1]['value']==facts['cash_ratio']['value']
-    assert all(f['dataset_id']==d['id'] and f['verification']=='synthetic_example' for f in facts.values())
+    assert d['payload']['verification']=='unverified_user_input'
+    assert all(f['dataset_id']==d['id'] and f['verification']==d['payload']['verification'] for f in facts.values())
 
 
 def test_assistant_scope_requires_selection_and_rejects_foreign_dataset(actor,client):

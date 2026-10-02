@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .clock import utc_today
 import re
 from datetime import date
 from typing import Annotated, Literal
@@ -6,6 +7,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator, field_valida
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True, allow_inf_nan=False)
+
+# IDs/cursors and optimistic versions must survive SQLite binding and browser JSON
+# without overflow or rounding. Financial amounts retain their existing contracts.
+MAX_SAFE_INTEGER = 2**53 - 1
+StorageInteger = Annotated[int, Field(le=MAX_SAFE_INTEGER)]
 
 Text = Annotated[str, Field(min_length=1, max_length=200)]
 Number = Annotated[float, Field(strict=True, ge=-1e15, le=1e15)]
@@ -39,11 +45,11 @@ class Preferences(StrictModel):
     watchlist: list[Text] = Field(default_factory=list,max_length=20)
     memory_enabled: bool = True
     name: Text
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 class RoleSwitch(StrictModel):
     role: Persona
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 class Period(StrictModel):
     period: str = Field(pattern=r'^20\d{2}-Q[1-4]$')
@@ -65,7 +71,7 @@ class Period(StrictModel):
     @model_validator(mode='after')
     def meaningful(self):
         year=int(self.period[:4]); quarter=int(self.period[-1])
-        if date(year,(quarter-1)*3+1,1)>date.today():raise ValueError('不接受未来季度作为历史实际数据')
+        if date(year,(quarter-1)*3+1,1)>utc_today():raise ValueError('不接受未来季度作为历史实际数据')
         if self.assets==0 and (self.liabilities or 0)>0:raise ValueError('资产为0时不能填入正数负债；请检查单位和口径')
         return self
 
@@ -93,7 +99,7 @@ class Dataset(StrictModel):
         return v
 
 class DatasetUpdate(Dataset):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 class Conversation(StrictModel):
     title: Text = '新的经营诊断'
@@ -123,10 +129,26 @@ class Evidence(StrictModel):
     @field_validator('published_at')
     @classmethod
     def no_future_date(cls,v):
-        if v and v>date.today():raise ValueError('发布日期不能晚于今天')
+        if v and v>utc_today():raise ValueError('发布日期不能晚于今天')
         return v
 
+class EvidenceCapture(Evidence):
+    company: str = Field(default='', max_length=200)
+    global_scope: bool = False
+    search_receipt: str = Field(default='', pattern=r'^(?:[a-f0-9]{64})?$')
+    retrieved_at: str = Field(default='', max_length=80)
+
+class EvidenceMetadata(StrictModel):
+    title: Text
+    source_url: str = Field(default='', max_length=1000)
+    published_at: date | None = None
+    version: StorageInteger = Field(ge=1)
+    _safe_url = field_validator('source_url')(Evidence.safe_url.__func__)
+    _no_future_date = field_validator('published_at')(Evidence.no_future_date.__func__)
+
 class FetchEvidence(StrictModel):
+    company: str = Field(default='', max_length=200)
+    global_scope: bool = False
     url: str = Field(min_length=8,max_length=1000)
     title: Text
     published_at: date | None = None
@@ -142,7 +164,7 @@ class Memory(StrictModel):
     source: str = Field(default='user',max_length=120)
 
 class MemoryUpdate(Memory):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 class Feedback(StrictModel):
     run_id: str = Field(min_length=1,max_length=80)
@@ -175,6 +197,7 @@ class SearchRequest(StrictModel):
 
 class BatchDelete(StrictModel):
     ids: list[Annotated[str,Field(min_length=1,max_length=80)]] = Field(min_length=1,max_length=20)
+    versions: dict[str,Annotated[StorageInteger,Field(strict=True,ge=1)]] = Field(default_factory=dict,max_length=20)
     @field_validator('ids')
     @classmethod
     def unique_ids(cls,v):

@@ -43,6 +43,7 @@ def test_isolated_document_parser():
     for name,raw in [('bad.pdf',b'not a PDF'),('program.exe',b'program'),('scan.txt',b'\xff\xfe\x00')]:
         with pytest.raises(ValueError):parse_document_isolated(name,raw)
 def test_upload_and_finance_export_roundtrip(actor,example):
+    example={**example,'source_kind':'user_provided'}  # Isolated synthetic upload fixture.
     r=actor.post('/import/dataset',files={'file':('finance.json',json.dumps(example).encode(),'application/json')},data={'company':'导入企业','amount_unit':'yuan'})
     assert r.status_code==201,r.text
     d=r.json();exp=actor.get('/datasets/'+d['id']+'/export');assert exp.status_code==200 and 'verification' not in exp.json()
@@ -121,7 +122,7 @@ def test_circuit_breaker_no_silent_retry(monkeypatch):
 def test_provider_wire_request_usage_contract(monkeypatch):
     import server.providers as m
     captured={};output={'claims':[{'text':'现金回流需核查。','metric_ids':['cash_ratio'],'citation_ids':[],'uncertainty':'high'}],'missing':[]}
-    body={'choices':[{'message':{'content':'```json\n'+json.dumps(output)+'\n```'}}],'usage':{'prompt_tokens':11,'completion_tokens':7,'total_tokens':18,'unknown':'ignored'}}
+    body={'choices':[{'finish_reason':'stop','message':{'content':'```json\n'+json.dumps(output)+'\n```'}}],'usage':{'prompt_tokens':11,'completion_tokens':7,'total_tokens':18,'unknown':'ignored'}}
     class Conn:
         def __init__(self,*a):captured['connection']=a
         def request(self,method,path,raw,headers):captured.update(method=method,path=path,body=json.loads(raw),headers=headers)
@@ -133,7 +134,7 @@ def test_provider_wire_request_usage_contract(monkeypatch):
     p=ProviderService();provider=Provider('test','api.test.example','/v1/chat/completions','test-model','injected-fixture-key');r=p._request(provider,'system boundary','{"input":"data"}')
     assert captured['headers']['Authorization']=='Bearer injected-fixture-key'
     assert captured['body']['stream'] is False and captured['body']['max_tokens']==1000 and captured['body']['messages'][0]['role']=='system'
-    assert captured['closed'] and r['output']==output and r['usage']=={'prompt_tokens':11,'completion_tokens':7,'total_tokens':18}
+    assert captured['closed'] and r['output']=={**output,'claims':[{**claim,'tool_reference_ids':[]} for claim in output['claims']]} and r['usage']=={'prompt_tokens':11,'completion_tokens':7,'total_tokens':18}
     assert asyncio.run(p.complete(provider,'system','{}'))['model']=='test-model'
 @pytest.mark.parametrize('response',[b'x'*500001,b'not json',b'{"choices":[]}',b'{"choices":[{"message":{"content":[]}}]}'],ids=['oversized-wire','invalid-json','empty-choices','invalid-content'])
 def test_malformed_provider_wire_rejected(monkeypatch,response):

@@ -81,7 +81,7 @@ def test_backup_no_credentials(actor):
     assert len(r.json()['data']['datasets'])==1
 def test_referenced_dataset_deletion_guard_and_account_cascade(actor,client):
     d=actor.dataset();s=actor.conversation();actor.execute(actor.run(d,s).json())
-    assert actor.delete('/datasets/'+d['id']).status_code==409
+    assert actor.delete('/datasets/'+d['id'],params={'version':d['version']}).status_code==409
     assert actor.delete('/account',json={'email':actor.email,'password':'wrong'}).status_code==401
     assert actor.delete('/account',json={'email':actor.email,'password':PASSWORD}).status_code==200
     db=client.app.state.store

@@ -1,11 +1,8 @@
 """Capability compiler and persistent control. No LLM may add tools or enlarge consent."""
 from __future__ import annotations
-import copy
-from datetime import date
-from .store import now, uid, encode, digest
+from .store import now, encode
 from .security import fail
 from . import workspace_store as ws
-from .autonomy_contracts import ExecutionOptions, PlannerProposal
 
 CAPABILITIES = {
     'quality': ('数据核验', '口径、时效、异常与缺失项检查', 'deterministic'),
@@ -15,6 +12,7 @@ CAPABILITIES = {
     'gaps': ('缺口补全规划', '将无法计算的字段转成具体待补清单，不填假值', 'deterministic'),
     'forecast': ('序列回测', '相同验证折比较透明基线；样本不足则停止预测', 'deterministic'),
     'sensitivity': ('情景建模', '仅使用明确批准的价格、成本、销量与成本结构假设', 'deterministic'),
+    'comparison': ('企业对照', '仅复核明确选中的企业比较及全部冻结成员，不追加数据权限', 'deterministic'),
     'context': ('上下文装配', '完整条目预算、来源隔离与最小披露', 'deterministic'),
     'planner': ('任务规划专家', '在已批准能力集合内提出分工建议，不能新增权限', 'optional_llm'),
     'analyst': ('经营研究员', '指标与业务解释假设', 'optional_llm'),
@@ -27,6 +25,60 @@ CAPABILITIES = {
 }
 REQUIRED = {'quality', 'quant', 'evidence', 'context', 'review', 'reflection', 'report'}
 MODEL_CAPS = {'planner', 'analyst', 'researcher', 'challenger', 'revision'}
+REPLAY_CAPABILITIES = {'quality', 'quant', 'evidence', 'counterevidence', 'gaps', 'forecast', 'sensitivity', 'comparison'}
+
+
+def execute_local_capability(capability, snapshot, request, execution, outputs, *, today=None):
+    """The same read-only operations serve production execution and local replay."""
+    from .analytics import quality_report, forecast_baselines, extended_scenario
+    from .models import calculate
+    from .question_scope import analysis_dataset
+    data = analysis_dataset(snapshot)
+    if capability == 'comparison':
+        from .saved_comparisons import selected_output
+        return selected_output(snapshot, request)
+    if capability in ('forecast','sensitivity') and snapshot.get('experiment'):
+        from .saved_experiments import selected_output
+        # A provenance/assumption mismatch is an integrity failure, not a reason
+        # to silently fall back to current/default mathematical parameters.
+        selected = selected_output(capability, snapshot, execution)
+        if selected is not None:
+            return selected
+    if capability == 'quality':
+        return quality_report(data, today=today)
+    if capability == 'quant':
+        return calculate(data, request.get('comparison', 'year_over_year'), today=today)
+    if capability == 'evidence':
+        return {'items': snapshot['citations'], 'source': 'frozen_approved_scope',
+                'status': 'completed' if snapshot['citations'] else 'missing'}
+    if capability == 'counterevidence':
+        groups = {'supports': [], 'contradicts': [], 'context': []}
+        for citation in snapshot['citations']:
+            groups.get(citation.get('stance', 'context'), groups['context']).append(citation['id'])
+        return {'groups': groups, 'conflicting_labels': bool(groups['supports'] and groups['contradicts']),
+                'status': 'completed' if snapshot['citations'] else 'missing',
+                'limitation': '标签对照不是自动语义矛盾检测'}
+    if capability == 'gaps':
+        from .research_gaps import research_gaps
+        quant=outputs.get('quant') or calculate(data,request.get('comparison','year_over_year'),today=today)
+        return research_gaps(data,outputs['quality'],quant)
+    if capability == 'forecast':
+        try:
+            out = forecast_baselines(data, execution['forecast_metric'], execution['horizon'], today=today)
+            return {**out, 'status': out.get('status', 'completed')}
+        except ValueError as exc:
+            return {'status': 'blocked', 'error_class': 'ValueError', 'reason': str(exc)}
+    if capability == 'sensitivity':
+        assumptions = execution['scenario']
+        if not assumptions:
+            return {'status': 'blocked', 'reason': '没有授权情景假设，拒绝生成'}
+        try:
+            result = extended_scenario(data, assumptions['price_change'], assumptions['cost_change'],
+                                      assumptions['volume_change'], assumptions['fixed_cost_share'])
+            return {**result, 'approved_assumptions': assumptions, 'status': 'completed'}
+        except ValueError as exc:
+            return {'status': 'blocked', 'error_class': 'ValueError', 'reason': str(exc)}
+    raise ValueError('UNKNOWN_LOCAL_CAPABILITY')
 
 
 def migrate(store):
@@ -59,7 +111,8 @@ def migrate(store):
 
 
 def strategy(store, user_id):
-    active = ws.keyed(store, user_id, 'strategy_active', 'active')
+    from .evolution import current_active
+    active = current_active(store, user_id)
     return (active['payload'].get('spec') if active else None), (active['version'] if active else 0)
 
 
@@ -73,19 +126,29 @@ def node(capability, dependencies=(), *, id=None, enabled=True, reason=''):
             'reason': reason, 'skip_reason': None if enabled else reason or '本次任务不需要该能力'}
 
 
-def validate_graph(nodes, max_nodes=24):
+def validate_graph(nodes, max_nodes=24, *, require_mandatory=False):
     """Reject duplicate/cyclic/unknown capabilities before any execution or side effect."""
     if not isinstance(nodes, list) or not 1 <= len(nodes) <= max_nodes:
         raise ValueError('节点数量超出边界')
+    if any(not isinstance(n, dict) for n in nodes):
+        raise ValueError('节点必须是声明式能力对象')
     ids = [n.get('id') for n in nodes]
+    if any(not isinstance(x, str) for x in ids):
+        raise ValueError('无效的节点标识')
     if len(ids) != len(set(ids)) or any(not isinstance(x, str) or not x or len(x) > 60 for x in ids):
         raise ValueError('重复或无效的节点标识')
     for n in nodes:
         if n.get('capability', n['id']) not in CAPABILITIES:
             raise ValueError('未登记的工具或专家')
         deps = n.get('depends_on', [])
+        if not isinstance(deps, list) or any(not isinstance(d, str) for d in deps):
+            raise ValueError('依赖必须为节点标识列表')
         if len(deps) != len(set(deps)) or any(d not in ids or d == n['id'] for d in deps):
             raise ValueError('依赖缺失或自环')
+    if require_mandatory:
+        by_id = {n['id']: n for n in nodes}
+        if any(cap not in by_id or by_id[cap].get('capability') != cap or not by_id[cap].get('enabled', True) for cap in REQUIRED):
+            raise ValueError('执行图不得移除或跳过强制核验与归档能力')
     left = {n['id']: set(n.get('depends_on', [])) for n in nodes}
     layers = []
     while left:
@@ -102,22 +165,23 @@ def validate_graph(nodes, max_nodes=24):
 
 def compile_graph(payload, *, policy=None):
     r = payload['request']; s = payload['snapshot']; ex = r['execution']
-    depth = ex['depth']
-    if policy and depth == 'balanced':
-        depth = policy['depth']
+    depth = ex.get('depth') or (policy['depth'] if policy else 'balanced')
     q = r['query'].lower(); decisions = []
     forecast = ex['forecast'] or any(w in q for w in ('预测', '趋势回测', 'forecast'))
     scenario = ex['scenario'] is not None
+    comparison = s.get('comparison_artifact') is not None
     counter = depth == 'deep' or r['mode'] in ('industry', 'investment', 'deep_dive') or any(w in q for w in ('反证', '反向', '不同解释', '矛盾')) or bool(policy and policy.get('require_counterevidence'))
     gaps = depth == 'deep' or bool(policy and policy.get('require_gap_analysis'))
     for cap, selected, reason in [
         ('forecast', forecast, '明确预测开关或问题中的预测意图；执行时仍须通过样本门槛'),
         ('sensitivity', scenario, '仅在已填写并批准情景假设时启用'),
+        ('comparison', comparison, '仅复核用户明确选中并批准的企业比较产物'),
         ('counterevidence', counter, '研究方向、反向证据意图或已激活策略要求'),
         ('gaps', gaps, '研究深度或已激活策略要求；运行中也可根据数据缺失追加')]:
         decisions.append({'capability': cap, 'selected': selected, 'reason': reason})
     nodes = [node('quality', reason='所有结论的输入门槛'), node('quant', ['quality']), node('evidence', ['quality'])]
     for cap, selected, deps in [('forecast', forecast, ['quality']), ('sensitivity', scenario, ['quality']),
+                                ('comparison', comparison, ['quality']),
                                 ('counterevidence', counter, ['evidence']), ('gaps', gaps, ['quality'])]:
         if selected:
             nodes.append(node(cap, deps, reason=next(d['reason'] for d in decisions if d['capability'] == cap)))
@@ -141,7 +205,7 @@ def compile_graph(payload, *, policy=None):
     nodes.append(node('review', ['quant', 'evidence', *calls] if calls else ['context']))
     nodes.append(node('reflection', ['review']))
     nodes.append(node('report', ['reflection']))
-    validate_graph(nodes)
+    validate_graph(nodes, require_mandatory=True)
     return {'nodes': nodes, 'decisions': decisions, 'call_ids': calls,
             'reserved_calls': max(0, r['max_calls'] - len(calls)) if r['use_llm'] else 0,
             'revision_limit': ex['max_revisions'], 'depth': depth,

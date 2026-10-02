@@ -1,0 +1,78 @@
+{
+  "executed_at": "2026-10-02T09:37:25.604555+00:00",
+  "scope": "Dataset-backed action/watch creation requires reviewed version and hash, with atomic owner and identity checks",
+  "synthetic_only": true,
+  "external_supplier_calls": 0,
+  "checks": [
+    {
+      "check": "python-compile",
+      "command": "python -m compileall -q server/business_provenance.py server/contracts.py server/service_contracts.py server/copilot.py scripts/dataset_source_probe.py",
+      "exit_code": 0
+    },
+    {
+      "check": "typecheck",
+      "command": "npm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "check": "build",
+      "command": "npm run build",
+      "exit_code": 0
+    },
+    {
+      "check": "focused-backend",
+      "command": "python -m pytest -q tests/test_dataset_source_bindings.py tests/test_business_provenance.py tests/test_services.py tests/test_action_lifecycle.py tests/test_deleted_child_lifecycle.py tests/test_financial_import_workflow.py tests/test_workspace_api.py",
+      "passed": 259,
+      "exit_code": 0,
+      "warning": "Existing Starlette TestClient/httpx deprecation"
+    },
+    {
+      "check": "focused-frontend",
+      "command": "node --test tests/dataset-source.frontend.test.mjs tests/business-source.frontend.test.mjs tests/service-completion.frontend.test.mjs",
+      "passed": 38,
+      "exit_code": 0,
+      "boundary": "Rendered HTML and actual production submit branches using DOM/API doubles; not native-browser evidence"
+    },
+    {
+      "check": "real-http-restart",
+      "command": "python scripts/dataset_source_probe.py --output /tmp/dataset-source-http.json",
+      "exit_code": 0,
+      "result": {
+        "executed_at": "2026-10-02T09:35:06.671657+00:00",
+        "synthetic_only": true,
+        "external_supplier_calls": 0,
+        "transport": "real loopback HTTP, Uvicorn, SQLite and hard restart",
+        "checks": [
+          "Both HTTP create routes reject missing/partial and cross-owner refs; exact viewed revision succeeds",
+          "Stale direct revision stays 409 even with historical acknowledgement; exact request retry preserves old payload",
+          "Hard restart preserves immutable bindings and exactly one object per request; versioned source-omitting watch edit succeeds"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "check": "diff-whitespace",
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "regressions": [
+    "Missing and partial direct bindings reject without writes (422)",
+    "Complete stale bindings reject (409), including historical acknowledgement",
+    "Unavailable and cross-owner dataset IDs remain 404",
+    "Strict finite positive safe-integer revision and SHA256 hash validation",
+    "Independent SQLite writer cannot interleave between source resolution and business insert",
+    "Real rendered forms retain viewed revision across global state refresh and reject unbound submissions before I/O",
+    "Exact idempotent retries keep original IDs and provenance after revision and hard restart",
+    "Data-less manual actions, immutable report/action/alert/message sources, and source-omitting versioned watch edits remain supported",
+    "Legacy read-only history is not rewritten or backfilled"
+  ],
+  "not_covered_by_this_record": [
+    "Full aggregate backend/frontend suite",
+    "Native browser navigation and cookie/CSP integration",
+    "Live external providers",
+    "Deployment or production business data"
+  ],
+  "database_migration": "None: new write admission only; historical stored payloads remain unchanged",
+  "all_executed_checks_pass": true
+}

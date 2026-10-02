@@ -1,0 +1,77 @@
+{
+  "executed_at": "2026-10-02T09:39:48.495470+00:00",
+  "base_commit": "b2db08356a24f6ecd594c80076e240d3a76e2128",
+  "scope": [
+    "Reject unsupported cash balances and cash equivalents instead of substituting operating cash flow or a ratio, including mixed and follow-up questions",
+    "Preserve explicitly requested flow, ratio, and revenue metrics in supported mixed questions",
+    "Present the existing revenue-growth result as a percent against its explicit baseline, separately from ratio-point changes and source revenue amounts",
+    "Render the same comparison metadata in both assistants; keep historical saved payloads immutable"
+  ],
+  "verification": {
+    "backend": {
+      "passed": 213,
+      "command": "python -m pytest -q tests/test_cash_growth_semantics.py tests/test_question_scope.py tests/test_service_hardening.py tests/test_assistant_workspace.py tests/test_copilot_message_trace.py tests/test_copilot_research_inputs.py"
+    },
+    "frontend": {
+      "passed": 27,
+      "command": "node --test tests/metric-comparison.frontend.test.mjs tests/copilot-message-trace.frontend.test.mjs",
+      "evidence_type": "Production rendering and handler tests with an explicit DOM/API bridge, not native browser evidence"
+    },
+    "typecheck": "npm run typecheck: passed",
+    "build": "npm run build: passed",
+    "compile": "python -m compileall -q server: passed",
+    "whitespace": "git diff --check: passed",
+    "boundaries": [
+      "Available, absent, zero, and negative growth baselines; negative revenue remains rejected by the input contract",
+      "Zero, decreasing, and -100% growth retain existing calculator semantics",
+      "Cash-flow negative/zero baselines remain valid for amount and ratio-point differences; absent values remain missing",
+      "Both single-quarter comparison modes, previous-year boundary, historical target periods, mixed metrics, and follow-up baseline changes",
+      "Historical growth payloads with null comparison.change render their existing rate without rewriting data; metadata is escaped"
+    ],
+    "acceptance_harness": {
+      "passed": 18,
+      "command": "python -m pytest -q tests/test_browser_form_completion.py tests/test_browser_fixture_budget.py tests/test_acceptance_diagnostics.py",
+      "compile": "python -m py_compile scripts/service_browser_check.py: passed"
+    }
+  },
+  "formula_changes": false,
+  "external_provider_calls": 0,
+  "not_verified_in_this_record": [
+    "Complete aggregate backend/frontend suite",
+    "Actual Uvicorn HTTP/SSE/restart/backup chain",
+    "Current native browser rendering",
+    "Live providers",
+    "Merge or deployment"
+  ],
+  "publication": "Not committed or pushed; integration review pending",
+  "files": {
+    "server/question_scope.py": "2f56a06b0d9645b4349c09400c3630323162c5f6ff2cdddacdce9b8c4db360d4",
+    "server/metric_facts.py": "fc437e90d7e2b4f4230ae436673c26d15d546ae55a2bd503ebf22d78ab8f8d9d",
+    "server/copilot.py": "94d2b7ce219191cc53a1375676a96e794892a8c41cb37b5bea9be32400076e3e",
+    "server/intelligence.py": "2ebd821ebdc2c23d2addae95987306f5ff8b48de49b6d6af8765a06e2cddd3cf",
+    "web/metric-comparison.ts": "e5820846ca86e7281c5db3f7870b70f513d0e7ee6e3470d49dfa800cec2e9833",
+    "web/copilot-ui.ts": "e05e866aaca50476443537e27331ea50eff565948e9842d199624e621f791dd5",
+    "web/assistant.ts": "017289387c71f41f9077031f545f5d09a83ff9b8ca22590003e58818dc155f55",
+    "web/dist/metric-comparison.js": "49a6a9283121b7e928b08fcd1a6fada1fb3cebdb21794f918910bbb929f890cf",
+    "web/dist/copilot-ui.js": "eed38422f0fb57c926d072a52fa1b98d19ea42d7d7df9f45808d2ddcddd1a9c7",
+    "web/dist/assistant.js": "4907e20f399f241178cddbdb7bfb22541395a87f9ccc1bc60eff30c247e14fde",
+    "tests/test_cash_growth_semantics.py": "148c786e644d94957a1f9f2cfb22acce9a4e7498bae2b798eee126abd86730c2",
+    "tests/metric-comparison.frontend.test.mjs": "78b77a6682da61493917afc5891982dfffcbd22e3d8a5b81f741e5fc7c9a93be",
+    "scripts/service_browser_check.py": "6db55c149f93cecc6953dcfba6a25729d88b23c5f1603ec9e56ee4b23e4443d8"
+  },
+  "acceptance_cases_added": {
+    "script": "scripts/service_browser_check.py",
+    "native_execution": "Not executed in this focused record; parent integration validation pending",
+    "cases": [
+      "2024-Q2 revenue YoY against actual isolated 2023-Q2 source, including actual second-assistant trace",
+      "2024-Q2 revenue QoQ against actual isolated 2024-Q1 source, including actual second-assistant trace",
+      "2024-Q2 cash balance mixed with operating cash flow is explicitly unsupported with no facts"
+    ],
+    "screenshots_expected": [
+      "ui-current-growth-yoy.png",
+      "ui-current-growth-qoq.png",
+      "ui-current-cash-balance-unsupported.png"
+    ],
+    "submission": "Existing semantic submit helper with unchanged 10-second timeout; production UI questions and trace reads only"
+  }
+}

@@ -3,7 +3,18 @@ from __future__ import annotations
 from .store import encode, digest, uid, now, unpack
 from .security import fail
 
-KINDS = frozenset({'profile','plan','action','experiment','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation','identity','assistant_thread','assistant_proposal','watch','alert'})
+KINDS = frozenset({'profile','plan','action','experiment','comparison','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation','identity','assistant_thread','assistant_proposal','watch','alert'})
+
+
+def current_parent_filter(kind):
+    # Earlier deletions left logical children behind. Keep that legacy history
+    # exportable, but do not let it occupy current review lists or live capacity.
+    # Both sides must belong to the same account; references alone confer no scope.
+    if kind=='evidence_review':table,reference='evidence','workspace_objects.natural_key'
+    elif kind=='assessment':table,reference='runs','workspace_objects.natural_key'
+    elif kind=='claim_review':table,reference='runs',"json_extract(workspace_objects.payload,'$.run_id')"
+    else:return ''
+    return f' AND EXISTS (SELECT 1 FROM {table} parent WHERE parent.id={reference} AND parent.user_id=workspace_objects.user_id)'
 
 
 def migrate(store):
@@ -11,7 +22,7 @@ def migrate(store):
     with store.transaction() as db:
         db.execute('CREATE TABLE IF NOT EXISTS workspace_schema(version INTEGER PRIMARY KEY)')
         row = db.execute('SELECT MAX(version) FROM workspace_schema').fetchone()
-        if row[0] is not None and row[0] > 1:
+        if row[0] is not None and row[0] > 3:
             raise RuntimeError('工作区数据库版本高于程序，拒绝降级写入')
         db.execute('''CREATE TABLE IF NOT EXISTS workspace_objects(
             id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -24,6 +35,11 @@ def migrate(store):
             user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             version INTEGER NOT NULL, payload TEXT NOT NULL, content_hash TEXT NOT NULL,
             created_at TEXT NOT NULL, PRIMARY KEY(dataset_id,version))''')
+        db.execute('''CREATE TABLE IF NOT EXISTS dataset_import_receipts(
+            dataset_id TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL, payload TEXT NOT NULL, content_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL, PRIMARY KEY(dataset_id,version),
+            FOREIGN KEY(dataset_id,version) REFERENCES dataset_revisions(dataset_id,version) ON DELETE CASCADE)''')
         db.execute('''CREATE TABLE IF NOT EXISTS event_integrity(
             event_seq INTEGER PRIMARY KEY REFERENCES run_events(seq) ON DELETE CASCADE,
             run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
@@ -49,6 +65,10 @@ def migrate(store):
             db.execute('INSERT OR IGNORE INTO event_integrity VALUES(?,?,?,?)', (e['seq'],e['run_id'],p,h))
             previous[e['run_id']] = h
         db.execute('INSERT OR IGNORE INTO workspace_schema VALUES(1)')
+        # New source/receipt contracts must not be silently written by an older app.
+        db.execute('INSERT OR IGNORE INTO workspace_schema VALUES(2)')
+        # Older dispatchers do not understand approved multi-company inputs.
+        db.execute('INSERT OR IGNORE INTO workspace_schema VALUES(3)')
 
 
 def get(store, user, kind, id):
@@ -69,7 +89,7 @@ def keyed(store, user, kind, key):
 def objects(store, user, kind, limit=200):
     if kind not in KINDS:
         raise ValueError('Unknown workspace object kind')
-    return store.all('SELECT * FROM workspace_objects WHERE user_id=? AND kind=? ORDER BY updated_at DESC,id LIMIT ?', (user,kind,limit))
+    return store.all('SELECT * FROM workspace_objects WHERE user_id=? AND kind=?'+current_parent_filter(kind)+' ORDER BY updated_at DESC,id LIMIT ?', (user,kind,limit))
 
 
 def save(store, db, user, kind, payload, *, key=None, expected=0, id=None):
@@ -85,7 +105,7 @@ def save(store, db, user, kind, payload, *, key=None, expected=0, id=None):
     else:
         if expected:
             fail('VERSION_CONFLICT','记录已删除或版本不匹配',409)
-        n = db.execute('SELECT count(*) FROM workspace_objects WHERE user_id=? AND kind=?', (user,kind)).fetchone()[0]
+        n = db.execute('SELECT count(*) FROM workspace_objects WHERE user_id=? AND kind=?'+current_parent_filter(kind), (user,kind)).fetchone()[0]
         if n >= (1000 if kind in {'plan','action','claim_review'} else 200):
             fail('RESOURCE_LIMIT','该类记录已达上限，请导出并整理后重试',409)
         id = id or uid(); at = now()

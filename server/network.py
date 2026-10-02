@@ -4,9 +4,70 @@ import http.client
 import ipaddress
 import socket
 import ssl
+import threading
+import time
 from urllib.parse import urlsplit
 
 class NetworkRejected(ValueError):pass
+
+
+class RequestDeadline:
+    """Cooperative thread cancellation; registered sockets are actively interrupted.
+
+    OS DNS cannot be killed safely. Its caller must retain an admission slot until
+    the thread exits, and check this deadline again before opening a connection.
+    """
+    def __init__(self, timeout, guard=None, on_send=None):
+        self.deadline = time.monotonic() + timeout
+        self.guard = guard
+        self.on_send = on_send
+        self.stopped = threading.Event()
+        self._lock = threading.Lock()
+        self._socket = None
+        self.sent = False
+
+    def remaining(self):
+        remaining = self.deadline - time.monotonic()
+        if self.stopped.is_set() or remaining <= 0:
+            raise TimeoutError('MODEL_REQUEST_STOPPED')
+        return remaining
+
+    def register(self, sock):
+        with self._lock:
+            if self.stopped.is_set() or time.monotonic() >= self.deadline:
+                sock.close()
+                raise TimeoutError('MODEL_REQUEST_STOPPED')
+            self._socket = sock
+            sock.settimeout(self.remaining())
+
+    def authorize(self):
+        self.remaining()
+        try:approved = self.guard is None or self.guard()
+        except Exception:approved = False
+        if not approved:
+            # Once any request bytes may have left, absence of a full response
+            # cannot establish that the supplier did not process the request.
+            error = ConnectionAbortedError if self.sent else ValueError
+            raise error('MODEL_AUTHORIZATION_CHANGED')
+
+    def before_send(self):
+        # Serialize the first-send reservation with stop(): a waiter that exits
+        # before DNS/TLS completes must be able to establish a known unsent call.
+        with self._lock:
+            self.authorize()
+            self.remaining()
+            if not self.sent and self.on_send is not None:
+                self.on_send()
+            self.sent = True
+
+    def stop(self):
+        with self._lock:
+            self.stopped.set()
+            if self._socket is not None:
+                try:self._socket.shutdown(socket.SHUT_RDWR)
+                except OSError:pass
+                self._socket.close()
+                self._socket = None
 
 def public_addresses(host):
     ips=list(dict.fromkeys(r[4][0] for r in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)))
@@ -32,9 +93,25 @@ class PinnedHTTPS(http.client.HTTPSConnection):
     def __init__(self,host,ip,timeout):
         super().__init__(host,443,timeout=timeout,context=ssl.create_default_context());self.ip=ip
     def connect(self):
-        sock=socket.create_connection((self.ip,443),self.timeout)
-        try:self.sock=self._context.wrap_socket(sock,server_hostname=self.host)
+        deadline=getattr(self,'deadline',None)
+        sock=socket.create_connection((self.ip,443),deadline.remaining() if deadline else self.timeout)
+        try:
+            if deadline:deadline.register(sock)
+            # Register TLS before its blocking handshake, so cancellation can
+            # interrupt the handshake as well as response headers/body reads.
+            self.sock=self._context.wrap_socket(sock,server_hostname=self.host,do_handshake_on_connect=False)
+            if deadline:deadline.register(self.sock)
+            self.sock.do_handshake()
         except BaseException:sock.close();raise
+
+    def send(self,data):
+        deadline=getattr(self,'deadline',None)
+        if deadline:
+            deadline.remaining()
+            if self.sock is None:self.connect()
+            deadline.before_send()
+            self.sock.settimeout(deadline.remaining())
+        return super().send(data)
 
 def fetch_public(url,allowed,timeout=8,max_bytes=2_000_000):
     host,path=validate_url(url,allowed);ip=public_addresses(host)[0];conn=PinnedHTTPS(host,ip,timeout)

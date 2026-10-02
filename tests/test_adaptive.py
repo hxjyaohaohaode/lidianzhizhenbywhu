@@ -47,6 +47,15 @@ def dispatch(actor,plan,consent=True):
 def runtime(actor,run):
     r=actor.get('/workspace/runs/'+run['id']+'/runtime');assert r.status_code==200,r.text;return r.json()
 
+def short_dataset(actor):
+    # This adverse fixture stays below the six-complete-quarter threshold after
+    # UTC quarter boundaries; it must not depend on the wall-clock date.
+    row=actor.dataset();body=editable(row);body['periods']=body['periods'][:5]
+    response=actor.put('/datasets/'+row['id'],json=body)
+    assert response.status_code==200,response.text
+    return response.json()
+
+
 def completed(actor,**kwargs):
     return actor.execute(dispatch(actor,preview(actor,**kwargs)))
 
@@ -93,7 +102,7 @@ def test_local_replanning_outputs_real_checkpoints_and_ledger(actor):
     assert r['result']['adaptive']['reflection']['automatic_code_changes']==0
 
 def test_optional_predictor_blocks_short_series_but_preserves_report(actor):
-    r=completed(actor,query='预测营业收入并说明样本限制')
+    r=completed(actor,dataset=short_dataset(actor),query='预测营业收入并说明样本限制')
     assert r['state']=='degraded' and r['result']['analysis']['metrics']
     assert r['result']['adaptive']['mathematical_outputs']['forecast']['status']=='blocked'
     assert r['result']['llm']['state']=='not_requested'
@@ -255,7 +264,7 @@ def test_reference_and_format_gate(text,metric,citation):
 def test_model_can_choose_real_specialist_dependencies_inside_consent(factory,order):
     ps=ResearchProviders(proposal={'focus':['evidence'],'specialists':['analyst','researcher','challenger'],'rationale':'按照资料与量化结果配置分工','execution_order':order})
     a=Actor(factory(ps));d=a.dataset()
-    e=a.post('/evidence',json={'title':'明确合成的资料','text':'合成验收资料；企业经营变化及现金情况需要原始证据核验，不能当作真实财报。'*12}).json()
+    e=a.post('/evidence',json={'global_scope':True,'title':'明确合成的资料','text':'合成验收资料；企业经营变化及现金情况需要原始证据核验，不能当作真实财报。'*12}).json()
     r=completed(a,dataset=d,use_llm=True,provider='alpha',max_calls=5,execution={'model_planning':True})
     assert r['result'],r
     rt=runtime(a,r);nodes={n['id']:n for n in rt['graph']['payload']['nodes']};assert 'researcher' in nodes
@@ -268,7 +277,7 @@ def test_model_can_choose_real_specialist_dependencies_inside_consent(factory,or
 
 def test_model_suggested_forecast_uses_same_snapshot_without_new_permission(factory):
     ps=ResearchProviders(proposal={'focus':['forecast'],'specialists':['analyst'],'rationale':'核验历史序列能否建立预测基线'})
-    a=Actor(factory(ps));r=completed(a,use_llm=True,provider='alpha',max_calls=4,execution={'model_planning':True})
+    a=Actor(factory(ps));r=completed(a,dataset=short_dataset(a),use_llm=True,provider='alpha',max_calls=4,execution={'model_planning':True})
     assert r['result'],r
     rt=runtime(a,r);g=rt['graph']['payload'];assert 'forecast' in {n['id'] for n in g['nodes']}
     assert 'forecast' in next(n for n in g['nodes'] if n['id']=='analyst')['depends_on']
@@ -292,3 +301,120 @@ def test_resume_respects_configured_queue_not_hardcoded_default(factory):
 def test_nonfinite_metric_cannot_be_used_as_model_evidence():
     for v in [float('nan'),float('inf'),True,None]:
         assert not check_claims([{'text':'毛利率需要核对','metric_ids':['gross_margin']}],{'gross_margin':v},[])['claims']
+
+
+def test_explicit_balanced_depth_is_not_replaced_by_policy(actor):
+    from server.autonomy import compile_graph
+    payload=preview(actor,execution={'depth':'balanced','local_recovery':False})['payload']
+    graph=compile_graph(payload,policy={'depth':'deep','require_counterevidence':False,'require_gap_analysis':False})
+    assert graph['depth']=='balanced'
+    assert not {'gaps','counterevidence'} & {n['id'] for n in graph['nodes']}
+    payload['request']['execution']['depth']=None
+    assert compile_graph(payload,policy={'depth':'deep'})['depth']=='deep'
+
+
+def test_finished_checkpoint_cannot_be_overwritten_or_reexecuted(actor):
+    row=dispatch(actor,preview(actor));store=actor.client.app.state.store
+    with store.transaction() as db:db.execute("UPDATE runs SET state='running' WHERE id=?",(row['id'],))
+    async def check():
+        runner=AdaptiveRun(actor.client.app.state.worker,row['id'])
+        n=next(n for n in runner.graph['nodes'] if n['id']=='quality')
+        await runner.execute_node(n)
+        before=store.one('SELECT * FROM adaptive_checkpoints WHERE run_id=? AND node_id=?',(row['id'],'quality'))
+        with pytest.raises(RuntimeError,match='CHECKPOINT_IMMUTABLE'):runner.record(n,{'status':'completed','forged':True},'succeeded')
+        with pytest.raises(RuntimeError,match='CHECKPOINT_IMMUTABLE'):await runner.execute_node(n)
+        assert store.one('SELECT * FROM adaptive_checkpoints WHERE run_id=? AND node_id=?',(row['id'],'quality'))==before
+        assert len(store.all('SELECT * FROM agent_artifacts WHERE run_id=?',(row['id'],)))==1
+    actor.client.portal.call(check)
+
+
+@pytest.mark.parametrize('tamper',['event_chain','graph','envelope','snapshot','dispatch_ledger'])
+def test_recovery_fails_closed_on_tampered_approval_and_anchors(factory,tamper):
+    ps=ResearchProviders();a=Actor(factory(ps));holder={}
+    async def pause(*args):
+        with a.client.app.state.store.transaction() as db:db.execute("UPDATE adaptive_controls SET status='pause_requested' WHERE run_id=?",(holder['row']['id'],))
+        return {'output':{'claims':[],'missing':[]},'usage':{}}
+    ps.handler=pause;holder['row']=dispatch(a,preview(a,use_llm=True,provider='alpha',max_calls=2))
+    row=a.execute(holder['row']);assert row['state']=='interrupted' and len(ps.calls)==1
+    store=a.client.app.state.store
+    with store.transaction() as db:
+        if tamper=='event_chain':
+            db.execute("UPDATE run_events SET created_at='2000-01-01T00:00:00+00:00' WHERE run_id=? AND type='step_started'",(row['id'],))
+        elif tamper in ('graph','envelope'):
+            graph=store.one('SELECT payload FROM adaptive_graphs WHERE run_id=?',(row['id'],))['payload']
+            if tamper=='graph':graph['nodes'][0]['reason']='unanchored change'
+            else:graph['envelope']['max_calls']=8
+            db.execute('UPDATE adaptive_graphs SET payload=? WHERE run_id=?',(encode(graph),row['id']))
+        elif tamper=='snapshot':
+            snapshot=row['snapshot'];snapshot['studio']['context']['question']='未经批准的新问题'
+            db.execute('UPDATE runs SET snapshot=? WHERE id=?',(encode(snapshot),row['id']))
+        else:
+            db.execute('UPDATE adaptive_calls SET characters=characters+1 WHERE run_id=?',(row['id'],))
+    rt=runtime(a,row);assert a.post('/workspace/runs/'+row['id']+'/control',json={'version':rt['control']['version'],'action':'resume'}).status_code==200
+    result=a.execute(row)
+    assert result['state']=='failed' and result['result'] is None and len(ps.calls)==1
+
+
+def test_crash_before_dispatch_rechecks_consent_then_executes_once(factory):
+    ps=ResearchProviders();a=Actor(factory(ps));row=dispatch(a,preview(a,use_llm=True,provider='alpha',max_calls=1))
+    store=a.client.app.state.store
+    with store.transaction() as db:db.execute("UPDATE runs SET state='running' WHERE id=?",(row['id'],))
+    runner=AdaptiveRun(a.client.app.state.worker,row['id']);n=next(n for n in runner.graph['nodes'] if n['id']=='analyst')
+    with store.transaction() as db:
+        db.execute('INSERT INTO adaptive_checkpoints VALUES(?,?,?,?,?,NULL,?,NULL)',(row['id'],'analyst','analyst','running',digest({'snapshot':digest(runner.s),'node':n}),now()))
+        db.execute("UPDATE runs SET state='interrupted' WHERE id=?",(row['id'],))
+    rt=runtime(a,row);a.post('/workspace/runs/'+row['id']+'/control',json={'version':rt['control']['version'],'action':'resume'})
+    final=a.execute(row)
+    assert final['result'] and len(ps.calls)==1
+    assert not any(c['state']=='unknown' for c in runtime(a,row)['calls'])
+
+
+def test_duplicate_model_dispatch_reservation_is_refused(factory):
+    ps=ResearchProviders();a=Actor(factory(ps));row=dispatch(a,preview(a,use_llm=True,provider='alpha',max_calls=3))
+    store=a.client.app.state.store
+    with store.transaction() as db:db.execute("UPDATE runs SET state='running' WHERE id=?",(row['id'],))
+    runner=AdaptiveRun(a.client.app.state.worker,row['id']);n=next(n for n in runner.graph['nodes'] if n['id']=='analyst');b=runner.graph['provider_bindings']['analyst']
+    first,error=runner.reserve_call(n,b,'{}',{'memory_ids':[],'citation_ids':[]})
+    second,error=runner.reserve_call(n,b,'{}',{'memory_ids':[],'citation_ids':[]})
+    assert first and second is None and error=='NODE_ALREADY_DISPATCHED'
+    assert runtime(a,row)['usage']['attempts']==1 and not ps.calls
+
+
+def test_orphaned_dispatch_reservation_is_not_reissued(factory):
+    ps=ResearchProviders();a=Actor(factory(ps));row=dispatch(a,preview(a,use_llm=True,provider='alpha',max_calls=1));store=a.client.app.state.store
+    with store.transaction() as db:db.execute("UPDATE runs SET state='running' WHERE id=?",(row['id'],))
+    runner=AdaptiveRun(a.client.app.state.worker,row['id']);n=next(n for n in runner.graph['nodes'] if n['id']=='analyst')
+    call,error=runner.reserve_call(n,runner.graph['provider_bindings']['analyst'],'{}',{'memory_ids':[],'citation_ids':[]})
+    assert call and error is None
+    with store.transaction() as db:db.execute("UPDATE runs SET state='interrupted' WHERE id=?",(row['id'],))
+    rt=runtime(a,row);a.post('/workspace/runs/'+row['id']+'/control',json={'version':rt['control']['version'],'action':'resume'})
+    final=a.execute(row)
+    assert final['result'] and final['state']=='degraded' and not ps.calls
+    assert runtime(a,row)['calls'][0]['state']=='unknown'
+
+
+def test_tampered_plan_content_does_not_match_unchanged_fingerprint(factory):
+    ps=ResearchProviders();a=Actor(factory(ps));plan=preview(a,use_llm=True,provider='alpha')
+    payload=copy.deepcopy(plan['payload']);payload['context']['question']='different unapproved question'
+    with a.client.app.state.store.transaction() as db:db.execute('UPDATE workspace_objects SET payload=? WHERE id=?',(encode(payload),plan['id']))
+    response=a.post('/workspace/plans/'+plan['id']+'/execute',json={'version':plan['version'],'fingerprint':plan['payload']['fingerprint'],'external_consent':True})
+    assert response.status_code==409 and response.json()['error']['code']=='PLAN_INTEGRITY' and not ps.calls
+
+
+def test_acknowledged_throttle_with_bounded_code_can_use_approved_fallback(factory):
+    async def limited(p,*args):
+        if p.id=='alpha':raise ValueError('MODEL_HTTP_429_1113')
+        return {'output':{'claims':[],'missing':[]},'usage':{}}
+    ps=ResearchProviders(limited);a=Actor(factory(ps));row=completed(a,use_llm=True,provider='alpha',max_calls=4,execution={'fallback_providers':['beta']})
+    assert row['result'] and any(call['provider']=='beta' for call in ps.calls)
+    assert runtime(a,row)['usage']['attempts']<=4
+
+
+@pytest.mark.parametrize('mutation',['remove','disable','alias'])
+def test_mandatory_capabilities_cannot_be_removed_or_disabled(actor,mutation):
+    nodes=copy.deepcopy(preview(actor)['payload']['nodes'])
+    target=next(n for n in nodes if n['id']=='quality')
+    if mutation=='remove':nodes.remove(target)
+    elif mutation=='disable':target['enabled']=False
+    else:target['capability']='gaps'
+    with pytest.raises(ValueError):validate_graph(nodes,require_mandatory=True)

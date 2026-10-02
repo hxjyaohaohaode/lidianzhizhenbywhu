@@ -38,8 +38,8 @@ def execute(a,p,consent=False):
     run=good(approve(a,p,external_consent=consent),202)
     return a.execute(run)
 def evidence(a,company='',status='unreviewed',stance='context',text=None,expires=None):
-    row=good(a.post('/evidence',json={'title':'验收原文','text':text or ('毛利率、现金流、采购成本的验收合成文本。'*9)}),201)
-    review=good(a.put('/workspace/evidence/'+row['id']+'/review',json={'company':company,'status':status,'stance':stance,'note':'合成验收用途，不代表企业事实','expires_at':expires}),200)
+    row=good(a.post('/evidence',json={'company':company,'global_scope':not bool(company),'title':'验收原文','text':text or ('毛利率、现金流、采购成本的验收合成文本。'*9)}),201)
+    review=good(a.put('/workspace/evidence/'+row['id']+'/review',json={'company':company,'global_scope':not bool(company),'version':1,'status':status,'stance':stance,'note':'合成验收用途，不代表企业事实','expires_at':expires}),200)
     return row,review
 
 def test_empty_workspace_and_no_runtime_sample_generator(actor):
@@ -147,7 +147,7 @@ def test_plan_bindings_reject_changes_before_approval(factory,change):
     if change=='dataset':good(a.put('/datasets/'+d['id'],json=editable(d)))
     if change=='profile':good(a.post('/workspace/profiles',json={'company':d['payload']['company'],'margin_floor':.9}))
     if change=='memory':good(a.put('/memories/'+m['id'],json={**m['payload'],'version':m['version'],'approved':False}))
-    if change=='evidence':good(a.put('/workspace/evidence/'+doc['id']+'/review',json={'company':d['payload']['company'],'version':1,'status':'rejected','note':'资料存在不适用范围'}))
+    if change=='evidence':good(a.put('/workspace/evidence/'+doc['id']+'/review',json={'company':d['payload']['company'],'version':rev['version'],'status':'rejected','note':'资料存在不适用范围'}))
     if change=='preferences':good(a.put('/preferences',json={**a.user['preferences'],'name':'变更偏好','version':1}))
     if change=='history':
         with a.client.app.state.store.transaction() as db:db.execute('UPDATE conversations SET version=version+1 WHERE id=?',(session['id'],))
@@ -161,8 +161,8 @@ def test_plan_bindings_reject_changes_before_approval(factory,change):
 def test_revocation_after_queue_approval_blocks_unsent_calls(factory,kind):
     vendor=StudioProvider();a=Actor(factory(providers=vendor));d=dataset(a);doc,review=evidence(a,d['payload']['company']);m=good(a.post('/memories',json={'text':'关注采购成本和现金流','approved':True}),201)
     p=plan(a,d,use_llm=True);run=good(approve(a,p,external_consent=True),202)
-    if kind=='memory':good(a.delete('/memories/'+m['id']))
-    elif kind=='evidence':good(a.delete('/evidence/'+doc['id']))
+    if kind=='memory':good(a.delete('/memories/'+m['id'],params={'version':m['version']}))
+    elif kind=='evidence':good(a.delete('/evidence/'+doc['id'],params={'version':doc['version']}))
     elif kind=='preferences':good(a.put('/preferences',json={**a.user['preferences'],'name':'撤回前偏好变更','version':1,'memory_enabled':False}))
     else:vendor.provider.model='changed-after-dispatch'
     r=a.execute(run)
@@ -195,7 +195,7 @@ def test_total_timeout_does_not_succeed_or_retry(factory):
 
 def test_cancelled_plan_and_run_no_late_writes(factory):
     v=StudioProvider();a=Actor(factory(providers=v));p=plan(a,use_llm=True)
-    good(a.post('/workspace/plans/'+p['id']+'/cancel'))
+    good(a.post('/workspace/plans/'+p['id']+'/cancel',params={'version':p['version']}))
     assert approve(a,p,external_consent=True).status_code==409
     p2=plan(a,use_llm=True);run=good(approve(a,p2,external_consent=True),202)
     good(a.post('/runs/'+run['id']+'/cancel'));a.execute(run)
@@ -234,14 +234,14 @@ def test_human_stance_is_not_semantic_contradiction_proof(actor):
 
 
 def test_action_state_machine_ownership_cas_and_no_silent_acceptance(actor):
-    d=dataset(actor);a=good(actor.post('/workspace/actions',json={'title':'验收行动','company':d['payload']['company'],'dataset_id':d['id'],'source_key':'rule-test','acceptance':'核对期间差异并保存依据'}),201)
-    dup=good(actor.post('/workspace/actions',json={'title':'验收行动','source_key':'rule-test','acceptance':'核对期间差异并保存依据'}),201);assert dup['id']==a['id']
+    d=dataset(actor);key=good(actor.get('/workspace/brief'))['insights']['items'][0]['key'];a=good(actor.post('/workspace/actions',json={'title':'验收行动','company':d['payload']['company'],'dataset_id':d['id'],'source_key':key,'acceptance':'核对期间差异并保存依据'}),201)
+    dup=good(actor.post('/workspace/actions',json={'title':'验收行动','source_key':key,'acceptance':'核对期间差异并保存依据'}),201);assert dup['id']==a['id']
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'done','note':'没有开始不能直接完成'}).status_code==409
     p=good(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress'}))
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'done','note':'使用过期版本不能完成'}).status_code==409
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':''}).status_code==422
     b=Actor(actor.client);doc,_=evidence(b)
-    assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'不能引用另一个用户的证据','evidence_ids':[doc['id']]}).status_code==404
+    assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'不能引用另一个用户的证据','evidence_ids':[doc['id']],'evidence_refs':[b.evidence_ref(doc)]}).status_code==404
     done=good(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'已核对并保留来源记录'}))
     assert done['payload']['status']=='done' and len(done['payload']['history'])==3
     opened=good(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':3,'status':'open'}));assert opened['version']==4
@@ -260,7 +260,7 @@ def test_enterprise_targets_and_dismissals_do_not_rewrite_math(actor):
 
 def test_experiment_frozen_and_reports_stale_after_data_edit(actor):
     d=dataset(actor);run=execute(actor,plan(actor,d))
-    e=good(actor.post('/workspace/experiments',json={'dataset_id':d['id'],'name':'frozen scenario','kind':'scenario','price_change':.05,'fixed_cost_share':.2,'assumptions':'测试假设，仅核对冻结输入'}),201)
+    e=good(actor.post('/workspace/experiments',json={'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],'name':'frozen scenario','kind':'scenario','price_change':.05,'fixed_cost_share':.2,'assumptions':'测试假设，仅核对冻结输入'}),201)
     raw=editable(d);raw['periods'][-1]['revenue']*=2;good(actor.put('/datasets/'+d['id'],json=raw))
     assert good(actor.get('/workspace/experiments/'+e['id']))==e
     assert good(actor.get('/runs/'+run['id']))['result']==run['result']
@@ -273,7 +273,7 @@ def test_experiment_frozen_and_reports_stale_after_data_edit(actor):
 @pytest.mark.parametrize('route',['/workspace/datasets/{dataset}/quality','/workspace/datasets/{dataset}/lineage','/workspace/datasets/{dataset}/revisions','/workspace/plans/{plan}','/workspace/experiments/{experiment}','/workspace/runs/{run}/audit','/workspace/runs/{run}/reviews'])
 def test_new_object_reads_cannot_cross_accounts(actor,route):
     d=dataset(actor);p=plan(actor,d);r=execute(actor,p)
-    e=good(actor.post('/workspace/experiments',json={'dataset_id':d['id'],'name':'private experiment','kind':'scenario','assumptions':'私有数据测试记录'}),201)
+    e=good(actor.post('/workspace/experiments',json={'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],'name':'private experiment','kind':'scenario','assumptions':'私有数据测试记录'}),201)
     b=Actor(actor.client);response=b.get(route.format(dataset=d['id'],plan=p['id'],run=r['id'],experiment=e['id']))
     assert response.status_code==404 and d['payload']['company'] not in response.text
 
@@ -295,8 +295,8 @@ def test_export_all_workspace_assets_no_credentials(actor):
 
 def test_workspace_deletion_guards_and_account_cascade(actor):
     p=plan(actor);r=good(approve(actor,p),202)
-    assert actor.delete('/workspace/archive/plan/'+p['id']).status_code==409
-    good(actor.post('/runs/'+r['id']+'/cancel'));good(actor.delete('/workspace/archive/plan/'+p['id']))
+    assert actor.delete('/workspace/archive/plan/'+p['id'],params={'version':actor.get('/workspace/plans/'+p['id']).json()['version']}).status_code==409
+    good(actor.post('/runs/'+r['id']+'/cancel'));good(actor.delete('/workspace/archive/plan/'+p['id'],params={'version':actor.get('/workspace/plans/'+p['id']).json()['version']}))
     assert actor.get('/workspace/plans/'+p['id']).status_code==404
     assert actor.delete('/workspace/archive/users/anything').status_code==422
     good(actor.delete('/account',json={'email':actor.email,'password':actor.password}))
@@ -337,7 +337,7 @@ def test_archive_lists_only_owned_metadata_and_cleanup_frees_space(actor):
     assert rows['total']==1 and rows['items'][0]['id']==p['id']
     assert 'snapshot' not in encode(rows) and 'context' not in encode(rows)
     assert other.delete('/workspace/archive/plan/'+p['id']).status_code==404
-    good(actor.delete('/workspace/archive/plan/'+p['id']))
+    good(actor.delete('/workspace/archive/plan/'+p['id'],params={'version':actor.get('/workspace/plans/'+p['id']).json()['version']}))
     assert good(actor.get('/workspace/archive'))['collections']['plan']['total']==0
 
 

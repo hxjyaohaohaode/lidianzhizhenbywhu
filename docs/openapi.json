@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "锂电智诊 API",
-    "version": "4.0.0"
+    "version": "4.1.0"
   },
   "paths": {
     "/api/workspace/brief": {
@@ -12,12 +12,52 @@
         ],
         "summary": "Brief",
         "operationId": "brief_api_workspace_brief_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -100,23 +140,6 @@
       }
     },
     "/api/workspace/plans": {
-      "get": {
-        "tags": [
-          "Workspace"
-        ],
-        "summary": "Plans",
-        "operationId": "plans_api_workspace_plans_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "Workspace"
@@ -124,17 +147,74 @@
         "summary": "Plan Create",
         "operationId": "plan_create_api_workspace_plans_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PlanDraft"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Plans",
+        "operationId": "plans_api_workspace_plans_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -261,6 +341,24 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -356,6 +454,24 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -484,6 +600,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 9007199254740991,
               "minimum": 0,
               "default": 0,
               "title": "Revision"
@@ -868,6 +985,56 @@
         }
       }
     },
+    "/api/workspace/actions/{id}": {
+      "put": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Action Edit",
+        "operationId": "action_edit_api_workspace_actions__id__put",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspace/actions/{id}/status": {
       "put": {
         "tags": [
@@ -958,23 +1125,6 @@
       }
     },
     "/api/workspace/experiments": {
-      "get": {
-        "tags": [
-          "Workspace"
-        ],
-        "summary": "Experiments",
-        "operationId": "experiments_api_workspace_experiments_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "Workspace"
@@ -982,17 +1132,74 @@
         "summary": "Experiment Add",
         "operationId": "experiment_add_api_workspace_experiments_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ExperimentRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Experiments",
+        "operationId": "experiments_api_workspace_experiments_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -1053,6 +1260,214 @@
         }
       }
     },
+    "/api/workspace/comparisons": {
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Comparison Add",
+        "operationId": "comparison_add_api_workspace_comparisons_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedComparisonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Comparison List",
+        "operationId": "comparison_list_api_workspace_comparisons_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspace/comparisons/{id}": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Comparison Get",
+        "operationId": "comparison_get_api_workspace_comparisons__id__get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Identity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Comparison Delete",
+        "operationId": "comparison_delete_api_workspace_comparisons__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspace/reports": {
       "get": {
         "tags": [
@@ -1060,12 +1475,52 @@
         ],
         "summary": "Reports",
         "operationId": "reports_api_workspace_reports_get",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "",
+              "title": "Dataset Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -1333,6 +1788,24 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -1780,6 +2253,122 @@
         }
       }
     },
+    "/api/workspace/strategies/{id}": {
+      "delete": {
+        "tags": [
+          "Adaptive research"
+        ],
+        "summary": "Delete Strategy",
+        "operationId": "delete_strategy_api_workspace_strategies__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspace/strategy-evaluations/{id}": {
+      "delete": {
+        "tags": [
+          "Adaptive research"
+        ],
+        "summary": "Delete Evaluation",
+        "operationId": "delete_evaluation_api_workspace_strategy_evaluations__id__delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/services/identities": {
       "get": {
         "tags": [
@@ -1899,6 +2488,24 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -2068,6 +2675,24 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -2122,6 +2747,76 @@
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/threads/{id}/messages/{message_id}/trace": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Message Trace",
+        "operationId": "message_trace_api_services_threads__id__messages__message_id__trace_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message Id"
+            }
+          },
+          {
+            "name": "identity_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "title": "Identity Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -2246,6 +2941,24 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -2337,6 +3050,62 @@
               "maxLength": 80,
               "default": "",
               "title": "Identity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/history": {
+      "get": {
+        "tags": [
+          "Identity, Copilot and Security"
+        ],
+        "summary": "Orphan History",
+        "description": "Account-owned archived context without evaluating rules or restoring access.",
+        "operationId": "orphan_history_api_services_history_get",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
             }
           }
         ],
@@ -2465,6 +3234,24 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -2554,6 +3341,24 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -2708,7 +3513,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Reauthenticate"
+                "$ref": "#/components/schemas/ConnectionRemove"
               }
             }
           }
@@ -3180,6 +3985,24 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -3529,6 +4352,24 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -3634,6 +4475,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 9007199254740991,
               "minimum": 0,
               "default": 0,
               "title": "Offset"
@@ -3768,6 +4610,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 9007199254740991,
               "minimum": 0,
               "default": 0,
               "title": "After"
@@ -3903,7 +4746,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Evidence"
+                "$ref": "#/components/schemas/EvidenceCapture"
               }
             }
           },
@@ -4003,6 +4846,53 @@
         }
       }
     },
+    "/api/evidence/{id}/metadata": {
+      "put": {
+        "summary": "Evidence Metadata",
+        "operationId": "evidence_metadata_api_evidence__id__metadata_put",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceMetadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/evidence/{id}": {
       "delete": {
         "summary": "Evidence Delete",
@@ -4015,6 +4905,24 @@
             "schema": {
               "type": "string",
               "title": "Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
             }
           }
         ],
@@ -4223,6 +5131,24 @@
               "type": "string",
               "title": "Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
           }
         ],
         "responses": {
@@ -4294,6 +5220,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 9007199254740991,
               "minimum": 0,
               "default": 0,
               "title": "After"
@@ -4433,6 +5360,35 @@
     "schemas": {
       "ActionCreate": {
         "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{8,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "企业行动必须提供完整的数据修订引用或可核验的原始来源；无企业的人工行动可省略。旧 run_id/source_key 仅能解析已有可核验来源，不能自动绑定最新数据。"
+          },
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
           "title": {
             "type": "string",
             "maxLength": 200,
@@ -4512,10 +5468,83 @@
         ],
         "title": "ActionCreate"
       },
+      "ActionEdit": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "high",
+              "normal",
+              "low"
+            ],
+            "title": "Priority"
+          },
+          "owner": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Owner"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "acceptance": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Acceptance"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000,
+            "title": "Description"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "title",
+          "priority",
+          "owner",
+          "due_at",
+          "acceptance",
+          "description",
+          "note"
+        ],
+        "title": "ActionEdit"
+      },
       "ActionTransition": {
         "properties": {
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           },
@@ -4542,7 +5571,17 @@
             },
             "type": "array",
             "maxItems": 10,
-            "title": "Evidence Ids"
+            "title": "Evidence Ids",
+            "description": "可选的兼容标识列表；非空时必须与 evidence_refs 的标识完全一致，不能单独提交"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Evidence Refs",
+            "description": "每项新关联证据必须携带用户已查看的原文版本、指纹和审阅版本；无证据时可留空"
           }
         },
         "additionalProperties": false,
@@ -4563,6 +5602,7 @@
           },
           "expected_active_version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Expected Active Version"
           }
@@ -4586,6 +5626,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           }
@@ -4631,6 +5672,16 @@
             "maxItems": 20,
             "minItems": 1,
             "title": "Ids"
+          },
+          "versions": {
+            "additionalProperties": {
+              "type": "integer",
+              "maximum": 9007199254740991.0,
+              "minimum": 1.0
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Versions"
           }
         },
         "additionalProperties": false,
@@ -4671,6 +5722,32 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Company",
+            "default": ""
+          },
+          "global_scope": {
+            "type": "boolean",
+            "title": "Global Scope",
+            "default": false
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url",
+            "default": ""
+          },
+          "published_at": {
+            "type": "string",
+            "title": "Published At",
+            "default": ""
           }
         },
         "type": "object",
@@ -4694,13 +5771,43 @@
           },
           "amount_unit": {
             "type": "string",
+            "enum": [
+              "yuan",
+              "wan",
+              "yi"
+            ],
             "title": "Amount Unit",
             "default": "yuan"
           },
           "basis": {
             "type": "string",
+            "enum": [
+              "standalone_quarter",
+              "year_to_date"
+            ],
             "title": "Basis",
             "default": "standalone_quarter"
+          },
+          "target_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Target Id",
+            "default": ""
+          },
+          "target_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Target Version",
+            "default": 0
+          },
+          "merge_mode": {
+            "type": "string",
+            "enum": [
+              "replace",
+              "merge"
+            ],
+            "title": "Merge Mode",
+            "default": "replace"
           }
         },
         "type": "object",
@@ -4735,6 +5842,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Version",
             "default": 0
@@ -4839,6 +5947,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Version",
             "default": 0
@@ -4880,6 +5989,29 @@
           "dataset_ids"
         ],
         "title": "CompareRequest"
+      },
+      "ConnectionRemove": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          },
+          "version": {
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password",
+          "version"
+        ],
+        "title": "ConnectionRemove"
       },
       "Conversation": {
         "properties": {
@@ -4928,6 +6060,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           }
@@ -5099,6 +6232,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           }
@@ -5115,6 +6249,12 @@
       },
       "DismissInsight": {
         "properties": {
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
           "key": {
             "type": "string",
             "maxLength": 200,
@@ -5136,7 +6276,7 @@
         ],
         "title": "DismissInsight"
       },
-      "Evidence": {
+      "EvidenceCapture": {
         "properties": {
           "title": {
             "type": "string",
@@ -5167,6 +6307,29 @@
               }
             ],
             "title": "Published At"
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Company",
+            "default": ""
+          },
+          "global_scope": {
+            "type": "boolean",
+            "title": "Global Scope",
+            "default": false
+          },
+          "search_receipt": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{64})?$",
+            "title": "Search Receipt",
+            "default": ""
+          },
+          "retrieved_at": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Retrieved At",
+            "default": ""
           }
         },
         "additionalProperties": false,
@@ -5175,10 +6338,92 @@
           "title",
           "text"
         ],
-        "title": "Evidence"
+        "title": "EvidenceCapture"
+      },
+      "EvidenceMetadata": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "source_url": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Source Url",
+            "default": ""
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "version": {
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "version"
+        ],
+        "title": "EvidenceMetadata"
+      },
+      "EvidenceRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Content Hash"
+          },
+          "review_version": {
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Review Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "content_hash",
+          "review_version"
+        ],
+        "title": "EvidenceRef"
       },
       "EvidenceReview": {
         "properties": {
+          "global_scope": {
+            "type": "boolean",
+            "title": "Global Scope",
+            "default": false
+          },
           "company": {
             "type": "string",
             "maxLength": 200,
@@ -5235,6 +6480,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Version",
             "default": 0
@@ -5247,14 +6493,20 @@
       "ExecutionOptions": {
         "properties": {
           "depth": {
-            "type": "string",
-            "enum": [
-              "concise",
-              "balanced",
-              "deep"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "concise",
+                  "balanced",
+                  "deep"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Depth",
-            "default": "balanced"
+            "title": "Depth"
           },
           "model_planning": {
             "type": "boolean",
@@ -5350,6 +6602,35 @@
         "type": "object",
         "title": "ExecutionOptions"
       },
+      "ExperimentReference": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Hash"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "hash"
+        ],
+        "title": "ExperimentReference"
+      },
       "ExperimentRequest": {
         "properties": {
           "dataset_id": {
@@ -5357,6 +6638,29 @@
             "maxLength": 80,
             "minLength": 1,
             "title": "Dataset Id"
+          },
+          "dataset_version": {
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
+            "title": "Dataset Version"
+          },
+          "dataset_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Dataset Hash"
+          },
+          "target_period": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(19|20)[0-9]{2}-Q[1-4]$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Period"
           },
           "name": {
             "type": "string",
@@ -5429,6 +6733,8 @@
         "type": "object",
         "required": [
           "dataset_id",
+          "dataset_version",
+          "dataset_hash",
           "name",
           "kind",
           "assumptions"
@@ -5469,6 +6775,17 @@
       },
       "FetchEvidence": {
         "properties": {
+          "company": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Company",
+            "default": ""
+          },
+          "global_scope": {
+            "type": "boolean",
+            "title": "Global Scope",
+            "default": false
+          },
           "url": {
             "type": "string",
             "maxLength": 1000,
@@ -5589,6 +6906,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Version",
             "default": 0
@@ -5623,6 +6941,7 @@
           },
           "target_version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Target Version",
             "default": 0
@@ -5812,6 +7131,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           }
@@ -6049,6 +7369,7 @@
         "properties": {
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           },
@@ -6134,6 +7455,26 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ExecutionOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparison_artifact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentReference"
               },
               {
                 "type": "null"
@@ -6257,6 +7598,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           }
@@ -6303,6 +7645,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Version",
             "default": 0
@@ -6322,6 +7665,7 @@
         "properties": {
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           },
@@ -6405,6 +7749,26 @@
           "execution": {
             "$ref": "#/components/schemas/ExecutionOptions"
           },
+          "experiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparison_artifact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "mode": {
             "type": "string",
             "enum": [
@@ -6458,6 +7822,18 @@
             ],
             "title": "Due At"
           },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "acceptance": {
             "type": "string",
             "maxLength": 2000,
@@ -6472,22 +7848,6 @@
           "request_id"
         ],
         "title": "ProposalRequest"
-      },
-      "Reauthenticate": {
-        "properties": {
-          "password": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Password"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "password"
-        ],
-        "title": "Reauthenticate"
       },
       "Register": {
         "properties": {
@@ -6540,11 +7900,13 @@
         "properties": {
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           },
           "target_revision": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Target Revision"
           }
@@ -6571,6 +7933,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           }
@@ -6587,6 +7950,7 @@
         "properties": {
           "expected_active_version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Expected Active Version"
           }
@@ -6600,6 +7964,18 @@
       },
       "RunAssessment": {
         "properties": {
+          "review_context_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Context Hash"
+          },
           "verdict": {
             "type": "string",
             "enum": [
@@ -6625,11 +8001,12 @@
                 "counterevidence",
                 "forecast",
                 "sensitivity",
-                "gaps"
+                "gaps",
+                "comparison"
               ]
             },
             "type": "array",
-            "maxItems": 7,
+            "maxItems": 8,
             "title": "Expected Capabilities"
           },
           "consent_replay": {
@@ -6639,6 +8016,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Version",
             "default": 0
@@ -6656,6 +8034,7 @@
         "properties": {
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           },
@@ -6743,6 +8122,78 @@
         ],
         "title": "RunRequest"
       },
+      "SavedComparisonRequest": {
+        "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{8,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "identity_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Identity Id",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/ExperimentReference"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 2,
+            "title": "Datasets"
+          },
+          "comparison": {
+            "type": "string",
+            "enum": [
+              "previous",
+              "year_over_year"
+            ],
+            "title": "Comparison",
+            "default": "year_over_year"
+          },
+          "target_period": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(19|20)[0-9]{2}-Q[1-4]$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Period"
+          },
+          "comparability_note": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Comparability Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "datasets",
+          "comparability_note"
+        ],
+        "title": "SavedComparisonRequest"
+      },
       "Scenario": {
         "properties": {
           "run_id": {
@@ -6818,7 +8269,7 @@
           },
           "note": {
             "type": "string",
-            "maxLength": 1000,
+            "maxLength": 2000,
             "minLength": 5,
             "title": "Note"
           }
@@ -6879,6 +8330,126 @@
         ],
         "title": "SessionRevoke"
       },
+      "SourceRef": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "dataset",
+              "report",
+              "copilot",
+              "insight",
+              "alert",
+              "action"
+            ],
+            "title": "Kind"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Run Id",
+            "default": ""
+          },
+          "claim_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Claim Id",
+            "default": ""
+          },
+          "thread_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Thread Id",
+            "default": ""
+          },
+          "message_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Message Id",
+            "default": ""
+          },
+          "source_key": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Source Key",
+            "default": ""
+          },
+          "alert_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Alert Id",
+            "default": ""
+          },
+          "action_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Action Id",
+            "default": ""
+          },
+          "action_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Version"
+          },
+          "action_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Hash"
+          },
+          "dataset_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Version"
+          },
+          "dataset_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Hash"
+          },
+          "allow_historical": {
+            "type": "boolean",
+            "title": "Allow Historical",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "SourceRef",
+        "description": "Dataset refs require both viewed dataset_version and dataset_hash.\n\nA copilot thread without a frozen message requires the same pair. For other\nimmutable sources the pair may be omitted together, never partially supplied.\nallow_historical does not repair missing bindings or accept stale direct data."
+      },
       "StageCommit": {
         "properties": {
           "fingerprint": {
@@ -6888,6 +8459,7 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 1.0,
             "title": "Version"
           }
@@ -7004,6 +8576,18 @@
             "minLength": 1,
             "title": "Title",
             "default": "新的研究"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{8,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "additionalProperties": false,
@@ -7052,6 +8636,29 @@
       },
       "WatchSpec": {
         "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{8,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "新建必须提供完整的数据修订引用或可核验的原始来源。更新必须省略此不可变来源，并使用跟踪记录自身版本。"
+          },
           "title": {
             "type": "string",
             "maxLength": 200,
@@ -7108,8 +8715,21 @@
             "title": "Stale After Days",
             "default": 180
           },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "version": {
             "type": "integer",
+            "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Version",
             "default": 0

@@ -1,5 +1,6 @@
 """Auditable analytics. No learned weights, synthetic observations or causal claims."""
 from __future__ import annotations
+from .clock import utc_today
 import math
 from datetime import date
 from statistics import mean
@@ -22,7 +23,7 @@ def quarter_label(index):
 
 
 def closed_quarter(label, today=None):
-    today = today or date.today()
+    today = today or utc_today()
     return quarter_index(label) < today.year * 4 + (today.month - 1) // 3
 
 
@@ -66,7 +67,7 @@ def dataset_diff(before, after):
 
 
 def quality_report(data, today=None):
-    today = today or date.today()
+    today = today or utc_today()
     findings = []; ps = sorted(data['periods'],key=lambda p:p['period'])
     def add(code,severity,period,fields,message):
         findings.append({'code':code,'severity':severity,'period':period,'fields':fields,'message':message})

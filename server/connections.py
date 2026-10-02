@@ -16,6 +16,8 @@ from .providers import Provider
 
 
 def endpoint(base_url: str) -> tuple[str, str]:
+    if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in base_url):
+        raise ValueError('模型地址不能包含空白或控制字符')
     u = urlsplit(base_url)
     try:
         port = u.port
@@ -58,7 +60,9 @@ class ConnectionVault:
 
     def _key(self):
         with self._key_lock:
-            return self._read_key()
+            try:return self._read_key()
+            except OSError:
+                raise RuntimeError('凭据主密钥无法读取；请检查配对备份与文件访问权限，没有发送模型请求') from None
 
     def _read_key(self):
         if self._fernet:
@@ -88,7 +92,7 @@ class ConnectionVault:
 
     def save(self, user_id, spec, id=''):
         host, path = endpoint(spec.base_url)
-        if any(c in spec.model for c in ('\r', '\n', '\x00')) or any(c in spec.api_key for c in ('\r', '\n', '\x00')):
+        if not spec.model.strip() or any(ord(c) < 32 or ord(c) == 127 for c in spec.model) or any(ord(c) < 33 or ord(c) > 126 for c in spec.api_key):
             fail('INVALID_SECRET', '模型名或密钥包含非法控制字符', 422)
         old = self.store.one('SELECT * FROM private_connections WHERE user_id=? AND id=?', (user_id,id)) if id else None
         if id and not old:
@@ -120,7 +124,9 @@ class ConnectionVault:
             self.store.audit(db,user_id,'connection',id,'updated' if old else 'created',{'host':host,'model':spec.model})
         return next(x for x in self.catalog(user_id) if x['id'] == id)
 
-    def select(self, id, user_id=None):
+    def select(self, id, user_id):
+        if not user_id:
+            fail('OWNER_REQUIRED', '私有连接必须绑定当前账户', 403)
         sql = 'SELECT * FROM private_connections WHERE id=?'
         args = (id,)
         if user_id is not None:
@@ -137,11 +143,14 @@ class ConnectionVault:
         p.configuration_version = row['version']
         return p
 
-    def delete(self,user_id,id):
+    def delete(self,user_id,id,version):
         with self.store.transaction() as db:
-            count=db.execute('DELETE FROM private_connections WHERE id=? AND user_id=?',(id,user_id)).rowcount
-            if not count:
+            current=self.store.one('SELECT version FROM private_connections WHERE id=? AND user_id=?',(id,user_id))
+            if not current:
                 fail('NOT_FOUND','连接不存在或无权访问',404)
+            if current['version']!=version:
+                fail('VERSION_CONFLICT','连接已改变，请刷新后再删除',409)
+            db.execute('DELETE FROM private_connections WHERE id=? AND user_id=? AND version=?',(id,user_id,version))
             self.store.audit(db,user_id,'connection',id,'deleted')
 
 
@@ -169,6 +178,12 @@ class ScopedProviders:
             return self.service.select(id)
         private=self.service.vault.catalog(self.user_id)
         return self.service.vault.select(private[0]['id'],self.user_id) if private else self.service.select('')
+
+    async def complete(self, provider, system, context):
+        return await self.service.complete(provider, system, context)
+
+    async def propose(self, provider, context):
+        return await self.service.propose(provider, context)
 
 
 def provider_binding(provider):

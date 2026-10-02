@@ -1,0 +1,31 @@
+{
+  "recorded_at": "2026-10-02T05:09:15.301003+00:00",
+  "parent_commit": "307de95e2152a3992d38f914cad1f1ec945735c3",
+  "application_source_changed": false,
+  "failed_run": 36966478534,
+  "failed_job": 110711230008,
+  "failed_artifact": 11210321797,
+  "artifact_sha256": "e41a492ca887d78da42318afce24a50148e462f71058dbe32809de0488e562a7",
+  "native_completed_checks_before_failure": 13,
+  "request_elapsed_seconds": 15.400867,
+  "assertion_elapsed_seconds": 15.913739,
+  "response_received_before_failure": false,
+  "screenshot_shows": "local computation still in progress",
+  "js_errors": [],
+  "http5xx": [],
+  "fix": "Wait for second chat-turn under existing default 10s locator timeout, then preserve exact count==2 assertion",
+  "business_requests_retried": false,
+  "timeouts_increased": false,
+  "application_validators_changed": false,
+  "independent_review": "Evidence and narrow completion-wait change verified",
+  "local_checks": {
+    "compileall": "passed",
+    "acceptance_regressions_log": ".................                                                        [100%]\n=============================== warnings summary ===============================\n../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/fastapi/testclient.py:1\n  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n17 passed, 1 warning in 0.08s\n",
+    "source_guard": [],
+    "diff_check": "passed"
+  },
+  "full_aggregate": "Prior full aggregate remains applicable to unchanged application; new exact-SHA CI must rerun all seven stages and native acceptance",
+  "prior_success_not_substitute_for_new_ci": true,
+  "merged": false,
+  "deployed": false
+}

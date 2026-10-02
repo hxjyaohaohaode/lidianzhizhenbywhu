@@ -11,11 +11,15 @@ from conftest import Actor,editable
 from server.store import Store,encode,digest
 from server.workflows import STEPS
 from server.models import calculate
+from test_adaptive import preview, dispatch
+
+def approved_run(actor, **fields):
+    return dispatch(actor, preview(actor, use_llm=True, max_calls=2, execution={'max_revisions':0}, **fields))
 
 class FakeProvider:
     """Explicit fault injection; passing these tests does NOT prove real vendor access."""
     def __init__(self,output=None,fail=False,delay=0):self.calls=[];self.output=output;self.fail=fail;self.delay=delay
-    def select(self,id=''):return SimpleNamespace(id='injected-test',model='fixture-model')
+    def select(self,id=''):return SimpleNamespace(id='injected-test',model='fixture-model',host='model.test.example',path='/chat')
     def status(self):return [{'id':'injected-test','model':'fixture-model','configured':True,'connectivity':'test_double'}]
     async def complete(self,p,system,context):
         self.calls.append(json.loads(context))
@@ -31,7 +35,7 @@ def test_full_workflow_seven_steps_and_export(actor):
     d=actor.dataset();s=actor.conversation();run=actor.execute(actor.run(d,s).json());assert run['state']=='succeeded',run
     result=run['result'];assert result['dataset_version']==1 and result['dataset_hash']==d['content_hash']
     assert result['llm']['state']=='not_requested' and result['llm']['calls']==[]
-    assert result['memory_used']==[] and result['quality']['source_kind']=='sample'
+    assert result['memory_used']==[] and result['quality']['source_kind']=='user_provided'
     events=actor.get('/runs/'+run['id']+'/trace').json()['items'];assert events[0]['type']=='queued'
     assert {e['payload']['node'] for e in events if e['type']=='step_completed'}=={s['id'] for s in STEPS}
     assert events[-1]['type']=='succeeded' and all(e['payload']['duration_ms']>=0 for e in events if e['type']=='step_completed')
@@ -60,7 +64,9 @@ def test_immutable_snapshot_and_scenario(actor):
     other=actor.dataset();assert actor.post('/scenarios',json={'dataset_id':other['id'],'run_id':r['id'],'price_change':0,'cost_change':0,'volume_change':0}).status_code==422
 def test_company_binding(actor):
     d=actor.dataset();s=actor.conversation();assert actor.run(d,s).status_code==202
-    other=actor.dataset();b=editable(other);b['company']='另一家企业';actor.put('/datasets/'+other['id'],json=b)
+    b=editable(d);b.pop('version');b['company']='另一家企业'
+    response=actor.post('/datasets',json=b);assert response.status_code==201,response.text
+    other=response.json()
     assert actor.run(other,s).status_code==409
 @pytest.mark.parametrize('field,value',[('approved',False),('expires_at','2020-01-01'),('company','不匹配企业'),('role','investor')])
 def test_unapproved_expired_or_scoped_memories_excluded(actor,field,value):
@@ -69,7 +75,7 @@ def test_unapproved_expired_or_scoped_memories_excluded(actor,field,value):
 def test_memory_selection_snapshot_then_deletion(actor):
     m=actor.post('/memories',json={'text':'优先核对现金回流','kind':'preference','approved':True}).json();d=actor.dataset();s=actor.conversation();r=actor.run(d,s).json()
     assert [x['id'] for x in r['snapshot']['memory']]==[m['id']]
-    assert actor.delete('/memories/'+m['id']).status_code==200
+    assert actor.delete('/memories/'+m['id']+'?version='+str(m['version'])).status_code==200
     assert actor.execute(r)['result']['memory_selected']==[{'id':m['id'],'version':1}]
     assert actor.run(d,s).json()['snapshot']['memory']==[] and actor.run(d,s,include_memory=False).json()['snapshot']['memory']==[]
 def test_history_only_same_session(actor):
@@ -78,10 +84,10 @@ def test_history_only_same_session(actor):
     assert actor.run(d,actor.conversation()).json()['snapshot']['history']==[]
 def test_unconfigured_model_is_degraded_not_fake(factory):
     a=Actor(factory(providers=EmptyProvider()));r=a.execute(a.run(use_llm=True,provider='absent').json())
-    assert r['state']=='degraded' and r['result']['llm']['state']=='unavailable'
+    assert r['state']=='degraded' and r['result']['llm']['state']=='blocked'
     assert r['result']['llm']['review']['claims']==[] and r['result']['llm']['calls']==[]
 def test_two_specialists_and_context_boundaries(factory):
-    p=FakeProvider();a=Actor(factory(providers=p));a.post('/memories',json={'text':'偏好现金流研究','approved':True});r=a.execute(a.run(use_llm=True).json())
+    p=FakeProvider();a=Actor(factory(providers=p));a.post('/memories',json={'text':'偏好现金流研究','approved':True});r=a.execute(approved_run(a))
     assert len(p.calls)==2 and r['result']['llm']['state']=='completed' and all(len(encode(x))<=18000 for x in p.calls)
     assert len(r['result']['llm']['calls'])==2 and len(r['result']['memory_used'])==1
     assert all(c['verification']=='requires_human_review' for c in r['result']['llm']['review']['claims'])
@@ -90,15 +96,15 @@ def test_without_consent_no_external_calls(factory):
     p=FakeProvider();a=Actor(factory(providers=p));r=a.execute(a.run(use_llm=False).json());assert p.calls==[] and r['result']['llm']['state']=='not_requested'
 @pytest.mark.parametrize('bad',[{'text':'毛利率99%','metric_ids':['gross_margin'],'citation_ids':[]},{'text':'推测结果','metric_ids':['invented_metric'],'citation_ids':[]},{'text':'推测结果','metric_ids':[],'citation_ids':['other-user-secret']},{'text':'无依据陈述','metric_ids':[],'citation_ids':[]},{'text':'见https://evil.example','metric_ids':['cash_ratio'],'citation_ids':[]}])
 def test_fabricated_reference_numbers_and_links_rejected(factory,bad):
-    p=FakeProvider(output={'claims':[{**bad,'uncertainty':'high'}],'missing':[]});a=Actor(factory(providers=p));r=a.execute(a.run(use_llm=True).json())
+    p=FakeProvider(output={'claims':[{**bad,'uncertainty':'high'}],'missing':[]});a=Actor(factory(providers=p));r=a.execute(approved_run(a))
     assert r['result']['llm']['review']['claims']==[] and r['result']['llm']['review']['rejected_claims']==2
 def test_provider_failure_and_task_timeout_terminal(factory):
-    p=FakeProvider(fail=True);a=Actor(factory(providers=p));r=a.execute(a.run(use_llm=True).json())
+    p=FakeProvider(fail=True);a=Actor(factory(providers=p));r=a.execute(approved_run(a))
     assert r['state']=='degraded' and r['result']['llm']['state']=='failed' and len(p.calls)==2
-    p2=FakeProvider(delay=1);a2=Actor(factory(providers=p2,run_timeout=.05));r2=a2.execute(a2.run(use_llm=True).json());assert r2['state']=='failed' and r2['result'] is None
+    p2=FakeProvider(delay=1);a2=Actor(factory(providers=p2,run_timeout=.05));r2=a2.execute(approved_run(a2));assert r2['state']=='failed' and r2['result'] is None
 def test_oversized_required_context_prevents_dispatch(factory):
     p=FakeProvider();a=Actor(factory(providers=p,max_context_chars=1024));r=a.execute(a.run(use_llm=True,query='非常长的核查问题'*200).json())
-    assert r['result']['llm']['state']=='failed' and p.calls==[] and r['result']['memory_used']==[]
+    assert r['result']['llm']['state']=='blocked' and p.calls==[] and r['result']['memory_used']==[]
 def test_cancel_running_no_late_result(factory):
     class BlockedProvider(FakeProvider):
         def __init__(self):super().__init__();self.started=threading.Event();self.release=threading.Event()
@@ -109,7 +115,7 @@ def test_cancel_running_no_late_result(factory):
     p=BlockedProvider();c=factory(providers=p,worker=False);a=Actor(c)
     # Build the explicitly authorized fixture before starting the worker;
     # otherwise a fast worker can complete the queued row before the fixture update.
-    r=a.run(use_llm=True).json();assert r['state']=='queued'
+    r=approved_run(a);assert r['state']=='queued'
     worker=c.app.state.worker
     try:
         c.portal.call(worker.start)
@@ -136,8 +142,8 @@ def test_sse_resume_cursor(actor):
     assert ids==[e['seq'] for e in events if e['seq']>pivot] and 'event: end' in response.text
     assert actor.get(path+'/events',headers={'Last-Event-ID':'x'}).status_code==422
 def test_evidence_snapshot_survives_deletion(actor):
-    doc=actor.post('/evidence',json={'title':'毛利率说明','text':'毛利率下降与碳酸锂采购成本、营业成本变化有关，经营现金流需要审阅财报。'*10}).json();r=actor.run(query='毛利率和碳酸锂采购成本').json()
-    assert r['snapshot']['citations'];actor.delete('/evidence/'+doc['id']);run=actor.execute(r)
+    doc=actor.post('/evidence',json={'global_scope':True,'title':'毛利率说明','text':'毛利率下降与碳酸锂采购成本、营业成本变化有关，经营现金流需要审阅财报。'*10}).json();r=actor.run(query='毛利率和碳酸锂采购成本').json()
+    assert r['snapshot']['citations'];actor.delete('/evidence/'+doc['id']+'?version='+str(doc['version']));run=actor.execute(r)
     assert run['result']['citations']==r['snapshot']['citations'] and actor.get('/retrieval?q=碳酸锂采购成本').json()['items']==[]
 def test_duplicate_worker_claim_only_executes_once(actor,client):
     r=actor.run().json()
@@ -162,14 +168,16 @@ def test_sync_pagination_lossless(actor):
         if not page['has_more']:break
     assert len(ids)==5 and len(set(ids))==5 and actor.get(f'/sync?after={cursor}').json()['cursor']==cursor
 def test_common_period_comparison_and_refusal(actor):
-    a=actor.dataset();b=actor.dataset();p=editable(b);p['company']='乙企业';p['periods']=p['periods'][:-1];actor.put('/datasets/'+b['id'],json=p)
+    a=actor.dataset();p=editable(a);p.pop('version');p['company']='乙企业';p['periods']=p['periods'][:-1]
+    response=actor.post('/datasets',json=p);assert response.status_code==201,response.text
+    b=response.json()
     r=actor.post('/compare',json={'dataset_ids':[a['id'],b['id']]});assert r.status_code==200 and r.json()['period']=='2026-Q2'
-    assert all(x['analysis']['current_period']=='2026-Q2' and x['source_kind']=='sample' for x in r.json()['items'])
+    assert all(x['analysis']['current_period']=='2026-Q2' and x['source_kind']=='user_provided' for x in r.json()['items'])
     p=editable(actor.get('/datasets/'+b['id']).json());p['periods']=[{'period':'2020-Q1','revenue':1.,'cost':1.}];actor.put('/datasets/'+b['id'],json=p)
     assert actor.post('/compare',json={'dataset_ids':[a['id'],b['id']]}).status_code==422
 def test_index_owner_delete_and_migration_backfill(actor,client,tmp_path):
     from server.retrieval import retrieve_indexed
-    db=client.app.state.store;ev=actor.post('/evidence',json={'title':'经营毛利率','text':'碳酸锂成本变化需要结合毛利率分析。'*200}).json();hits=actor.get('/retrieval?q=碳酸锂成本毛利率').json()['items']
+    db=client.app.state.store;ev=actor.post('/evidence',json={'global_scope':True,'title':'经营毛利率','text':'碳酸锂成本变化需要结合毛利率分析。'*200}).json();hits=actor.get('/retrieval?q=碳酸锂成本毛利率').json()['items']
     assert hits and all(x['document_id']==ev['id'] for x in hits)
     assert actor.get('/retrieval?q=%22%20OR%20owner%20NOT%20anything').status_code==200
     with db.transaction() as c:c.execute('DELETE FROM evidence_chunks');c.execute('DELETE FROM schema_version WHERE version=2')
@@ -178,7 +186,7 @@ def test_index_owner_delete_and_migration_backfill(actor,client,tmp_path):
         assert retrieve_indexed(reloaded,actor.user['id'],'碳酸锂成本毛利率')
         assert reloaded.one('SELECT MAX(version) AS n FROM schema_version')['n']==3
     finally:reloaded.close()
-    actor.delete('/evidence/'+ev['id']);assert db.one('SELECT count(*) AS n FROM evidence_fts')['n']==0 and db.one('SELECT count(*) AS n FROM evidence_chunks')['n']==0
+    actor.delete('/evidence/'+ev['id']+'?version='+str(ev['version']));assert db.one('SELECT count(*) AS n FROM evidence_fts')['n']==0 and db.one('SELECT count(*) AS n FROM evidence_chunks')['n']==0
 def test_future_schema_refused_without_mutation(tmp_path):
     p=tmp_path/'future.sqlite3'
     with closing(sqlite3.connect(p)) as c:c.execute('CREATE TABLE schema_version(version INTEGER PRIMARY KEY)');c.execute('INSERT INTO schema_version VALUES(999)');c.commit()
@@ -192,11 +200,34 @@ def test_five_modes_identical_numbers_distinct_presentation(actor,mode):
     if mode=='industry':assert any('实时行情' in f for f in r['result']['findings'])
     if mode=='margin':assert any('贡献' in f for f in r['result']['findings'])
 def test_worker_concurrency_and_shutdown(factory):
-    p=FakeProvider(delay=.6);c=factory(providers=p,worker=True);a=Actor(c);d=a.dataset();s=a.conversation();ids=[a.run(d,s,use_llm=True).json()['id'] for _ in range(4)];time.sleep(.12)
+    p=FakeProvider(delay=.6);c=factory(providers=p,worker=True);a=Actor(c);d=a.dataset();s=a.conversation();ids=[dispatch(a, preview(a, dataset=d, session_id=s['id'], use_llm=True, max_calls=2, execution={'max_revisions':0}))['id'] for _ in range(4)];time.sleep(.12)
     states=[a.get('/runs/'+id).json()['state'] for id in ids];assert states.count('running')<=2 and len(c.app.state.worker.active)<=2
     c.portal.call(c.app.state.worker.stop);assert all(a.get('/runs/'+id).json()['state']!='running' for id in ids)
 def test_task_submission_bounded_indexed_retrieval(actor,monkeypatch):
-    actor.post('/evidence',json={'title':'采购与现金流','text':'碳酸锂采购成本和经营现金流需要用锂电企业季度财报核对。'*20});store=actor.client.app.state.store;original=store.items
+    actor.post('/evidence',json={'global_scope':True,'title':'采购与现金流','text':'碳酸锂采购成本和经营现金流需要用锂电企业季度财报核对。'*20});store=actor.client.app.state.store;original=store.items
     def bounded(table,user,limit=200):
         assert table!='evidence','Submission must not load every full evidence document';return original(table,user,limit)
     monkeypatch.setattr(store,'items',bounded);r=actor.run(query='分析碳酸锂采购成本和现金流');assert r.status_code==202 and r.json()['snapshot']['citations']
+
+
+def test_legacy_external_boolean_cannot_authorize_new_paid_requests(factory):
+    provider=FakeProvider();a=Actor(factory(providers=provider));row=a.run(use_llm=True).json()
+    result=a.execute(row)
+    assert result['state']=='degraded' and result['result']['llm']['state']=='blocked'
+    assert not provider.calls and result['result']['llm']['calls']==[]
+    assert any(e['type']=='external_dispatch_blocked' for e in a.get('/runs/'+row['id']+'/trace').json()['items'])
+
+
+def test_restart_does_not_bill_old_queued_external_rows(factory):
+    provider=FakeProvider();a=Actor(factory(providers=provider));row=a.run(use_llm=True).json();worker=a.client.app.state.worker
+    async def restart():
+        await worker.start()
+        try:
+            for _ in range(100):
+                current=worker.store.one('SELECT state FROM runs WHERE id=?',(row['id'],))
+                if current['state'] not in ('queued','running'):break
+                await asyncio.sleep(.01)
+        finally:await worker.stop()
+    a.client.portal.call(restart)
+    result=a.get('/runs/'+row['id']).json()
+    assert result['state']=='degraded' and result['result']['llm']['state']=='blocked' and provider.calls==[]

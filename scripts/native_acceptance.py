@@ -6,16 +6,35 @@ never points at a live production database.
 """
 from pathlib import Path
 import argparse
+import atexit
 import json
 import os
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from datetime import datetime, timezone
 import httpx
+try:
+    from scripts.acceptance_diagnostics import EventJournal
+except ModuleNotFoundError:
+    from acceptance_diagnostics import EventJournal
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def observe_server_exit(server, journal, cleanup_requested):
+    """Record when wait() observes exit, not an invented OS exit timestamp."""
+    code = server.wait()
+    journal.emit('server_exit_observed', exit_code=code,
+        cleanup_requested=cleanup_requested.is_set())
+
+
+def partial_output(exc):
+    return ''.join(value.decode('utf-8', errors='replace') if isinstance(value, bytes)
+        else value for value in (exc.stdout, exc.stderr) if value)
 
 class WindowsSafeTemporaryDirectory(tempfile.TemporaryDirectory):
     def cleanup(self):
@@ -31,29 +50,72 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--bridge',action='store_true',help='Run separately labeled DOM/API bridge acceptance');args=parser.parse_args()
     mode='bridge' if args.bridge else 'native'
     out=ROOT/'evidence';out.mkdir(exist_ok=True)
+    journal=EventJournal(out/(mode+'-process-events.jsonl'))
+    atexit.register(journal.close)
+    journal.emit('acceptance_started',mode=mode)
+    report=out/('service-browser-check.json' if args.bridge else 'native-service-browser.json')
+    attempt={'attempted_at':datetime.now(timezone.utc).isoformat(),
+        'mode':mode,'all_checks_passed':False,'native_network_e2e':False,
+        'status':'not_completed','checks':[],'count':0,'screenshots':[],
+        'policy_modified':False,'note':'本次执行尚未完成；不继承旧验收成功或历史截图。'}
+    report.write_text(json.dumps(attempt,ensure_ascii=False,indent=2),encoding='utf-8')
     with socket.socket() as sock:
         try:sock.bind(('127.0.0.1',8000))
-        except OSError:raise SystemExit('原生验收需要隔离的8000端口；不会终止已占用该端口的服务。')
+        except OSError:
+            journal.emit('port_unavailable');journal.close()
+            raise SystemExit('原生验收需要隔离的8000端口；不会终止已占用该端口的服务。')
     with WindowsSafeTemporaryDirectory(prefix='lidian-native-') as tmp:
         env={k:v for k,v in os.environ.items() if not k.endswith('_API_KEY') and k not in ('APP_ENV','REGISTRATION_CODE')}
         env.update(DATA_DIR=tmp,APP_ORIGIN='http://127.0.0.1:8000',PYTHONUTF8='1')
         with open(out/'native-server.log','w',encoding='utf-8') as log:
+            journal.emit('server_spawn_requested')
             server=subprocess.Popen([sys.executable,'-m','uvicorn','server.app:app','--host','127.0.0.1','--port','8000','--log-level','warning'],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)
+            journal.emit('server_spawned',pid=server.pid)
+            cleanup_requested=threading.Event()
+            observer=threading.Thread(target=observe_server_exit,args=(server,journal,cleanup_requested),daemon=True)
+            observer.start()
             try:
-                for _ in range(100):
+                for index in range(100):
                     try:
                         with httpx.Client(trust_env=False,timeout=1) as c:
-                            if c.get('http://127.0.0.1:8000/api/health').status_code==200:break
-                    except httpx.HTTPError:pass
+                            health=c.get('http://127.0.0.1:8000/api/health')
+                            journal.emit('startup_health_response',attempt=index+1,status=health.status_code)
+                            if health.status_code==200:break
+                    except httpx.HTTPError as exc:
+                        journal.emit('startup_health_failed',attempt=index+1,error_type=type(exc).__name__)
                     if server.poll() is not None:raise RuntimeError('隔离服务启动失败')
                     time.sleep(.1)
                 command=[sys.executable,'scripts/service_browser_check.py']+([] if args.bridge else ['--native'])
+                journal.emit('browser_command_started',server_exit_code=server.poll(),timeout_seconds=300)
                 result=subprocess.run(command,cwd=ROOT,env=env,timeout=300,capture_output=True,text=True,encoding='utf-8',errors='replace')
+                journal.emit('browser_command_finished',exit_code=result.returncode,server_exit_code=server.poll())
                 (out/(mode+'-service-browser.log')).write_text(result.stdout+result.stderr,encoding='utf-8')
                 (out/(mode+'-service-command.json')).write_text(json.dumps({'exit_code':result.returncode,'command':['python','scripts/service_browser_check.py']+([] if args.bridge else ['--native']),'bridge':args.bridge,'isolated':True,'policy_changed':False},indent=2),encoding='utf-8')
+                current=json.loads(report.read_text(encoding='utf-8'))
+                current.update(attempted_at=attempt['attempted_at'],exit_code=result.returncode)
+                if result.returncode and current.get('status')=='not_completed':
+                    current.update(status='failed_before_browser_checks',note='浏览器启动或服务访问未完成；详见本次命令日志。历史截图不代表当前界面。')
+                report.write_text(json.dumps(current,ensure_ascii=False,indent=2),encoding='utf-8')
                 print(result.stdout+result.stderr);return result.returncode
+            except subprocess.TimeoutExpired as exc:
+                journal.emit('browser_command_timeout',timeout_seconds=300,server_exit_code=server.poll())
+                (out/(mode+'-service-browser.log')).write_text(partial_output(exc),encoding='utf-8')
+                current=json.loads(report.read_text(encoding='utf-8'))
+                current.update(status='browser_command_timeout',all_checks_passed=False,native_network_e2e=False,
+                    note='浏览器命令超过原有300秒上限；保留部分输出与诊断事件，不重试请求。')
+                report.write_text(json.dumps(current,ensure_ascii=False,indent=2),encoding='utf-8')
+                raise
+            except Exception as exc:
+                journal.emit('acceptance_exception',error_type=type(exc).__name__,server_exit_code=server.poll())
+                raise
             finally:
+                journal.emit('server_cleanup_requested',exit_code_before_cleanup=server.poll())
+                cleanup_requested.set()
                 server.terminate()
                 try:server.wait(timeout=10)
-                except subprocess.TimeoutExpired:server.kill();server.wait()
+                except subprocess.TimeoutExpired:
+                    journal.emit('server_kill_requested');server.kill();server.wait()
+                observer.join(timeout=1)
+                journal.emit('cleanup_completed',exit_code=server.returncode,observer_finished=not observer.is_alive())
+                journal.close()
 if __name__=='__main__':raise SystemExit(main())

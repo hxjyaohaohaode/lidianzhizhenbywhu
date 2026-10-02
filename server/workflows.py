@@ -25,8 +25,11 @@ class Worker:
         with self.store.transaction() as db:
             stale=db.execute("SELECT id,user_id FROM runs WHERE state='running'").fetchall()
             for row in stale:
-                db.execute("UPDATE runs SET state='interrupted',error=?,updated_at=? WHERE id=?",('服务重启中断；可显式重试，未伪装为成功。',now(),row['id']))
-                self.store.event(db,row['id'],'interrupted',{'message':'服务重启中断'})
+                resumable=bool(db.execute('SELECT 1 FROM adaptive_controls WHERE run_id=?',(row['id'],)).fetchone())
+                message=('服务重启中断；可显式继续，未知外部调用不会重发。' if resumable else
+                         '服务重启中断；旧运行不支持断点继续，可取消后清理计划；继续研究需新建并批准计划。')
+                db.execute("UPDATE runs SET state='interrupted',error=?,updated_at=? WHERE id=?",(message,now(),row['id']))
+                self.store.event(db,row['id'],'interrupted',{'message':message,'resume_supported':resumable})
                 self.store.audit(db,row['user_id'],'runs',row['id'],'interrupted')
         self.runner=asyncio.create_task(self.loop())
 
@@ -96,36 +99,18 @@ class Worker:
         async def evidence():return snapshot['citations']
         async def context():return snapshot['memory']
         maths,citations,memories=await asyncio.gather(self.step(id,'quant',quant),self.step(id,'evidence',evidence),self.step(id,'context',context))
-        warnings=list(maths['warnings']);claims=[];calls=[];provider=self.providers.select(request['provider'])
+        warnings=list(maths['warnings']);claims=[];calls=[]
         llm_state='not_requested';sent_memory=[];sent_citations=[]
 
         async def analysts():
             nonlocal llm_state,sent_memory,sent_citations
             if not request['use_llm']:return
-            if not provider:
-                llm_state='unavailable';warnings.append('未配置所选模型；本报告仅含规则计算，不冒充AI分析。');return
-            obj={'question':request['query'],'mode':request['mode'],'metrics':maths['metrics'],'gmps':maths['gmps']['score'],'dqi':maths['dqi']['score'],'evidence':[{'id':c['id'],'excerpt':c['excerpt'][:800]} for c in citations],'preferences':snapshot['preferences'],'approved_memory':list(memories),'conversation_history':snapshot.get('history',[]),'warnings':warnings}
-            prompt=encode(obj)
-            if len(prompt)>self.settings.max_context_chars:
-                while len(prompt)>self.settings.max_context_chars and obj['approved_memory']:obj['approved_memory'].pop();prompt=encode(obj)
-                while len(prompt)>self.settings.max_context_chars and obj['evidence']:obj['evidence'].pop();prompt=encode(obj)
-                warnings.append('上下文触发字符预算，已按优先级移除尾部完整记忆/证据。')
-            if len(prompt)>self.settings.max_context_chars:
-                llm_state='failed';warnings.append('必需上下文仍超过预算，已阻止模型调用；请缩短问题或新建会话。');return
-            sent_memory=[{'id':m['id'],'version':m['version']} for m in obj['approved_memory']];sent_citations=[c['id'] for c in obj['evidence']]
-            self.event(id,'external_dispatch',{'provider':provider.id,'model':provider.model,'calls_planned':2,'data_sent':['指标','选中证据','已批准记忆','问题','偏好','同会话历史'],'memory_ids':[m['id'] for m in sent_memory],'citation_ids':sent_citations,'consent':True})
-            self.event(id,'context_budget',{'characters':len(prompt),'limit':self.settings.max_context_chars,'token_measurement':'提供方usage为实测；字符数不是token数'})
-            async def one(specialty):
-                try:
-                    response=await self.providers.complete(provider,SYSTEM+'\n本代理职责：'+specialty,prompt)
-                    return {'specialty':specialty,'status':'completed',**response}
-                except Exception as exc:return {'specialty':specialty,'status':'failed','error_class':type(exc).__name__}
-            responses=await asyncio.gather(one('审视经营指标、反向证据与缺失条件'),one('审视公开证据的相关性、时效性和来源限制'))
-            for response in responses:
-                self.ensure_running(id);calls.append({k:v for k,v in response.items() if k!='output'})
-                if response['status']=='completed':claims.extend(response['output']['claims'])
-            llm_state='completed' if all(c['status']=='completed' for c in responses) else 'partial' if any(c['status']=='completed' for c in responses) else 'failed'
-            if llm_state!='completed':warnings.append('部分或全部模型调用失败；未自动跨供应商发送数据，未虚构模型答复。')
+            # Old or imported rows lack a fingerprint-bound approval envelope and
+            # durable per-call reservation. They remain readable and get a local
+            # report, but a legacy boolean cannot authorize a new paid request.
+            llm_state='blocked'
+            warnings.append('旧任务没有可核验的模型计划授权，已阻止外发；请新建计划并明确批准。')
+            self.event(id,'external_dispatch_blocked',{'reason':'LEGACY_APPROVAL_REQUIRED','external_calls':0})
         await self.step(id,'analysts',analysts)
 
         async def review():
@@ -154,15 +139,18 @@ class Worker:
             if missing:findings.append('仍需补充：'+'、'.join(missing)+'。')
             return {'title':data['company']+' · 经营诊断报告','mode':mode,'query':request['query'],'model_version':MODEL_VERSION,'dataset_id':row['dataset_id'],'dataset_version':snapshot['dataset_version'],'dataset_hash':snapshot['dataset_hash'],'snapshot_hash':quality_result['snapshot_hash'],'quality':quality_result,'analysis':maths,'findings':findings,'citations':citations,'memory_selected':[{'id':m['id'],'version':m['version']} for m in memories],'memory_used':sent_memory,'citation_ids_sent':sent_citations,'llm':{'state':llm_state,'calls':calls,'review':reviewed},'warnings':warnings,'created_at':now(),'limitations':['规则指数未经外部验证，不能推断未来概率。','模型解释待人工复核，引用校验不能消灭全部幻觉。','不提供自动交易或保证收益。']}
         result=await self.step(id,'report',report)
-        state='degraded' if llm_state in {'unavailable','partial','failed'} or maths['gmps']['score'] is None else 'succeeded'
+        state='degraded' if llm_state in {'unavailable','partial','failed','blocked'} or maths['gmps']['score'] is None else 'succeeded'
         with self.store.transaction() as db:
             if not db.execute("UPDATE runs SET state=?,result=?,updated_at=? WHERE id=? AND state='running'",(state,encode(result),now(),id)).rowcount:return
             db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?)',(uid(),row['user_id'],row['session_id'],id,'assistant',encode({'text':'\n'.join(result['findings']),'run_id':id}),now()))
-            self.store.event(db,id,state,{'state':state,'llm_state':llm_state,'report_ready':True});self.store.audit(db,row['user_id'],'runs',id,state)
+            # The legacy worker has no studio artifacts. Anchor new whole-output
+            # digests atomically with publication; never retrofit older reports.
+            self.store.event(db,id,state,{'state':state,'llm_state':llm_state,'report_ready':True,
+                'report_hash':digest(result)});self.store.audit(db,row['user_id'],'runs',id,state)
 
     def cancel(self,user,id):
         with self.store.transaction() as db:
-            c=db.execute("UPDATE runs SET state='cancelled',updated_at=? WHERE id=? AND user_id=? AND (state IN ('queued','running') OR (state='interrupted' AND EXISTS(SELECT 1 FROM adaptive_controls WHERE run_id=runs.id AND status IN ('paused','pause_requested'))))",(now(),id,user))
+            c=db.execute("UPDATE runs SET state='cancelled',updated_at=? WHERE id=? AND user_id=? AND state IN ('queued','running','interrupted')",(now(),id,user))
             if c.rowcount:
                 self.store.event(db,id,'cancelled',{'message':'已阻止后续提交；已发出的外部请求可能仍被供应商计费。'});self.store.audit(db,user,'runs',id,'cancelled')
         if c.rowcount and id in self.active:self.active[id].cancel()

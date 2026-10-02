@@ -22,3 +22,5 @@ export const routes = {
 };
 export function activeIdentity() { return state.identities.find(x => x.id === state.identity) ?? null; }
 export function scopedDatasets() { const ids = activeIdentity()?.payload.dataset_ids ?? []; return ids.length ? state.datasets.filter(x => ids.includes(x.id)) : state.datasets; }
+/** Explicitly distinguish default identity from legacy account-wide API lists. */
+export function scopeQuery() { return "?" + new URLSearchParams({ identity_id: state.identity, dataset_id: state.active }).toString(); }
