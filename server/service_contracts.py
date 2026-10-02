@@ -93,7 +93,7 @@ class ProposalConfirm(StrictModel):
 
 class WatchSpec(StrictModel):
     request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
-    source_ref: SourceRef | None = None
+    source_ref: SourceRef | None = Field(default=None, description='新建必须提供完整的数据修订引用或可核验的原始来源。更新必须省略此不可变来源，并使用跟踪记录自身版本。')
     title: str = Field(min_length=1, max_length=200)
     identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(min_length=1, max_length=80)
@@ -109,6 +109,8 @@ class WatchSpec(StrictModel):
     def request_id_create_only(self):
         if self.version and self.request_id is not None:
             raise ValueError('提交标识只用于新建跟踪；更新应使用记录版本')
+        if not self.version and self.source_ref is None:
+            raise ValueError('新跟踪必须提供已查看的数据版本和内容指纹，或指定可核验的原始来源')
         return self
 
 

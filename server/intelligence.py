@@ -6,6 +6,7 @@ from .analytics import calculate, quality_report, period_end, lineage, METRIC_LA
 from .store import digest
 from . import workspace_store as ws
 from .question_scope import resolve_question, scoped_dataset
+from .metric_facts import fact_comparison
 
 
 def profile_for(store,user,company):
@@ -139,7 +140,7 @@ def assistant_answer(store,user,query,dataset_id='',*,resolved_scope=None):
         if f in ('revenue','cost','net_profit','cash_flow'):
             value=latest.get(f);formula='原始季度录入值';inputs=[{'path':f"periods/{latest['period']}/{f}",'value':value}]
         elif f=='revenue_growth':
-            value=analysis['metrics'][f];formula='本期收入 ÷ 指定同/环比基期收入 − 1'
+            value=analysis['metrics'][f];formula='本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0'
             inputs=[{'path':f"periods/{latest['period']}/revenue",'value':latest['revenue']}]
             if baseline:inputs.append({'path':f"periods/{baseline['period']}/revenue",'value':baseline['revenue']})
         elif link:
@@ -155,7 +156,8 @@ def assistant_answer(store,user,query,dataset_id='',*,resolved_scope=None):
         facts.append({'id':f,'label':METRIC_LABELS[f],'value':value,'period':analysis['current_period'],
             'dataset_id':d['id'],'dataset_version':d['version'],'input_hash':d['content_hash'],
             'formula':formula,'inputs':inputs,'trend':trend,'source_url':data.get('source_url',''),
-            'verification':data.get('verification','unverified_user_input')})
+            'verification':data.get('verification','unverified_user_input'),
+            'comparison':fact_comparison(f,value,analysis)})
     quality=quality_report(data)
     evidence=scoped_retrieve(store,owner,query,data['company'],3)
     tasks=build_insights(store,owner,[d],identity_id=(user.get('service_identity') or {}).get('id',''))['items'] if question_scope['can_calculate'] and data['periods']==d['payload']['periods'] else []

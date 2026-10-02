@@ -15,6 +15,7 @@ from .analytics import calculate, quality_report, forecast_baselines, lineage, p
 from .intelligence import scoped_retrieve, build_insights, assistant_answer
 from .service_contracts import WatchSpec
 from .business_provenance import resolve_source, assert_source_current, with_source_impact, report_impact
+from .metric_facts import fact_comparison, RATIO_METRICS as _RATIO_METRICS, AMOUNT_METRICS as _AMOUNT_METRICS
 
 
 def migrate(store):
@@ -138,8 +139,6 @@ def trace_message(store,user,thread_id,message_id,identity_id,dataset_id):
 from .question_scope import resolve_followup, scoped_dataset, scoped_handoff_query
 
 
-_RATIO_METRICS = {'gross_margin', 'net_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'rd_ratio', 'roe', 'margin_change'}
-_AMOUNT_METRICS = {'revenue', 'cost', 'net_profit', 'cash_flow'}
 _DEFAULT_TOPICS = {
     'operator': ['gross_margin', 'cash_ratio', 'leverage'],
     'executive': ['revenue', 'revenue_growth', 'cash_ratio'],
@@ -183,16 +182,13 @@ def _grounded_facts(data, result, topics, dataset, links, trend_limit):
             else:
                 point_value = point.get(key)
             trend.append({'period': point['period'], 'value': point_value})
-        base_value = baseline.get(key) if baseline and key != 'revenue_growth' else None
-        change = value - base_value if value is not None and base_value is not None else None
         facts.append({'id': key, 'label': METRIC_LABELS.get(key, key), 'value': value,
             'display_value': _metric_text(value, key), 'unit': 'ratio' if key in _RATIO_METRICS else 'CNY' if key in _AMOUNT_METRICS else 'times',
             'period': result['current_period'], 'dataset_id': dataset['id'], 'dataset_version': dataset['version'],
             'input_hash': dataset['content_hash'], 'formula': formula, 'inputs': inputs, 'trend': trend,
             'source_url': data.get('source_url', ''), 'verification': data.get('verification', 'unverified_user_input'),
             'status': 'missing' if value is None else 'available',
-            'comparison': {'kind': result['comparison'], 'period': result['baseline_period'], 'value': base_value,
-                           'change': change, 'change_unit': 'ratio_points' if key in _RATIO_METRICS else 'CNY' if key in _AMOUNT_METRICS else 'times'}})
+            'comparison': fact_comparison(key, value, result)})
     return facts
 
 
@@ -261,7 +257,11 @@ def answer_with_tools(store, user, identity, data, text, history):
         for f in facts:
             sentence = f"{f['label']}为{f['display_value']}" if f['value'] is not None else f"{f['label']}缺少可用输入，保持空值"
             cmp = f['comparison']
-            if cmp['change'] is not None:
+            if cmp['operation'] == 'growth_rate':
+                sentence += f"（{'环比' if cmp['kind'] == 'previous' else '同比'}，基期{cmp['period']}）"
+                if cmp['reason']:
+                    sentence += '，' + cmp['reason']
+            elif cmp['change'] is not None:
                 sentence += f"，较{cmp['period']}{'增加' if cmp['change'] > 0 else '减少' if cmp['change'] < 0 else '变化'}{_metric_text(abs(cmp['change']), f['id'], difference=True)}"
             observations.append(sentence)
         answer = f"{company} {result['current_period']}：" + '；'.join(observations[:detail_limit]) + '。'
@@ -383,8 +383,9 @@ def _propose(store,user,thread_id,body,settings,providers):
         fail('DETAIL_REQUIRED','请写明至少5个字符的具体研究或操作内容',422)
     title=body.title.strip() or text[:80]
     proposal_id=uid()
-    provenance=resolve_source(store,user['id'],thread['payload']['identity_id'],data['id'],
-        {'kind':'copilot','thread_id':thread_id,'message_id':body.source_message_id})
+    source_ref={'kind':'copilot','thread_id':thread_id,'message_id':body.source_message_id,
+        **({'dataset_version':data['version'],'dataset_hash':data['content_hash']} if not source else {})}
+    provenance=resolve_source(store,user['id'],thread['payload']['identity_id'],data['id'],source_ref)
     provenance['proposal_id']=proposal_id
     p={'kind':body.kind,'status':'draft','thread_id':thread_id,'request':req,'request_hash':rh,
        'binding':proposal_binding(thread,identity,data),'created_at':now(),'title':title,'text':text,
@@ -417,7 +418,7 @@ def _propose(store,user,thread_id,body,settings,providers):
             'selected_experiment':plan['payload']['context'].get('selected_experiment'),
             'selected_comparison':plan['payload']['context'].get('selected_comparison')}
     elif body.kind=='watch':
-        spec=WatchSpec(title=title,identity_id=thread['payload']['identity_id'],dataset_id=data['id'],
+        spec=WatchSpec(title=title,identity_id=thread['payload']['identity_id'],dataset_id=data['id'],source_ref=source_ref,
             metric=body.metric,operator=body.operator,threshold=body.threshold,expires_at=body.expires_at)
         p['preview']={**spec.model_dump(mode='json',exclude={'source_ref','version','request_id'}),'provenance':provenance,'evaluation_revision':1}
     elif body.kind=='action':

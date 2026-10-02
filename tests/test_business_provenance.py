@@ -2,7 +2,7 @@
 from copy import deepcopy
 from datetime import date
 import pytest
-from conftest import Actor, editable
+from conftest import Actor, editable, dataset_ref
 from server.store import digest, encode
 from server import workspace_store as ws
 from server.copilot import evaluate_watches
@@ -16,6 +16,7 @@ def ok(response,code=200):
 
 
 def action(actor,d=None,**values):
+    if d and not any(k in values for k in ('source_ref','run_id','source_key')):values['source_ref']=dataset_ref(d)
     return actor.post('/workspace/actions',json={'title':'核对来源并跟进业务事项',
         'acceptance':'核对原始凭据并记录人工验收结论','dataset_id':d['id'] if d else '',**values})
 
@@ -38,9 +39,9 @@ def test_current_dataset_origin_is_server_resolved_immutable_and_read_only(actor
     assert result['payload']==a['payload'] and result['version']==1
     assert result['source_impact']['state']=='changed'
     assert result['source_impact']['baseline']['version']==1 and result['source_impact']['current']['version']==2
-    assert action(actor,revised,source_ref={'kind':'dataset','dataset_version':1}).status_code==409
+    assert action(actor,revised,source_ref={'kind':'dataset','dataset_version':1}).status_code==422
     assert action(actor,revised,provenance=p).status_code==422
-    assert action(actor,revised,source_ref={'kind':'dataset','dataset_hash':'0'*64}).status_code==409
+    assert action(actor,revised,source_ref={'kind':'dataset','dataset_hash':'0'*64}).status_code==422
     ok(actor.delete('/datasets/'+d['id']+'?version=2'))
     after=actions(actor)[0]
     assert after['source_impact']['state']=='unavailable' and after['payload']==a['payload']
@@ -407,7 +408,7 @@ def test_creation_request_id_replays_after_source_change_without_new_writes(acto
 @pytest.mark.parametrize('kind',['action','watch'])
 def test_parallel_creation_token_commits_once_and_owner_scopes_retry(actor,kind):
     from concurrent.futures import ThreadPoolExecutor
-    d=actor.dataset();body={'title':'并发提交只保存一条记录','dataset_id':d['id'],'request_id':'parallel-creation-token-01'}
+    d=actor.dataset();body={'source_ref':dataset_ref(d),'title':'并发提交只保存一条记录','dataset_id':d['id'],'request_id':'parallel-creation-token-01'}
     if kind=='action':body['acceptance']='核对并保留原始验收凭据'
     else:body.update(metric='gross_margin',operator='lt',threshold=0.9)
     path='/workspace/actions' if kind=='action' else '/services/watches'
@@ -415,7 +416,7 @@ def test_parallel_creation_token_commits_once_and_owner_scopes_retry(actor,kind)
     ids=[ok(r,201)['id'] for r in results]
     assert ids[0]==ids[1] and len(ws.objects(actor.client.app.state.store,actor.user['id'],kind))==1
     other=Actor(actor.client);other_d=other.dataset()
-    own=ok(other.post(path,json={**body,'dataset_id':other_d['id']}),201)
+    own=ok(other.post(path,json={**body,'dataset_id':other_d['id'],'source_ref':dataset_ref(other_d)}),201)
     assert own['id']!=ids[0]
 
 
@@ -426,7 +427,7 @@ def test_insight_dedup_rejects_explicit_conflicts_instead_of_returning_wrong_act
         'company':d['payload']['company'],'source_key':insight['key'],'source_ref':{'kind':'insight','source_key':insight['key']}}
     first=ok(actor.post('/workspace/actions',json=body),201)
     patch={'dataset_id':other['id'],'company':'与原始来源冲突的企业','run_id':'unrelated-run','title':'不同的行动标题',
-        'acceptance':'不同的验收标准不能静默去重','source_ref':{'kind':'insight','source_key':insight['key'],'dataset_version':99}}[change]
+        'acceptance':'不同的验收标准不能静默去重','source_ref':{'kind':'insight','source_key':insight['key'],'dataset_version':99,'dataset_hash':d['content_hash']}}[change]
     rejected=actor.post('/workspace/actions',json={**body,change:patch})
     assert rejected.status_code==409
     assert actions(actor)[0]['payload']==first['payload'] and len(actions(actor))==1

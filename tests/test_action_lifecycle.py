@@ -1,7 +1,7 @@
 """Synthetic local action journeys; no external suppliers or business data."""
 import copy
 import pytest
-from conftest import Actor
+from conftest import Actor, dataset_ref
 from server.store import encode
 
 
@@ -81,11 +81,13 @@ def test_manual_actions_are_identity_scoped_and_deduped_per_identity(actor):
     d=actor.dataset(); other_d=actor.dataset()
     i=ok(actor.post('/services/identities',json={'name':'验收身份一','dataset_ids':[d['id']]}),201)
     j=ok(actor.post('/services/identities',json={'name':'验收身份二','dataset_ids':[d['id']]}),201)
-    row=create(actor,identity_id=i['id'],dataset_id=d['id'],source_key='same-source')
+    first_key=ok(actor.get('/workspace/brief',params={'identity_id':i['id']}))['insights']['items'][0]['key']
+    second_key=ok(actor.get('/workspace/brief',params={'identity_id':j['id']}))['insights']['items'][0]['key']
+    row=create(actor,identity_id=i['id'],dataset_id=d['id'],source_key=first_key)
     assert row['payload']['identity_id']==i['id'] and row['payload']['company']==d['payload']['company']
-    assert create(actor,identity_id=i['id'],dataset_id=d['id'],source_key='same-source')['id']==row['id']
-    assert create(actor,identity_id=j['id'],dataset_id=d['id'],source_key='same-source')['id']!=row['id']
-    assert actor.post('/workspace/actions',json={'title':'越界行动','acceptance':'检查不在身份范围的数据','identity_id':i['id'],'dataset_id':other_d['id']}).status_code==403
+    assert create(actor,identity_id=i['id'],dataset_id=d['id'],source_key=first_key)['id']==row['id']
+    assert create(actor,identity_id=j['id'],dataset_id=d['id'],source_key=second_key)['id']!=row['id']
+    assert actor.post('/workspace/actions',json={'source_ref':dataset_ref(other_d),'title':'越界行动','acceptance':'检查不在身份范围的数据','identity_id':i['id'],'dataset_id':other_d['id']}).status_code==403
     other=Actor(actor.client)
     assert other.post('/workspace/actions',json={'title':'越权行动','acceptance':'不允许引用其他账号身份','identity_id':i['id']}).status_code==404
     modified=ok(actor.put('/workspace/actions/'+row['id'],json=edit_body(row,owner='改派负责人')))

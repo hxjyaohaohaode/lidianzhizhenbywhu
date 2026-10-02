@@ -70,3 +70,8 @@ def actor(client):return Actor(client)
 def example():return json.loads((Path(__file__).parents[0]/'fixtures/synthetic-financial.json').read_text(encoding='utf-8'))
 def editable(row):
     p=copy.deepcopy(row['payload']);p.pop('verification',None);p.pop('input_amount_unit',None);p['version']=row['version'];return p
+
+
+def dataset_ref(row):
+    """The exact viewed fixture revision, never a fresh read during submission."""
+    return {'kind':'dataset','dataset_version':row['version'],'dataset_hash':row['content_hash']}

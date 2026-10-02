@@ -6,7 +6,7 @@ import concurrent.futures
 from datetime import date
 from pathlib import Path
 import pytest
-from conftest import Actor, editable
+from conftest import Actor, editable, dataset_ref
 from server.store import digest, encode
 from server.copilot import evaluate_watches
 from server.connections import endpoint, ConnectionVault
@@ -68,7 +68,7 @@ def test_identities_are_scoped_owned_versioned_and_not_role_privileges(actor):
 def test_identity_scope_applies_to_threads_watch_and_agent_plans(actor):
     d=actor.dataset();d2=actor.dataset();i=identity(actor,d)
     ok(actor.post('/services/threads',json={'identity_id':i['id'],'dataset_id':d2['id']}),403)
-    ok(actor.post('/services/watches',json={'title':'越界规则','identity_id':i['id'],'dataset_id':d2['id'],'metric':'gross_margin','operator':'lt','threshold':0.3}),403)
+    ok(actor.post('/services/watches',json={'source_ref':dataset_ref(d2),'title':'越界规则','identity_id':i['id'],'dataset_id':d2['id'],'metric':'gross_margin','operator':'lt','threshold':0.3}),403)
     ok(actor.post('/workspace/plans',json={'identity_id':i['id'],'dataset_id':d2['id'],'query':'检查不在范围的企业'}),403)
     assert len(ok(actor.get('/datasets'))['items'])==2  # Lens is not another account or organizational RBAC.
 
@@ -296,7 +296,7 @@ def test_revoke_foreign_session_is_rejected(actor):
 
 
 def watch(actor,d,**patch):
-    return ok(actor.post('/services/watches',json={'title':'毛利下限','dataset_id':d['id'],'metric':'gross_margin','operator':'lt','threshold':0.99,'stale_after_days':1460,**patch}),201)
+    return ok(actor.post('/services/watches',json={'source_ref':dataset_ref(d),'title':'毛利下限','dataset_id':d['id'],'metric':'gross_margin','operator':'lt','threshold':0.99,'stale_after_days':1460,**patch}),201)
 
 
 def test_tracking_dedup_missing_stale_and_archive_frees_capacity(actor):

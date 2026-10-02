@@ -1,5 +1,5 @@
 {
-  "files_scanned": 87,
+  "files_scanned": 90,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -20,6 +20,7 @@
     "server/identities.py",
     "server/imports.py",
     "server/intelligence.py",
+    "server/metric_facts.py",
     "server/model_context.py",
     "server/models.py",
     "server/network.py",
@@ -61,6 +62,7 @@
     "web/layout.ts",
     "web/live.ts",
     "web/math-results.ts",
+    "web/metric-comparison.ts",
     "web/pages.ts",
     "web/saved-comparisons.ts",
     "web/saved-experiments.ts",
@@ -77,6 +79,7 @@
     "scripts/backup.py",
     "scripts/bootstrap.py",
     "scripts/browser_check.py",
+    "scripts/dataset_source_probe.py",
     "scripts/dom_check.py",
     "scripts/full_chain_check.py",
     "scripts/http_check.py",

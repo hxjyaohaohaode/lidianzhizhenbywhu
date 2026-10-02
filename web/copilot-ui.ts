@@ -5,6 +5,7 @@ import {claimMathReferences} from './math-results.js';
 import {interactionGuard,invalidateInteractions,renewSavedDraft} from './interactions.js';
 import {api,workspace,ApiError,type Json} from './api.js';
 import {assistantView} from './assistant.js';
+import {metricComparison} from './metric-comparison.js';
 import {state,activeDataset,activeIdentity,scopedDatasets} from './state.js';
 import {esc,icon,notice,badge,status,jsonView,metricValue,num,timeText,citationCard,field,textarea,input,select,formFooter,heading,routeButton,table,safeLink} from './components.js';
 import {xbutton,serviceForm} from './views-services.js';
@@ -41,8 +42,7 @@ function renderCard(c:Json){const d=c.data;if(c.kind==='quality'){return `<secti
  return `<section class="result-card"><h4>${esc(c.title)}</h4><details><summary>查看实际工具产物</summary>${jsonView(d)}</details></section>`;
 }
 function factView(f:Json){
- const comparison=f.comparison;
- return `<article class="fact-tile"><span>${esc(f.label)}</span><strong>${f.display_value?esc(f.display_value):metricValue(f.id,f.value)}</strong><small>${esc(f.period)} · 数据修订 ${esc(f.dataset_version)}</small>${comparison?`<p class="fact-comparison">${esc(({year_over_year:'同比',previous:'环比'} as Record<string,string>)[comparison.kind]??comparison.kind)} · ${esc(comparison.period)}<br>${comparison.change==null?'缺少可比基期':esc(comparison.change>0?'+':'')+num(comparison.change*(comparison.change_unit==='ratio_points'?100:1),2)+' '+esc(({ratio_points:'个百分点',CNY:'元',times:'倍'} as Record<string,string>)[comparison.change_unit]??comparison.change_unit??'')}</p>`:''}${f.formula?`<details class="fact-basis"><summary>计算与来源</summary><p>${esc(f.formula)}</p>${(f.inputs??[]).map((v:Json)=>`<div><code>${esc(v.path)}</code><span>${num(v.value)} ${esc(v.unit??'')}</span></div>`).join('')}<p class="micro">输入状态：${esc(f.verification==='verified'?'已核验':f.verification==='unverified'?'尚未独立核验':f.verification??'未记录')}</p>${f.source_url?safeLink(f.source_url,'原始来源'):''}</details>`:''}</article>`;
+ return `<article class="fact-tile"><span>${esc(f.label)}</span><strong>${f.display_value?esc(f.display_value):metricValue(f.id,f.value)}</strong><small>${esc(f.period)} · 数据修订 ${esc(f.dataset_version)}</small>${metricComparison(f)}${f.formula?`<details class="fact-basis"><summary>计算与来源</summary><p>${esc(f.formula)}</p>${(f.inputs??[]).map((v:Json)=>`<div><code>${esc(v.path)}</code><span>${num(v.value)} ${esc(v.unit??'')}</span></div>`).join('')}<p class="micro">输入状态：${esc(f.verification==='verified'?'已核验':f.verification==='unverified'?'尚未独立核验':f.verification??'未记录')}</p>${f.source_url?safeLink(f.source_url,'原始来源'):''}</details>`:''}</article>`;
 }
 function researchBrief(r:Json){const b=r.research_brief;if(!b)return '';return `<div class="evidence-boundary"><span>${icon('files')} 依据范围</span><strong>${esc(b.matched_document_count??0)} 份匹配资料</strong><small>${b.causal_claims_supported===false?'本地核查不支持因果断言':'结合原始来源复核'}${b.missing_metric_ids?.length?' · '+b.missing_metric_ids.length+' 项指标输入不足':''}</small></div>`;}
 export function messageView(m:Json){

@@ -626,6 +626,50 @@ def main():
             assert page.locator('#copilot-comparison option[value="'+comparison_id+'"]').count()==0
             page.locator('#modal [data-action="close-modal"]').first.click()
             record('对照清理明确对象和影响→取消保留→确认删除→列表与双计划选择器移除→同会话来源失效且原报告保留')
+            # New isolated conversation after the historical message-count checks.
+            # Read the actual fixture revision; all questions and trace reads go
+            # through production UI controls, with no response or DOM replacement.
+            go('copilot');page.locator('[data-x-action="chat-new"]').first.click()
+            growth_data=client.get('/api/datasets/'+original['id']).json()
+            growth_periods={row['period']:row for row in growth_data['payload']['periods']}
+            target_period='2024-Q2'
+            for index,(word,baseline_period,screenshot) in enumerate([
+                    ('同比','2023-Q2','ui-current-growth-yoy.png'),
+                    ('环比','2024-Q1','ui-current-growth-qoq.png')]):
+                current_revenue=growth_periods[target_period]['revenue']
+                baseline_revenue=growth_periods[baseline_period]['revenue']
+                assert baseline_revenue>0
+                rate=(current_revenue/baseline_revenue-1)*100
+                display=f'{rate:.2f}'.rstrip('0').rstrip('.')
+                page.locator('#assistant-query').fill(target_period+'收入'+word);submit('#assistant-form')
+                turn=page.locator('.chat-turn').nth(index);turn.wait_for()
+                assert turn.locator('.fact-tile').count()==2
+                growth_fact=turn.locator('.fact-tile').first
+                assert '收入增速' in growth_fact.inner_text()
+                assert growth_fact.locator('strong').inner_text()==f'{rate:.2f}%'
+                comparison_text=growth_fact.locator('.fact-comparison').inner_text()
+                assert word+' · '+baseline_period in comparison_text
+                assert '收入增速 +'+display+' %' in comparison_text
+                assert '基期收入 '+f'{baseline_revenue:,.0f}'+' 元' in comparison_text
+                assert '缺少可比基期' not in comparison_text and '个百分点' not in comparison_text
+                # The formula trace is the second assistant's actual renderer.
+                turn.locator('[data-x-action="chat-trace"]').click()
+                traced=turn.locator('.trace-container .assistant-fact').first;traced.wait_for()
+                trace_comparison=traced.locator('.fact-comparison').inner_text()
+                assert word+' · '+baseline_period in trace_comparison
+                assert '收入增速 +'+display+' %' in trace_comparison
+                assert '缺少可比基期' not in trace_comparison and '个百分点' not in trace_comparison
+                growth_fact.scroll_into_view_if_needed();assert not overflow();snap(screenshot)
+                record('收入'+word+'实际UI与公式复核显示已计算增速百分比、指定基期和收入金额，不误报缺少基期或百分点')
+            page.locator('#assistant-query').fill(target_period+'现金余额与经营现金流');submit('#assistant-form')
+            unsupported=page.locator('.chat-turn').nth(2);unsupported.wait_for()
+            assert unsupported.locator('.fact-tile').count()==0
+            unsupported_answer=unsupported.locator('.research-answer').inner_text()
+            assert '当前不支持现金余额' in unsupported_answer
+            assert '不能用期间流量' in unsupported_answer and '资产负债表' in unsupported_answer
+            assert '请单独提问' in unsupported_answer
+            unsupported.scroll_into_view_if_needed();assert not overflow();snap('ui-current-cash-balance-unsupported.png')
+            record('现金余额与经营现金流混合提问明确拒绝余额替代，保留来源提示且不显示无关金额或比率')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')

@@ -6,7 +6,7 @@ never updates a historical object or treats a service lens as account authority.
 from __future__ import annotations
 from copy import deepcopy
 from typing import Literal
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 from .schemas import StorageInteger, StrictModel
 from .store import digest, now
 from .security import fail
@@ -16,6 +16,12 @@ from .report_integrity import inspect_report_integrity
 
 
 class SourceRef(StrictModel):
+    """Dataset refs require both viewed dataset_version and dataset_hash.
+
+    A copilot thread without a frozen message requires the same pair. For other
+    immutable sources the pair may be omitted together, never partially supplied.
+    allow_historical does not repair missing bindings or accept stale direct data.
+    """
     kind: Literal['dataset', 'report', 'copilot', 'insight', 'alert', 'action']
     run_id: str = Field(default='', max_length=80)
     claim_id: str = Field(default='', max_length=80)
@@ -26,7 +32,7 @@ class SourceRef(StrictModel):
     action_id: str = Field(default='', max_length=80)
     action_version: StorageInteger | None = Field(default=None, ge=1)
     action_hash: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
-    dataset_version: StorageInteger | None = Field(default=None, ge=1)
+    dataset_version: StorageInteger | None = Field(default=None, strict=True, ge=1)
     dataset_hash: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     allow_historical: bool = False
 
@@ -43,6 +49,10 @@ class SourceRef(StrictModel):
             raise ValueError('行动来源必须携带已查看的行动版本和内容指纹')
         if self.kind!='action' and (self.action_version is not None or self.action_hash is not None):
             raise ValueError('行动版本与来源类型不一致')
+        if (self.dataset_version is None)!=(self.dataset_hash is None):
+            raise ValueError('来源数据版本和内容指纹必须同时提供')
+        if (self.kind=='dataset' or (self.kind=='copilot' and not self.message_id)) and self.dataset_version is None:
+            raise ValueError('数据来源必须携带已查看的数据版本和内容指纹')
         return self
 
 
@@ -119,7 +129,10 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
     current identity scope, corrupt report evidence, a missing source record or a
     malformed reference.
     """
-    ref=source_ref.model_dump() if isinstance(source_ref,SourceRef) else dict(source_ref or {})
+    try:
+        ref=SourceRef.model_validate(source_ref).model_dump() if source_ref is not None else {}
+    except ValidationError:
+        fail('SOURCE_REFERENCE_REQUIRED','来源引用不完整或无效；请重新打开来源并携带已查看的版本和指纹',422)
     if run_id and ref and (ref.get('kind')!='report' or ref.get('run_id')!=run_id):
         fail('SOURCE_MISMATCH','运行来源与来源引用不一致',409)
     if source_key and ref and (ref.get('kind')!='insight' or ref.get('source_key')!=source_key):
@@ -215,6 +228,8 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         if insight:
             if dataset_id and dataset_id!=insight['dataset_id']:fail('DATASET_MISMATCH','建议与所选企业数据不一致',409)
             dataset_id=insight['dataset_id'];kind='insight'
+            baseline={'dataset_id':dataset_id,'dataset_version':insight['dataset_version'],
+                'dataset_hash':insight['dataset_hash'],'company':insight['company']}
             extra={'source_key':key,'insight_hash':digest({k:v for k,v in insight.items() if k!='action_id'}),
                 'insight_binding_hash':digest(_insight_binding(insight)),
                 'insight_snapshot':{k:v for k,v in insight.items() if k!='action_id'}}
@@ -223,8 +238,17 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
     data=_owned(store,user_id,'datasets',dataset_id) if dataset_id else None
     identity=resolve_identity(store,user_id,identity_id,dataset_id)
     if baseline is None:
+        # New direct references must identify the revision actually reviewed.
+        # Never replace an omitted/partial (or stale) binding with today's row,
+        # including legacy labels and copilot threads without a frozen message.
+        if data and (ref.get('dataset_version') is None or not ref.get('dataset_hash')):
+            fail('SOURCE_REFERENCE_REQUIRED','请携带已查看的数据版本和内容指纹，不能自动绑定最新数据',422)
+        if kind=='dataset' and source_ref and not data:
+            fail('DATA_REQUIRED','数据来源必须指定企业数据',422)
         baseline={'dataset_id':dataset_id,'dataset_version':data['version'] if data else None,
             'dataset_hash':data['content_hash'] if data else None}
+        binding=identity_binding(identity)
+    elif kind=='insight':
         binding=identity_binding(identity)
     baseline.setdefault('company',data['payload']['company'] if data else '')
     if ref.get('dataset_version') is not None and ref['dataset_version']!=baseline['dataset_version']:

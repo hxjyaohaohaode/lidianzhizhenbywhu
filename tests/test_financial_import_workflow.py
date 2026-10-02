@@ -2,7 +2,7 @@
 import io
 import pytest
 from openpyxl import Workbook
-from conftest import Actor, editable
+from conftest import Actor, editable, dataset_ref
 from server.imports import import_dataset
 
 
@@ -32,8 +32,8 @@ def commit(actor,stage):
 
 def test_file_revision_retains_identity_links_history_and_missing_values(actor):
     row=create(actor)
-    action=good(actor.post('/workspace/actions',json={'title':'核对季度现金流','acceptance':'核对原始现金流报表与季度口径','dataset_id':row['id'],'company':row['payload']['company']}))
-    watch=good(actor.post('/services/watches',json={'title':'收入监测','dataset_id':row['id'],'metric':'revenue','operator':'gt','threshold':180.0}))
+    action=good(actor.post('/workspace/actions',json={'source_ref':dataset_ref(row),'title':'核对季度现金流','acceptance':'核对原始现金流报表与季度口径','dataset_id':row['id'],'company':row['payload']['company']}))
+    watch=good(actor.post('/services/watches',json={'source_ref':dataset_ref(row),'title':'收入监测','dataset_id':row['id'],'metric':'revenue','operator':'gt','threshold':180.0}))
     stage=good(preview(actor,row))
     context=stage['payload']['import_context']
     assert context['added']==['2025-Q3'] and context['replaced']==['2025-Q2'] and context['retained']==['2025-Q1']

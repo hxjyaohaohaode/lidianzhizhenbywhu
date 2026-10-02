@@ -23,6 +23,10 @@ TOPICS = (
 )
 PERIOD_PATTERNS = (r'(?<!\d)((?:19|20)\d{2})\s*年\s*第?\s*([1-4一二三四])\s*季度',
                    r'(?<!\d)((?:19|20)\d{2})\s*[-/]?\s*q([1-4])(?!\d|\.\d)')
+CASH_BALANCE_TERMS = ('现金余额', '现金的余额', '期末现金', '期初现金', '账上现金', '货币资金', '库存现金',
+                      '现金等价物', 'cash balance', 'cash balances', 'cash equivalents', 'cash and equivalents', 'cash on hand')
+CASH_BALANCE_PATTERN = (r'现金\s*(?:的\s*)?(?:期初|期末|账面|账户)?\s*余额|现金\s*(?:及|和|与)\s*(?:现金\s*)?等价物'
+                        r'|(?<![a-z0-9])cash\s+(?:beginning|ending|opening|closing)\s+balances?(?![a-z0-9])')
 
 
 def _term_pattern(term):
@@ -40,8 +44,11 @@ def topics_for(text):
     profit_text=q
     for term in dict(TOPICS)['net_margin']:
         profit_text=re.sub(_term_pattern(term),' ',profit_text)
+    cash_text=q
+    for term in dict(TOPICS)['cash_ratio']:
+        cash_text=re.sub(_term_pattern(term),' ',cash_text)
     topics=[key for key, words in TOPICS
-            if any(matches(profit_text if key=='net_profit' else q,word) for word in words)]
+            if any(matches(profit_text if key=='net_profit' else cash_text if key in ('cash_flow','revenue') else q,word) for word in words)]
     # A comparison word selects the baseline; it does not identify revenue.
     revenue_growth = re.search(
         r'(?:营业收入|收入|营收|销售额)\s*(?:的\s*)?(?:同比|环比|增长|增速)'
@@ -49,9 +56,7 @@ def topics_for(text):
         r'|growth\s+(?:in\s+)?revenue)(?![a-z0-9])', q)
     if revenue_growth and 'revenue' in topics:
         topics.insert(topics.index('revenue'), 'revenue_growth')
-    if 'cash_ratio' in topics:
-        topics=[key for key in topics if key not in ('cash_flow','revenue')]
-    elif 'cash_flow' in topics:
+    if 'cash_flow' in topics and 'cash_ratio' not in topics:
         topics.insert(topics.index('cash_flow')+1,'cash_ratio')
     if not topics and matches(q,'margin'):topics=['gross_margin']
     if not topics and matches(q,'cash'):topics=['cash_flow']
@@ -60,6 +65,10 @@ def topics_for(text):
 
 def resolve_question(text, data, defaults):
     q=text.lower();topics=topics_for(text)
+    balance_text=q
+    for term in ('现金流', '现金收入比', 'cash flow', 'cash ratio'):
+        balance_text=re.sub(_term_pattern(term),' ',balance_text)
+    unsupported_cash_balance=bool(re.search(CASH_BALANCE_PATTERN,balance_text)) or any(matches(balance_text,term) for term in CASH_BALANCE_TERMS)
     overview=any(w in q for w in ('经营','诊断','概览','全景','整体','数据质量','数据缺口','核查指标','overview','summary'))
     if not topics and overview:topics=list(defaults)
     # Remove only named supported turnover phrases. Any remaining turnover
@@ -102,6 +111,8 @@ def resolve_question(text, data, defaults):
         status='needs_clarification';notice='当前数据按单季度保存；年度、月份、无效季度或额外年份不会擅自当作最近一季或自动汇总，请明确单个目标季度。'
     elif quarters and period not in available:
         status='period_unavailable';notice=f'已保存输入没有{period}，不能用最近一季代替；请先补充该季度原始数据。'
+    elif unsupported_cash_balance:
+        status='unsupported_topic';notice='当前不支持现金余额、货币资金或现金及现金等价物余额：当前现金相关原始字段只有经营现金流，不能用期间流量或经营现金收入比代替时点余额。请核对资产负债表等原始来源；如需核查已支持的现金流或其他指标，请单独提问。'
     elif gross_profit_amount:
         status='unsupported_topic';notice='毛利额或毛利润是金额；当前问答没有提供该金额指标，不能用毛利率百分比替代。请核对原始财务表中的收入与成本，或明确改问已支持的毛利率。'
     elif unsupported_turnover:

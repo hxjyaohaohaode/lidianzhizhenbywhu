@@ -5380,7 +5380,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "企业行动必须提供完整的数据修订引用或可核验的原始来源；无企业的人工行动可省略。旧 run_id/source_key 仅能解析已有可核验来源，不能自动绑定最新数据。"
           },
           "identity_id": {
             "type": "string",
@@ -8446,7 +8447,8 @@
         "required": [
           "kind"
         ],
-        "title": "SourceRef"
+        "title": "SourceRef",
+        "description": "Dataset refs require both viewed dataset_version and dataset_hash.\n\nA copilot thread without a frozen message requires the same pair. For other\nimmutable sources the pair may be omitted together, never partially supplied.\nallow_historical does not repair missing bindings or accept stale direct data."
       },
       "StageCommit": {
         "properties": {
@@ -8654,7 +8656,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "新建必须提供完整的数据修订引用或可核验的原始来源。更新必须省略此不可变来源，并使用跟踪记录自身版本。"
           },
           "title": {
             "type": "string",

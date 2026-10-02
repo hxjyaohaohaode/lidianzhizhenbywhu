@@ -99,7 +99,7 @@ class EvidenceReview(StrictModel):
 
 class ActionCreate(StrictModel):
     request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
-    source_ref: SourceRef | None = None
+    source_ref: SourceRef | None = Field(default=None, description='企业行动必须提供完整的数据修订引用或可核验的原始来源；无企业的人工行动可省略。旧 run_id/source_key 仅能解析已有可核验来源，不能自动绑定最新数据。')
     identity_id: str = Field(default="", max_length=80)
     title: Text
     company: str = Field(default='', max_length=200)
@@ -115,6 +115,8 @@ class ActionCreate(StrictModel):
     def meaningful_acceptance(self):
         if len(self.acceptance.strip()) < 5:
             raise ValueError('请填写具体的验收标准')
+        if self.dataset_id and self.source_ref is None and not (self.run_id or self.source_key):
+            raise ValueError('企业行动必须提供已查看的数据版本和内容指纹，或指定可核验的原始来源')
         return self
 
 

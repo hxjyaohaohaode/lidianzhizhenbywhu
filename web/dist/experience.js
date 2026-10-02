@@ -275,7 +275,7 @@ export function setupExperience(value) {
                     break;
                 }
                 case 'watch': {
-                    const saved = await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { request_id: str('request_id') || null, ...formSource(fd), title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: Number(str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
+                    const saved = await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { request_id: str('request_id') || null, ...formSource(fd, id ? '' : str('dataset_id')), title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: Number(str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
                     if (submittedContext() && form.isConnected && id)
                         form.dataset.version = String(saved.version);
                     savedWatchCreate = !id;

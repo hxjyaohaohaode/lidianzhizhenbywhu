@@ -234,8 +234,8 @@ def test_human_stance_is_not_semantic_contradiction_proof(actor):
 
 
 def test_action_state_machine_ownership_cas_and_no_silent_acceptance(actor):
-    d=dataset(actor);a=good(actor.post('/workspace/actions',json={'title':'验收行动','company':d['payload']['company'],'dataset_id':d['id'],'source_key':'rule-test','acceptance':'核对期间差异并保存依据'}),201)
-    dup=good(actor.post('/workspace/actions',json={'title':'验收行动','source_key':'rule-test','acceptance':'核对期间差异并保存依据'}),201);assert dup['id']==a['id']
+    d=dataset(actor);key=good(actor.get('/workspace/brief'))['insights']['items'][0]['key'];a=good(actor.post('/workspace/actions',json={'title':'验收行动','company':d['payload']['company'],'dataset_id':d['id'],'source_key':key,'acceptance':'核对期间差异并保存依据'}),201)
+    dup=good(actor.post('/workspace/actions',json={'title':'验收行动','source_key':key,'acceptance':'核对期间差异并保存依据'}),201);assert dup['id']==a['id']
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'done','note':'没有开始不能直接完成'}).status_code==409
     p=good(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress'}))
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'done','note':'使用过期版本不能完成'}).status_code==409

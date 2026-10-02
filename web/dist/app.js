@@ -408,7 +408,7 @@ document.addEventListener('submit', async (event) => {
                 break;
             }
             case 'action-form': {
-                const saved = await workspace('/actions', 'POST', { request_id: form.dataset.requestId ?? null, ...formSource(f), identity_id: form.dataset.identityId ?? '', title: str('title'), company: str('company'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), source_key: form.dataset.sourceKey ?? '', run_id: form.dataset.runId ?? '', dataset_id: form.dataset.datasetId ?? '' });
+                const saved = await workspace('/actions', 'POST', { request_id: form.dataset.requestId ?? null, ...formSource(f, form.dataset.datasetId ?? ''), identity_id: form.dataset.identityId ?? '', title: str('title'), company: str('company'), owner: str('owner'), priority: str('priority'), due_at: str('due_at') || null, description: str('description'), acceptance: str('acceptance'), source_key: form.dataset.sourceKey ?? '', run_id: form.dataset.runId ?? '', dataset_id: form.dataset.datasetId ?? '' });
                 if (submittedContext() && renewSavedDraft(JSON.stringify([...f]), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null, () => { if (!continueInsightDraft(form, saved))
                     form.dataset.requestId = crypto.randomUUID(); }))
                     savedDraftMessage = form.dataset.sourceKey ? '原行动已保存；保留新草稿，请按表单提示明确修改原行动。' : '上一版行动已保存到跟进行动；保留你的新草稿，再次提交将创建新的行动。';
