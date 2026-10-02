@@ -115,7 +115,7 @@ ROLE_QUESTIONS={
 }
 
 
-def assistant_answer(store,user,query,dataset_id=''):
+def assistant_answer(store,user,query,dataset_id='',*,resolved_scope=None):
     owner=user['id'];datasets=store.items('datasets',owner)
     d=next((x for x in datasets if x['id']==dataset_id),None) if dataset_id else (datasets[0] if len(datasets)==1 else None)
     if dataset_id and d is None:
@@ -127,9 +127,11 @@ def assistant_answer(store,user,query,dataset_id=''):
         return {'engine':'local_navigation','answer':('请选择一家企业；多个数据集不会被助手擅自合并。' if has_data else '先添加真实企业数据，助手才能核查指标与来源。'),
             'facts':[],'insights':[],'evidence_matches':[],'quality':[],'followups':ROLE_QUESTIONS.get(role,ROLE_QUESTIONS['enterprise']),
             'actions':[{'label':'选择企业数据' if has_data else '添加经营数据','route':'data'}], 'external_calls':0}
-    question_scope=resolve_question(query,d['payload'],['gross_margin','cash_ratio'])
+    # Only an internal caller with a validated, owned saved message may provide
+    # this scope. The public free-text endpoint never accepts client overrides.
+    question_scope=resolved_scope if resolved_scope is not None else resolve_question(query,d['payload'],['gross_margin','cash_ratio'])
     data=scoped_dataset(d['payload'],question_scope);analysis=calculate(data,question_scope['comparison']);q=query.lower()
-    selected=question_scope['topics'][:5];latest=analysis['series'][-1];links={x['id']:x for x in lineage(data,analysis)}
+    selected=question_scope['topics'] if resolved_scope is not None else question_scope['topics'][:5];latest=analysis['series'][-1];links={x['id']:x for x in lineage(data,analysis)}
     baseline=next((p for p in data['periods'] if p['period']==analysis['baseline_period']),None)
     facts=[]
     for f in selected:
@@ -156,7 +158,7 @@ def assistant_answer(store,user,query,dataset_id=''):
             'verification':data.get('verification','unverified_user_input')})
     quality=quality_report(data)
     evidence=scoped_retrieve(store,owner,query,data['company'],3)
-    tasks=build_insights(store,owner,[d])['items'] if question_scope['can_calculate'] and data['periods']==d['payload']['periods'] else []
+    tasks=build_insights(store,owner,[d],identity_id=(user.get('service_identity') or {}).get('id',''))['items'] if question_scope['can_calculate'] and data['periods']==d['payload']['periods'] else []
     causal=any(w in q for w in ('为什么','原因','归因','导致','证明'))
     answer=(f"已核对{data['company']}的{analysis['current_period']}已保存输入与计算口径。"
             +(' 指标和检索片段不能单独证明原因；请在协同研判中提出假设并核对反向证据。' if causal else ' 指标来自用户录入，资料片段仅是待核实候选。'))

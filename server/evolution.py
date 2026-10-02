@@ -12,6 +12,7 @@ from .security import fail, check_version
 from .autonomy import compile_graph, strategy, node, validate_graph, REPLAY_CAPABILITIES, execute_local_capability
 from .autonomy_contracts import ExecutionOptions
 from .models import MODEL_VERSION
+from .report_integrity import inspect_report_integrity
 from . import workspace_store as ws
 
 REPLAY_VERSION = 'local-capability-replay-v4'
@@ -48,15 +49,25 @@ def assessment(store, user, run_id, body):
     with store.transaction() as db:
         run = store.owned('runs', user['id'], run_id)
         if not run: fail('NOT_FOUND', '运行不存在或无权限', 404)
-        if run['state'] not in COMPLETED_STATES or not run['result']:
+        existing = ws.keyed(store, user['id'], 'assessment', run_id)
+        withdrawing = not body.consent_replay and existing is not None
+        if (run['state'] not in COMPLETED_STATES or not run['result']) and not withdrawing:
             fail('NO_REPORT', '只有已完成且产生实际报告的任务才能用于复盘', 409)
+        if body.consent_replay and not inspect_report_integrity(store, run)['report_integrity']['valid']:
+            fail('REPORT_INTEGRITY', '报告的冻结产物、事件或输入快照校验失败，不能授权本地策略回放', 409)
         reviews=review_context(store,user['id'],run_id)
         if body.consent_replay and (reviews['items'] or reviews['related_actions']) and body.review_context_hash!=reviews['hash']:
             fail('REVIEW_CONTEXT_CHANGED','解释复核或关联行动反馈已变化，请查看当前意见并重新确认回放授权',409)
         payload = body.model_dump(mode='json', exclude={'version','review_context_hash'})
-        payload.update({'run_id': run_id, 'snapshot_hash': digest(run['snapshot']),
-                        'result_hash': digest(run['result']), 'dataset_hash': run['snapshot']['dataset_hash'],
-                        'request_hash': digest(run['payload']), 'feedback_context_hash':reviews['hash'],
+        # Withdrawal must remain possible even if the saved report is damaged.
+        # Preserve its previously assessed basis rather than certifying new hashes
+        # from the corrupt content. Nonconsenting notes never become replay cases.
+        source_fields = ('snapshot_hash', 'result_hash', 'dataset_hash', 'request_hash')
+        source = {k: existing['payload'][k] for k in source_fields if k in existing['payload']} if withdrawing else {
+            'snapshot_hash': digest(run['snapshot']), 'result_hash': digest(run['result']),
+            'dataset_hash': (run['snapshot'] if isinstance(run['snapshot'], dict) else {}).get('dataset_hash'),
+            'request_hash': digest(run['payload'])}
+        payload.update({'run_id': run_id, **source, 'feedback_context_hash':reviews['hash'],
                         'claim_reviews':reviews['items'],'action_feedback':reviews['related_actions']})
         row = ws.save(store, db, user['id'], 'assessment', payload, key=run_id, expected=body.version)
         current_active(store, user['id'])
@@ -71,6 +82,7 @@ def current_case(store, user_id, a):
         if not run or a['natural_key'] != run['id'] or run['state'] not in COMPLETED_STATES or not run['result']: return None
         if digest(run['snapshot']) != a['payload']['snapshot_hash'] or digest(run['result']) != a['payload']['result_hash']: return None
         if a['payload'].get('request_hash', digest(run['payload'])) != digest(run['payload']): return None
+        if not inspect_report_integrity(store, run)['report_integrity']['valid']: return None
         if a['payload'].get('feedback_context_hash',a['payload'].get('claim_review_hash',digest([]))) != review_context(store,user_id,run['id'])['hash']: return None
         return run
     except (KeyError, TypeError, ValueError):

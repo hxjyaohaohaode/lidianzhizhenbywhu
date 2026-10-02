@@ -5,13 +5,14 @@ is a proposal to the same consent-gated Agent engine used by the main workspace.
 """
 from __future__ import annotations
 import time
+import re
 from datetime import date, datetime, timezone
 from . import workspace_store as ws
 from .store import uid, now, digest, encode
 from .security import fail
 from .identities import resolve_identity, identity_binding, identity_context, context_user
 from .analytics import calculate, quality_report, forecast_baselines, lineage, period_end, closed_quarter, METRIC_LABELS
-from .intelligence import scoped_retrieve, build_insights
+from .intelligence import scoped_retrieve, build_insights, assistant_answer
 from .service_contracts import WatchSpec
 from .business_provenance import resolve_source, assert_source_current, with_source_impact, report_impact
 
@@ -87,6 +88,51 @@ def read_thread(store,user,id):
             'archived_mode':not writable,'read_only':not writable,
             'context':{'dataset_id':data['id'] if data else '', 'dataset_version':data['version'] if data else None,
                        'writable':writable,'unavailable_reason':reason}}
+
+
+def trace_message(store,user,thread_id,message_id,identity_id,dataset_id):
+    """Recheck an owned saved question on current data without changing its scope.
+
+    The current selectors are match constraints, never a permission grant. The
+    normalized financial scope comes only from the original persisted response.
+    Read everything under the same local transaction as scope revocation/edits.
+    This path neither persists a message nor creates an execution plan.
+    """
+    with store.transaction():
+        thread,identity,data=thread_context(store,user,thread_id)
+        if (identity_id,dataset_id)!=(thread['payload']['identity_id'],thread['payload']['dataset_id']):
+            fail('TRACE_CONTEXT_CHANGED','当前身份或企业与原会话不一致，请切回原范围后复核',409)
+        source=store.one('SELECT * FROM copilot_messages WHERE id=? AND user_id=? AND thread_id=?',
+                         (message_id,user['id'],thread_id))
+        if not source:
+            fail('NOT_FOUND','原问题不属于当前会话',404)
+        context=source['payload'].get('response',{}).get('context',{})
+        saved=context.get('question_scope') if isinstance(context,dict) else None
+        original_identity=context.get('identity') if isinstance(context,dict) else None
+        topics=saved.get('topics') if isinstance(saved,dict) else None
+        from .question_scope import TOPICS
+        allowed={key for key,_ in TOPICS}|{'revenue_growth'}
+        if (not data or not isinstance(saved,dict) or saved.get('can_calculate') is not True
+                or saved.get('status')!='supported'
+                or not isinstance(saved.get('period'),str)
+                or not re.fullmatch(r'(?:19|20)\d{2}-Q[1-4]',saved['period'])
+                or saved.get('comparison') not in ('previous','year_over_year')
+                or not isinstance(topics,list) or not topics or len(topics)>len(allowed)
+                or any(not isinstance(topic,str) or topic not in allowed for topic in topics)
+                or len(set(topics))!=len(topics)
+                or context.get('dataset_id')!=dataset_id
+                or (original_identity is not None and not isinstance(original_identity,dict))
+                or (original_identity or {}).get('id','')!=identity_id):
+            fail('TRACE_SCOPE_UNAVAILABLE','原问题未保留可核查的完整季度、基期与指标范围，请明确这些条件后重新提问；不会改用最新季度',409)
+        periods=[p['period'] for p in data['payload']['periods']]
+        if saved['period'] not in periods:
+            fail('TRACE_PERIOD_UNAVAILABLE','原问题的目标季度已不在当前数据中，请补充原始输入或明确新的季度；不会改用最新季度',409)
+        scope={**saved,'topics':list(topics),'available_periods':periods,'period_explicit':True,'comparison_explicit':True}
+        query=scoped_handoff_query(source['payload']['question'],scope)
+        result=assistant_answer(store,context_user(user,identity),query,dataset_id,resolved_scope=scope)
+        result['source_message_id']=message_id
+        result['source_thread_id']=thread_id
+        return result
 
 
 from .question_scope import resolve_followup, scoped_dataset, scoped_handoff_query

@@ -17,10 +17,11 @@ let readSequence = 0, freshThread = false;
 const remembered = new Map();
 const drafts = new Map();
 const traces = new Map();
+const traceReads = new Map();
 function token() { return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join(''); }
 function key() { return (state.user?.id ?? '') + '|' + (state.user?.preferences.role ?? 'enterprise') + '|' + state.identity + '|' + state.active; }
 export function configureCopilot(value) { hooks = value; }
-export function resetCopilot() { researchForm = null; epoch++; contextKey = ''; threadId = ''; current = null; draft = ''; pendingKey = ''; pendingText = ''; creationKey = ''; freshThread = false; loadTask = null; creationTask = null; readSequence++; remembered.clear(); drafts.clear(); traces.clear(); sending = false; loading = false; }
+export function resetCopilot() { researchForm = null; epoch++; contextKey = ''; threadId = ''; current = null; draft = ''; pendingKey = ''; pendingText = ''; creationKey = ''; freshThread = false; loadTask = null; creationTask = null; readSequence++; remembered.clear(); drafts.clear(); traces.clear(); traceReads.clear(); sending = false; loading = false; }
 /** Invalidate the current editable catalog only; archived proposals/results stay intact. */
 export function forgetCopilotComparison(target) {
     if (!researchForm || researchForm.identityId !== target.identityId || researchForm.identityId !== state.identity || researchForm.datasetId !== state.active || contextKey !== key())
@@ -40,7 +41,7 @@ export function forgetCopilotComparison(target) {
 export function currentThread() { return current; }
 function switchContext() { const next = key(); if (next === contextKey)
     return; researchForm = null; if (contextKey)
-    drafts.set(contextKey, draft); contextKey = next; threadId = remembered.get(next) ?? ''; draft = drafts.get(next) ?? ''; current = null; pendingKey = ''; pendingText = ''; creationKey = ''; freshThread = false; loadTask = null; creationTask = null; readSequence++; traces.clear(); epoch++; sending = false; loading = false; }
+    drafts.set(contextKey, draft); contextKey = next; threadId = remembered.get(next) ?? ''; draft = drafts.get(next) ?? ''; current = null; pendingKey = ''; pendingText = ''; creationKey = ''; freshThread = false; loadTask = null; creationTask = null; readSequence++; traces.clear(); traceReads.clear(); epoch++; sending = false; loading = false; }
 export function copilotShell(full = false) { switchContext(); const d = activeDataset(), i = activeIdentity(); return `<${full ? 'section' : 'aside'} id="${full ? 'copilot-full' : 'assistant-rail'}" class="${full ? 'copilot-full' : 'assistant-rail'}" aria-label="研究助手">${full ? '' : '<div id="assistant-resize" class="rail-resize" role="separator" aria-orientation="vertical" aria-label="调整研究助手宽度" tabindex="0" aria-valuenow="390" aria-valuemin="320" aria-valuemax="560"></div>'}<div class="copilot-header"><div class="copilot-title"><span class="copilot-orb">${icon('spark')}</span><div><h2>研究助手</h2><small>工具核查 · Agent 深入研判</small></div></div><div class="inline-actions">${xbutton(icon('plus'), 'chat-new', 'aria-label="新建研究会话" title="新建会话"', 'icon-button')}${xbutton(icon('clock'), 'chat-history', 'aria-label="查看历史会话" title="历史会话"', 'icon-button')}${full ? '' : `<button type="button" data-route="copilot" class="icon-button" aria-label="在主工作区打开研究助手" title="在主工作区打开">${icon('arrow')}</button>`} ${full ? '' : `<button type="button" data-action="close-assistant" class="icon-button" aria-label="收起助手">${icon('close')}</button>`}</div></div><div class="copilot-context"><span>${icon('memory')} ${esc(i?.payload.name ?? '默认身份')}</span><strong>${esc(d?.payload.company ?? '尚未选择企业')}</strong><span class="micro">${d ? '数据修订 ' + d.version : '先选择企业以获得业务分析'}</span></div><div class="copilot-messages" id="assistant-answer" aria-label="研究会话"><div class="loading"><span class="spinner"></span>读取会话…</div></div><div id="copilot-pending" class="copilot-pending" hidden></div><form id="assistant-form" class="assistant-composer"><label class="sr-only" for="assistant-query">研究问题</label><textarea id="assistant-query" name="query" rows="3" maxlength="3000" placeholder="查指标、证据与缺口；或明确要交给 Agent 的研究问题…" required>${esc(draft)}</textarea><div class="composer-footer"><span id="copilot-composer-status">本地工具不外发数据</span><button type="submit" class="primary icon-button" aria-label="发送研究问题">${icon('arrow')}</button></div><p class="form-error" role="alert"></p></form></${full ? 'section' : 'aside'}>`; }
 export async function copilotPage() { return heading('连续研究，逐步求证', '在同一会话中核查事实、生成可审阅计划，并把结论转成行动与跟踪。') + copilotShell(true); }
 function welcome() { const d = activeDataset(); return `<div class="copilot-welcome"><span class="eyebrow">${esc(activeIdentity()?.payload.name ?? '你的研究工作区')}</span><h3>${d ? '今天需要解决什么？' : '先把真实输入连接起来。'}</h3><p>${d ? '先用已保存的数据、证据和数学工具核对，再把需要解释的问题交给受控 Agent。' : '会话不会自动填充企业或结论。导入数据、配置工作身份后开始连续研究。'}</p><div class="prompt-grid">${['当前有哪些待核查问题？', '毛利和现金流为什么变化？', '预测收入并展示回测依据', '目前有什么任务和跟进行动？'].map(q => xbutton(esc(q) + icon('arrow'), 'chat-prompt', `data-query="${esc(q)}"`, 'prompt-chip')).join('')}</div><div class="copilot-boundary">${icon('lock')}查询只调用本地工具；分析外发和业务写入先出提案，由你确认。</div></div>`; }
@@ -71,7 +72,7 @@ function researchBrief(r) { const b = r.research_brief; if (!b)
     return ''; return `<div class="evidence-boundary"><span>${icon('files')} 依据范围</span><strong>${esc(b.matched_document_count ?? 0)} 份匹配资料</strong><small>${b.causal_claims_supported === false ? '本地核查不支持因果断言' : '结合原始来源复核'}${b.missing_metric_ids?.length ? ' · ' + b.missing_metric_ids.length + ' 项指标输入不足' : ''}</small></div>`; }
 export function messageView(m) {
     const r = m.payload.response, trace = traces.get(m.id), receipts = r.receipts ?? [], facts = r.facts ?? [];
-    return `<article class="chat-turn" data-message="${esc(m.id)}"><div class="user-message"><span>你 · ${timeText(m.created_at)}</span><p>${esc(m.payload.question)}</p></div><div class="copilot-response"><div class="response-heading">${icon('spark')}<strong>研究核查</strong>${badge(receipts.length + ' 次本地工具')}</div><p class="research-answer">${esc(r.answer)}</p>${researchBrief(r)}${facts.length ? `<div class="fact-grid">${facts.map(factView).join('')}</div>` : ''}${(r.cards ?? []).map(renderCard).join('')}${(r.citations ?? []).length ? `<section class="answer-evidence"><h4>匹配的原文证据</h4>${r.citations.map(citationCard).join('')}</section>` : ''}${(r.warnings ?? []).map((w) => notice(w, 'warm')).join('')}${r.next_steps?.length ? `<section class="research-next"><div class="section-heading"><span class="eyebrow">继续求证</span><h4>下一步要解决的问题</h4></div>${r.next_steps.map((n, index) => `<article><span class="next-index">${index + 1}</span><div><strong>${esc(n.title)}</strong><p>${esc(n.reason)}</p>${n.acceptance ? `<details><summary>怎样算核查完成</summary><p>${esc(n.acceptance)}</p></details>` : ''}${n.route ? routeButton('前往核查 ' + icon('arrow'), n.route, 'text-button') : ''}</div></article>`).join('')}</section>` : ''}<details class="tool-receipts"><summary>调用凭据与输入范围 · ${receipts.length} 项</summary>${receipts.map((t) => `<div><strong>${esc(t.tool)}</strong><span> ${num(t.milliseconds, 1)} ms · ${esc(t.state)}</span><p class="hash-label">输出 ${esc(t.output_hash)}</p></div>`).join('')}${jsonView(r.context)}<small>外部调用 ${r.external_calls ?? 0} 次；不是隐藏推理过程。</small></details><div class="trace-container">${trace ? notice('以下复核使用当前数据修订，原始会话结果保留在上方。') + assistantView(m.payload.question, trace) : xbutton('按当前输入复核公式与季度轨迹', 'chat-trace', `data-message="${esc(m.id)}"`, 'text-button')}</div><div class="response-actions">${(r.actions ?? []).map((a) => a.kind === 'navigate' ? routeButton(esc(a.label), a.route, 'text-button') : xbutton(esc(a.label), 'chat-propose', `data-kind="${esc(a.type)}" data-message="${esc(m.id)}"`, 'secondary')).join('')}</div></div></article>`;
+    return `<article class="chat-turn" data-message="${esc(m.id)}"><div class="user-message"><span>你 · ${timeText(m.created_at)}</span><p>${esc(m.payload.question)}</p></div><div class="copilot-response"><div class="response-heading">${icon('spark')}<strong>研究核查</strong>${badge(receipts.length + ' 次本地工具')}</div><p class="research-answer">${esc(r.answer)}</p>${researchBrief(r)}${facts.length ? `<div class="fact-grid">${facts.map(factView).join('')}</div>` : ''}${(r.cards ?? []).map(renderCard).join('')}${(r.citations ?? []).length ? `<section class="answer-evidence"><h4>匹配的原文证据</h4>${r.citations.map(citationCard).join('')}</section>` : ''}${(r.warnings ?? []).map((w) => notice(w, 'warm')).join('')}${r.next_steps?.length ? `<section class="research-next"><div class="section-heading"><span class="eyebrow">继续求证</span><h4>下一步要解决的问题</h4></div>${r.next_steps.map((n, index) => `<article><span class="next-index">${index + 1}</span><div><strong>${esc(n.title)}</strong><p>${esc(n.reason)}</p>${n.acceptance ? `<details><summary>怎样算核查完成</summary><p>${esc(n.acceptance)}</p></details>` : ''}${n.route ? routeButton('前往核查 ' + icon('arrow'), n.route, 'text-button') : ''}</div></article>`).join('')}</section>` : ''}<details class="tool-receipts"><summary>调用凭据与输入范围 · ${receipts.length} 项</summary>${receipts.map((t) => `<div><strong>${esc(t.tool)}</strong><span> ${num(t.milliseconds, 1)} ms · ${esc(t.state)}</span><p class="hash-label">输出 ${esc(t.output_hash)}</p></div>`).join('')}${jsonView(r.context)}<small>外部调用 ${r.external_calls ?? 0} 次；不是隐藏推理过程。</small></details><div class="trace-container">${(trace ? notice('以下复核保留原问题的季度、基期与指标，使用读取时的数据修订 ' + trace.scope.dataset_version + '；原始会话结果保留在上方。') + assistantView(m.payload.question, trace) : '') + xbutton(trace ? '重新按当前修订复核' : '按当前输入复核公式与季度轨迹', 'chat-trace', `data-message="${esc(m.id)}"`, 'text-button')}</div><div class="response-actions">${(r.actions ?? []).map((a) => a.kind === 'navigate' ? routeButton(esc(a.label), a.route, 'text-button') : xbutton(esc(a.label), 'chat-propose', `data-kind="${esc(a.type)}" data-message="${esc(m.id)}"`, 'secondary')).join('')}</div></div></article>`;
 }
 function proposalCard(row) { const p = row.payload; const run = current.runs.find((r) => r.proposal_id === row.id); return `<article class="proposal-card" data-proposal="${esc(row.id)}"><div class="row-between"><span class="eyebrow">${{ research: 'Agent 研判', action: '跟进行动', watch: '指标跟踪', memory: '长期记忆' }[p.kind]}</span>${badge(p.status === 'draft' ? '待你确认' : p.status === 'executed' ? '已确认执行' : '已放弃', p.status === 'executed' ? 'good' : 'warm')}</div><h4>${esc(p.title)}</h4>${run ? `<div class="row-between">${status(run.state)}${routeButton('查看节点与审阅结果', 'agents:run-' + run.id)}</div>${run.error ? notice(run.error, 'danger') : ''}${run.source_impact && run.source_impact.state !== 'current' ? notice('当前适用性需复核：' + (run.source_impact.reasons ?? []).map((r) => r.message ?? r.code).join('；') + '。以下报告与计算仍是原始冻结内容。', 'warm') : run.current_dataset_version !== run.dataset_version ? notice('企业数据已有新修订，以下报告仍依据当时的输入。', 'warm') : ''}${run.result ? `<div class="chat-run-result">${run.result.findings.slice(0, 4).map((f) => `<p>${esc(f)}</p>`).join('')}${researchRunOutputs(run.result, state.user?.preferences?.amount_unit ?? 'wan')}<h4>模型解释</h4>${status(run.result.llm.state)}${run.result.llm.review.claims.map((c) => `<p>${esc(c.text)}</p>${claimMathReferences(c)}`).join('') || '<p class="micro">本次没有通过结构核验的模型解释，不用模板内容替代。</p>'}${run.result.missing?.length ? `<details><summary>尚需核对的问题</summary>${run.result.missing.map((v) => `<p>${esc(v)}</p>`).join('')}</details>` : ''}</div>` : ''}` : ''}<div class="inline-actions">${p.status === 'draft' ? xbutton('查看范围并确认', 'chat-review', `data-id="${esc(row.id)}"`, 'primary') : p.result?.route && !run ? routeButton('查看已创建记录', p.result.route) : ''}${xbutton('查看完整提案', 'chat-detail', `data-id="${esc(row.id)}"`, 'text-button')}</div></article>`; }
 function detailState(host) { const map = new Map(); host.querySelectorAll('[data-message],[data-proposal]').forEach(row => map.set(row.dataset.message ?? row.dataset.proposal ?? '', [...row.querySelectorAll('details')].flatMap((d, i) => d.open ? [i] : []))); return map; }
@@ -192,7 +193,9 @@ async function ensureThread() {
     creationTask = task;
     return task;
 }
-export async function sendCopilot(text) {
+export async function sendCopilot(text, isCurrent = () => true) {
+    if (!isCurrent())
+        return;
     switchContext();
     if (sending)
         return;
@@ -211,7 +214,7 @@ export async function sendCopilot(text) {
     }
     try {
         await ensureThread();
-        if (!validContext(e, scope))
+        if (!isCurrent() || !validContext(e, scope))
             return;
         if (current?.context?.writable === false)
             throw new Error(current.context.unavailable_reason ?? '此历史会话为只读，请新建会话。');
@@ -251,8 +254,9 @@ export async function sendCopilot(text) {
         }
     }
 }
-export async function handoffCopilot(text) { switchContext(); const e = epoch, scope = contextKey; await mountCopilot(); if (validContext(e, scope))
-    await sendCopilot(text); }
+export async function handoffCopilot(text, current = () => true) { if (!current())
+    return; switchContext(); const e = epoch, scope = contextKey; await mountCopilot(); if (current() && validContext(e, scope))
+    await sendCopilot(text, current); }
 export function rememberDraft(text) { draft = text; drafts.set(contextKey, text); }
 export async function chatAction(action, el) {
     if (['chat-history', 'chat-open', 'chat-propose', 'chat-review', 'chat-detail'].includes(action))
@@ -269,9 +273,12 @@ export async function chatAction(action, el) {
         const message = current?.messages.find((m) => m.id === el.dataset.message);
         if (!message || !state.active)
             throw new Error('请先选择企业数据再查看追踪。');
-        const started = epoch, scope = contextKey, dataset = state.active;
-        const result = await workspace('/assistant', 'POST', { query: message.payload.question, dataset_id: dataset });
-        if (started !== epoch || scope !== contextKey || dataset !== state.active)
+        if (current?.context?.writable === false)
+            throw new Error(current.context.unavailable_reason ?? '原会话范围已失效，不能复核当前输入。');
+        const e = epoch, scope = contextKey, id = threadId, dataset = state.active, seq = (traceReads.get(message.id) ?? 0) + 1;
+        traceReads.set(message.id, seq);
+        const result = await api('/services/threads/' + encodeURIComponent(id) + '/messages/' + encodeURIComponent(message.id) + '/trace?' + new URLSearchParams({ identity_id: state.identity, dataset_id: dataset }));
+        if (!validContext(e, scope) || id !== threadId || dataset !== state.active || traceReads.get(message.id) !== seq)
             return;
         traces.set(message.id, result);
         paint();
@@ -297,6 +304,7 @@ export async function chatAction(action, el) {
         creationKey = '';
         freshThread = true;
         traces.clear();
+        traceReads.clear();
         remembered.delete(contextKey);
         drafts.delete(contextKey);
         paint();
@@ -332,6 +340,7 @@ export async function chatAction(action, el) {
         threadId = id;
         readSequence++;
         traces.clear();
+        traceReads.clear();
         current = loaded;
         researchForm = null;
         draft = '';
@@ -376,6 +385,7 @@ export async function chatAction(action, el) {
             loading = false;
             sending = false;
             traces.clear();
+            traceReads.clear();
             remembered.delete(contextKey);
         }
         paint();

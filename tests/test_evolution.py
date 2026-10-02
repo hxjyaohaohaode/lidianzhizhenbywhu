@@ -197,9 +197,18 @@ def test_replay_gates_preserve_archived_mathematical_results(actor,example):
     result=copy.deepcopy(run['result']);result['analysis']['metrics']['gross_margin']=.987
     with store.transaction() as db:db.execute('UPDATE runs SET result=? WHERE id=?',(encode(result),run['id']))
     saved=actor.get('/workspace/runs/'+run['id']+'/assessment').json()['item']
-    assessment(actor,actor.get('/runs/'+run['id']).json(),version=saved['version'])
+    before_run=store.owned('runs',actor.user['id'],run['id'])
+    before_objects=store.all('SELECT * FROM workspace_objects ORDER BY id')
+    response=actor.post('/workspace/runs/'+run['id']+'/assessment',json={
+        'version':saved['version'],'verdict':'needs_revision','note':'不能重新认证已经损坏的报告产物',
+        'expected_capabilities':['quality','quant','counterevidence'],'consent_replay':True})
+    assert response.status_code==409 and response.json()['error']['code']=='REPORT_INTEGRITY'
+    assert store.all('SELECT * FROM workspace_objects ORDER BY id')==before_objects
+    assert store.owned('runs',actor.user['id'],run['id'])==before_run
+    from server.evolution import current_case
+    assert current_case(store,actor.user['id'],saved) is None
     c=candidate(actor);e=actor.post('/workspace/strategies/'+c['id']+'/evaluate',json={}).json()['payload']
-    assert run['id'] in e['regressions'] and not e['eligible']
+    assert e['unique_inputs']==2 and not e['eligible']
 
 
 def test_automatic_proposal_never_learns_from_holdout_requirements(actor,example):

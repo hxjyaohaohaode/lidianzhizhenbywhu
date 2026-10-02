@@ -13,7 +13,7 @@ from .service_contracts import (IdentitySpec, ThreadCreate, CopilotMessage, Prop
     ProposalConfirm, WatchSpec, AlertAck, PrivateConnection, ConnectionRemove, SessionRevoke)
 from .identities import resolve_identity, PERSPECTIVES
 from .connections import scoped_providers
-from .copilot import cancel_proposal_preview, make_thread, read_thread, send_message, propose, confirm_proposal, evaluate_watches
+from .copilot import cancel_proposal_preview, make_thread, read_thread, send_message, trace_message, propose, confirm_proposal, evaluate_watches
 from .business_provenance import resolve_source, with_source_impact
 
 router=APIRouter(prefix='/api/services',tags=['Identity, Copilot and Security'])
@@ -124,6 +124,12 @@ def delete_thread(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX
 @router.post('/threads/{id}/messages',status_code=201)
 def add_message(id:str,body:CopilotMessage,request:Request,user=Depends(require_user)):
     return send_message(storeof(request),user,id,body)
+
+
+@router.get('/threads/{id}/messages/{message_id}/trace')
+def message_trace(id:str,message_id:str,request:Request,identity_id:str=Query(...,max_length=80),
+                  dataset_id:str=Query(...,min_length=1,max_length=80),user=Depends(require_user)):
+    return trace_message(storeof(request),user,id,message_id,identity_id,dataset_id)
 
 
 @router.post('/threads/{id}/proposals',status_code=201)

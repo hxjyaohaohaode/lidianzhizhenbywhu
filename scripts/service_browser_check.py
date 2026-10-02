@@ -170,7 +170,26 @@ def main():
             record('助手独立展开/收起与键盘调宽，不占用隐藏空间')
             go('services');page.locator('[data-x-action="identity-new"]').click()
             f='form[data-service-form="identity"]';page.locator(f+' [name="name"]').fill('经营负责人（合成验收）');page.locator(f+' [name="objective"]').fill('核对现金流与毛利差异，明确反向证据');page.locator(f+' [name="max_calls"]').fill('0')
-            submit(f);page.locator('.identity-card').wait_for();page.locator('[data-x-action="identity-use"]').first.click();page.wait_for_timeout(400)
+            if native:
+                # Explicit fault injection: the mutation succeeds, only its
+                # following read is disconnected. No mutation is retried.
+                refresh_faults=[]
+                def fail_saved_refresh(route):
+                    refresh_faults.append(route.request.url)
+                    journal.emit('expected_read_failure',path='/api/capabilities',purpose='known-save recovery')
+                    route.abort('failed')
+                page.route('**/api/capabilities',fail_saved_refresh)
+                try:
+                    submit(f)
+                    page.locator('#notifications .toast').filter(has_text='已保存，但同步读取未完成').wait_for()
+                    assert refresh_faults and len(client.get('/api/services/identities').json()['items'])==1
+                    page.locator('#modal').wait_for(state='hidden')
+                finally:page.unroute('**/api/capabilities',fail_saved_refresh)
+                go('brief');go('services')
+                assert len(client.get('/api/services/identities').json()['items'])==1
+                record('已确认身份保存后仅同步读取断开：显示已保存与恢复指引，无重复写入')
+            else:submit(f)
+            page.locator('.identity-card').wait_for();page.locator('[data-x-action="identity-use"]').first.click();page.wait_for_timeout(400)
             assert page.locator('#active-identity').input_value()
             identity_id=page.locator('#active-identity').input_value();record('服务身份创建、选择、顶部上下文同步')
             go('brief');page.locator('#main [data-action="import-dialog"]').click()
@@ -179,11 +198,38 @@ def main():
             for i in range(12):csv+=f'{2022+i//4}-Q{i%4+1},{100000+i*1200},{70000+i*600},{12000+i*100},9000,500000,200000,300000,290000,20000,3000\n'
             page.locator('#import-file-form [name="amount_unit"]').select_option('yuan')
             page.locator('#import-file-form [name="file"]').set_input_files({'name':'synthetic-service-test.csv','mimeType':'text/csv','buffer':csv.encode('utf-8-sig')})
+            assert page.locator('#import-file-form').evaluate('(form)=>new FormData(form).get("file")===new FormData(form).get("file")')
             submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for();assert client.get('/api/datasets').json()['items']==[]
             page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden');page.locator('#dataset-editor[data-version="1"]').wait_for();record('上传真实CSV：暂存不写正式库，确认后入库')
             # Revise an existing dataset through the visible file workflow. No
             # direct API write substitutes for preview, target choice or commit.
             original=client.get('/api/datasets').json()['items'][0]
+            # Two editors are visible in the DOM: controls must belong to the
+            # new-data dialog, without mutating the existing background editor.
+            go('data');background_rows=page.locator('#main [data-period-row]').count()
+            page.locator('#main [data-action="new-dataset"]').click()
+            editor='#modal #dataset-editor'
+            page.locator(editor+' [data-action="add-period"]').click()
+            assert page.locator(editor+' [data-period-row]').count()==2
+            assert page.locator('#main [data-period-row]').count()==background_rows
+            page.locator(editor+' #extra-fields').check()
+            assert 'expanded' in page.locator(editor+' .editor-table').get_attribute('class')
+            assert 'expanded' not in page.locator('#main .editor-table').get_attribute('class')
+            page.locator(editor+' [name="company"]').fill('独立新建草稿（合成验收）')
+            page.locator(editor+' [name="name"]').fill('仅预览不保存')
+            for i,period in enumerate(['2024-Q1','2024-Q2']):
+                row=page.locator(editor+' [data-period-row]').nth(i)
+                row.locator('[name="period"]').fill(period)
+                row.locator('[name="revenue"]').fill('100')
+                row.locator('[name="cost"]').fill('70')
+            submit(editor);page.locator('#modal [data-action="stage-back"]').click()
+            assert page.locator(editor+' [name="company"]').is_editable()
+            page.locator(editor+' [name="company"]').fill('返回仍可修改的新企业（合成验收）')
+            assert page.locator('#main [name="company"]').input_value()==original['payload']['company']
+            assert len(client.get('/api/datasets').json()['items'])==1
+            snap('ui-current-new-data-draft.png')
+            page.locator('#modal [data-action="close-modal"]').click()
+            record('已有企业背景中新建数据：季度/补充字段仅改当前表单，预览返回仍可改企业且未入库')
             go('data');page.locator('#main [data-action="import-dialog"]').click()
             page.locator('#import-file-form [name="target_id"]').select_option(original['id'])
             page.locator('#import-file-form [name="merge_mode"]').select_option('merge')
@@ -245,6 +291,23 @@ def main():
             latest=page.locator('.chat-turn').last
             assert '2024-Q2' in latest.inner_text() and '12,900.00元' in latest.inner_text()
             record('指定历史季度显示当期现金流金额与真实来源，不误用最新季度或比率')
+            page.locator('#assistant-query').fill('那环比呢');submit('#assistant-form')
+            page.locator('.chat-turn').nth(4).wait_for()
+            followup=page.locator('.chat-turn').last
+            message_id=followup.get_attribute('data-message')
+            thread_row=client.get('/api/services/threads?identity_id='+identity_id+'&dataset_id='+original['id']).json()['items'][0]
+            saved_turn=client.get('/api/services/threads/'+thread_row['id']).json()['messages'][-1]
+            saved_scope=saved_turn['payload']['response']['context']['question_scope']
+            assert saved_scope['period']=='2024-Q2' and saved_scope['comparison']=='previous'
+            followup.locator('[data-x-action="chat-trace"]').click()
+            followup.locator('.trace-container .assistant-fact').first.wait_for()
+            trace=client.get('/api/services/threads/'+thread_row['id']+'/messages/'+message_id+'/trace',params={'identity_id':identity_id,'dataset_id':original['id']}).json()
+            assert trace['question_scope']['period']==saved_scope['period']
+            assert trace['question_scope']['comparison']==saved_scope['comparison']
+            assert trace['question_scope']['topics']==saved_scope['topics']
+            assert trace['scope']['dataset_version']==revised[0]['version'] and trace['external_calls']==0
+            assert '2024-Q2' in followup.locator('.trace-container').inner_text()
+            record('历史季度短追问复核绑定原消息期间/环比/指标，使用当前修订且不外发')
             snap('ui-current-copilot.png')
             page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
             f='form[data-service-form="proposal"]';page.locator(f+' summary').filter(has_text='模型参与与数学工具').click();page.locator(f+' [name="forecast"]').check()
@@ -322,10 +385,22 @@ def main():
             page.locator('#active-identity').select_option('');page.wait_for_timeout(700)
             assert page.locator('.chat-turn').count()==0;record('切换服务身份不混入前身份的研究会话')
             page.locator('#active-identity').select_option(identity_id);page.wait_for_timeout(700)
-            assert page.locator('.chat-turn').count()==4;record('切回身份恢复原会话与独立任务结果')
+            assert page.locator('.chat-turn').count()==5;record('切回身份恢复原会话与独立任务结果')
             print('STEP tracking',flush=True);go('tracking');page.locator('[data-x-action="watch-new"]').click();f='form[data-service-form="watch"]'
             page.locator(f+' [name="title"]').fill('毛利低于40%（验收）');page.locator(f+' [name="threshold"]').fill('0.4');page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
-            print('STEP rule submitted',flush=True);page.locator('.alert-card').wait_for();page.locator('[data-x-action="alert-ack"]').click();f='form[data-service-form="alert-ack"]';page.locator(f+' [name="note"]').fill('已核对合成输入，仅用于流程验收');submit(f)
+            print('STEP rule submitted',flush=True);page.locator('.alert-card').wait_for()
+            alert_id=page.locator('[data-x-action="alert-investigate"]').first.get_attribute('data-id')
+            page.locator('[data-x-action="alert-investigate"]').first.click()
+            page.locator('[data-x-action="alert-current-investigate"]').click()
+            page.locator('#main[data-page="copilot"] .chat-turn').nth(5).wait_for()
+            latest_turn=page.locator('.chat-turn').last
+            assert alert_id in latest_turn.inner_text() and '明确使用当前保存的修订' in latest_turn.inner_text()
+            current_thread=client.get('/api/services/threads/'+thread_row['id']).json()
+            assert len(current_thread['messages'])==6
+            assert alert_id in current_thread['messages'][-1]['payload']['question']
+            assert current_thread['messages'][-1]['payload']['response']['external_calls']==0
+            record('历史提醒明确转交当前修订研究：一次导航后问题实际入会话，不空跳转或重复提交')
+            go('tracking');page.locator('[data-x-action="alert-ack"]').click();f='form[data-service-form="alert-ack"]';page.locator(f+' [name="note"]').fill('已核对合成输入，仅用于流程验收');submit(f)
             page.locator('[data-x-action="alert-archive"]').click();page.wait_for_timeout(500);assert page.locator('.alert-card').count()==0
             go('brief');go('tracking');assert page.locator('.alert-card').count()==0;record('跟踪规则真实触发、核对归档、相同输入不重复提醒')
             # Reuse a saved mathematical result through the actual review/approval

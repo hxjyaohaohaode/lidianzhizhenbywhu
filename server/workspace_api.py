@@ -16,7 +16,7 @@ from .contracts import (CompanyProfile,PlanDraft,PlanConsent,EvidenceReview,Acti
 from .store import encode,digest,uid,now
 from .models import normalize,calculate
 from .analytics import quality_report,from_cumulative,dataset_diff,extended_scenario,forecast_baselines,lineage
-from .imports import import_dataset
+from .imports import import_dataset,MalformedWorkbook
 from .intelligence import build_insights,evidence_catalog,assistant_answer,profile_for,scoped_retrieve
 from .studio import AGENTS,build_plan,dispatch_plan
 from . import workspace_store as ws
@@ -226,7 +226,8 @@ async def import_file(request:Request,file:UploadFile=File(...),company:str=Form
     if not target_id and merge_mode=='merge':fail('INVALID_TARGET','合并季度必须选择已有数据集',422)
     report=[]
     raw=await file.read(2_000_001)
-    parsed=await asyncio.to_thread(import_dataset,file.filename or '',raw,company,amount_unit,report)
+    try:parsed=await asyncio.to_thread(import_dataset,file.filename or '',raw,company,amount_unit,report)
+    except MalformedWorkbook as exc:fail('IMPORT_REJECTED',str(exc),422)
     return stage(dbof(request),user,ImportPreview(dataset=parsed,basis=basis,target_id=target_id,target_version=target_version),
         merge_mode=merge_mode,import_context={'filename':file.filename or '', 'normalizations':report,
             'input_amount_unit':parsed.amount_unit,'input_basis':basis,'source_file_sha256':hashlib.sha256(raw).hexdigest(),'source_file_bytes':len(raw)})

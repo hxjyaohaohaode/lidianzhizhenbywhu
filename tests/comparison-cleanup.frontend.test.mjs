@@ -75,7 +75,7 @@ function handlerHarness(){
  class Data extends FormData{constructor(form){super();if(form?.confirmed)this.set('confirm_delete','on');}}
  const read=form=>{const f=new Data(form);return {f,str:k=>String(f.get(k)??''),check:k=>f.has(k)};};
  const modal={open:true,closed:0,close(){this.open=false;this.closed++;}},toasts=[],routes=[],refreshes=[];
- const values={document,state,HTMLFormElement:Form,FormData:Data,read,contextGuard,interactionGuard,unchangedInputGuard,comparisonRemovalTarget,removeSavedComparison,refreshComparisonReferences:()=>refreshes.push('plan'),forgetCopilotComparison:()=>refreshes.push('copilot'),modal,toast:t=>toasts.push(t),navigate:r=>routes.push(r),ApiError};
+ const values={document,state,HTMLFormElement:Form,FormData:Data,formSnapshot:form=>JSON.stringify([...new Data(form)]),read,contextGuard,interactionGuard,unchangedInputGuard,comparisonRemovalTarget,removeSavedComparison,refreshComparisonReferences:()=>refreshes.push('plan'),forgetCopilotComparison:()=>refreshes.push('copilot'),modal,toast:t=>toasts.push(t),navigate:r=>routes.push(r),ApiError};
  const source=app.slice(app.indexOf("document.addEventListener('submit',"),app.indexOf("document.addEventListener('click',"));
  new Function(...Object.keys(values),source)(...Object.values(values));
  const input=app.slice(app.indexOf("document.addEventListener('input',"),app.indexOf("document.addEventListener('change',"));new Function('document','state',input)(document,state);

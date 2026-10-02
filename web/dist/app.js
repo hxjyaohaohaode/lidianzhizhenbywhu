@@ -1,3 +1,4 @@
+import { formSnapshot } from './form-snapshot.js';
 import { displayedComparisonMembers, comparisonPreviewDraft, comparisonSaveForm, comparisonCreateRequest, selectedComparisonRequest, syncComparisonControls, comparisonRemovalTarget, comparisonDeleteForm, removeSavedComparison, refreshComparisonReferences } from './saved-comparisons.js';
 import { syncExperimentControls, selectedExperimentRequest, unchangedInputGuard } from './saved-experiments.js';
 import { formSource, continueInsightDraft } from './business-source.js';
@@ -46,6 +47,22 @@ function navigate(path, force = false) { if (!force && !safeToLeave())
     void render();
     return;
 } location.hash = path; }
+// Used after an explicit handoff confirmation: one history entry and one render.
+async function navigateRendered(path) {
+    invalidateInteractions();
+    closeDrawers();
+    state.dirty = false;
+    if (modal.open)
+        modal.close();
+    if (inspector.open)
+        inspector.close();
+    if (location.hash.slice(1) !== path)
+        history.pushState(null, '', '#' + path);
+    const sameContext = contextGuard(), pending = render(), current = interactionGuard();
+    const valid = () => sameContext() && current() && document.querySelector('#main')?.dataset.page === path.split(':')[0];
+    await pending;
+    return valid() ? valid : null;
+}
 function auth() { live?.dispose(); live = null; renderEpoch++; root.innerHTML = `<main class="auth-page"><section class="auth-intro"><a class="brand" href="#"><img src="/assets/brand/logo.png" alt="">锂电智诊</a><div><span class="eyebrow">企业研究与经营诊断</span><h1>让每一个判断，<br>有据可循。</h1><p>连接经营数据、原始证据与协作分析。<br>从可核验的输入，走向可执行的行动。</p><div class="auth-principles"><span>${icon('database')} 数据有来源</span><span>${icon('network')} 执行可追溯</span><span>${icon('lock')} 授权有边界</span></div></div><small>你的数据仅在账户工作区内使用；外部模型按次授权。</small></section><section class="auth-panel"><div class="auth-box"><span class="eyebrow">${signingUp ? '建立独立工作区' : '进入你的工作区'}</span><h2>${signingUp ? '创建账户' : '欢迎回来'}</h2><form id="auth-form" class="stack">${field('邮箱', input('email', '', 'type="email" autocomplete="username" required maxlength="180"'))}${field('密码', input('password', '', 'type="password" autocomplete="' + (signingUp ? 'new-password' : 'current-password') + '" minlength="' + (signingUp ? 12 : 1) + '" maxlength="128" required'), signingUp ? '至少 12 个字符，建议使用独立长密码' : '')}${signingUp ? field('称呼', input('name', '', 'autocomplete="nickname" required maxlength="200"')) + field('工作视角', select('role', roleNames)) + field('邀请码（部署方启用时填写）', input('invitation', '', 'autocomplete="off"')) : ''}${formFooter(signingUp ? '创建工作区' : '登录')}</form><div class="auth-switch">${button(signingUp ? '已有账户，返回登录' : '没有账户？创建独立工作区', 'auth-toggle', 'text-button')}</div></div></section></main>`; }
 function assistantShell() { return state.route === 'copilot' ? '' : copilotShell(); }
 function shell() { theme(); loadLayout(state.user.id); let section = ''; root.innerHTML = `<div class="workspace-shell"><aside class="sidebar" id="sidebar"><a class="brand" href="#brief"><img src="/assets/brand/logo.png" alt=""><span class="brand-word">锂电智诊</span></a>${button(icon('close'), 'close-menu', 'icon-button menu-close', 'aria-label="收起导航"')}<button class="command-button" data-action="command">${icon('search')}<span>快速前往</span><kbd>Ctrl K</kbd></button><nav aria-label="主导航">${Object.entries(routes).map(([id, r]) => { const h = r.section !== section ? `<div class="nav-section">${esc(r.section)}</div>` : ''; section = r.section; return h + `<button data-route="${id}" title="${esc(r.label)}" aria-label="${esc(r.label)}" class="nav-item ${state.route === id ? 'active' : ''}" ${state.route === id ? 'aria-current="page"' : ''}>${icon(r.icon)}<span>${r.label}</span></button>`; }).join('')}</nav><label class="sidebar-role"><span>当前工作视角</span><select id="role-switch" aria-label="切换工作视角">${Object.entries(roleNames).map(([key, label]) => `<option value="${key}" ${state.user.preferences.role === key ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label><div class="sidebar-footer"><span class="avatar">${esc(state.user.name.slice(0, 1))}</span><div><strong>${esc(state.user.name)}</strong><small>${esc(activeIdentity()?.payload.name ?? '默认工作身份')}</small></div>${button(icon('logout'), 'logout', 'icon-button', 'aria-label="退出登录"')}</div></aside><div class="main-shell"><header class="topbar"><div class="topbar-start">${button(icon('menu'), 'menu', 'icon-button menu-button', 'aria-label="展开导航"')}<span class="breadcrumb">工作空间 <span>/</span> <strong>${esc(routes[state.route]?.label ?? '工作简报')}</strong></span></div><div class="topbar-controls"><label class="identity-select"><span class="sr-only">当前服务身份</span>${icon('memory')}<select id="active-identity"><option value="">默认身份</option>${state.identities.map(i => `<option value="${esc(i.id)}" ${state.identity === i.id ? 'selected' : ''}>${esc(i.payload.name)}</option>`).join('')}</select></label><label class="company-select"><span class="sr-only">当前企业数据集</span>${icon('database')}<select id="active-dataset"><option value="">${state.datasets.length ? '所有企业 / 未选择' : '尚未添加企业'}</option>${scopedDatasets().map(d => `<option value="${esc(d.id)}" ${state.active === d.id ? 'selected' : ''}>${esc(d.payload.company)} · ${esc(d.payload.name)}</option>`).join('')}</select></label>${button(icon('spark'), 'show-assistant', 'icon-button', 'aria-label="打开研究助手"')}</div></header><div id="sync-notice" hidden></div><main id="main" tabindex="-1"><div class="loading" role="status"><span class="spinner"></span> 正在读取工作区…</div></main></div>${assistantShell()}<button type="button" id="drawer-backdrop" class="drawer-backdrop" aria-label="关闭抽屉" hidden></button></div>`; applyLayout(); }
@@ -102,6 +119,10 @@ document.addEventListener('submit', async (event) => {
     if (!(form instanceof HTMLFormElement))
         return;
     event.preventDefault();
+    if (form.dataset.saved === 'true') {
+        toast('此表单已保存，请先核对并刷新后再编辑。', true);
+        return;
+    }
     if (form.dataset.submitting === 'true')
         return;
     if (!form.reportValidity())
@@ -114,7 +135,7 @@ document.addEventListener('submit', async (event) => {
     if (submit)
         submit.disabled = true;
     const submittedContext = contextGuard();
-    const submittedCurrent = unchangedInputGuard(interactionGuard(), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null);
+    const submittedCurrent = unchangedInputGuard(interactionGuard(), () => form.isConnected ? formSnapshot(form) : null);
     try {
         const { f, str, val, check, list } = read(form);
         let changed = false, savedDraftMessage = '';
@@ -182,20 +203,26 @@ document.addEventListener('submit', async (event) => {
                 await createEvidence({ title: str('title'), source_url: str('source_url'), published_at: str('published_at') || null, text: str('text') }, str('company'), check('global_scope'));
                 changed = true;
                 break;
-            case 'evidence-metadata-form':
-                await api('/evidence/' + form.dataset.id + '/metadata', 'PUT', { title: str('title'), source_url: str('source_url'), published_at: str('published_at') || null, version: Number(form.dataset.version) });
+            case 'evidence-metadata-form': {
+                const saved = await api('/evidence/' + form.dataset.id + '/metadata', 'PUT', { title: str('title'), source_url: str('source_url'), published_at: str('published_at') || null, version: Number(form.dataset.version) });
+                if (submittedContext() && form.isConnected)
+                    form.dataset.version = String(saved.version);
                 changed = true;
                 break;
+            }
             case 'search-evidence-form': {
                 const r = state.cache.searchCapture;
                 await createEvidence({ title: r.title, source_url: r.source_url, text: r.text, published_at: null, search_receipt: r.search_receipt, retrieved_at: r.retrieved_at }, str('company'), check('global_scope'));
                 changed = true;
                 break;
             }
-            case 'evidence-review-form':
-                await workspace('/evidence/' + form.dataset.id + '/review', 'PUT', { version: Number(form.dataset.version), company: str('company'), global_scope: check('global_scope'), expires_at: str('expires_at') || null, status: str('status'), stance: str('stance'), tags: split(str('tags')), note: str('note') });
+            case 'evidence-review-form': {
+                const saved = await workspace('/evidence/' + form.dataset.id + '/review', 'PUT', { version: Number(form.dataset.version), company: str('company'), global_scope: check('global_scope'), expires_at: str('expires_at') || null, status: str('status'), stance: str('stance'), tags: split(str('tags')), note: str('note') });
+                if (submittedContext() && form.isConnected)
+                    form.dataset.version = String(saved.version);
                 changed = true;
                 break;
+            }
             case 'evidence-search': {
                 const r = await workspace('/retrieval?q=' + encodeURIComponent(str('q')) + '&company=' + encodeURIComponent(activeDataset()?.payload.company ?? ''));
                 if (!submittedCurrent())
@@ -232,8 +259,11 @@ document.addEventListener('submit', async (event) => {
             case 'memory-form': {
                 const old = state.cache.memories?.find((m) => m.id === form.dataset.id);
                 const payload = { identity_id: old?.payload.identity_id ?? state.identity, text: str('text'), kind: str('kind'), company: str('company'), role: str('role'), expires_at: str('expires_at') || null, approved: check('approved'), source: 'user' };
-                if (form.dataset.id)
-                    await api('/memories/' + form.dataset.id, 'PUT', { ...payload, version: Number(form.dataset.version) });
+                if (form.dataset.id) {
+                    const saved = await api('/memories/' + form.dataset.id, 'PUT', { ...payload, version: Number(form.dataset.version) });
+                    if (submittedContext() && form.isConnected)
+                        form.dataset.version = String(saved.version);
+                }
                 else
                     await api('/memories', 'POST', payload);
                 changed = true;
@@ -433,15 +463,42 @@ document.addEventListener('submit', async (event) => {
             default: throw new Error('未识别的表单，未执行任何写入。');
         }
         if (changed && submittedContext()) {
-            const applied = await finishMutation(submittedCurrent, refreshData, () => { state.dirty = false; if (modal.open)
-                modal.close(); if (inspector.open)
-                inspector.close(); });
-            if (applied) {
-                await render();
-                toast('已保存。');
+            try {
+                const applied = await finishMutation(() => submittedContext() && submittedCurrent(), refreshData, () => { state.dirty = false; if (modal.open)
+                    modal.close(); if (inspector.open)
+                    inspector.close(); });
+                if (!submittedContext())
+                    return;
+                if (applied) {
+                    await render();
+                    toast('已保存。');
+                }
+                else {
+                    syncPending = true;
+                    showSyncNotice();
+                    toast(savedDraftMessage || '已保存；保留你当前的页面和输入，稍后可刷新核对。');
+                }
             }
-            else
-                toast(savedDraftMessage || '已保存；保留你当前的页面和输入，稍后可刷新核对。');
+            catch (e) {
+                if (!submittedContext())
+                    return;
+                if (e instanceof ApiError && e.status === 401) {
+                    resetAuth();
+                    toast('内容已保存，但登录已失效；请重新登录后核对。', true);
+                    return;
+                }
+                if (submittedCurrent()) {
+                    form.dataset.saved = 'true';
+                    state.dirty = false;
+                    if (modal.open)
+                        modal.close();
+                    if (inspector.open)
+                        inspector.close();
+                }
+                syncPending = true;
+                showSyncNotice();
+                toast('内容已保存，但同步读取未完成；请核对并刷新，无需重复提交。', true);
+            }
         }
     }
     catch (e) {
@@ -458,7 +515,7 @@ document.addEventListener('submit', async (event) => {
     finally {
         form.dataset.submitting = 'false';
         if (submit)
-            submit.disabled = false;
+            submit.disabled = form.dataset.saved === 'true';
     }
 });
 document.addEventListener('click', async (event) => {
@@ -566,14 +623,20 @@ document.addEventListener('click', async (event) => {
             case 'import-dialog':
                 dialog('导入自己的经营数据', importForm());
                 break;
-            case 'add-period':
-                document.querySelector('#period-rows')?.insertAdjacentHTML('beforeend', periodRow({}, document.querySelectorAll('[data-period-row]').length));
+            case 'add-period': {
+                const form = el.closest('form');
+                form?.querySelector('#period-rows')?.insertAdjacentHTML('beforeend', periodRow({}, form.querySelectorAll('[data-period-row]').length));
                 state.dirty = true;
                 break;
-            case 'remove-period':
-                el.closest('tr')?.remove();
-                state.dirty = true;
+            }
+            case 'remove-period': {
+                const form = el.closest('form'), row = el.closest('[data-period-row]');
+                if (form && row && form.contains(row)) {
+                    row.remove();
+                    state.dirty = true;
+                }
                 break;
+            }
             case 'stage-back':
                 if (state.cache.editorDraft) {
                     dialog('继续编辑数据', datasetEditor(state.cache.editorDraft), true);
@@ -645,16 +708,47 @@ document.addEventListener('click', async (event) => {
                 dialog('数据修订记录', revisionHistory(r.items), true);
                 break;
             }
-            case 'restore-revision':
+            case 'restore-revision': {
                 if (!confirm('确认恢复此历史内容并创建新的数据修订？'))
                     return;
-                await workspace('/datasets/' + state.active + '/restore', 'POST', { version: activeDataset().version, target_revision: Number(el.dataset.revision) });
-                state.dirty = false;
-                modal.close();
-                await refreshData();
-                await render();
-                toast('已恢复为新的修订。');
+                const sameContext = contextGuard();
+                let saved = false;
+                try {
+                    await workspace('/datasets/' + state.active + '/restore', 'POST', { version: activeDataset().version, target_revision: Number(el.dataset.revision) });
+                    saved = true;
+                    const applied = await finishMutation(() => sameContext() && valid(), refreshData, () => { state.dirty = false; modal.close(); });
+                    if (!sameContext())
+                        break;
+                    if (applied) {
+                        await render();
+                        toast('已恢复为新的修订。');
+                    }
+                    else {
+                        syncPending = true;
+                        showSyncNotice();
+                        toast('已恢复为新的修订；保留你当前的页面和输入，可核对并刷新。');
+                    }
+                }
+                catch (e) {
+                    if (!sameContext())
+                        break;
+                    if (!saved)
+                        throw e;
+                    if (e instanceof ApiError && e.status === 401) {
+                        resetAuth();
+                        toast('历史内容已恢复，但登录已失效；请重新登录后核对。', true);
+                        break;
+                    }
+                    if (valid()) {
+                        state.dirty = false;
+                        modal.close();
+                    }
+                    syncPending = true;
+                    showSyncNotice();
+                    toast('历史内容已恢复，但同步读取未完成；请核对并刷新，无需重复恢复。', true);
+                }
                 break;
+            }
             case 'export-dataset':
                 location.href = '/api/datasets/' + state.active + '/export';
                 break;
@@ -982,7 +1076,7 @@ document.addEventListener('change', async (event) => { const el = event.target; 
         }
     }
     if (el.id === 'extra-fields')
-        document.querySelector('.editor-table')?.classList.toggle('expanded', el.checked);
+        el.closest('form')?.querySelector('.editor-table')?.classList.toggle('expanded', el.checked);
     if (el.id === 'use-llm') {
         const e = document.querySelector('#model-options');
         if (e)
@@ -1049,7 +1143,7 @@ catch (e) {
 finally {
     polling = false;
 } }, 1500);
-setupExperience({ dialog, inspect, toast, navigate, render, refresh: async () => { await refreshData(); }, reset: resetAuth });
+setupExperience({ dialog, inspect, toast, navigate, navigateRendered, render, refresh: refreshData, reset: resetAuth });
 restoreMotion();
 showBrandIntro();
 (async () => { try {
