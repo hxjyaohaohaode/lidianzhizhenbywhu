@@ -309,6 +309,10 @@ async def perform_studio(worker,id):
     store=worker.store;row=store.one('SELECT * FROM runs WHERE id=?',(id,));s=row['snapshot'];st=s['studio'];r=row['payload']
     if not approved_run_valid(store, row) or not ws.verify_ledger(store, id)['valid']:
         raise RuntimeError('APPROVED_SNAPSHOT_INTEGRITY_FAILED')
+    if store.one("SELECT seq FROM run_events WHERE run_id=? AND type IN ('external_call_reserved','external_dispatch') LIMIT 1",(id,)):
+        # There is no legacy checkpoint/resume protocol. Restored or manually
+        # requeued rows must never repeat an already reserved external call.
+        raise RuntimeError('LEGACY_EXECUTION_NOT_RESUMABLE')
     async def node(name,fn,reason):
         worker.ensure_running(id);start=time.monotonic()
         worker.event(id,'step_started',{'node':name,'reason':reason})
@@ -376,7 +380,7 @@ async def perform_studio(worker,id):
                             if rev and (rev['payload']['status']=='rejected' or (rev['payload'].get('expires_at') and rev['payload']['expires_at']<utc_today().isoformat())):changed=True
                         return not changed
                     if not dispatch_guard():
-                        return {'agent':name,'status':'blocked','error_class':'AUTHORIZATION_CHANGED','output':{'claims':[],'missing':['审批后记忆、证据、偏好或模型配置发生变化，未继续外发，请重新预览计划']}}
+                        return {'agent':name,'status':'blocked','error_class':'AUTHORIZATION_CHANGED','dispatched':False,'dispatch_state':'not_sent','remote_outcome_known':True,'output':{'claims':[],'missing':['审批后记忆、证据、偏好或模型配置发生变化，未继续外发，请重新预览计划']}}
                     # Apply the same minimum disclosure to older saved plans,
                     # without rewriting their approved snapshots/fingerprints.
                     obj=provider_context(st['context'])
@@ -385,21 +389,70 @@ async def perform_studio(worker,id):
                         obj['prior_hypotheses']=[c for output in outputs for c in output.get('claims',[])][:2]
                     prompt=encode(obj)
                     if len(prompt)>worker.settings.max_context_chars:
-                        return {'agent':name,'status':'blocked','error_class':'CONTEXT_BUDGET','output':{'claims':[],'missing':[]}}
-                    used_memory=[m for m in s['memory'] if m['id'] in st['packing']['included_memory_ids']]
-                    sent=planned_citations
-                    worker.event(id,'external_dispatch',{'agent':name,'provider':provider.id,'model':provider.model,
-                        'characters':len(prompt),'memory_ids':st['packing']['included_memory_ids'],
-                        'citation_ids':sent,'request_hash':digest(prompt),'consent':st['consent']})
+                        return {'agent':name,'status':'blocked','error_class':'CONTEXT_BUDGET','dispatched':False,'dispatch_state':'not_sent','remote_outcome_known':True,'output':{'claims':[],'missing':[]}}
+                    # Reserve the call before entering transport. Reservation is
+                    # intent only, never evidence that approved data was sent.
+                    call_id=uid()
+                    disclosure={'agent':name,'provider':provider.id,'model':provider.model,
+                        'call_id':call_id,'characters':len(prompt),'memory_ids':st['packing']['included_memory_ids'],
+                        'citation_ids':planned_citations,'request_hash':digest(prompt),'consent':st['consent']}
+                    with store.transaction() as db:
+                        worker.ensure_running(id)
+                        store.event(db,id,'external_call_reserved',{**disclosure,'dispatch_state':'reserved','dispatched':False})
+                    boundary_recorded=False
+                    def dispatch_started():
+                        nonlocal boundary_recorded
+                        with store.transaction() as db:
+                            if not dispatch_guard():raise ValueError('MODEL_AUTHORIZATION_CHANGED')
+                            if not boundary_recorded:
+                                # Persist immediately before the first attempted
+                                # socket write. A crash here is still unknown,
+                                # never permission to issue the request again.
+                                store.event(db,id,'external_dispatch',{**disclosure,'dispatch_state':'unknown',
+                                    'dispatched':True,'remote_outcome_known':False,'boundary':'first_http_send'})
+                                boundary_recorded=True
+                    def close_call(status,dispatched,code=None):
+                        nonlocal used_memory,sent,boundary_recorded
+                        dispatch_state='not_sent' if dispatched is False else 'unknown' if status=='unknown' or dispatched is None else 'sent'
+                        metadata={'agent':name,'call_id':call_id,'status':status,'dispatched':dispatched,
+                            'dispatch_state':dispatch_state,'remote_outcome_known':status!='unknown' and dispatched is not None}
+                        if code:metadata['error_class']=code
+                        with store.transaction() as db:
+                            if store.owned('runs',row['user_id'],id):
+                                # Alternative provider implementations can prove
+                                # dispatch with their response, without pretending
+                                # that invoking complete() was a network send.
+                                if dispatched is True and not boundary_recorded:
+                                    store.event(db,id,'external_dispatch',{**disclosure,'dispatch_state':dispatch_state,
+                                        'dispatched':True,'boundary':'provider_response' if status=='completed' else 'provider_transport_outcome'})
+                                    boundary_recorded=True
+                                store.event(db,id,'external_call_result',metadata)
+                        if dispatched is not False:
+                            used_memory=[m for m in s['memory'] if m['id'] in st['packing']['included_memory_ids']]
+                            sent=planned_citations
+                        return metadata
                     try:
                         from .providers import Provider
                         from copy import copy
                         selected=copy(provider) if isinstance(provider,Provider) else provider
-                        if isinstance(selected,Provider):selected.dispatch_guard=dispatch_guard
+                        if isinstance(selected,Provider):
+                            selected.dispatch_guard=dispatch_guard
+                            selected.dispatch_started=dispatch_started
                         result=await worker.providers.complete(selected,SYSTEM+'\n本次职责：'+next(a['purpose'] for a in AGENTS if a['id']==name),prompt)
-                        return {'agent':name,'status':'completed',**result}
+                        return {**result,**close_call('completed',True)}
+                    except asyncio.CancelledError as exc:
+                        dispatched=getattr(exc,'dispatched',True if boundary_recorded else None)
+                        close_call('failed' if dispatched is False else 'unknown',dispatched,
+                            'MODEL_REQUEST_STOPPED' if dispatched is False else 'CANCELLED_REMOTE_OUTCOME_UNKNOWN')
+                        raise
                     except Exception as exc:
-                        return {'agent':name,'status':'failed','error_class':type(exc).__name__,'output':{'claims':[],'missing':[]}}
+                        code=str(exc) if re.fullmatch(r'MODEL_[A-Za-z0-9_]{1,100}',str(exc)) else type(exc).__name__
+                        not_sent=isinstance(exc,ValueError) and code in {'MODEL_AUTHORIZATION_CHANGED','MODEL_UNAVAILABLE',
+                            'MODEL_CIRCUIT_OPEN','MODEL_TRANSPORT_BUSY','MODEL_INVALID_CREDENTIAL'}
+                        dispatched=getattr(exc,'dispatched',False if not_sent and not boundary_recorded else True if boundary_recorded else None)
+                        status='unknown' if dispatched is not False and not isinstance(exc,ValueError) else 'failed'
+                        if dispatched is None:status='unknown'
+                        return {**close_call(status,dispatched,code),'output':{'claims':[],'missing':[]}}
                 res=await node(name,call,'按已批准的任务分工调用；不自动重试付费请求或切换供应商')
                 calls.append({k:v for k,v in res.items() if k!='output'});outputs.append(res['output'])
                 for claim in res['output'].get('claims',[]):claims.append({**claim,'agent':name})

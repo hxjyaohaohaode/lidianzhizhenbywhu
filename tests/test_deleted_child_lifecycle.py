@@ -97,7 +97,7 @@ def test_evidence_delete_keeps_frozen_report_plan_and_action(actor):
     assert run['snapshot']['citations']
     action=ok(actor.post('/workspace/actions',json={'dataset_id':dataset['id'],'title':'核对来源资料','acceptance':'核对原始资料后人工验收'}),201)
     action=ok(actor.put('/workspace/actions/'+action['id']+'/status',json={
-        'version':action['version'],'status':'in_progress','note':'使用已选资料核验','evidence_ids':[document['id']]}))
+        'version':action['version'],'status':'in_progress','note':'使用已选资料核验','evidence_ids':[document['id']],'evidence_refs':[actor.evidence_ref(document)]}))
     assert action['payload']['history'][-1]['evidence_snapshots']
     store=actor.client.app.state.store;plans=rows(store,actor.user['id'],'plan')
     ok(actor.delete('/evidence/'+document['id'],params={'version':1}))

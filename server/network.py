@@ -17,9 +17,10 @@ class RequestDeadline:
     OS DNS cannot be killed safely. Its caller must retain an admission slot until
     the thread exits, and check this deadline again before opening a connection.
     """
-    def __init__(self, timeout, guard=None):
+    def __init__(self, timeout, guard=None, on_send=None):
         self.deadline = time.monotonic() + timeout
         self.guard = guard
+        self.on_send = on_send
         self.stopped = threading.Event()
         self._lock = threading.Lock()
         self._socket = None
@@ -50,9 +51,14 @@ class RequestDeadline:
             raise error('MODEL_AUTHORIZATION_CHANGED')
 
     def before_send(self):
-        self.authorize()
-        self.remaining()
-        self.sent = True
+        # Serialize the first-send reservation with stop(): a waiter that exits
+        # before DNS/TLS completes must be able to establish a known unsent call.
+        with self._lock:
+            self.authorize()
+            self.remaining()
+            if not self.sent and self.on_send is not None:
+                self.on_send()
+            self.sent = True
 
     def stop(self):
         with self._lock:

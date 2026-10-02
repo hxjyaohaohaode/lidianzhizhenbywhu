@@ -29,6 +29,10 @@ class Actor:
         # Synthetic inputs remain isolated fixtures; exercise the user import contract.
         data['source_kind']='user_provided'
         r=self.post('/datasets',json=data);assert r.status_code==201,r.text;return r.json()
+    def evidence_ref(self,document):
+        response=self.get('/workspace/evidence');assert response.status_code==200,response.text
+        selected=next(row for row in response.json()['items'] if row['id']==document['id'])
+        return {key:selected[key] for key in ('id','version','content_hash','review_version')}
     def conversation(self,**fields):
         r=self.post('/conversations',json={'title':'测试会话',**fields});assert r.status_code==201,r.text;return r.json()
     def run(self,dataset=None,session=None,key=None,**fields):

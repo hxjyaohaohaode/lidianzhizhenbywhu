@@ -1,15 +1,13 @@
 {
-  "attempted_at": "2026-09-30T06:00:00Z",
+  "attempted_at": "2026-10-02T08:04:28.631725+00:00",
   "mode": "native",
   "all_checks_passed": false,
   "native_network_e2e": false,
-  "status": "blocked_by_environment",
+  "status": "failed_before_browser_checks",
   "checks": [],
   "count": 0,
   "screenshots": [],
   "policy_modified": false,
-  "exit_code": 1,
-  "reason": "Chromium process_singleton socket() failed: Operation not permitted; launch aborted before browser navigation. No bypass attempted.",
-  "log": "native-service-browser.log",
-  "command": "CHROMIUM_PATH=/usr/bin/chromium .venv/bin/python scripts/native_acceptance.py"
+  "note": "浏览器启动或服务访问未完成；详见本次命令日志。历史截图不代表当前界面。",
+  "exit_code": 1
 }

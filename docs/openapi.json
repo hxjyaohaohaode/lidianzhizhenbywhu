@@ -5570,7 +5570,8 @@
             },
             "type": "array",
             "maxItems": 10,
-            "title": "Evidence Ids"
+            "title": "Evidence Ids",
+            "description": "可选的兼容标识列表；非空时必须与 evidence_refs 的标识完全一致，不能单独提交"
           },
           "evidence_refs": {
             "items": {
@@ -5578,7 +5579,8 @@
             },
             "type": "array",
             "maxItems": 10,
-            "title": "Evidence Refs"
+            "title": "Evidence Refs",
+            "description": "每项新关联证据必须携带用户已查看的原文版本、指纹和审阅版本；无证据时可留空"
           }
         },
         "additionalProperties": false,

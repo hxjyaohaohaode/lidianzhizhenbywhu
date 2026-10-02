@@ -370,7 +370,9 @@ def evidence_snapshots(store,user_id,company,evidence_ids,evidence_refs=()):
     refs={r.id:r for r in evidence_refs}
     if len(refs)!=len(evidence_refs) or len(set(evidence_ids))!=len(evidence_ids):
         fail('EVIDENCE_DUPLICATE','同一依据不能重复选择',422)
-    if refs and evidence_ids and set(refs)!=set(evidence_ids):
+    if evidence_ids and not refs:
+        fail('ACTION_EVIDENCE_VERSION_REQUIRED','关联证据必须携带已查看的原文版本、指纹和审阅版本，请刷新后重新选择',422)
+    if evidence_ids and set(refs)!=set(evidence_ids):
         fail('EVIDENCE_MISMATCH','证据标识与版本选择不一致',422)
     ids=evidence_ids or list(refs)
     catalog={e['id']:e for e in evidence_catalog(store,user_id)}
@@ -380,8 +382,8 @@ def evidence_snapshots(store,user_id,company,evidence_ids,evidence_refs=()):
         if not doc:fail('NOT_FOUND','验收依据不存在或无访问权限',404)
         if not doc['eligible'] or doc['review'].get('company') not in ('',company):
             fail('ACTION_EVIDENCE_SCOPE','关联证据已失效、被排除或不属于该企业，请重新选择',409)
-        ref=refs.get(id)
-        if ref and (ref.version,ref.content_hash,ref.review_version)!=(doc['version'],doc['content_hash'],doc['review_version']):
+        ref=refs[id]
+        if (ref.version,ref.content_hash,ref.review_version)!=(doc['version'],doc['content_hash'],doc['review_version']):
             fail('ACTION_EVIDENCE_CHANGED','所选验收依据或审阅版本已变化，请刷新后核对',409)
         text=doc['payload'].get('text','')
         result.append({'id':id,'version':doc['version'],'content_hash':doc['content_hash'],

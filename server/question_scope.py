@@ -14,7 +14,7 @@ TOPICS = (
     ('leverage', ('负债率', '杠杆', '偿债', '负债', 'leverage')),
     ('revenue', ('收入', '营收', '销售额', 'revenue')),
     ('cost', ('成本', 'cost')),
-    ('net_margin', ('净利率', '盈利能力', 'net margin')),
+    ('net_margin', ('净利率', '净利润率', '净利润比率', '盈利能力', 'net margin', 'net profit margin')),
     ('net_profit', ('净利润', '利润额', 'net profit')),
     ('inventory_turnover', ('库存', '存货', 'inventory turnover')),
     ('rd_ratio', ('研发', 'r&d')),
@@ -25,13 +25,23 @@ PERIOD_PATTERNS = (r'(?<!\d)((?:19|20)\d{2})\s*年\s*第?\s*([1-4一二三四])\
                    r'(?<!\d)((?:19|20)\d{2})\s*[-/]?\s*q([1-4])(?!\d|\.\d)')
 
 
+def _term_pattern(term):
+    return r'(?<![a-z0-9])' + re.escape(term) + r'(?![a-z0-9])' if term.isascii() else re.escape(term)
+
+
 def matches(text, term):
-    return bool(re.search(r'(?<![a-z0-9])' + re.escape(term) + r'(?![a-z0-9])', text)) if term.isascii() else term in text
+    return bool(re.search(_term_pattern(term), text))
 
 
 def topics_for(text):
     q=text.lower()
-    topics=[key for key, words in TOPICS if any(matches(q,word) for word in words)]
+    # An amount alias inside a named ratio is not a second metric request.
+    # Mask only those occurrences so an explicit amount elsewhere still counts.
+    profit_text=q
+    for term in dict(TOPICS)['net_margin']:
+        profit_text=re.sub(_term_pattern(term),' ',profit_text)
+    topics=[key for key, words in TOPICS
+            if any(matches(profit_text if key=='net_profit' else q,word) for word in words)]
     # A comparison word selects the baseline; it does not identify revenue.
     revenue_growth = re.search(
         r'(?:营业收入|收入|营收|销售额)\s*(?:的\s*)?(?:同比|环比|增长|增速)'

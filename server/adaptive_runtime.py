@@ -26,7 +26,7 @@ from . import workspace_store as ws
 
 FINISHED = {'succeeded', 'degraded', 'failed', 'skipped', 'unknown'}
 NOT_DISPATCHED_ERRORS = {'AUTHORIZATION_CHANGED', 'MODEL_AUTHORIZATION_CHANGED',
-                         'MODEL_TRANSPORT_BUSY', 'MODEL_CIRCUIT_OPEN'}
+                         'MODEL_TRANSPORT_BUSY', 'MODEL_CIRCUIT_OPEN', 'MODEL_UNAVAILABLE', 'MODEL_INVALID_CREDENTIAL'}
 
 class PauseBoundary(Exception):
     """An intentional, durable suspension, not a workflow failure."""
@@ -129,22 +129,46 @@ class AdaptiveRun:
         by_id = {n['id']: n for n in self.graph['nodes']}
         checkpoint_ids = {c['node_id'] for c in checkpoints}
         closed_calls = {}; legacy_no_sends = {}
+        # A missing call row cannot erase a durable reservation and allow a
+        # restored node to purchase the same request again.
+        for event in self.store.all("SELECT * FROM run_events WHERE run_id=? AND type IN ('external_call_reserved','external_dispatch')",(self.id,)):
+            if not self.store.one('SELECT id FROM adaptive_calls WHERE id=? AND run_id=? AND user_id=?',
+                                  (event['payload'].get('call_id'),self.id,self.user_id)):
+                raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
         for call in self.store.all('SELECT * FROM adaptive_calls WHERE run_id=?', (self.id,)):
             n = by_id.get(call['node_id'])
-            anchor = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='external_dispatch' AND json_extract(payload,'$.call_id')=? ORDER BY seq DESC LIMIT 1", (self.id, call['id']))
+            reservation = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='external_call_reserved' AND json_extract(payload,'$.call_id')=? ORDER BY seq DESC LIMIT 1", (self.id, call['id']))
+            boundary = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='external_dispatch' AND json_extract(payload,'$.call_id')=? ORDER BY seq DESC LIMIT 1", (self.id, call['id']))
+            anchor = reservation or boundary
             if not n or n['capability'] not in MODEL_CAPS or call['user_id'] != self.user_id or not anchor:
                 raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
             dispatch = anchor['payload']
             if any(dispatch.get(k) != call.get(k) for k in ('provider', 'model', 'characters')) or dispatch.get('node') != call['node_id']:
                 raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
-            for key in ('request_hash', 'memory_ids', 'citation_ids', 'tool_output_hashes', 'tool_references', 'claim_contract_version', 'plan_id', 'plan_fingerprint', 'graph_version'):
+            for key in ('request_hash', 'memory_ids', 'citation_ids', 'tool_output_hashes', 'tool_references', 'claim_contract_version', 'plan_id', 'plan_fingerprint', 'graph_version', 'dispatch_protocol'):
                 if dispatch.get(key) != call['payload'].get(key):
                     raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
+            protocol=call['payload'].get('dispatch_protocol')
+            if protocol==2:
+                if not reservation or reservation['payload'].get('dispatch_state')!='reserved':
+                    raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
+                if boundary:
+                    if boundary['seq']<=reservation['seq'] or any(boundary['payload'].get(k)!=dispatch.get(k) for k in
+                        ('node','agent','call_id','provider','model','characters','request_hash','memory_ids','citation_ids',
+                         'tool_output_hashes','tool_references','claim_contract_version','plan_id','plan_fingerprint','graph_version','dispatch_protocol')):
+                        raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
+                if (call['payload'].get('dispatched') is False and boundary or
+                    (call['payload'].get('dispatched') is True or call['state']=='sent') and not boundary):
+                    raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
+            elif reservation:
+                raise RuntimeError('DISPATCH_LEDGER_INTEGRITY_FAILED')
             closure = self.store.one("SELECT * FROM run_events WHERE run_id=? AND type='external_call_closed' AND json_extract(payload,'$.call_id')=? ORDER BY seq DESC LIMIT 1", (self.id, call['id']))
+            if protocol==2 and not closure and (call['payload'].get('dispatched') is False or call['state'] in ('completed','failed')):
+                raise RuntimeError('CALL_CLOSURE_INTEGRITY_FAILED')
             if not closure and call['payload'].get('dispatched') is False:
                 legacy_no_sends.setdefault(call['node_id'], []).append(call)
             if closure:
-                if (closure['seq'] <= anchor['seq'] or closure['payload'].get('node') != call['node_id'] or
+                if (closure['seq'] <= (boundary or anchor)['seq'] or closure['payload'].get('node') != call['node_id'] or
                     closure['payload'].get('state') != call['state'] or
                     closure['payload'].get('payload_hash') != digest(call['payload'])):
                     raise RuntimeError('CALL_CLOSURE_INTEGRITY_FAILED')
@@ -192,7 +216,8 @@ class AdaptiveRun:
                     # unclosed reservations remain conservative and are never retried.
                     last = max(reservations, key=lambda call: closed_calls[call['id']])
                     code = last['payload'].get('error_class')
-                    if last['payload'].get('dispatched') is False and code in NOT_DISPATCHED_ERRORS:
+                    if last['payload'].get('dispatched') is False and (code in NOT_DISPATCHED_ERRORS or
+                        last['payload'].get('dispatch_protocol')==2 and last['payload'].get('dispatch_state')=='not_sent'):
                         res = {'status':'blocked' if code == 'AUTHORIZATION_CHANGED' else 'failed',
                                'agent':name,'error_class':code,'call_id':last['id'],
                                'output':{'claims':[],'missing':['外部调用未发送；保留已记录的失败，不自动重试']}}
@@ -204,9 +229,13 @@ class AdaptiveRun:
                 # A dispatch reservation survives crashes. An absent completion is NOT permission to bill again.
                 res = {'status':'unknown','agent':name,'error_class':'REMOTE_OUTCOME_UNKNOWN',
                        'output':{'claims':[],'missing':['中断时外部结果未知；没有自动重发，需新计划明确授权重做']}}
+                for call in reservations:
+                    if call['state'] in ('reserved','sent'):
+                        self.close_call(call['id'],'unknown',{'dispatched':True if call['payload'].get('dispatched') is True else None,
+                            'dispatch_state':'unknown','remote_outcome_known':False,'error_class':'REMOTE_OUTCOME_UNKNOWN'})
+                # Close reservations first: a crash before the immutable node
+                # checkpoint must not leave possible disclosure marked reserved.
                 self.record(n, res, 'unknown')
-                with self.store.transaction() as db:
-                    db.execute("UPDATE adaptive_calls SET state='unknown',updated_at=? WHERE run_id=? AND node_id=? AND state IN ('reserved','sent')",(now(),self.id,name))
                 self.event('unknown_call_not_repeated', {'node':name})
             else:
                 self.event('local_checkpoint_recompute', {'node':name,'reason':'中断的只读确定性步骤可安全重算'})
@@ -273,7 +302,7 @@ class AdaptiveRun:
             if binding not in allowed:
                 return None, 'UNAPPROVED_PROVIDER'
             prior = self.store.all('SELECT * FROM adaptive_calls WHERE run_id=? AND node_id=? ORDER BY created_at,id', (self.id, n['id']))
-            if prior and (any(c['state'] != 'failed' or not re.fullmatch(r'MODEL_HTTP_429(?:_[A-Za-z0-9_]{1,40})?', c['payload'].get('error_class', '')) for c in prior) or any(c['provider'] == binding['id'] for c in prior)):
+            if prior and (any(c['state'] != 'failed' or (c['payload'].get('dispatch_protocol')==2 and (c['payload'].get('dispatched') is not True or c['payload'].get('remote_outcome_known') is not True)) or not re.fullmatch(r'MODEL_HTTP_429(?:_[A-Za-z0-9_]{1,40})?', c['payload'].get('error_class', '')) for c in prior) or any(c['provider'] == binding['id'] for c in prior)):
                 return None, 'NODE_ALREADY_DISPATCHED'
             control=db.execute('SELECT status FROM adaptive_controls WHERE run_id=?',(self.id,)).fetchone()
             if not control or control['status']!='active':return None,'PAUSE_REQUESTED'
@@ -285,12 +314,32 @@ class AdaptiveRun:
             if not self.st['consent'] or not self.authorization_valid(binding):return None,'AUTHORIZATION_CHANGED'
             call_id=uid();at=now()
             metadata={**disclosure,'request_hash':digest(prompt),'plan_id':self.st['plan_id'],
-                      'plan_fingerprint':self.st['fingerprint'],'graph_version':self.version,'usage':{}}
+                      'plan_fingerprint':self.st['fingerprint'],'graph_version':self.version,'usage':{},
+                      'dispatch_protocol':2,'dispatch_state':'reserved'}
             db.execute('INSERT INTO adaptive_calls VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-                (call_id,self.id,self.user_id,n['id'],binding['id'],binding['model'],'sent',len(prompt),encode(metadata),at,at))
-            self.store.event(db,self.id,'external_dispatch',{'node':n['id'],'agent':n['id'],'call_id':call_id,
+                (call_id,self.id,self.user_id,n['id'],binding['id'],binding['model'],'reserved',len(prompt),encode(metadata),at,at))
+            self.store.event(db,self.id,'external_call_reserved',{'node':n['id'],'agent':n['id'],'call_id':call_id,
                 'provider':binding['id'],'model':binding['model'],'characters':len(prompt),**metadata,'consent':True})
             return call_id,None
+
+    def mark_dispatch(self, call_id, *, boundary, binding=None):
+        with self.store.transaction() as db:
+            row=self.store.one('SELECT * FROM adaptive_calls WHERE id=? AND run_id=? AND user_id=?',(call_id,self.id,self.user_id))
+            if not row:
+                if binding is not None:raise ValueError('MODEL_AUTHORIZATION_CHANGED')
+                return
+            if binding is not None:
+                current=self.store.one('SELECT state FROM runs WHERE id=?',(self.id,))
+                if not current or current['state']!='running' or not self.authorization_valid(binding):
+                    raise ValueError('MODEL_AUTHORIZATION_CHANGED')
+            if row['state']!='reserved':
+                if binding is not None:raise ValueError('MODEL_AUTHORIZATION_CHANGED')
+                return
+            payload={**row['payload'],'dispatched':True,'dispatch_state':'unknown','remote_outcome_known':False}
+            db.execute("UPDATE adaptive_calls SET state='sent',payload=?,updated_at=? WHERE id=?",(encode(payload),now(),call_id))
+            self.store.event(db,self.id,'external_dispatch',{'node':row['node_id'],'agent':row['node_id'],'call_id':call_id,
+                'provider':row['provider'],'model':row['model'],'characters':row['characters'],**payload,
+                'boundary':boundary,'consent':True})
 
     def close_call(self, call_id, state, metadata):
         with self.store.transaction() as db:
@@ -346,12 +395,12 @@ class AdaptiveRun:
             call_id,error=self.reserve_call(n,b,prompt,disclosure)
             if not call_id:
                 return {'agent':n['id'],'status':'blocked','error_class':error,'output':{'claims':[],'missing':[error]}}
-            started=time.monotonic()
+            started=time.monotonic();response_received=False
             try:
                 self.worker.ensure_running(self.id)
                 p=self.providers.select(b['id'])
                 if not p or not self.authorization_valid(b):
-                    self.close_call(call_id,'failed',{'error_class':'AUTHORIZATION_CHANGED','remote_outcome_known':True,'dispatched':False})
+                    self.close_call(call_id,'failed',{'error_class':'AUTHORIZATION_CHANGED','remote_outcome_known':True,'dispatched':False,'dispatch_state':'not_sent'})
                     return {'agent':n['id'],'status':'blocked','error_class':'AUTHORIZATION_CHANGED','call_id':call_id,'output':{'claims':[],'missing':['外部调用前授权已改变']}}
                 # A slow DNS/TLS handshake is another revocation boundary. Copy
                 # the selected configuration: server providers are shared across
@@ -363,30 +412,47 @@ class AdaptiveRun:
                         current = self.store.one('SELECT state FROM runs WHERE id=?', (self.id,))
                         return bool(current and current['state']=='running' and self.authorization_valid(binding))
                     p.dispatch_guard = dispatch_guard
+                    p.dispatch_started = lambda call_id=call_id,binding=b:self.mark_dispatch(call_id,boundary='first_http_send',binding=binding)
                 if cap=='planner':
                     if not hasattr(self.providers,'propose'):raise ValueError('PLANNER_UNSUPPORTED')
                     result=await self.providers.propose(p,prompt)
+                    response_received=True
+                    self.mark_dispatch(call_id,boundary='provider_response')
                     proposal=PlannerProposal.model_validate(result['output']).model_dump()
                     output=proposal
                 else:
                     result=await self.providers.complete(p,SYSTEM+'\n本次职责：'+CAPABILITIES[cap][1],prompt)
+                    response_received=True
+                    self.mark_dispatch(call_id,boundary='provider_response')
                     output=ModelOutput.model_validate(result['output']).model_dump()
                 self.worker.ensure_running(self.id)
                 usage=result.get('usage',{})
                 usage={k:v for k,v in usage.items() if k in ('prompt_tokens','completion_tokens','total_tokens') and isinstance(v,int) and not isinstance(v,bool) and v>=0}
-                self.close_call(call_id,'completed',{'usage':usage,'duration_ms':round((time.monotonic()-started)*1000,2)})
+                self.close_call(call_id,'completed',{'usage':usage,'dispatched':True,'dispatch_state':'sent','remote_outcome_known':True,'duration_ms':round((time.monotonic()-started)*1000,2)})
                 return {'agent':n['id'],'status':'completed','provider':p.id,'model':p.model,'call_id':call_id,'usage':usage,'output':output}
-            except asyncio.CancelledError:
-                self.close_call(call_id,'unknown',{'error_class':'CANCELLED_REMOTE_OUTCOME_UNKNOWN'});raise
+            except asyncio.CancelledError as exc:
+                call=self.store.one('SELECT * FROM adaptive_calls WHERE id=?',(call_id,))
+                dispatched=getattr(exc,'dispatched',True if response_received or call and call['payload'].get('dispatched') is True else None)
+                self.close_call(call_id,'failed' if dispatched is False else 'unknown',{
+                    'error_class':'MODEL_REQUEST_STOPPED' if dispatched is False else 'CANCELLED_REMOTE_OUTCOME_UNKNOWN',
+                    'dispatched':dispatched,'dispatch_state':'not_sent' if dispatched is False else 'unknown',
+                    'remote_outcome_known':dispatched is False})
+                raise
             except Exception as exc:
                 code=str(exc) if re.fullmatch(r'MODEL_[A-Za-z0-9_]{1,100}',str(exc)) else type(exc).__name__
-                unknown = not isinstance(exc, (ValueError, ValidationError))
-                not_dispatched = isinstance(exc, ValueError) and code in NOT_DISPATCHED_ERRORS
+                call=self.store.one('SELECT * FROM adaptive_calls WHERE id=?',(call_id,))
+                acknowledged=bool(re.fullmatch(r'MODEL_HTTP_[0-9]{3}(?:_[A-Za-z0-9_]{1,40})?',code))
+                attempted=response_received or acknowledged or bool(call and call['payload'].get('dispatched') is True)
+                not_dispatched=isinstance(exc,ValueError) and code in NOT_DISPATCHED_ERRORS and not attempted
+                dispatched=getattr(exc,'dispatched',True if attempted else False if not_dispatched else None)
+                if dispatched is True:self.mark_dispatch(call_id,boundary='provider_transport_outcome')
+                unknown=dispatched is not False and (dispatched is None or not isinstance(exc,(ValueError,ValidationError)))
                 self.close_call(call_id,'unknown' if unknown else 'failed',{'error_class':code,'remote_outcome_known':not unknown,
-                    **({'dispatched':False} if not_dispatched else {}),'duration_ms':round((time.monotonic()-started)*1000,2)})
+                    'dispatched':dispatched,'dispatch_state':'not_sent' if dispatched is False else 'unknown' if unknown else 'sent',
+                    'duration_ms':round((time.monotonic()-started)*1000,2)})
                 self.worker.ensure_running(self.id)
                 # Only an acknowledged throttle can use an explicitly approved alternate. Timeouts/unknown outcomes do not.
-                if re.fullmatch(r'MODEL_HTTP_429(?:_[A-Za-z0-9_]{1,40})?',code) and len(seen)<len({x['id'] for x in candidates}):
+                if not unknown and dispatched is True and re.fullmatch(r'MODEL_HTTP_429(?:_[A-Za-z0-9_]{1,40})?',code) and len(seen)<len({x['id'] for x in candidates}):
                     self.event('authorized_fallback',{'node':n['id'],'failed_provider':b['id'],'reason':'HTTP_429','counts_toward_budget':True});continue
                 return {'agent':n['id'],'status':'unknown' if unknown else 'failed','error_class':code,'call_id':call_id,'output':{'claims':[],'missing':['模型未成功返回；保留本地结果，不伪造解释']}}
         return {'agent':n['id'],'status':'failed','output':{'claims':[],'missing':[]}}

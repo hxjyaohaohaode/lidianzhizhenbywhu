@@ -33,6 +33,7 @@ class Provider:
     model: str
     key: str = field(repr=False)
     dispatch_guard: Callable[[], bool] | None = field(default=None, repr=False, compare=False)
+    dispatch_started: Callable[[], None] | None = field(default=None, repr=False, compare=False)
 
 
 # Preserve existing deployments' model choices. All model names remain configurable;
@@ -121,6 +122,7 @@ class ProviderService:
             deadline.remaining()
             guard = getattr(p, 'dispatch_guard', None)
             deadline.guard = guard
+            deadline.on_send = getattr(p, 'dispatch_started', None)
             deadline.authorize()
             conn.request('POST', p.path, body, {'Authorization': f'Bearer {p.key}',
                          'Content-Type': 'application/json', 'Accept-Encoding': 'identity'})
@@ -199,10 +201,15 @@ class ProviderService:
             result = await asyncio.wait_for(asyncio.shield(task), timeout=self.timeout)
             self.failures[p.id] = 0
             return result
-        except Exception as exc:
+        except BaseException as exc:
+            # Stop and synchronize with the actual first-send boundary before
+            # reporting disclosure. DNS/TLS failure or cancellation can then be
+            # proved unsent; an attempted socket write stays possibly sent.
+            deadline.stop()
+            exc.dispatched = deadline.sent
             # A local consent change is not a supplier outage and must not open
             # a shared provider circuit for another account's valid work.
-            if str(exc) != 'MODEL_AUTHORIZATION_CHANGED':
+            if isinstance(exc, Exception) and str(exc) != 'MODEL_AUTHORIZATION_CHANGED':
                 self.failures[p.id] = self.failures.get(p.id, 0) + 1
                 if self.failures[p.id] >= 3:
                     self.open_until[p.id] = time.monotonic() + 60

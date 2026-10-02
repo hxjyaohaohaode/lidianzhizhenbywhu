@@ -269,7 +269,11 @@ def main():
             unchanged=require(c.put('/api/services/watches/'+watch['id'],json={**spec,'version':watch['version']}));assert unchanged['version']==watch['version']
             assert len(require(c.get('/api/services/tracking'))['alerts'])==len(tracking['alerts'])
             action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={'version':action['version'],'status':'in_progress'}))
-            action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={'version':action['version'],'status':'done','note':'已核对隔离测试凭证并明确其局限','evidence_ids':[e['id']]}))
+            evidence_selection=next(row for row in require(c.get('/api/workspace/evidence'))['items'] if row['id']==e['id'])
+            proof={key:evidence_selection[key] for key in ('id','version','content_hash','review_version')}
+            completion={'version':action['version'],'status':'done','note':'已核对隔离测试凭证并明确其局限','evidence_ids':[e['id']]}
+            assert c.put('/api/workspace/actions/'+action['id']+'/status',json=completion).status_code==422
+            action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={**completion,'evidence_refs':[proof]}))
             assert action['payload']['history'][-1]['evidence_snapshots'][0]['content_hash']==e['content_hash']
             feedback=require(c.get('/api/workspace/runs/'+linked_run['id']+'/assessment'))['review_context'];assert feedback['related_actions'][0]['status']=='done'
             require(c.post('/api/workspace/runs/'+linked_run['id']+'/assessment',json={'verdict':'useful','note':'已参考关联行动的实际验收记录','expected_capabilities':['quant','sensitivity'],'consent_replay':True,'review_context_hash':feedback['hash']}))

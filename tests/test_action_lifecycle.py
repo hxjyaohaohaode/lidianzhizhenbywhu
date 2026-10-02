@@ -105,10 +105,11 @@ def test_legacy_copilot_action_can_be_edited_without_rewriting_history(actor):
 def test_action_evidence_selection_rechecks_scope_and_eligibility(actor):
     row=create(actor,company='测试企业');route='/workspace/actions/'+row['id']+'/status'
     evidence=ok(actor.post('/evidence',json={'title':'合成原始验收资料','text':'用于测试行动关联的原始证据。'*15,'company':'其他企业'}),201)
-    body={'version':1,'status':'in_progress','note':'启动关联证据核对','evidence_ids':[evidence['id']]}
+    body={'version':1,'status':'in_progress','note':'启动关联证据核对','evidence_ids':[evidence['id']],'evidence_refs':[actor.evidence_ref(evidence)]}
     assert actor.put(route,json=body).status_code==409
     catalog=ok(actor.get('/workspace/evidence'))['items'];doc=next(e for e in catalog if e['id']==evidence['id'])
     ok(actor.put('/workspace/evidence/'+evidence['id']+'/review',json={'version':doc['review_version'],'company':'测试企业','status':'accepted','note':'人工核对原文及企业适用范围'}))
+    body['evidence_refs']=[actor.evidence_ref(evidence)]
     revised=ok(actor.put(route,json=body))
     assert revised['payload']['history'][-1]['evidence_ids']==[evidence['id']]
     foreign=Actor(actor.client)
@@ -129,7 +130,7 @@ def test_action_rejects_evidence_that_became_unavailable(actor,review):
     selected=next(e for e in ok(actor.get('/workspace/evidence'))['items'] if e['id']==doc['id'])
     assert selected['eligible']
     ok(actor.put('/workspace/evidence/'+doc['id']+'/review',json={'version':selected['review_version'],'company':'测试企业',**review}))
-    assert actor.put('/workspace/actions/'+row['id']+'/status',json={'version':1,'status':'in_progress','note':'使用已失效的旧选择应被拒绝','evidence_ids':[doc['id']]}).status_code==409
+    assert actor.put('/workspace/actions/'+row['id']+'/status',json={'version':1,'status':'in_progress','note':'使用已失效的旧选择应被拒绝','evidence_ids':[doc['id']],'evidence_refs':[{k:selected[k] for k in ('id','version','content_hash','review_version')}]}).status_code==409
     assert ok(actor.get('/workspace/actions'))['items'][0]['version']==1
 
 

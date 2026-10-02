@@ -132,7 +132,7 @@ def test_real_transport_rechecks_consent_after_dns(factory,monkeypatch,engine,mu
 
 
 @pytest.mark.parametrize('ending',['cancel','shutdown'])
-def test_cancelled_real_dns_worker_never_sends_or_restores_unknown_call(factory,monkeypatch,ending):
+def test_cancelled_real_dns_worker_preserves_proven_unsent_call_without_retry(factory,monkeypatch,ending):
     import asyncio
     import threading
     from server.providers import ProviderService
@@ -162,19 +162,22 @@ def test_cancelled_real_dns_worker_never_sends_or_restores_unknown_call(factory,
     result=actor.get('/runs/'+run['id']).json()
     assert result['result'] is None and sent==[] and lookups==[True]
     calls=actor.get('/workspace/runs/'+run['id']+'/runtime').json()['calls']
-    assert calls and all(call['state']=='unknown' for call in calls)
+    assert calls and all(call['state']=='failed' and call['payload']['dispatched'] is False
+                         and call['payload']['dispatch_state']=='not_sent' for call in calls)
     if ending=='shutdown':
         rt=actor.get('/workspace/runs/'+run['id']+'/runtime').json()
         response=actor.post('/workspace/runs/'+run['id']+'/control',json={'version':rt['control']['version'],'action':'resume'})
         assert response.status_code==200,response.text
         # Prevent other previously unstarted model nodes from dispatching, while
-        # proving the reserved unknown node is reused rather than paid again.
+        # proving the known-unsent failure is reused rather than paid again.
         providers.vault.delete(actor.user['id'],run['payload']['provider'],1)
         restored=actor.execute(actor.get('/runs/'+run['id']).json())
         assert restored['state']=='degraded' and restored['result']
         assert sent==[] and lookups==[True]
         events=actor.get('/runs/'+run['id']+'/trace').json()['items']
-        assert any(e['type']=='unknown_call_not_repeated' for e in events)
+        assert any(e['type']=='known_call_failure_reused' for e in events)
+        assert not any(e['type']=='external_dispatch' for e in events)
+        assert restored['result']['memory_used']==[] and restored['result']['citation_ids_sent']==[]
 
 
 def test_concurrent_accounts_do_not_share_dispatch_guards(factory,monkeypatch):

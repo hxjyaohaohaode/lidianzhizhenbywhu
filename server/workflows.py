@@ -25,8 +25,11 @@ class Worker:
         with self.store.transaction() as db:
             stale=db.execute("SELECT id,user_id FROM runs WHERE state='running'").fetchall()
             for row in stale:
-                db.execute("UPDATE runs SET state='interrupted',error=?,updated_at=? WHERE id=?",('服务重启中断；可显式重试，未伪装为成功。',now(),row['id']))
-                self.store.event(db,row['id'],'interrupted',{'message':'服务重启中断'})
+                resumable=bool(db.execute('SELECT 1 FROM adaptive_controls WHERE run_id=?',(row['id'],)).fetchone())
+                message=('服务重启中断；可显式继续，未知外部调用不会重发。' if resumable else
+                         '服务重启中断；旧运行不支持断点继续，可取消后清理计划；继续研究需新建并批准计划。')
+                db.execute("UPDATE runs SET state='interrupted',error=?,updated_at=? WHERE id=?",(message,now(),row['id']))
+                self.store.event(db,row['id'],'interrupted',{'message':message,'resume_supported':resumable})
                 self.store.audit(db,row['user_id'],'runs',row['id'],'interrupted')
         self.runner=asyncio.create_task(self.loop())
 
@@ -147,7 +150,7 @@ class Worker:
 
     def cancel(self,user,id):
         with self.store.transaction() as db:
-            c=db.execute("UPDATE runs SET state='cancelled',updated_at=? WHERE id=? AND user_id=? AND (state IN ('queued','running') OR (state='interrupted' AND EXISTS(SELECT 1 FROM adaptive_controls WHERE run_id=runs.id AND status IN ('paused','pause_requested'))))",(now(),id,user))
+            c=db.execute("UPDATE runs SET state='cancelled',updated_at=? WHERE id=? AND user_id=? AND state IN ('queued','running','interrupted')",(now(),id,user))
             if c.rowcount:
                 self.store.event(db,id,'cancelled',{'message':'已阻止后续提交；已发出的外部请求可能仍被供应商计费。'});self.store.audit(db,user,'runs',id,'cancelled')
         if c.rowcount and id in self.active:self.active[id].cancel()

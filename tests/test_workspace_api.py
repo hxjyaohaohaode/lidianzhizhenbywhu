@@ -241,7 +241,7 @@ def test_action_state_machine_ownership_cas_and_no_silent_acceptance(actor):
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'done','note':'使用过期版本不能完成'}).status_code==409
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':''}).status_code==422
     b=Actor(actor.client);doc,_=evidence(b)
-    assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'不能引用另一个用户的证据','evidence_ids':[doc['id']]}).status_code==404
+    assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'不能引用另一个用户的证据','evidence_ids':[doc['id']],'evidence_refs':[b.evidence_ref(doc)]}).status_code==404
     done=good(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'已核对并保留来源记录'}))
     assert done['payload']['status']=='done' and len(done['payload']['history'])==3
     opened=good(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':3,'status':'open'}));assert opened['version']==4

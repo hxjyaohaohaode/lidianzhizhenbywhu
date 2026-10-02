@@ -57,7 +57,23 @@ def crash_before_checkpoint(actor, runner, specialist, monkeypatch):
 
 
 def use_legacy_closure(runner, monkeypatch):
+    # Generate an actual old-release fixture: sent/dispatch at reservation,
+    # without the new transport protocol or first-send callback, then no closure
+    # event. Never rewrite a persisted event and its integrity chain afterward.
+    original_event = runner.store.event
+    def legacy_event(db, run_id, kind, payload):
+        if kind == 'external_call_reserved':
+            payload = {k:v for k,v in payload.items() if k not in {'dispatch_protocol','dispatch_state'}}
+            call = runner.store.one('SELECT * FROM adaptive_calls WHERE id=?', (payload['call_id'],))
+            metadata = {k:v for k,v in call['payload'].items() if k not in {'dispatch_protocol','dispatch_state'}}
+            db.execute("UPDATE adaptive_calls SET state='sent',payload=? WHERE id=?", (encode(metadata), call['id']))
+            kind = 'external_dispatch'
+        return original_event(db, run_id, kind, payload)
+    monkeypatch.setattr(runner.store, 'event', legacy_event)
+    monkeypatch.setattr(runner, 'mark_dispatch', lambda *args, **kwargs: None)
     def legacy_close_call(call_id, state, metadata):
+        metadata = {k:v for k,v in metadata.items() if k != 'dispatch_state' and
+                    (state != 'completed' or k not in {'dispatched','remote_outcome_known'})}
         # The previous release persisted closure metadata without a closure event.
         with runner.store.transaction() as db:
             payload = runner.store.one('SELECT payload FROM adaptive_calls WHERE id=?', (call_id,))['payload']
@@ -248,7 +264,8 @@ def test_non_dispatched_recovery_requires_untampered_closure_evidence(factory, t
             db.execute("UPDATE run_events SET payload='{}' WHERE run_id=? AND type='external_call_closed'", (row['id'],))
         else:
             db.execute("DELETE FROM run_events WHERE run_id=? AND type='external_call_closed'", (row['id'],))
-    expected = 'CHECKPOINT_EVENT_CHAIN_INVALID' if tamper == 'closure_event' else 'CALL_CLOSURE_INTEGRITY_FAILED'
+    expected = ('CHECKPOINT_EVENT_CHAIN_INVALID' if tamper == 'closure_event' else
+                'DISPATCH_LEDGER_INTEGRITY_FAILED' if tamper == 'state' else 'CALL_CLOSURE_INTEGRITY_FAILED')
     with pytest.raises(RuntimeError, match=expected):
         AdaptiveRun(actor.client.app.state.worker, row['id']).verify_restore()
     assert runner.store.all('SELECT * FROM agent_artifacts WHERE run_id=?', (row['id'],)) == []
@@ -273,6 +290,7 @@ def test_call_closure_and_event_anchor_commit_atomically(factory, monkeypatch):
             'remote_outcome_known':True, 'dispatched':False})
     assert runtime(actor, row)['calls'] == [original]
     assert not runner.store.all("SELECT * FROM run_events WHERE run_id=? AND type='external_call_closed'", (row['id'],))
+    monkeypatch.setattr(runner.store, 'event', event)  # restart with writable storage
     restored_twice(actor, row, 'unknown', 'unknown')
 
 

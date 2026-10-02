@@ -204,3 +204,48 @@ def test_followup_does_not_reintroduce_unrelated_growth_or_turnover(actor,query,
     assert scope['topics']==expected
     assert [fact['id'] for fact in response['facts']]==expected
     assert response['external_calls']==0
+
+
+@pytest.mark.parametrize('query,expected',[
+    ('净利润率',['net_margin']),
+    ('2025-Q3净利润率同比',['net_margin']),
+    ('净利润比率',['net_margin']),
+    ('NET PROFIT MARGIN',['net_margin']),
+    ('net profit margin growth',['net_margin']),
+    ('净利润率和净利润',['net_margin','net_profit']),
+    ('净利润与净利润率',['net_margin','net_profit']),
+    ('net profit and net profit margin',['net_margin','net_profit']),
+    ('net profit margin and net profit',['net_margin','net_profit']),
+    ('净利润',['net_profit']),
+    ('net profit',['net_profit']),
+])
+def test_net_margin_masks_only_the_embedded_profit_amount_alias(example,query,expected):
+    scope=resolve_question(query,example,[])
+    assert scope['can_calculate'] and scope['topics']==expected
+
+
+@pytest.mark.parametrize('query',['2025-Q3净利润率同比','2025-Q3 net profit margin'])
+def test_net_profit_margin_uses_ratio_value_formula_and_units_in_both_assistants(actor,query):
+    d=actor.dataset();source=next(p for p in d['payload']['periods'] if p['period']=='2025-Q3')
+    legacy=ok(actor.post('/workspace/assistant',json={'query':query,'dataset_id':d['id']}))
+    service=ok(message(actor,thread(actor,d),text=query),201)['message']['payload']['response']
+    for result in (legacy,service):
+        assert [f['id'] for f in result['facts']]==['net_margin']
+        fact=result['facts'][0]
+        assert fact['value']==pytest.approx(source['net_profit']/source['revenue'])
+        assert fact['period']==source['period'] and fact['input_hash']==d['content_hash']
+        assert '净利润/收入' in fact['formula']
+        assert {i['path'] for i in fact['inputs']}=={
+            f"periods/{source['period']}/net_profit",f"periods/{source['period']}/revenue"}
+    assert service['facts'][0]['unit']=='ratio' and service['facts'][0]['display_value'].endswith('%')
+    assert service['external_calls']==legacy['external_calls']==0
+
+
+def test_followup_can_switch_from_profit_amount_to_margin_without_leaking_amount(actor):
+    d=actor.dataset();t=thread(actor,d)
+    ok(message(actor,t,text='2025-Q3净利润环比'),201)
+    response=ok(message(actor,t,text='继续看净利润率',version=2,key='net-profit-margin-followup'),201)['message']['payload']['response']
+    scope=response['context']['question_scope']
+    assert scope['period']=='2025-Q3' and scope['comparison']=='previous'
+    assert scope['topics']==['net_margin'] and [f['id'] for f in response['facts']]==['net_margin']
+    assert response['facts'][0]['unit']=='ratio'

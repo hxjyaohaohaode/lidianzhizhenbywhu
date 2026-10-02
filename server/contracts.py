@@ -138,12 +138,19 @@ class ActionTransition(StrictModel):
     version: StorageInteger = Field(ge=1)
     status: Literal['open', 'in_progress', 'blocked', 'done', 'dismissed']
     note: str = Field(default='', max_length=2000)
-    evidence_ids: list[str] = Field(default_factory=list, max_length=10)
-    evidence_refs: list[EvidenceRef] = Field(default_factory=list, max_length=10)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=10,
+        description='可选的兼容标识列表；非空时必须与 evidence_refs 的标识完全一致，不能单独提交')
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list, max_length=10,
+        description='每项新关联证据必须携带用户已查看的原文版本、指纹和审阅版本；无证据时可留空')
     @model_validator(mode='after')
     def completion_proof(self):
         if self.status in ('done', 'blocked', 'dismissed') and len(self.note.strip()) < 5:
             raise ValueError('完成、阻塞或搁置时必须记录具体原因或验收结果')
+        ref_ids=[ref.id for ref in self.evidence_refs]
+        if len(set(ref_ids))!=len(ref_ids) or len(set(self.evidence_ids))!=len(self.evidence_ids):
+            raise ValueError('同一依据不能重复选择')
+        if self.evidence_ids and set(self.evidence_ids)!=set(ref_ids):
+            raise ValueError('每项关联证据必须携带对应的原文版本、指纹和审阅版本，请刷新后重新选择')
         return self
 
 

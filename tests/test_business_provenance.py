@@ -180,7 +180,7 @@ def test_completion_rejects_stale_evidence_selection_and_foreign_evidence(actor)
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress','evidence_refs':[ref]}).status_code==409
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress','evidence_refs':[ref,ref]}).status_code==422
     other=Actor(actor.client);foreign=ok(other.post('/evidence',json={'title':'其他账户私密凭据','text':'绝不能跨账户关联的测试凭据。'*20,'company':d['payload']['company']}),201)
-    assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress','evidence_ids':[foreign['id']]}).status_code==404
+    assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress','evidence_ids':[foreign['id']],'evidence_refs':[other.evidence_ref(foreign)]}).status_code==404
     assert actions(actor)[0]['version']==1
 
 
@@ -487,7 +487,7 @@ def test_action_watch_retains_completion_evidence_dependency_after_later_rejecti
     d=actor.dataset();a=ok(action(actor,d),201)
     doc=ok(actor.post('/evidence',json={'title':'行动完成依据用于后续跟踪','text':'隔离测试完成后续跟踪依据。'*30,'company':d['payload']['company']}),201)
     ok(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress'}))
-    completed=ok(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'逐项核对并保留此原始完成凭据','evidence_ids':[doc['id']]}))
+    completed=ok(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'逐项核对并保留此原始完成凭据','evidence_ids':[doc['id']],'evidence_refs':[actor.evidence_ref(doc)]}))
     w=watch(actor,d,source_ref=action_ref(completed));p=w['payload']['provenance']
     proof=p['action_acceptance_evidence'][0]
     assert proof['id']==doc['id'] and proof['content_hash']==doc['content_hash'] and proof['review_version']==1
