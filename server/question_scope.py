@@ -62,6 +62,8 @@ def resolve_question(text, data, defaults):
         r'|(?<![a-z0-9])(?:fixed|current)\s+asset\s+turnover(?![a-z0-9])'
         r'|(?<![a-z0-9])turnover\s+(?:days|period)(?![a-z0-9])',q)
     unsupported_turnover=bool(turnover_subtype) or '周转' in turnover_remainder or matches(turnover_remainder,'turnover')
+    gross_profit_amount=bool(re.search(r'毛利(?:润)?\s*(?:的\s*)?(?:总?金额|总额|数额|额)|毛利润(?!\s*(?:率|比率))'
+        r'|(?<![a-z0-9])gross[\s-]+profit(?![\s-]+margin\b)(?![a-z0-9])',q))
     previous=any(w in q for w in ('环比','上一季度','上季','previous quarter'))
     yearly=any(w in q for w in ('同比','上年同季','去年同季','year over year'))
     comparison='previous' if previous else 'year_over_year'
@@ -90,6 +92,8 @@ def resolve_question(text, data, defaults):
         status='needs_clarification';notice='当前数据按单季度保存；年度、月份、无效季度或额外年份不会擅自当作最近一季或自动汇总，请明确单个目标季度。'
     elif quarters and period not in available:
         status='period_unavailable';notice=f'已保存输入没有{period}，不能用最近一季代替；请先补充该季度原始数据。'
+    elif gross_profit_amount:
+        status='unsupported_topic';notice='毛利额或毛利润是金额；当前问答没有提供该金额指标，不能用毛利率百分比替代。请核对原始财务表中的收入与成本，或明确改问已支持的毛利率。'
     elif unsupported_turnover:
         status='unsupported_topic';notice='当前不支持该周转指标或未明确对象的周转问题；本地仅可核查存货/库存周转率与总资产周转率，不支持应收账款、固定/流动资产周转或周转天数。请将受支持指标单独提问，不用另一指标或单位代替。'
     elif not topics and any(w in q for w in ('证据','资料','记忆','偏好','任务','执行','断点','行动','待办','跟进','截止','情景','敏感','假设','涨价','跌价')):

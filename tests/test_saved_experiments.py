@@ -177,7 +177,7 @@ def test_legacy_forecast_without_asof_remains_readable_but_cannot_be_reused(acto
 
 @pytest.mark.parametrize('extra',[{'dataset_version':99},{'dataset_hash':'0'*64},{'target_period':'2024-Q1'}])
 def test_create_experiment_rechecks_explicit_input_version_and_period(actor,extra):
-    d=actor.dataset();r=actor.post('/workspace/experiments',json={'dataset_id':d['id'],'kind':'scenario','name':'隔离实验','assumptions':'仅用于隔离参数校验',**extra})
+    d=actor.dataset();r=actor.post('/workspace/experiments',json={'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],'kind':'scenario','name':'隔离实验','assumptions':'仅用于隔离参数校验',**extra})
     assert r.status_code==409 and actor.get('/workspace/experiments').json()['items']==[]
 
 

@@ -44,7 +44,7 @@ def test_scoped_experiments_are_shared_by_allowed_dataset(actor):
     d=actor.dataset();other=actor.dataset()
     i=ok(actor.post('/services/identities',json={'name':'企业范围','dataset_ids':[d['id']]}),201)
     for ds in (d,other):
-        ok(actor.post('/workspace/experiments',json={'dataset_id':ds['id'],'name':'用户指定情景','kind':'scenario','assumptions':'测试中的显式零变化假设'}),201)
+        ok(actor.post('/workspace/experiments',json={'dataset_id':ds['id'],'dataset_version':ds['version'],'dataset_hash':ds['content_hash'],'name':'用户指定情景','kind':'scenario','assumptions':'测试中的显式零变化假设'}),201)
     rows=ok(actor.get('/workspace/experiments?identity_id='+i['id']))
     assert len(rows['items'])==1 and rows['items'][0]['payload']['dataset_id']==d['id']
     assert len(ok(actor.get('/workspace/experiments'))['items'])==2

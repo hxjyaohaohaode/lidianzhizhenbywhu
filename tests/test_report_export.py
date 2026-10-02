@@ -83,7 +83,8 @@ def test_signed_search_origin_survives_display_edit_plan_and_readable_export(act
     p=preview.json();citation=p['payload']['snapshot']['citations'][0];packed=p['payload']['context']['evidence'][0]
     assert citation['original_source_url']==original and citation['url']==display
     assert packed['source_kind']=='search_snippet' and packed['verification']=='search_snippet_unverified'
-    assert packed['source_url']==display and packed['original_source_url']==original and packed['retrieved_at']==captured
+    assert 'source_url' not in packed and 'original_source_url' not in packed
+    assert packed['retrieved_at']==captured
     assert packed['fetched_at'] is None
     run=actor.post('/workspace/plans/'+p['id']+'/execute',json={'version':p['version'],'fingerprint':p['payload']['fingerprint']});assert run.status_code==202,run.text
     actor.execute(run.json())

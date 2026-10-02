@@ -32,8 +32,7 @@ def calculate_experiment(payload):
 
 
 def create_payload(dataset, request):
-    if ((request.dataset_version is not None and request.dataset_version != dataset['version'])
-            or (request.dataset_hash is not None and request.dataset_hash != dataset['content_hash'])):
+    if request.dataset_version != dataset['version'] or request.dataset_hash != dataset['content_hash']:
         fail('EXPERIMENT_STALE', '财务输入已变化，请刷新后重新计算实验', 409)
     target = request.target_period or max(p['period'] for p in dataset['payload']['periods'])
     if target not in {p['period'] for p in dataset['payload']['periods']}:

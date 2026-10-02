@@ -12,6 +12,7 @@ from .analytics import quality_report,lineage
 from .intelligence import scoped_retrieve,profile_for
 from . import workspace_store as ws
 from .question_scope import analysis_dataset, plan_scope
+from .model_context import provider_context
 
 AGENTS = [
     {'id':'quality','name':'数据核验','engine':'deterministic','purpose':'口径、缺失、期间与异常检查','tools':['quality_report'], 'depends_on':[]},
@@ -56,6 +57,7 @@ def pack_context(snapshot,query,mode,limit):
         'preferences':snapshot['preferences'],'objective':snapshot['profile'],
         'approved_memory':[{'id':m['id'],'text':m['text'],'kind':m['kind']} for m in snapshot['memory']],
         'history':snapshot.get('history',[]), 'data_limits':a['warnings'],'research_scope':snapshot.get('research_scope'),'service_identity':snapshot.get('identity')}
+    obj=provider_context(obj)
     if snapshot.get('experiment'):
         from .saved_experiments import provenance
         obj['selected_experiment']=provenance(snapshot['experiment'])
@@ -148,7 +150,7 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
         'packing':packing,'bindings':bindings,'nodes':nodes,'call_ids':call_ids,
         'max_calls':len(call_ids),'requested_max_calls':body.max_calls if body.use_llm else 0,
         'excluded_memory':excluded,'blockers':blockers,'quality':quality_report(analysis_dataset(snapshot),today=date.fromisoformat(snapshot['analysis_as_of'])),
-        'consent_scope':['问题','指标','选中证据片段','装配后的已批准记忆','已选择的会话历史','企业目标与偏好'] if body.use_llm else [],
+        'consent_scope':['问题','指标','选中证据片段、标识、企业范围、审阅/核验状态、来源类型与时间信息（当前展示与原始采集地址元数据保留本地；片段正文按预览发送）','装配后的已批准记忆','已选择的会话历史','企业目标与偏好'] if body.use_llm else [],
         'created_at':now(),'run_id':None}
     from .autonomy import attach_plan
     attach_plan(store,user,payload,providers)
@@ -375,7 +377,9 @@ async def perform_studio(worker,id):
                         return not changed
                     if not dispatch_guard():
                         return {'agent':name,'status':'blocked','error_class':'AUTHORIZATION_CHANGED','output':{'claims':[],'missing':['审批后记忆、证据、偏好或模型配置发生变化，未继续外发，请重新预览计划']}}
-                    obj=dict(st['context'])
+                    # Apply the same minimum disclosure to older saved plans,
+                    # without rewriting their approved snapshots/fingerprints.
+                    obj=provider_context(st['context'])
                     if name=='challenger':
                         # Bounded, quarantined peer output. No raw tool commands are executed.
                         obj['prior_hypotheses']=[c for output in outputs for c in output.get('claims',[])][:2]

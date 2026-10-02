@@ -260,7 +260,7 @@ def test_enterprise_targets_and_dismissals_do_not_rewrite_math(actor):
 
 def test_experiment_frozen_and_reports_stale_after_data_edit(actor):
     d=dataset(actor);run=execute(actor,plan(actor,d))
-    e=good(actor.post('/workspace/experiments',json={'dataset_id':d['id'],'name':'frozen scenario','kind':'scenario','price_change':.05,'fixed_cost_share':.2,'assumptions':'测试假设，仅核对冻结输入'}),201)
+    e=good(actor.post('/workspace/experiments',json={'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],'name':'frozen scenario','kind':'scenario','price_change':.05,'fixed_cost_share':.2,'assumptions':'测试假设，仅核对冻结输入'}),201)
     raw=editable(d);raw['periods'][-1]['revenue']*=2;good(actor.put('/datasets/'+d['id'],json=raw))
     assert good(actor.get('/workspace/experiments/'+e['id']))==e
     assert good(actor.get('/runs/'+run['id']))['result']==run['result']
@@ -273,7 +273,7 @@ def test_experiment_frozen_and_reports_stale_after_data_edit(actor):
 @pytest.mark.parametrize('route',['/workspace/datasets/{dataset}/quality','/workspace/datasets/{dataset}/lineage','/workspace/datasets/{dataset}/revisions','/workspace/plans/{plan}','/workspace/experiments/{experiment}','/workspace/runs/{run}/audit','/workspace/runs/{run}/reviews'])
 def test_new_object_reads_cannot_cross_accounts(actor,route):
     d=dataset(actor);p=plan(actor,d);r=execute(actor,p)
-    e=good(actor.post('/workspace/experiments',json={'dataset_id':d['id'],'name':'private experiment','kind':'scenario','assumptions':'私有数据测试记录'}),201)
+    e=good(actor.post('/workspace/experiments',json={'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],'name':'private experiment','kind':'scenario','assumptions':'私有数据测试记录'}),201)
     b=Actor(actor.client);response=b.get(route.format(dataset=d['id'],plan=p['id'],run=r['id'],experiment=e['id']))
     assert response.status_code==404 and d['payload']['company'] not in response.text
 

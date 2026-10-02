@@ -19,6 +19,7 @@ from .analytics import lineage
 from .studio import SYSTEM
 from .providers import ModelOutput
 from .research_context import CLAIM_CONTRACT_VERSION, project_tools, disclosed_references, omit_tool_details
+from .model_context import provider_context
 from .autonomy import node, validate_graph, CAPABILITIES, MODEL_CAPS, REPLAY_CAPABILITIES, execute_local_capability
 from .autonomy_contracts import PlannerProposal
 from . import workspace_store as ws
@@ -306,7 +307,9 @@ class AdaptiveRun:
         cap=n['capability']; bindings=self.graph['provider_bindings'];role='revision' if cap=='revision' else cap
         binding=bindings.get(role)
         if not binding:return {'agent':n['id'],'status':'unavailable','error_class':'NOT_CONFIGURED','output':{'claims':[],'missing':[]}}
-        obj=copy.deepcopy(self.st['context'])
+        # Old queued/resumed plans retain their immutable local provenance;
+        # only this outbound projection is minimized before budgets and hashes.
+        obj=provider_context(copy.deepcopy(self.st['context']))
         if self.graph.get('model_proposal'):obj['research_focus']=self.graph['model_proposal']['focus']
         # Summaries derive exclusively from the same approved snapshot. No new data sources.
         tool_results=project_tools(self.outputs)

@@ -6637,28 +6637,14 @@
             "title": "Dataset Id"
           },
           "dataset_version": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 9007199254740991.0,
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
             "title": "Dataset Version"
           },
           "dataset_hash": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[a-f0-9]{64}$"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
             "title": "Dataset Hash"
           },
           "target_period": {
@@ -6744,6 +6730,8 @@
         "type": "object",
         "required": [
           "dataset_id",
+          "dataset_version",
+          "dataset_hash",
           "name",
           "kind",
           "assumptions"

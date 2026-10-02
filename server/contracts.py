@@ -149,8 +149,8 @@ class ActionTransition(StrictModel):
 
 class ExperimentRequest(StrictModel):
     dataset_id: str = Field(min_length=1, max_length=80)
-    dataset_version: StorageInteger | None = Field(default=None, ge=1)
-    dataset_hash: str | None = Field(default=None, pattern='^[a-f0-9]{64}$')
+    dataset_version: StorageInteger = Field(strict=True, ge=1)
+    dataset_hash: str = Field(pattern='^[a-f0-9]{64}$')
     target_period: str | None = Field(default=None, pattern='^(19|20)[0-9]{2}-Q[1-4]$')
     name: Text
     kind: Literal['scenario', 'forecast']
