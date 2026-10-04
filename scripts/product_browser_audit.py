@@ -332,14 +332,17 @@ def probe_handoff(p):
     assert cash.count() == 1 and '10,000 元' in cash.inner_text() and '2023-Q2' in cash.inner_text()
     target = f'[data-message="{message_id}"] .trace-container [data-action="assistant-route"][data-route="agents"]'
     button = p.visible(target)
-    assert button.get_attribute('data-query') == wanted
+    bound_query = button.get_attribute('data-query')
+    assert bound_query and all(term in bound_query for term in (wanted, '2023-Q2', '同比', '经营现金流'))
+    assert old not in bound_query and '2024-Q4' not in bound_query
     assert button.get_attribute('data-dataset-id') == p.dataset_id
-    p.observations['handoff_source'] = {'old_plan_question': old, 'expected_question': wanted, 'expected_quarter': '2023-Q2', 'expected_dataset': p.dataset_id, 'actual_button_text': button.inner_text(), 'actual_button_query': button.get_attribute('data-query')}
+    p.observations['handoff_source'] = {'old_plan_question': old, 'original_question': wanted, 'expected_question': bound_query, 'expected_quarter': '2023-Q2', 'expected_dataset': p.dataset_id, 'actual_button_text': button.inner_text(), 'actual_button_query': bound_query}
     p.click(target, after='#plan-form', label='点击追踪回答内真正的“按此问题创建诊断计划”，不替换成侧栏跳转')
     actual = {'question': p.page.locator('#plan-form [name="query"]').input_value(), 'dataset': p.page.locator('#plan-form [name="dataset_id"]').input_value(), 'llm_checked': p.page.locator('#use-llm').is_checked()}
     p.observations['handoff_actual'] = actual
     p.no_external()
-    assert actual['question'] == wanted, f'F1 target question lost: expected {wanted!r}, got {actual["question"]!r}; old control question={old!r}'
+    assert actual['question'] == bound_query, f'F1 target question lost: expected {bound_query!r}, got {actual["question"]!r}; old control question={old!r}'
+    assert wanted in actual['question'] and actual['question'] != old
     assert actual['dataset'] == p.dataset_id and not actual['llm_checked'], actual
 
 
@@ -369,7 +372,7 @@ def probe_forecast(p):
         unit_ok = percentage_display(cells[1], headers, expected_raw) if metric == 'gross_margin' else ('万元' in visible_text and math.isclose(number_text(cells[1]) or 0, expected_raw / 10_000, abs_tol=0.01))
         metric_ok = title in visible_text
         p.observations[metric] = {'independent_expected_raw': expected_raw, 'independent_expected_display': '20%' if metric == 'gross_margin' else '10 万元', 'visible_card_text': visible_text, 'visible_headers': headers, 'visible_first_forecast_row': cells, 'stored_metric': artifact['metric'], 'stored_forecast': artifact['forecast'], 'metric_explicit': metric_ok, 'unit_and_scale_correct': unit_ok}
-        p.step('保存可见预测卡与独立期望：' + title, lambda: None)
+        p.step('滚动到闭合的实际预测卡并核对展示：' + title, lambda: card.scroll_into_view_if_needed())
         if not metric_ok or not unit_ok:
             failures.append(f'{metric}: expected explicit {title} and ' + ('20%' if metric == 'gross_margin' else '10 万元') + f'; headers={headers!r}, values={cells!r}')
         p.step('展开实际回测产物作为旁证，不能以JSON替代可读主卡', lambda: card.locator('summary').filter(has_text='回测、边界与每折结果').click())
