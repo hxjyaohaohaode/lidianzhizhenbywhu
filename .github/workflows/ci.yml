@@ -72,17 +72,76 @@ jobs:
       # This first run holds application bytes to the reviewed e846 baseline.
       # Expected failures remain failures; capture successful and failed steps.
       - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 8a717049f0e764753d7dd9e5db99d3902399906d --expected-server-tree ebab009cecd5cf01c6c76089986a5db5f0143af8
+      - run: python scripts/pack_product_audit.py
+        if: always()
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: product-audit-${{ matrix.os }}
+          name: product-audit-${{ matrix.os }}-summary
           path: |
             evidence/run-context.json
             evidence/product-browser-audit.json
             evidence/product-audit-service-command.json
+            evidence/product-audit-transfer-status.json
             evidence/product-audit*.log
             evidence/product-audit*-events.jsonl
-            evidence/product-audit/
+            evidence/product-audit-transfer/manifest.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-01
+          path: evidence/product-audit-transfer/part-01/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-02
+          path: evidence/product-audit-transfer/part-02/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-03
+          path: evidence/product-audit-transfer/part-03/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-04
+          path: evidence/product-audit-transfer/part-04/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-05
+          path: evidence/product-audit-transfer/part-05/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-06
+          path: evidence/product-audit-transfer/part-06/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-07
+          path: evidence/product-audit-transfer/part-07/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-08
+          path: evidence/product-audit-transfer/part-08/
+          if-no-files-found: ignore
           retention-days: 14
   dependency-audit:
     runs-on: ubuntu-latest

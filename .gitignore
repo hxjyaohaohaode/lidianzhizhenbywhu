@@ -24,5 +24,7 @@ evidence/*.xml
 evidence/*-browser-events.jsonl
 evidence/*-process-events.jsonl
 evidence/product-audit/
+evidence/product-audit-transfer/
+evidence/product-audit-transfer-status.json
 evidence/product-browser-audit.json
 evidence/product-audit-service-command.json

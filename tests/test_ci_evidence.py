@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import subprocess
 import json
+import re
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -106,7 +107,9 @@ def test_new_ci_attempt_clears_generated_outputs_but_preserves_history_and_data(
 def test_artifact_upload_does_not_include_unexecuted_baseline_reports():
     workflow=(ROOT/'.github/workflows/ci.yml').read_text()
     assert workflow.index('python scripts/prepare_evidence.py')<workflow.index('python scripts/verify.py')
-    assert 'path: evidence/' not in workflow
+    # Forbid the entire evidence tree, including block-scalar spelling, while
+    # allowing explicitly bounded current-run fragment directories.
+    assert not re.search(r'^\s*(?:path:\s*)?[\"\']?evidence/?[\"\']?\s*$', workflow, re.MULTILINE)
     assert 'evidence/run-context.json' in workflow and 'evidence/ui-current-*.png' in workflow
     assert 'evidence/pytest-progress.jsonl' in workflow and 'evidence/*.log' in workflow
     assert 'timeout-minutes: 20' in workflow
