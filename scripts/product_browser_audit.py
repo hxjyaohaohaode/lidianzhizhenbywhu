@@ -123,8 +123,14 @@ class Probe:
     def screenshot(self, suffix):
         name = f'{self.step_no:03d}-{suffix}.png'
         path = self.directory / name
-        self.page.screenshot(path=str(path), full_page=True, timeout=FORM_TIMEOUT_MS)
-        self.screenshots.append({'file': name, 'sha256': digest(path)})
+        # Capture the actual viewport before a full-page screenshot can resize
+        # or temporarily move the viewport. Both originals remain in evidence.
+        self.page.screenshot(path=str(path), full_page=False, timeout=FORM_TIMEOUT_MS)
+        self.screenshots.append({'file': name, 'sha256': digest(path), 'kind': 'viewport'})
+        full_name = f'{self.step_no:03d}-{suffix}-full.png'
+        full_path = self.directory / full_name
+        self.page.screenshot(path=str(full_path), full_page=True, timeout=FORM_TIMEOUT_MS)
+        self.screenshots.append({'file': full_name, 'sha256': digest(full_path), 'kind': 'full-page'})
         return name
 
     def step(self, label, action):
@@ -346,80 +352,247 @@ def probe_handoff(p):
     assert actual['dataset'] == p.dataset_id and not actual['llm_checked'], actual
 
 
+# These functions replace only the two outcome probes in the existing harness.
+# They are author-independent expectations; fixtures/results retain the original
+# constants and all writes still pass through actual visible product controls.
+
+VIEWPORT_GEOMETRY = """el => {
+ const r=el.getBoundingClientRect(); let left=Math.max(0,r.left),top=Math.max(0,r.top),right=Math.min(innerWidth,r.right),bottom=Math.min(innerHeight,r.bottom),opacity=1;
+ for(let n=el;n;n=n.parentElement){const s=getComputedStyle(n);opacity*=Number(s.opacity);if(s.display==='none'||s.visibility==='hidden')return {ratio:0,opacity};if(n!==el){const a=n.getBoundingClientRect();if(/auto|scroll|hidden|clip/.test(s.overflowX)){left=Math.max(left,a.left);right=Math.min(right,a.right);}if(/auto|scroll|hidden|clip/.test(s.overflowY)){top=Math.max(top,a.top);bottom=Math.min(bottom,a.bottom);}}}
+ return {ratio:r.width&&r.height?Math.max(0,right-left)*Math.max(0,bottom-top)/(r.width*r.height):0,opacity,box:{x:r.x,y:r.y,width:r.width,height:r.height},scrollY};
+}"""
+
+
+def visible_geometry(locator):
+    if locator.count() != 1:
+        return {'ratio': 0, 'opacity': 0, 'count': locator.count()}
+    return locator.evaluate(VIEWPORT_GEOMETRY)  # Read only; never scroll/set style.
+
+
+def is_in_view(geometry):
+    return geometry.get('ratio', 0) >= .95 and geometry.get('opacity', 0) >= .95
+
+
 def probe_forecast(p):
     p.bootstrap()
     p.navigate('copilot')
     failures = []
     for metric, question, title, expected_raw in (
-        ('gross_margin', '预测毛利率并展示回测依据', '毛利率', (FIXTURE_REVENUE - FIXTURE_COST) / FIXTURE_REVENUE),
+        ('gross_margin', '预测毛利率并展示回测依据', '毛利率', .2),
         ('revenue', '预测营业收入并展示回测依据', '营业收入', FIXTURE_REVENUE),
     ):
         turn = p.ask(question)
-        card = turn.locator('.result-card').filter(has_text='透明基线回测')
-        assert card.count() == 1, 'Forecast card must exist, not a clarification or unsupported-intent response.'
-        card.wait_for(state='visible')
+        message_id = turn.get_attribute('data-message')
+        card = turn.locator('[data-card-kind="forecast"]')
+        card.wait_for(state='visible', timeout=FORM_TIMEOUT_MS)
+        assert card.count() == 1, 'The actual response must contain exactly one forecast card.'
         table = card.locator('table').first
-        table.wait_for(state='visible')
-        headers = table.locator('thead').inner_text()
+        table.wait_for(state='visible', timeout=FORM_TIMEOUT_MS)
+        heading = card.locator('h4')
+        jump = turn.get_by_role('button', name='查看预测结果', exact=True)
+        initial = {'heading': visible_geometry(heading), 'table': visible_geometry(table), 'jump': visible_geometry(jump)}
+        # This occurs before ANY locator click/scroll used to reveal the result.
+        p.step('记录新答复刚到达的原始视口（不得先自动滚动到卡片）', lambda: None)
+        initial_ok = (is_in_view(initial['heading']) and is_in_view(initial['table'])) or is_in_view(initial['jump'])
+        if not initial_ok:
+            failures.append(f'{metric}: new answer hides both its forecast result and the result-locating button below the initial viewport')
+        assert jump.count() == 1, 'A unique real result-locating button is part of this reviewed interaction.'
+        assert jump.get_attribute('data-message') == message_id
+        p.step('真实点击当前答复的“查看预测结果”', lambda: jump.click())
+        after = {'heading': visible_geometry(heading), 'table': visible_geometry(table)}
+        assert is_in_view(after['heading']) and is_in_view(after['table']), after
+        assert card.evaluate('el => el === document.activeElement'), 'Result navigation must focus the intended forecast card.'
+        assert not card.locator('details[open]').count(), 'The readable answer must not depend on opening technical JSON.'
         cells = table.locator('tbody tr').first.locator('td').all_text_contents()
-        visible_text = card.inner_text()  # Keep details closed: raw JSON is not the visible answer.
+        headers = table.locator('thead').inner_text()
+        visible_text = card.inner_text()
         assert len(cells) == 2 and table.locator('tbody tr').count() == 2
-        stored = p.thread()['messages'][-1]['payload']['response']
+        stored = next(m for m in p.thread()['messages'] if m['id'] == message_id)['payload']['response']
         artifact = next(c['data'] for c in stored['cards'] if c['kind'] == 'forecast')
-        assert artifact['metric'] == metric
-        assert len(artifact['forecast']) == 2
-        assert all(math.isclose(v['value'], expected_raw, abs_tol=1e-8) for v in artifact['forecast']), artifact['forecast']
-        unit_ok = percentage_display(cells[1], headers, expected_raw) if metric == 'gross_margin' else ('万元' in visible_text and math.isclose(number_text(cells[1]) or 0, expected_raw / 10_000, abs_tol=0.01))
-        metric_ok = title in visible_text
-        p.observations[metric] = {'independent_expected_raw': expected_raw, 'independent_expected_display': '20%' if metric == 'gross_margin' else '10 万元', 'visible_card_text': visible_text, 'visible_headers': headers, 'visible_first_forecast_row': cells, 'stored_metric': artifact['metric'], 'stored_forecast': artifact['forecast'], 'metric_explicit': metric_ok, 'unit_and_scale_correct': unit_ok}
-        p.step('滚动到闭合的实际预测卡并核对展示：' + title, lambda: card.scroll_into_view_if_needed())
-        if not metric_ok or not unit_ok:
-            failures.append(f'{metric}: expected explicit {title} and ' + ('20%' if metric == 'gross_margin' else '10 万元') + f'; headers={headers!r}, values={cells!r}')
-        p.step('展开实际回测产物作为旁证，不能以JSON替代可读主卡', lambda: card.locator('summary').filter(has_text='回测、边界与每折结果').click())
+        assert artifact['metric'] == metric and len(artifact['forecast']) == 2
+        assert all(math.isclose(v['value'], expected_raw, abs_tol=1e-8) for v in artifact['forecast'])
+        unit_ok = percentage_display(cells[1], headers + visible_text, expected_raw) if metric == 'gross_margin' else ('万元' in visible_text and math.isclose(number_text(cells[1]) or 0, 10, abs_tol=.01))
+        if title not in visible_text or not unit_ok:
+            failures.append(f'{metric}: expected explicit {title} and '+('20%' if metric=='gross_margin' else '10 万元')+f'; row={cells!r}')
+        p.observations[metric] = {'independent_expected_raw': expected_raw, 'independent_expected_display': '20%' if metric=='gross_margin' else '10 万元', 'initial_viewport': initial, 'initial_result_discoverable': initial_ok, 'after_real_jump': after, 'message_id': message_id, 'closed_card_text': visible_text, 'row': cells, 'headers': headers, 'stored_metric': artifact['metric'], 'stored_forecast': artifact['forecast'], 'unit_and_scale_correct': unit_ok}
+        p.step('核对闭合卡的指标、预测期间与单位', lambda: None)
+        p.step('展开实际回测来源和限制作为旁证', lambda: card.locator('summary').filter(has_text='回测、边界与每折结果').click())
     p.no_external()
-    assert not failures, 'F2 forecast interpretation contract failed: ' + '; '.join(failures)
+    assert not failures, 'F2 independent usability/number contract: ' + '; '.join(failures)
+
+
+def select_report_by_human_label(p, side, query, version, expected_id):
+    select = p.visible(f'#report-compare-form [name="{side}"]')
+    options = [{'label': row.inner_text(), 'value': row.get_attribute('value')} for row in select.locator('option').all()]
+    matches = [row for row in options if query in row['label'] and '2024-Q4' in row['label'] and re.search(r'数据修订\s*'+str(version)+r'(?!\d)', row['label'])]
+    assert len(matches) == 1, f'A person must uniquely distinguish source revision {version} from readable option labels: {options}'
+    selected = matches[0]
+    assert selected['value'] == expected_id  # Corroboration after choosing by readable content.
+    assert re.search(r'\d{2}:\d{2}:\d{2}', selected['label']), selected
+    p.step(f'按可读问题、季度、修订{version}选择{side}报告', lambda: select.select_option(label=selected['label']))
+    return selected['label']
+
+
+def check_selection_summary(p, left, right, query):
+    sections = p.page.locator('#report-selection-details section')
+    assert sections.count() == 2
+    for section, run in zip(sections.all(), [left, right]):
+        fields = {row.locator('td').nth(0).inner_text(): row.locator('td').nth(1).inner_text() for row in section.locator('tbody tr').all()}
+        assert fields.get('研究问题') == query and fields.get('目标季度') == '2024-Q4', fields
+        assert fields.get('数据修订') == str(run['result']['dataset_version']), fields
+        assert fields.get('报告标识') == run['id'], fields
+        assert re.search(r'\d{2}:\d{2}:\d{2}', fields.get('生成时间', '')), fields
+
+
+def check_comparison(p, left, right, before, after):
+    bound = p.page.locator('#report-comparison [data-report-left][data-report-right]')
+    bound.wait_for(state='visible', timeout=FORM_TIMEOUT_MS)
+    assert bound.count() == 1 and bound.get_attribute('data-report-left') == left and bound.get_attribute('data-report-right') == right
+    table = p.page.locator('#report-comparison table').first
+    rows = [row.locator('td').all_text_contents() for row in table.locator('tbody tr').all()]
+    margin = next(row for row in rows if row[0].strip() == '毛利率')
+    header = table.locator('thead').inner_text()
+    assert percentage_display(margin[1], header, before) and percentage_display(margin[2], header, after), margin
+    assert points_display(margin[3], header, after-before), margin
+    text = p.page.locator('#report-comparison').inner_text()
+    assert '同季度' in text and '跨季度变化包含期间差异' not in text
+    return {'left':left, 'right':right, 'margin_row':margin, 'header':header, 'text':text}
+
+
+def require_no_comparison(p, reason):
+    result = p.page.locator('#report-comparison')
+    assert result.locator('table').count() == 0, 'Old comparison numbers remain paired with newly chosen reports.'
+    assert result.locator('[data-report-left],[data-report-right]').count() == 0
+    assert reason in result.inner_text(), result.inner_text()
+
+
+def wait_comparison_idle(p):
+    # Use the existing CSP-compatible MutationObserver lifecycle helper. It
+    # observes the original form; it does not compile a polling predicate.
+    from service_browser_check import FORM_COMPLETION
+    form = p.page.locator('#report-compare-form').element_handle()
+    assert form is not None, 'Original comparison form disappeared.'
+    return form.evaluate(FORM_COMPLETION, FORM_TIMEOUT_MS)
 
 
 def probe_report_points(p):
     p.bootstrap()
     query = '2024-Q4毛利率是多少'
     earlier = p.create_local_report(query)
-    assert math.isclose(earlier['result']['analysis']['metrics']['gross_margin'], 0.2, abs_tol=1e-9)
+    assert math.isclose(earlier['result']['analysis']['metrics']['gross_margin'], .2, abs_tol=1e-9)
     p.navigate('data')
     rows = p.page.locator('#main #dataset-editor [data-period-row]')
-    assert rows.count() == 12
-    row = rows.nth(11)
-    assert row.locator('[name="period"]').input_value() == '2024-Q4'
-    selector = '#main #dataset-editor [data-period-row]:nth-child(12) [name="cost"]'
-    p.fill(selector, FIXTURE_REVISED_COST, '同一企业同一季度成本从80000改75000，收入保持100000')
+    assert rows.count() == 12 and rows.nth(11).locator('[name="period"]').input_value() == '2024-Q4'
+    p.fill('#main #dataset-editor [data-period-row]:nth-child(12) [name="cost"]', FIXTURE_REVISED_COST, '同企业同季度成本80000改为75000，收入保持100000')
     p.submit('#main #dataset-editor', after='#modal [data-action="commit-stage"]')
     p.click('#modal [data-action="commit-stage"]', after='#dataset-editor[data-version="2"]', label='批准本次标准化差异作为新修订')
     revised = p.get('/api/datasets/' + p.dataset_id)
-    assert revised['version'] == 2 and revised['payload']['periods'][-1]['revenue'] == FIXTURE_REVENUE
-    assert revised['payload']['periods'][-1]['cost'] == FIXTURE_REVISED_COST
+    assert revised['version'] == 2 and revised['payload']['periods'][-1]['revenue'] == FIXTURE_REVENUE and revised['payload']['periods'][-1]['cost'] == FIXTURE_REVISED_COST
     later = p.create_local_report(query)
-    expected_before = (FIXTURE_REVENUE - FIXTURE_COST) / FIXTURE_REVENUE
-    expected_after = (FIXTURE_REVENUE - FIXTURE_REVISED_COST) / FIXTURE_REVENUE
-    expected_delta = expected_after - expected_before
-    assert math.isclose(later['result']['analysis']['metrics']['gross_margin'], expected_after, abs_tol=1e-9)
+    assert math.isclose(later['result']['analysis']['metrics']['gross_margin'], .25, abs_tol=1e-9)
     p.navigate('reports')
-    p.click('#main [data-action="report-compare-dialog"]', after='#report-compare-form', label='从研判报告的真实“对比两份报告”入口继续')
-    p.select('#report-compare-form [name="left"]', earlier['id'], '明确选择20%毛利率的基准报告')
-    p.select('#report-compare-form [name="right"]', later['id'], '明确选择25%毛利率的新修订报告')
+    p.click('#main [data-action="report-compare-dialog"]', after='#report-compare-form', label='从真实“对比两份报告”入口继续')
+    labels = [select_report_by_human_label(p,'left',query,1,earlier['id']),select_report_by_human_label(p,'right',query,2,later['id'])]
+    assert labels[0] != labels[1]
+    check_selection_summary(p,earlier,later,query)
     p.submit('#report-compare-form', after='#report-comparison table')
-    table = p.page.locator('#report-comparison table').first
-    actual_rows = [r.locator('td').all_text_contents() for r in table.locator('tbody tr').all()]
-    margin = next((r for r in actual_rows if r and r[0].strip() == '毛利率'), None)
-    assert margin is not None and len(margin) == 4, actual_rows
-    header = table.locator('thead').inner_text()
-    api_result = p.get('/api/workspace/reports/compare?left=' + earlier['id'] + '&right=' + later['id'])
-    metric = next(r for r in api_result['changes'] if r['metric'] == 'gross_margin')
-    assert api_result['same_period'] and math.isclose(metric['delta'], expected_delta, abs_tol=1e-9)
-    p.observations['comparison'] = {'left_run': earlier['id'], 'right_run': later['id'], 'same_quarter': '2024-Q4', 'independent_before_ratio': expected_before, 'independent_after_ratio': expected_after, 'independent_delta_ratio': expected_delta, 'expected_display': '5 个百分点', 'actual_headers': header, 'actual_margin_row': margin, 'corroborating_api_metric': metric}
-    p.step('读取真实报告比较的毛利率行及变化单位', lambda: None)
+    p.observations['comparison'] = check_comparison(p,earlier['id'],later['id'],.2,.25)
+    assert p.get('/api/runs/'+earlier['id'])['result'] == earlier['result'], 'Original frozen report changed.'
+    api_result = p.get('/api/workspace/reports/compare?left='+earlier['id']+'&right='+later['id'])
+    assert math.isclose(next(r for r in api_result['changes'] if r['metric']=='gross_margin')['delta'], .05, abs_tol=1e-9)
+    p.step('核对20%→25%=+5个百分点及实际报告绑定',lambda:None)
+    select_report_by_human_label(p,'left',query,2,later['id'])
+    require_no_comparison(p,'报告选择已改变')
+    select_report_by_human_label(p,'right',query,1,earlier['id'])
+    require_no_comparison(p,'报告选择已改变')
+    check_selection_summary(p,later,earlier,query)
+    p.submit('#report-compare-form',after='#report-comparison table')
+    p.observations['reverse_comparison'] = check_comparison(p,later['id'],earlier['id'],.25,.2)
+
+    # Hold exactly one actual read response, change the real controls, then
+    # release the unmodified server response. This is explicit fault timing,
+    # never a synthetic successful business result or a data mutation.
+    pattern = '**/api/workspace/reports/compare?*'
+    held = []
+    def hold(route):
+        assert route.request.method == 'GET'
+        held.append(route)
+    p.page.route(pattern,hold,times=1)
+    try:
+        with p.page.expect_request(lambda r: '/api/workspace/reports/compare?' in r.url, timeout=FORM_TIMEOUT_MS):
+            p.click('#report-compare-form button[type="submit"]',label='明确延迟本次真实比较GET回执')
+        assert len(held)==1, 'Expected exactly one held comparison read.'
+        require_no_comparison(p,'正在读取')
+        select_report_by_human_label(p,'left',query,1,earlier['id'])
+        select_report_by_human_label(p,'right',query,2,later['id'])
+        require_no_comparison(p,'报告选择已改变')
+        request_url=held[0].request.url
+        assert 'left='+later['id'] in request_url and 'right='+earlier['id'] in request_url
+        def release():
+            response=held[0].fetch(timeout=FORM_TIMEOUT_MS)
+            assert response.status==200
+            payload=response.json()
+            assert payload['left']==later['id'] and payload['right']==earlier['id']
+            held.pop().fulfill(response=response)
+            wait_comparison_idle(p)
+        p.step('释放旧选择真实回执，不能覆盖当前新选择',release)
+        require_no_comparison(p,'报告选择已改变')
+        check_selection_summary(p,earlier,later,query)
+        p.observations['delayed_read']={'method':'GET','old_left':later['id'],'old_right':earlier['id'],'released_actual_response':True,'old_result_not_painted_under_new_selection':True}
+    finally:
+        p.page.unroute(pattern,hold)
+        for route in held:
+            route.abort('failed')
+
+    # A failed OLD read is also stale: it must not become an error attributed
+    # to the new report choice. This is distinct from a current-request error.
+    p.page.route(pattern,hold,times=1)
+    try:
+        with p.page.expect_request(lambda r: '/api/workspace/reports/compare?' in r.url, timeout=FORM_TIMEOUT_MS):
+            p.click('#report-compare-form button[type="submit"]',label='延迟原选择读取，准备验证迟到失败边界')
+        assert len(held)==1
+        select_report_by_human_label(p,'left',query,2,later['id'])
+        select_report_by_human_label(p,'right',query,1,earlier['id'])
+        require_no_comparison(p,'报告选择已改变')
+        def fail_old_read():
+            held.pop().abort('failed')
+            errors=wait_comparison_idle(p)
+            assert not any(text.strip() for text in errors), 'Old read failure was shown as the new selection error.'
+        p.step('旧选择请求迟到失败，不污染新选择的错误区',fail_old_read)
+        require_no_comparison(p,'报告选择已改变')
+        check_selection_summary(p,later,earlier,query)
+        p.observations['late_failed_read']={'method':'GET','injected_network_failure':True,'old_result_absent':True,'new_selection_not_given_old_error':True}
+    finally:
+        p.page.unroute(pattern,hold)
+        for route in held:
+            route.abort('failed')
+    select_report_by_human_label(p,'left',query,1,earlier['id'])
+    select_report_by_human_label(p,'right',query,2,later['id'])
+
+    # Abort a single read to exercise a real readable error. No 5xx exemption,
+    # fabricated data payload, authentication failure or policy change is used.
+    aborted=[]
+    def fail_read(route):
+        assert route.request.method=='GET'
+        aborted.append({'method':'GET','left':earlier['id'],'right':later['id']})
+        route.abort('failed')
+    p.page.route(pattern,fail_read,times=1)
+    try:
+        p.click('#report-compare-form button[type="submit"]',label='明确注入一次比较读取断网')
+        wait_comparison_idle(p)
+        assert len(aborted)==1
+        require_no_comparison(p,'本次比较未完成')
+        error=p.page.locator('#report-compare-form .form-error')
+        assert error.inner_text().strip(), 'Failed comparison needs a visible actionable error.'
+        assert error.is_visible()
+        check_selection_summary(p,earlier,later,query)
+        p.observations['aborted_read']={'injected':aborted,'visible_error':error.inner_text(),'old_result_absent':True}
+        p.step('失败后保留选择与可读错误，不展示过期数字',lambda:None)
+    finally:
+        p.page.unroute(pattern,fail_read)
+    p.submit('#report-compare-form',after='#report-comparison table')
+    p.observations['retry_comparison']=check_comparison(p,earlier['id'],later['id'],.2,.25)
     p.no_external()
-    assert percentage_display(margin[1], header, expected_before) and percentage_display(margin[2], header, expected_after), margin
-    assert points_display(margin[3], header, expected_delta), f'F3 absolute margin delta needs 5 percentage points; visible row={margin!r}, headers={header!r}'
 
 
 def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_root, expected_web_tree, expected_server_tree, report_path=None, submit_form=None):

@@ -45,7 +45,33 @@ export async function reportsPage() {
     return heading('研判报告', '当前身份与企业范围内的报告；历史结论绑定原始快照，数据修订不会静默改写旧报告。', rows.items.length > 1 ? button('对比两份报告', 'report-compare-dialog') : '') +
         `<section class="panel flush">${rows.items.length ? table(['报告', '执行状态', '数据状态', '生成时间', ''], rows.items.map((r) => [`<button class="title-button" data-route="agents:run-${esc(r.id)}">${icon('report')}<span><strong>${esc(r.title)}</strong><small>${esc(r.query)}</small></span></button>`, status(r.state), sourceBadge(r) + (r.stale ? badge('原数据已有更新', 'warm') : ''), timeText(r.created_at), `<a class="text-button" href="/api/runs/${esc(r.id)}/export?format=md" download>${icon('download')} 导出</a> <a class="text-button" href="/api/runs/${esc(r.id)}/export?format=json" download>完整 JSON</a>`])) : empty('尚未生成研判报告', '完成一次有明确输入的研判，报告、规则和证据将一同归档。', routeButton('发起研判', 'agents', 'primary'))}</section>`;
 }
-export function reportCompareForm() { const options = (state.cache.reports ?? []).map((r) => ({ value: r.id, label: r.title + ' · ' + timeText(r.created_at) })); return `<form id="report-compare-form" class="stack">${field('较早 / 基准报告', select('left', options, options[1]?.value ?? ''))}${field('本次 / 对照报告', select('right', options, options[0]?.value ?? ''))}${formFooter('查看差异')}</form><div id="report-comparison"></div>`; }
+function reportTime(value) { const d = new Date(String(value ?? '')); return Number.isFinite(d.valueOf()) ? d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '生成时间未记录'; }
+export function reportSelectionDetails(left, right) {
+    return `<div class="two-columns">${[['基准报告', left], ['对照报告', right]].map(([label, id]) => {
+        const r = (state.cache.reports ?? []).find((v) => v.id === id);
+        return `<section class="subpanel"><h3>${label}</h3>${r ? table(['保存范围', '原始内容'], [['研究问题', esc(r.query ?? '问题未记录')], ['目标季度', esc(r.current_period ?? '季度未记录')], ['数据修订', esc(r.dataset_version ?? '未记录')], ['生成时间', esc(reportTime(r.created_at))], ['报告标识', esc(r.id)]]) : notice('请选择当前范围内的已保存报告。')}</section>`;
+    }).join('')}</div>`;
+}
+export function reportCompareForm() {
+    const options = (state.cache.reports ?? []).map((r) => ({ value: r.id, label: String(r.query ?? r.title ?? '问题未记录').slice(0, 100) + ' · ' + (r.current_period ?? '季度未记录') + ' · 数据修订 ' + (r.dataset_version ?? '未记录') + ' · ' + reportTime(r.created_at) + ' · #' + String(r.id).slice(0, 8) }));
+    const left = options[1]?.value ?? '', right = options[0]?.value ?? '';
+    return `<form id="report-compare-form" class="stack">${field('较早 / 基准报告', select('left', options, left))}${field('本次 / 对照报告', select('right', options, right))}<div id="report-selection-details" aria-live="polite">${reportSelectionDetails(left, right)}</div>${formFooter('查看差异')}</form><div id="report-comparison"></div>`;
+}
+const reportMultiples = new Set(['inventory_turnover', 'asset_turnover', 'sales_production_ratio']);
+const reportRatios = new Set(['gross_margin', 'net_margin', 'roe', 'cash_ratio', 'leverage', 'rd_ratio', 'revenue_growth', 'margin_change']);
+function reportNumber(id, value, delta = false) {
+    if (typeof value !== 'number' || !Number.isFinite(value))
+        return '—';
+    const sign = delta && value > 0 ? '+' : '';
+    if (reportMultiples.has(id))
+        return sign + num(value) + ' 倍';
+    if (reportRatios.has(id))
+        return delta || id === 'margin_change' ? sign + num(value * 100) + ' 个百分点' : pct(value);
+    return num(value) + '（单位未记录）';
+}
+export function reportComparisonView(r) {
+    return `<section class="panel"><h3>${esc(r.left_period)} → ${esc(r.right_period)}</h3>${notice(r.warning, r.same_period ? 'neutral' : 'warm')}${!r.same_rule_version ? notice('规则版本不同，不可直接将得分变化解释为经营变化。', 'warm') : ''}<p class="micro" data-report-left="${esc(r.left)}" data-report-right="${esc(r.right)}">本次绑定：基准 #${esc(String(r.left ?? '未记录').slice(0, 8))} → 对照 #${esc(String(r.right ?? '未记录').slice(0, 8))}。</p><p class="micro">以下保留两份报告的冻结数值。变化 = 对照 − 基准；比率差值以百分点表示，倍数差值以倍表示。</p>${table(['指标', '基准', '对照', '变化'], r.changes.map((c) => [esc(metricNames[c.metric] ?? c.metric), reportNumber(c.metric, c.before), reportNumber(c.metric, c.after), reportNumber(c.metric, c.delta, true)]))}<details><summary>输入修订差异</summary>${jsonView(r.input_diff)}</details></section>`;
+}
 export async function actionsPage() {
     const rows = await workspace('/actions');
     rows.items = rows.items.filter((a) => (a.payload.identity_id ?? '') === state.identity && (!state.active || a.payload.dataset_id === state.active));

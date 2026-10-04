@@ -478,6 +478,7 @@ def reports(request:Request,identity_id:str|None=Query(None,max_length=80),datas
     filters,args=scope_sql(scope,'r.dataset_id',"json_extract(r.snapshot,'$.identity.id')")
     rows=store.all("""SELECT r.id,r.dataset_id,r.state,r.created_at,
         json_extract(r.result,'$.title') AS title,json_extract(r.result,'$.query') AS query,
+        json_extract(r.result,'$.analysis.current_period') AS current_period,
         json_extract(r.result,'$.dataset_version') AS dataset_version,
         json_extract(r.result,'$.llm.state') AS llm_state,
         COALESCE(json_extract(r.snapshot,'$.identity.id'),'') AS identity_id,
@@ -527,10 +528,12 @@ def report_compare(request:Request,left:str=Query(...,max_length=80),right:str=Q
         av,bv=am['metrics'][k],bm['metrics'][k]
         if k=='period':continue
         deltas.append({'metric':k,'before':av,'after':bv,'delta':bv-av if isinstance(av,(int,float)) and isinstance(bv,(int,float)) else None})
-    return {'left':left,'right':right,'same_period':am['current_period']==bm['current_period'],
+    same_period=am['current_period']==bm['current_period']
+    return {'left':left,'right':right,'same_period':same_period,
         'same_rule_version':am['model_version']==bm['model_version'],'left_period':am['current_period'],'right_period':bm['current_period'],
         'changes':deltas,'input_diff':dataset_diff(a['snapshot']['dataset'],b['snapshot']['dataset']),
-        'warning':'跨季度变化包含期间差异；不能把修订差异或相关变化当成干预效果'}
+        'warning':('同季度比较反映输入修订或研究口径差异，不代表跨期经营增长，也不能解释为干预效果' if same_period
+            else '跨季度变化包含期间差异；不能把修订差异或相关变化当成干预效果')}
 
 
 @router.post('/assistant')

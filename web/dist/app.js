@@ -13,11 +13,11 @@ import { evolutionPage, strategyForm, assessmentForm, graphCanvas, runtimeRibbon
 import { RunLive } from './live.js';
 import { api, workspace, setCsrf, invalidateContext, contextGuard, invalidateView, ApiError } from './api.js';
 import { state, routes, activeDataset, activeIdentity, scopedDatasets, roleNames } from './state.js';
-import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricNames, metricValue } from './components.js';
+import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricValue } from './components.js';
 import { briefPage, settingsPage, opsPage } from './pages.js';
 import { revisionHistory, dataPage, datasetEditor, periodRow, financialFields, importForm, stageView, qualityPanel, evidencePage, evidenceForm, reviewEvidenceForm, evidenceScope, evidenceMetadataForm, memoryPage, memoryForm } from './views-data.js';
 import { agentsPage, templateForm } from './views-studio.js';
-import { labPage, comparePage, comparisonOutput, reportsPage, reportCompareForm, actionsPage, actionForm, actionDetail, actionEditForm } from './views-analysis.js';
+import { labPage, comparePage, comparisonOutput, reportsPage, reportCompareForm, reportSelectionDetails, reportComparisonView, actionsPage, actionForm, actionDetail, actionEditForm } from './views-analysis.js';
 const root = document.querySelector('#app');
 const modal = document.querySelector('#modal');
 const inspector = document.querySelector('#inspector');
@@ -401,10 +401,22 @@ document.addEventListener('submit', async (event) => {
             case 'report-compare-form': {
                 if (str('left') === str('right'))
                     throw new Error('请选择两份不同的报告');
-                const r = await workspace('/reports/compare?left=' + encodeURIComponent(str('left')) + '&right=' + encodeURIComponent(str('right')));
                 if (!submittedCurrent())
                     break;
-                document.querySelector('#report-comparison').innerHTML = `<section class="panel"><h3>${esc(r.left_period)} → ${esc(r.right_period)}</h3>${notice(r.warning, r.same_period ? 'neutral' : 'warm')}${!r.same_rule_version ? notice('规则版本不同，不可直接将得分变化解释为经营变化。', 'warm') : ''}${table(['指标', '基准', '对照', '变化'], r.changes.map((c) => [esc(metricNames[c.metric] ?? c.metric), metricValue(c.metric, c.before), metricValue(c.metric, c.after), metricValue(c.metric, c.delta)]))}<details><summary>输入修订差异</summary>${jsonView(r.input_diff)}</details></section>`;
+                const output = document.querySelector('#report-comparison');
+                output.innerHTML = notice('正在读取两份报告的冻结结果…');
+                try {
+                    const r = await workspace('/reports/compare?left=' + encodeURIComponent(str('left')) + '&right=' + encodeURIComponent(str('right')));
+                    if (!submittedCurrent())
+                        break;
+                    output.innerHTML = reportComparisonView(r);
+                }
+                catch (error) {
+                    if (!submittedCurrent())
+                        break;
+                    output.innerHTML = notice('本次比较未完成，请核对错误后重新查看差异。', 'warm');
+                    throw error;
+                }
                 break;
             }
             case 'action-form': {
@@ -522,7 +534,7 @@ document.addEventListener('click', async (event) => {
     const el = event.target.closest('[data-action],[data-route]');
     if (!el)
         return;
-    if (el.dataset.route) {
+    if (el.dataset.route && el.dataset.action !== 'assistant-route') {
         event.preventDefault();
         navigate(el.dataset.route);
         return;
@@ -999,12 +1011,19 @@ document.addEventListener('click', async (event) => {
                 break;
             case 'assistant-route': {
                 const route = el.dataset.route, dataset = el.dataset.datasetId;
-                if (dataset && scopedDatasets().some(d => d.id === dataset))
+                if (!route || !Object.hasOwn(routes, route))
+                    throw new Error('原问题的目标工作区不可用，请重新核查。');
+                if (dataset && !scopedDatasets().some(d => d.id === dataset))
+                    throw new Error('原问题的企业已不在当前身份范围内，请重新核查。');
+                if (!safeToLeave())
+                    break;
+                if (dataset && dataset !== state.active) {
+                    invalidateContext();
+                    state.cache = {};
                     state.active = dataset;
-                if (el.dataset.query)
-                    state.query = el.dataset.query;
-                if (route && route in routes)
-                    navigate(route);
+                }
+                state.query = el.dataset.query ?? '';
+                navigate(route, true);
                 break;
             }
             case 'review-claim': {
@@ -1041,6 +1060,16 @@ document.addEventListener('input', (event) => { const el = event.target; if (el.
 } const form = el.closest('form'); if (form && !['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'comparison-delete-form', 'public-search-form'].includes(form.id))
     state.dirty = true; });
 document.addEventListener('change', async (event) => { const el = event.target; try {
+    if (el.closest('#report-compare-form') && ['left', 'right'].includes(el.name)) {
+        const form = el.closest('form'), left = form.querySelector('[name="left"]').value, right = form.querySelector('[name="right"]').value;
+        form.querySelector('#report-selection-details').innerHTML = reportSelectionDetails(left, right);
+        const output = form.parentElement?.querySelector('#report-comparison');
+        if (output)
+            output.innerHTML = notice('报告选择已改变，请重新查看差异。');
+        const error = form.querySelector('.form-error');
+        if (error)
+            error.textContent = '';
+    }
     if (el.id === 'plan-experiment')
         syncExperimentControls(document, state.cache.planExperiments ?? [], scopedDatasets());
     if (el.id === 'plan-comparison' || el.closest('#plan-form') && el.name === 'dataset_id')

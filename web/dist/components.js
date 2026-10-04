@@ -1,7 +1,9 @@
 export function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 export function num(v, d = 2) { return typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString('zh-CN', { maximumFractionDigits: d }) : '—'; }
 export function pct(v) { return typeof v === 'number' && Number.isFinite(v) ? num(v * 100) + '%' : '—'; }
-export function amount(v, unit = 'wan') { return typeof v === 'number' ? num(v / ({ yuan: 1, wan: 1e4, yi: 1e8 }[unit] ?? 1e4)) : '—'; }
+// A display-unit change must not round an otherwise visible yuan amount to zero.
+// Retain precision down to cents in each unit; this formats persisted values only.
+export function amount(v, unit = 'wan') { const scale = { yuan: 1, wan: 1e4, yi: 1e8 }[unit] ?? 1e4; return typeof v === 'number' ? num(v / scale, 2 + Math.log10(scale)) : '—'; }
 export function unitName(unit) { return { yuan: '元', wan: '万元', yi: '亿元' }[unit] ?? '万元'; }
 export function timeText(v) { if (!v)
     return '—'; const d = new Date(String(v)); return Number.isFinite(d.valueOf()) ? d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—'; }

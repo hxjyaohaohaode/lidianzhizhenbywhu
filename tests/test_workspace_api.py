@@ -264,10 +264,29 @@ def test_experiment_frozen_and_reports_stale_after_data_edit(actor):
     raw=editable(d);raw['periods'][-1]['revenue']*=2;good(actor.put('/datasets/'+d['id'],json=raw))
     assert good(actor.get('/workspace/experiments/'+e['id']))==e
     assert good(actor.get('/runs/'+run['id']))['result']==run['result']
-    assert good(actor.get('/workspace/reports'))['items'][0]['stale']
+    before=good(actor.get('/workspace/reports'))['items'][0]
+    assert before['stale'] and before['current_period']==run['result']['analysis']['current_period']
+    assert before['dataset_version']==d['version'] and before['query']==run['result']['query']
     new=execute(actor,plan(actor,good(actor.get('/datasets/'+d['id']))))
     c=good(actor.get('/workspace/reports/compare',params={'left':run['id'],'right':new['id']}))
     assert c['same_period'] and c['input_diff']
+    assert c['warning'].startswith('同季度比较') and not c['warning'].startswith('跨季度')
+    assert good(actor.get('/runs/'+run['id']))['result']==run['result']
+
+
+def test_cross_quarter_report_comparison_discloses_period_difference(actor):
+    d=dataset(actor);before=execute(actor,plan(actor,d))
+    raw=editable(d);last=raw['periods'][-1]
+    year,quarter=int(last['period'][:4]),int(last['period'][-1])
+    following=f'{year+1 if quarter==4 else year}-Q{1 if quarter==4 else quarter+1}'
+    raw['periods'].append({**last,'period':following})
+    revised=good(actor.put('/datasets/'+d['id'],json=raw))
+    after=execute(actor,plan(actor,revised))
+    comparison=good(actor.get('/workspace/reports/compare',params={'left':before['id'],'right':after['id']}))
+    assert comparison['same_period'] is False
+    assert comparison['left_period']==last['period'] and comparison['right_period']==following
+    assert comparison['warning'].startswith('跨季度变化')
+    assert good(actor.get('/runs/'+before['id']))['result']==before['result']
 
 
 @pytest.mark.parametrize('route',['/workspace/datasets/{dataset}/quality','/workspace/datasets/{dataset}/lineage','/workspace/datasets/{dataset}/revisions','/workspace/plans/{plan}','/workspace/experiments/{experiment}','/workspace/runs/{run}/audit','/workspace/runs/{run}/reviews'])

@@ -7,7 +7,7 @@ import { api, workspace, ApiError } from './api.js';
 import { assistantView } from './assistant.js';
 import { metricComparison } from './metric-comparison.js';
 import { state, activeDataset, activeIdentity, scopedDatasets } from './state.js';
-import { esc, icon, notice, badge, status, jsonView, metricValue, num, timeText, citationCard, field, textarea, input, select, formFooter, heading, routeButton, table, safeLink } from './components.js';
+import { esc, icon, notice, badge, status, jsonView, metricValue, metricNames, num, pct, amount, unitName, timeText, citationCard, field, textarea, input, select, formFooter, heading, routeButton, table, safeLink } from './components.js';
 import { xbutton, serviceForm } from './views-services.js';
 let researchForm = null;
 let hooks;
@@ -59,8 +59,11 @@ function renderCard(c) {
         return `<section class="result-card"><h4>${esc(c.title)}</h4>${d.length ? d.map((r) => `<div class="row-between">${routeButton('查看执行 ' + r.id.slice(0, 6), 'agents:run-' + r.id)}${status(r.state)}</div>`).join('') : '<p>当前企业还没有任务。</p>'}</section>`;
     if (c.kind === 'actions')
         return `<section class="result-card"><h4>${esc(c.title)}</h4>${d.length ? d.slice(0, 8).map((r) => `<div class="row-between"><span>${esc(r.payload.title)}</span>${status(r.payload.status)}</div>`).join('') : '<p>尚无跟进行动。</p>'}${routeButton('进入行动工作区', 'actions')}</section>`;
-    if (c.kind === 'forecast')
-        return `<section class="result-card"><h4>${esc(c.title)}</h4><p>${esc(d.selected_label ?? d.reason ?? '数据不足时不生成预测')}</p>${d.forecast ? table(['期间', '预测值'], d.forecast.map((v) => [esc(v.period), num(v.value)])) : ''}<details><summary>回测、边界与每折结果</summary>${jsonView(d)}</details>${routeButton('在数学工作区调整参数', 'lab')}</section>`;
+    if (c.kind === 'forecast') {
+        const result = d ?? {}, metric = result.metric, known = ['revenue', 'cost', 'cash_flow', 'gross_margin'].includes(metric), ratio = metric === 'gross_margin', unit = state.user?.preferences?.amount_unit ?? 'wan', blocked = ['blocked', 'failed', 'unavailable'].includes(result.status);
+        const values = known && !blocked && Array.isArray(result.forecast) ? result.forecast : [];
+        return `<section class="result-card" data-card-kind="forecast" tabindex="-1" aria-label="预测结果"><h4>${esc(c.title)}</h4>${known ? `<p><strong>${esc(metricNames[metric])} · ${ratio ? '%' : unitName(unit)}</strong></p>` : blocked ? '' : notice('指标未记录，不能确定展示单位；请核对已保存的原始产物。', 'warm')}<p>${esc(result.reason ?? result.selected_label ?? '数据不足时不生成预测')}</p>${values.length ? table(['期间', '基线点估计'], values.map((v) => [esc(v.period), ratio ? pct(v.value) : amount(v.value, unit)])) : ''}<p class="micro">统计基线来自已保存历史数据，不是因果预测或未来表现保证。</p>${(Array.isArray(result.limitations) ? result.limitations : []).map((v) => `<p class="micro">${esc(v)}</p>`).join('')}<details><summary>回测、边界与每折结果</summary>${jsonView(result)}</details>${routeButton('在数学工作区调整参数', 'lab')}</section>`;
+    }
     if (c.kind === 'inventory')
         return `<section class="result-card"><h4>${esc(c.title)}</h4><div class="micro-row"><span>数据 ${d.datasets}</span><span>行动 ${d.actions}</span><span>报告 ${d.reports}</span></div></section>`;
     return `<section class="result-card"><h4>${esc(c.title)}</h4><details><summary>查看实际工具产物</summary>${jsonView(d)}</details></section>`;
@@ -71,21 +74,29 @@ function factView(f) {
 function researchBrief(r) { const b = r.research_brief; if (!b)
     return ''; return `<div class="evidence-boundary"><span>${icon('files')} 依据范围</span><strong>${esc(b.matched_document_count ?? 0)} 份匹配资料</strong><small>${b.causal_claims_supported === false ? '本地核查不支持因果断言' : '结合原始来源复核'}${b.missing_metric_ids?.length ? ' · ' + b.missing_metric_ids.length + ' 项指标输入不足' : ''}</small></div>`; }
 export function messageView(m) {
-    const r = m.payload.response, trace = traces.get(m.id), receipts = r.receipts ?? [], facts = r.facts ?? [];
-    return `<article class="chat-turn" data-message="${esc(m.id)}"><div class="user-message"><span>你 · ${timeText(m.created_at)}</span><p>${esc(m.payload.question)}</p></div><div class="copilot-response"><div class="response-heading">${icon('spark')}<strong>研究核查</strong>${badge(receipts.length + ' 次本地工具')}</div><p class="research-answer">${esc(r.answer)}</p>${researchBrief(r)}${facts.length ? `<div class="fact-grid">${facts.map(factView).join('')}</div>` : ''}${(r.cards ?? []).map(renderCard).join('')}${(r.citations ?? []).length ? `<section class="answer-evidence"><h4>匹配的原文证据</h4>${r.citations.map(citationCard).join('')}</section>` : ''}${(r.warnings ?? []).map((w) => notice(w, 'warm')).join('')}${r.next_steps?.length ? `<section class="research-next"><div class="section-heading"><span class="eyebrow">继续求证</span><h4>下一步要解决的问题</h4></div>${r.next_steps.map((n, index) => `<article><span class="next-index">${index + 1}</span><div><strong>${esc(n.title)}</strong><p>${esc(n.reason)}</p>${n.acceptance ? `<details><summary>怎样算核查完成</summary><p>${esc(n.acceptance)}</p></details>` : ''}${n.route ? routeButton('前往核查 ' + icon('arrow'), n.route, 'text-button') : ''}</div></article>`).join('')}</section>` : ''}<details class="tool-receipts"><summary>调用凭据与输入范围 · ${receipts.length} 项</summary>${receipts.map((t) => `<div><strong>${esc(t.tool)}</strong><span> ${num(t.milliseconds, 1)} ms · ${esc(t.state)}</span><p class="hash-label">输出 ${esc(t.output_hash)}</p></div>`).join('')}${jsonView(r.context)}<small>外部调用 ${r.external_calls ?? 0} 次；不是隐藏推理过程。</small></details><div class="trace-container">${(trace ? notice('以下复核保留原问题的季度、基期与指标，使用读取时的数据修订 ' + trace.scope.dataset_version + '；原始会话结果保留在上方。') + assistantView(m.payload.question, trace) : '') + xbutton(trace ? '重新按当前修订复核' : '按当前输入复核公式与季度轨迹', 'chat-trace', `data-message="${esc(m.id)}"`, 'text-button')}</div><div class="response-actions">${(r.actions ?? []).map((a) => a.kind === 'navigate' ? routeButton(esc(a.label), a.route, 'text-button') : xbutton(esc(a.label), 'chat-propose', `data-kind="${esc(a.type)}" data-message="${esc(m.id)}"`, 'secondary')).join('')}</div></div></article>`;
+    const r = m.payload.response, trace = traces.get(m.id), receipts = r.receipts ?? [], facts = r.facts ?? [], forecastCards = (r.cards ?? []).filter((c) => c.kind === 'forecast');
+    return `<article class="chat-turn" data-message="${esc(m.id)}"><div class="user-message"><span>你 · ${timeText(m.created_at)}</span><p>${esc(m.payload.question)}</p></div><div class="copilot-response"><div class="response-heading">${icon('spark')}<strong>研究核查</strong>${badge(receipts.length + ' 次本地工具')}</div><p class="research-answer">${esc(r.answer)}</p>${researchBrief(r)}${forecastCards.length ? `<div class="inline-actions">${xbutton('查看预测结果', 'chat-forecast', `data-message="${esc(m.id)}"`, 'secondary')}</div>` : ''}${forecastCards.map(renderCard).join('')}${facts.length ? `<div class="fact-grid">${facts.map(factView).join('')}</div>` : ''}${(r.cards ?? []).filter((c) => c.kind !== 'forecast').map(renderCard).join('')}${(r.citations ?? []).length ? `<section class="answer-evidence"><h4>匹配的原文证据</h4>${r.citations.map(citationCard).join('')}</section>` : ''}${(r.warnings ?? []).map((w) => notice(w, 'warm')).join('')}${r.next_steps?.length ? `<section class="research-next"><div class="section-heading"><span class="eyebrow">继续求证</span><h4>下一步要解决的问题</h4></div>${r.next_steps.map((n, index) => `<article><span class="next-index">${index + 1}</span><div><strong>${esc(n.title)}</strong><p>${esc(n.reason)}</p>${n.acceptance ? `<details><summary>怎样算核查完成</summary><p>${esc(n.acceptance)}</p></details>` : ''}${n.route ? routeButton('前往核查 ' + icon('arrow'), n.route, 'text-button') : ''}</div></article>`).join('')}</section>` : ''}<details class="tool-receipts"><summary>调用凭据与输入范围 · ${receipts.length} 项</summary>${receipts.map((t) => `<div><strong>${esc(t.tool)}</strong><span> ${num(t.milliseconds, 1)} ms · ${esc(t.state)}</span><p class="hash-label">输出 ${esc(t.output_hash)}</p></div>`).join('')}${jsonView(r.context)}<small>外部调用 ${r.external_calls ?? 0} 次；不是隐藏推理过程。</small></details><div class="trace-container">${(trace ? notice('以下复核保留原问题的季度、基期与指标，使用读取时的数据修订 ' + trace.scope.dataset_version + '；原始会话结果保留在上方。') + assistantView(m.payload.question, trace) : '') + xbutton(trace ? '重新按当前修订复核' : '按当前输入复核公式与季度轨迹', 'chat-trace', `data-message="${esc(m.id)}"`, 'text-button')}</div><div class="response-actions">${(r.actions ?? []).map((a) => a.kind === 'navigate' ? routeButton(esc(a.label), a.route, 'text-button') : xbutton(esc(a.label), 'chat-propose', `data-kind="${esc(a.type)}" data-message="${esc(m.id)}"`, 'secondary')).join('')}</div></div></article>`;
 }
 function proposalCard(row) { const p = row.payload; const run = current.runs.find((r) => r.proposal_id === row.id); return `<article class="proposal-card" data-proposal="${esc(row.id)}"><div class="row-between"><span class="eyebrow">${{ research: 'Agent 研判', action: '跟进行动', watch: '指标跟踪', memory: '长期记忆' }[p.kind]}</span>${badge(p.status === 'draft' ? '待你确认' : p.status === 'executed' ? '已确认执行' : '已放弃', p.status === 'executed' ? 'good' : 'warm')}</div><h4>${esc(p.title)}</h4>${run ? `<div class="row-between">${status(run.state)}${routeButton('查看节点与审阅结果', 'agents:run-' + run.id)}</div>${run.error ? notice(run.error, 'danger') : ''}${run.source_impact && run.source_impact.state !== 'current' ? notice('当前适用性需复核：' + (run.source_impact.reasons ?? []).map((r) => r.message ?? r.code).join('；') + '。以下报告与计算仍是原始冻结内容。', 'warm') : run.current_dataset_version !== run.dataset_version ? notice('企业数据已有新修订，以下报告仍依据当时的输入。', 'warm') : ''}${run.result ? `<div class="chat-run-result">${run.result.findings.slice(0, 4).map((f) => `<p>${esc(f)}</p>`).join('')}${researchRunOutputs(run.result, state.user?.preferences?.amount_unit ?? 'wan')}<h4>模型解释</h4>${status(run.result.llm.state)}${run.result.llm.review.claims.map((c) => `<p>${esc(c.text)}</p>${claimMathReferences(c)}`).join('') || '<p class="micro">本次没有通过结构核验的模型解释，不用模板内容替代。</p>'}${run.result.missing?.length ? `<details><summary>尚需核对的问题</summary>${run.result.missing.map((v) => `<p>${esc(v)}</p>`).join('')}</details>` : ''}</div>` : ''}` : ''}<div class="inline-actions">${p.status === 'draft' ? xbutton('查看范围并确认', 'chat-review', `data-id="${esc(row.id)}"`, 'primary') : p.result?.route && !run ? routeButton('查看已创建记录', p.result.route) : ''}${xbutton('查看完整提案', 'chat-detail', `data-id="${esc(row.id)}"`, 'text-button')}</div></article>`; }
-function detailState(host) { const map = new Map(); host.querySelectorAll('[data-message],[data-proposal]').forEach(row => map.set(row.dataset.message ?? row.dataset.proposal ?? '', [...row.querySelectorAll('details')].flatMap((d, i) => d.open ? [i] : []))); return map; }
+function detailState(host) { const map = new Map(); host.querySelectorAll('.chat-turn[data-message],.proposal-card[data-proposal]').forEach(row => map.set(row.dataset.message ?? row.dataset.proposal ?? '', [...row.querySelectorAll('details')].flatMap((d, i) => d.open ? [i] : []))); return map; }
+export function alignChatBlock(host, target) { host.scrollTop += target.getBoundingClientRect().top - host.getBoundingClientRect().top; }
 function paint(scroll = false) {
     const host = document.querySelector('#assistant-answer');
     if (!host)
         return;
     const opened = detailState(host), prior = host.scrollTop, atEnd = host.scrollHeight - host.scrollTop - host.clientHeight < 100;
     host.innerHTML = current ? (current.messages.map(messageView).join('') || welcome()) + (current.proposals.length ? `<section class="chat-proposals"><h3>计划与执行结果</h3>${current.proposals.map(proposalCard).join('')}</section>` : '') : welcome();
-    host.querySelectorAll('[data-message],[data-proposal]').forEach(row => { const details = row.querySelectorAll('details'); for (const n of opened.get(row.dataset.message ?? row.dataset.proposal ?? '') ?? [])
+    host.querySelectorAll('.chat-turn[data-message],.proposal-card[data-proposal]').forEach(row => { const details = row.querySelectorAll('details'); for (const n of opened.get(row.dataset.message ?? row.dataset.proposal ?? '') ?? [])
         if (details[n])
             details[n].open = true; });
-    if (scroll || atEnd)
+    if (scroll) {
+        const latest = [...host.querySelectorAll('.chat-turn')].at(-1);
+        if (latest)
+            alignChatBlock(host, latest);
+        else
+            host.scrollTop = host.scrollHeight;
+    }
+    else if (atEnd)
         host.scrollTop = host.scrollHeight;
     else
         host.scrollTop = prior;
@@ -263,6 +274,18 @@ export async function chatAction(action, el) {
         invalidateInteractions();
     const id = el.dataset.id ?? '', valid = interactionGuard(), started = epoch, scope = contextKey;
     const active = () => valid() && validContext(started, scope);
+    if (action === 'chat-forecast') {
+        if (!active() || !current?.messages.some((m) => m.id === el.dataset.message))
+            return;
+        const host = document.querySelector('#assistant-answer');
+        const row = host && [...host.querySelectorAll('.chat-turn')].find(r => r.dataset.message === el.dataset.message);
+        const card = row?.querySelector('[data-card-kind="forecast"]');
+        if (!host || !card)
+            throw new Error('该答复的预测结果尚未显示，请重新读取会话。');
+        alignChatBlock(host, card);
+        card.focus({ preventScroll: true });
+        return;
+    }
     if (action === 'chat-refresh') {
         await reloadThread();
         if (!threadId)
