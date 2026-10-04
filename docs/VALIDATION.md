@@ -1,6 +1,6 @@
 # 当前合并前核查（2026-10-04）
 
-当前范围、19项审查意见映射及提醒来源完整性修复见 [合并前核查](PREMERGE_REVIEW_20261004.md)。本轮从24775f1开始，仅处理已复现的来源链缺口、金额/比率单位错配和必要验收，不新增业务功能。分轮聚焦与全套结果见`evidence/premerge-review-20261004.json`和`evidence/metric-amount-boundaries-20261004.json`；新精确SHA的CI终态以PR #2和对应工件为准。下方10月1日候选及各专题均为其当时版本，不能代表此后的源代码或测试数量。
+当前范围、21项审查意见映射及提醒来源完整性修复见 [合并前核查](PREMERGE_REVIEW_20261004.md)。本轮从24775f1开始，仅处理已复现的来源链缺口、既有指标集合的金额/比率/变换/子类型分派和必要验收，不新增业务功能。分轮聚焦与全套结果见`evidence/premerge-review-20261004.json`、`evidence/metric-amount-boundaries-20261004.json`和`evidence/metric-routing-matrix-20261004.json`；新精确SHA的CI终态以PR #2和对应工件为准。下方10月1日候选及各专题均为其当时版本，不能代表此后的源代码或测试数量。
 
 ---
 

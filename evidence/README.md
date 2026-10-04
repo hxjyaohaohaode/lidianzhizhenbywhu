@@ -1,6 +1,6 @@
 # 验收证据索引（2026-10-04）
 
-当前候选范围见 `docs/PREMERGE_REVIEW_20261004.md`，来源链与追加金额语义的分轮聚焦/聚合分别见 `premerge-review-20261004.json`、`metric-amount-boundaries-20261004.json`，最终精确提交与 CI 终态见 [PR #2 顶部](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。历史文件、旧数量和旧同名截图不替代新提交结果。
+当前候选范围见 `docs/PREMERGE_REVIEW_20261004.md`，来源链、金额语义及有界指标矩阵的分轮聚焦/聚合分别见 `premerge-review-20261004.json`、`metric-amount-boundaries-20261004.json`、`metric-routing-matrix-20261004.json`，最终精确提交与 CI 终态见 [PR #2 顶部](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。历史文件、旧数量和旧同名截图不替代新提交结果。
 
 ## 当前生成记录
 

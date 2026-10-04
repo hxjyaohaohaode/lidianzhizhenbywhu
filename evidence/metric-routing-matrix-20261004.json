@@ -1,0 +1,313 @@
+{
+  "recorded_at": "2026-10-04T13:41:12.447985+00:00",
+  "verification_completed_at": "2026-10-04T13:41:05.969902+00:00",
+  "base_commit": "a219c6d2dd58d2b7b1f84510233056f313fb6396",
+  "base_tree": "d689ac51e145b7992580e3ea70c360968f7dee30",
+  "review_ids": [
+    "4177773668",
+    "4177773670"
+  ],
+  "scope": "Bounded premerge semantic dispatch audit of the existing 13 capabilities; no new formulas or financial metrics",
+  "frozen_execution_files": {
+    "server/question_scope.py": "740725d5505e588dad84accd35e5ffc846cd98624dabc47a49667e8d4ad6b9ce",
+    "tests/test_cost_margin_question_scope.py": "7c3a67f33a25f7bcfd060f1cdc72bb4e8c1d21c04a671b91a932f047370684c6",
+    "tests/test_ratio_amount_question_scope.py": "92c4ffc372437a8ab795e133098281e11bb1e3610f5126cac071584d5a60928b",
+    "scripts/service_browser_check.py": "52ba85d65f5f6d5e95ce42a39e897dbb5e7b67009666e459758ee21e21cbb30a",
+    "server/business_provenance.py": "3f6569457aceb6cb71fc4ec340b184f9fc6bf892270694dccb58a34e28ce5286"
+  },
+  "reproduction": {
+    "current_review": "operating-cost ratios returned CNY amounts; unsupported margin names fell back to gross margin",
+    "same_root_causes": "explicit growth/unit qualifiers, metric negation, cash-flow subtypes and compound metric names were swallowed by short aliases",
+    "red_then_green": true,
+    "initial_independent_matrix": {
+      "cases": 120,
+      "passed": 73,
+      "failed": 47
+    },
+    "matrix_refinement": "Use both assistants actual defaults; add Chinese equivalents of operating margin and correct embedded R&D denominator expectation before final rerun"
+  },
+  "focused": {
+    "new_suite_tests": 130,
+    "new_suite_seconds": 5.75,
+    "related_intermediate_suite_tests": 413,
+    "related_seconds": 51.99,
+    "test_cleanup": "Excluded two parameter combinations that previously returned without assertions; the final dedicated suite has 130 actual checks",
+    "independent_review": "passed",
+    "overlap_notice": "Focused tests overlap aggregate; independent probe counts are not added to test totals"
+  },
+  "independent_fixed_matrix": {
+    "passed": 270,
+    "total": 270,
+    "groups": {
+      "positive:gross_margin": 6,
+      "positive:cash_flow": 4,
+      "positive:cash_ratio": 4,
+      "positive:leverage": 4,
+      "positive:revenue": 4,
+      "positive:cost": 4,
+      "positive:net_margin": 4,
+      "positive:net_profit": 4,
+      "positive:inventory_turnover": 4,
+      "positive:rd_ratio": 8,
+      "positive:roe": 4,
+      "positive:asset_turnover": 4,
+      "positive:revenue_growth": 4,
+      "known_amounts": 10,
+      "known_amounts:mixed": 10,
+      "rate_from_amount": 8,
+      "growth_rate": 16,
+      "growth_rate:mixed": 16,
+      "amount_from_ratio": 22,
+      "amount_from_ratio:mixed": 22,
+      "negation": 10,
+      "unregistered_margin": 16,
+      "unregistered_margin:mixed": 16,
+      "cash_subtype": 10,
+      "cash_subtype:mixed": 10,
+      "unsupported_turnover": 10,
+      "unsupported_turnover:mixed": 10,
+      "mixed_supported": 20,
+      "followup": 4,
+      "overview": 2
+    },
+    "api_questions": 45,
+    "api_requests": 90,
+    "positive_questions": 29,
+    "unsupported_or_negated_questions": 16,
+    "old_saved_scope_followup_chains": 6,
+    "all_passed": true,
+    "topic_catalog": [
+      "gross_margin",
+      "cash_flow",
+      "cash_ratio",
+      "leverage",
+      "revenue",
+      "cost",
+      "net_margin",
+      "net_profit",
+      "inventory_turnover",
+      "rd_ratio",
+      "roe",
+      "asset_turnover",
+      "revenue_growth"
+    ],
+    "unit_contract": {
+      "CNY": [
+        "revenue",
+        "cost",
+        "net_profit",
+        "cash_flow"
+      ],
+      "ratio": [
+        "gross_margin",
+        "cash_ratio",
+        "leverage",
+        "net_margin",
+        "rd_ratio",
+        "roe"
+      ],
+      "times": [
+        "inventory_turnover",
+        "asset_turnover"
+      ],
+      "growth_ratio": [
+        "revenue_growth"
+      ]
+    },
+    "not_a_claim": "No claim of complete arbitrary natural-language understanding"
+  },
+  "declared_alias_route_probe": {
+    "aliases": 41,
+    "passed": 41,
+    "scope": "Every literal alias in TOPICS still maps to its existing metric; revenue-growth derived names are covered by the fixed matrix"
+  },
+  "legacy_boundary": {
+    "old_records": "Frozen and unchanged",
+    "old_trace": "Continues calculating the originally saved normalized scope; does not reparse or correct the old question",
+    "bare_continuation_of_old_scope": "May continue the originally saved scope; no retroactive migration",
+    "new_explicit_unsupported_followup": "Rejects with zero facts; next bare comparison cannot revive an earlier rejected scope"
+  },
+  "aggregate": {
+    "stages": 7,
+    "backend": 1723,
+    "backend_failures": 0,
+    "backend_skipped": 0,
+    "frontend": 347,
+    "http_journeys": 18,
+    "all_passed": true,
+    "pytest_progress_complete": {
+      "event": "session_finished",
+      "utc": "2026-10-04T13:40:44.653480+00:00",
+      "elapsed_seconds": 304.641221,
+      "process_cpu_seconds": 292.097518,
+      "exit_code": 0,
+      "collected": 1723,
+      "started": 1723,
+      "completed": 1723,
+      "complete": true,
+      "phase_outcomes": {
+        "setup_passed": 1723,
+        "call_passed": 1723,
+        "teardown_passed": 1723
+      }
+    },
+    "checks": [
+      {
+        "check": "python-compile",
+        "command": [
+          "python",
+          "-m",
+          "compileall",
+          "-q",
+          "server",
+          "scripts"
+        ],
+        "exit_code": 0,
+        "seconds": 0.041,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "typecheck",
+        "command": [
+          "node",
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "-p",
+          "tsconfig.json"
+        ],
+        "exit_code": 0,
+        "seconds": 1.81,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "build",
+        "command": [
+          "node",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ],
+        "exit_code": 0,
+        "seconds": 1.938,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "-p",
+          "no:faulthandler",
+          "-p",
+          "scripts.pytest_diagnostics",
+          "--diagnostics-output=evidence/pytest-progress.jsonl",
+          "--diagnostics-test-timeout=120",
+          "--durations=20",
+          "--junitxml=evidence/pytest.xml"
+        ],
+        "exit_code": 0,
+        "seconds": 315.523,
+        "timeout_seconds": 900
+      },
+      {
+        "check": "frontend-tests",
+        "command": [
+          "node",
+          "--test",
+          "tests/actions.frontend.test.mjs",
+          "tests/business-source.frontend.test.mjs",
+          "tests/comparison-cleanup.frontend.test.mjs",
+          "tests/copilot-message-trace.frontend.test.mjs",
+          "tests/copilot-research-inputs.frontend.test.mjs",
+          "tests/data-draft-continuation.frontend.test.mjs",
+          "tests/data-editor-isolation.frontend.test.mjs",
+          "tests/dataset-source.frontend.test.mjs",
+          "tests/evidence.frontend.test.mjs",
+          "tests/form-snapshot.frontend.test.mjs",
+          "tests/frontend.test.mjs",
+          "tests/import-navigation.frontend.test.mjs",
+          "tests/import.frontend.test.mjs",
+          "tests/math-results.frontend.test.mjs",
+          "tests/metric-comparison.frontend.test.mjs",
+          "tests/preferences-completion.frontend.test.mjs",
+          "tests/proposal-preview.frontend.test.mjs",
+          "tests/recovery.frontend.test.mjs",
+          "tests/report-integrity.frontend.test.mjs",
+          "tests/saved-comparisons.frontend.test.mjs",
+          "tests/saved-experiments.frontend.test.mjs",
+          "tests/saved-mutation.frontend.test.mjs",
+          "tests/service-completion.frontend.test.mjs",
+          "tests/services.frontend.test.mjs",
+          "tests/workflow-inputs.frontend.test.mjs"
+        ],
+        "exit_code": 0,
+        "seconds": 1.989,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "source-guard",
+        "command": [
+          "python",
+          "scripts/source_guard.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.316,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "full-chain-http",
+        "command": [
+          "python",
+          "scripts/full_chain_check.py"
+        ],
+        "exit_code": 0,
+        "seconds": 9.036,
+        "timeout_seconds": 240
+      }
+    ]
+  },
+  "native": {
+    "added_journey": "Actual assistant UI rejects unsupported operating-cost ratio and operating margin with zero fact tiles; screenshot records explicit unsupported response",
+    "local_result": "Not rerun: documented host socket startup denial retained",
+    "required": "Exact new SHA Windows/Linux native CI, per-run screenshot hashes and request/process diagnostics"
+  },
+  "prior_ci": {
+    "head": "a219c6d2dd58d2b7b1f84510233056f313fb6396",
+    "runs": [
+      37204254900,
+      37204257547
+    ],
+    "all_six_jobs_first_attempt_success": true,
+    "per_report": {
+      "backend": 1593,
+      "frontend": 347,
+      "http": 18,
+      "native": 56
+    },
+    "zip_digests_verified": 6,
+    "screenshot_digests_verified": 76,
+    "images_visually_spot_checked": 2,
+    "note": "Prior amount stage only; its green CI does not resolve the subsequent review findings or validate this new patch"
+  },
+  "unchanged_brand_and_formula_sha256": {
+    "web/brand/logo.png": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+    "web/brand/loading-video.mp4": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd",
+    "server/models.py": "d4b98e8b0912dcbc18fa1f6f712b06afcef54d724435237f5095093107f15047",
+    "server/analytics.py": "39dbda87088fa49e4d6df282c796468e07c89a46dea3343f1ddc19980ca074d3"
+  },
+  "other_checks": {
+    "pip_check": "passed",
+    "diff_check": "passed",
+    "compiled_frontend": "unchanged"
+  },
+  "boundaries": [
+    "Bounded deterministic routing is not general natural-language understanding",
+    "No live DeepSeek, GLM, MiMo or Qwen calls or charges",
+    "Only isolated synthetic input and accounts; no real business record deletion",
+    "No public deployment, production load, real battery/company sample or Windows double-click acceptance",
+    "Software copyright identity, ownership, dates and final filing materials require factual user inputs",
+    "User performs merge; CI must finish on the new exact SHA"
+  ]
+}

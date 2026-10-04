@@ -136,8 +136,7 @@ def test_explicit_inventory_and_rd_ratios_preserve_formula_and_units(actor, quer
     dataset = actor.dataset()
     source = next(row for row in dataset['payload']['periods'] if row['period'] == '2025-Q4')
     for result in both_answers(actor, dataset, '2025-Q4 ' + query):
-        expected = ['cost', metric] if '成本' in query or 'cost' in query else [metric]
-        assert [fact['id'] for fact in result['facts']] == expected
+        assert [fact['id'] for fact in result['facts']] == [metric]
         fact = next(fact for fact in result['facts'] if fact['id'] == metric)
         assert fact['value'] == pytest.approx(source[numerator] / source[denominator])
         assert fact['comparison']['change_unit'] == unit
@@ -194,8 +193,8 @@ def test_explicit_rd_revenue_denominator_remains_supported(actor, query):
     dataset = actor.dataset()
     source = next(row for row in dataset['payload']['periods'] if row['period'] == '2025-Q4')
     for result in both_answers(actor, dataset, '2025-Q4' + query):
-        assert [fact['id'] for fact in result['facts']] == ['revenue', 'rd_ratio']
-        fact = result['facts'][1]
+        assert [fact['id'] for fact in result['facts']] == ['rd_ratio']
+        fact = result['facts'][0]
         assert fact['value'] == pytest.approx(source['rd_expense'] / source['revenue'])
         assert fact['formula'] == '研发支出/收入'
         assert fact['comparison']['change_unit'] == 'ratio_points'

@@ -681,6 +681,15 @@ def main():
                 if subject=='负债':
                     answer.scroll_into_view_if_needed();assert not overflow();snap('ui-current-liability-amount-unsupported.png',full_page=False)
             record('明确负债/库存/研发/毛利金额问法保留单位含义，不以资产负债率、周转率、费用率或毛利率冒充金额')
+            for index,question in enumerate(['营业成本率','operating margin'],start=7):
+                page.locator('#assistant-query').fill(target_period+' '+question);submit('#assistant-form')
+                rejected_turn=page.locator('.chat-turn').nth(index);rejected_turn.wait_for()
+                assert rejected_turn.locator('.fact-tile').count()==0
+                answer=rejected_turn.locator('.research-answer');answer.wait_for()
+                assert '不支持' in answer.inner_text() or '未支持' in answer.inner_text()
+                if question=='operating margin':
+                    answer.scroll_into_view_if_needed();assert not overflow();snap('ui-current-unsupported-margin.png',full_page=False)
+            record('未实现的成本率和营业利润率明确拒答，不借通用别名替换为成本金额或毛利率')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')

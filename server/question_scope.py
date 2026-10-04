@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 
 TOPICS = (
-    ('gross_margin', ('毛利', 'gross margin')),
+    ('gross_margin', ('毛利', 'gross margin', 'gross profit margin', 'gross-profit margin')),
     ('cash_flow', ('现金流', '现金', '回款', 'cash flow')),
     ('cash_ratio', ('现金收入比', '现金流收入比', 'cash ratio')),
     ('leverage', ('负债率', '负债比率', '负债比例', '杠杆', '偿债', 'leverage')),
@@ -28,6 +28,15 @@ CASH_BALANCE_TERMS = ('现金余额', '现金的余额', '期末现金', '期初
 CASH_BALANCE_PATTERN = (r'现金\s*(?:的\s*)?(?:期初|期末|账面|账户)?\s*余额|现金\s*(?:及|和|与)\s*(?:现金\s*)?等价物'
                         r'|(?<![a-z0-9])cash\s+(?:beginning|ending|opening|closing)\s+balances?(?![a-z0-9])')
 MONEY_QUESTION = r'(?:是|为|有)?\s*多少\s*(?:钱|(?:万|亿)?元)'
+RD_RATIO_PATTERN = (r'研发\s*(?:的\s*)?(?:总?(?:费用|费|支出|开支|成本|投入|金额)\s*(?:的\s*)?)?'
+    r'(?:费率|比率|比例|占比|强度|率|(?:(?:占|与|和|对)\s*)?(?:营业)?收入\s*(?:(?:的|之)\s*)?(?:占比|比率|比例|比|率))'
+    r'|(?<![a-z0-9])r&d\s+(?:(?:expenses?|expenditure|spending|amount|costs?)\s+)?ratio(?![a-z0-9])')
+REVENUE_GROWTH_PATTERN = (r'(?:营业收入|收入|营收|销售额)\s*(?:的\s*)?'
+    r'(?:(?:同比|环比)\s*(?:增长率?|增速)?|增长率?|增速)'
+    r'|(?<![a-z0-9])(?:revenue\s+(?:growth(?:\s+rate)?|year over year|quarter over quarter)'
+    r'|growth(?:\s+rate)?\s+(?:in\s+)?revenue)(?![a-z0-9])')
+AMOUNT_TOPICS = {'revenue', 'cost', 'net_profit', 'cash_flow'}
+RATIO_TOPICS = {key for key, _ in TOPICS} - AMOUNT_TOPICS
 
 
 def _term_pattern(term):
@@ -36,6 +45,44 @@ def _term_pattern(term):
 
 def matches(text, term):
     return bool(re.search(_term_pattern(term), text))
+
+
+def unsupported_modifier(text):
+    """Reject unregistered units/operations on the finite metric catalog.
+
+    Mask whole supported compounds locally before inspecting amount aliases;
+    an independently requested amount elsewhere in the sentence remains visible.
+    """
+    remainder=re.sub(RD_RATIO_PATTERN,' ',text)
+    for key in ('net_margin','cash_ratio'):
+        for term in dict(TOPICS)[key]:
+            remainder=re.sub(_term_pattern(term),' ',remainder)
+    remainder=re.sub(REVENUE_GROWTH_PATTERN,' ',remainder)
+    if re.search(r'增长率|增速|(?<![a-z0-9])growth\s+rate(?![a-z0-9])',remainder):
+        return '当前问答仅支持收入增长率；其他指标的增长率或增速不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。'
+    for key,terms in TOPICS:
+        if key not in AMOUNT_TOPICS:continue
+        for term in terms:
+            suffix=r'\s*(?:的\s*)?(?:余额|比率|比例|占比|率|(?<![a-z0-9])(?:balance|ratio|rate)(?![a-z0-9]))'
+            if re.search(_term_pattern(term)+suffix,remainder):
+                return '当前问答不支持该金额指标的余额或比率口径，不能用原始期间金额替代。请单独提问已支持的金额或明确比率指标。'
+    ratio_patterns=[]
+    for key,terms in TOPICS:
+        if key not in RATIO_TOPICS:continue
+        for term in terms:
+            suffix=(r'(?:\s*(?:的\s*)?周转)?(?:率)?' if key=='inventory_turnover' else r'(?:率)?') if not term.isascii() else ''
+            ratio_patterns.append(_term_pattern(term)+suffix)
+    money=r'\s*(?:的\s*)?(?:金额|余额|总额|数额|额|'+MONEY_QUESTION+r'|(?<![a-z0-9])(?:amount|balance)(?![a-z0-9]))'
+    compounds='(?:'+RD_RATIO_PATTERN+'|'+REVENUE_GROWTH_PATTERN+')'
+    compound_amount=any(re.match(money,text[match.end():]) for match in re.finditer(compounds,text))
+    ratio_text=re.sub(compounds,' ',text)
+    if compound_amount or re.search('(?:'+'|'.join(ratio_patterns)+')'+money,ratio_text):
+        return '当前问答不支持把该比率、增长率或周转指标解释为金额或余额；不同单位不能互相替代，请单独提问已支持的指标。'
+    if re.search(r'(?:投资|筹资|融资|自由)\s*(?:活动)?\s*(?:产生的|的)?\s*现金流'
+        r'|(?<![a-z0-9])(?:(?:free|investing|financing|investment)\s+cash\s+flow'
+        r'|cash\s+flow\s+from\s+(?:investing|financing|investment))(?![a-z0-9])',text):
+        return '当前现金流指标只支持经营现金流；投资、筹资或自由现金流不能用经营现金流替代，请单独提问已支持的指标。'
+    return ''
 
 
 def topics_for(text):
@@ -48,24 +95,25 @@ def topics_for(text):
     cash_text=q
     for term in dict(TOPICS)['cash_ratio']:
         cash_text=re.sub(_term_pattern(term),' ',cash_text)
+    amount_text=re.sub(RD_RATIO_PATTERN,' ',cash_text)
+    source_text={'net_profit':profit_text,'cash_flow':cash_text,'revenue':amount_text,'cost':amount_text}
     topics=[key for key, words in TOPICS
-            if any(matches(profit_text if key=='net_profit' else cash_text if key in ('cash_flow','revenue') else q,word) for word in words)]
+            if any(matches(source_text.get(key,q),word) for word in words)]
     # A comparison word selects the baseline; it does not identify revenue.
-    revenue_growth = re.search(
-        r'(?:营业收入|收入|营收|销售额)\s*(?:的\s*)?(?:同比|环比|增长|增速)'
-        r'|(?<![a-z0-9])(?:revenue\s+(?:growth|year over year|quarter over quarter)'
-        r'|growth\s+(?:in\s+)?revenue)(?![a-z0-9])', q)
+    revenue_growth = re.search(REVENUE_GROWTH_PATTERN, q)
     if revenue_growth and 'revenue' in topics:
         topics.insert(topics.index('revenue'), 'revenue_growth')
     if 'cash_flow' in topics and 'cash_ratio' not in topics:
         topics.insert(topics.index('cash_flow')+1,'cash_ratio')
-    if not topics and matches(q,'margin'):topics=['gross_margin']
     if not topics and matches(q,'cash'):topics=['cash_flow']
     return topics
 
 
 def resolve_question(text, data, defaults):
     q=text.lower();topics=topics_for(text)
+    modifier_notice=unsupported_modifier(q)
+    negated_metrics=bool(topics and re.search(r'不要|不看|不分析|不核查|排除|别看'
+        r'|(?<![a-z0-9])(?:not|without|excluding|except)(?![a-z0-9])',q))
     balance_text=q
     for term in ('现金流', '现金收入比', 'cash flow', 'cash ratio'):
         balance_text=re.sub(_term_pattern(term),' ',balance_text)
@@ -85,12 +133,16 @@ def resolve_question(text, data, defaults):
         r'|(?<![a-z0-9])inventory\s+(?:amount|balance|value)(?![a-z0-9])',inventory_text))
     # Expenses/amounts inside an explicit R&D ratio remain ratio wording.
     # Mask each occurrence locally so a separate expense request is retained.
-    rd_text=re.sub(r'研发\s*(?:的\s*)?(?:总?(?:费用|费|支出|开支|成本|投入|金额)\s*(?:的\s*)?)?'
-        r'(?:费率|比率|比例|占比|强度|率|(?:(?:占|与|和|对)\s*)?(?:营业)?收入\s*(?:(?:的|之)\s*)?(?:占比|比率|比例|比|率))'
-        r'|(?<![a-z0-9])r&d\s+(?:(?:expenses?|expenditure|spending|amount|costs?)\s+)?ratio(?![a-z0-9])',' ',q)
+    rd_text=re.sub(RD_RATIO_PATTERN,' ',q)
     unsupported_rd_amount=bool(re.search(
         r'研发\s*(?:的\s*)?(?:总?(?:费用|费|支出|开支|成本)|(?:投入\s*)?(?:金额|总额|'+MONEY_QUESTION+r'))'
         r'|(?<![a-z0-9])r&d\s+(?:expenses?|expenditure|spending|amount|costs?)(?![a-z0-9])',rd_text))
+    unsupported_cost_ratio=bool(re.search(r'成本\s*(?:的\s*)?(?:比率|比例|占比|率)'
+        r'|(?<![a-z0-9])cost\s+ratio(?![a-z0-9])',rd_text))
+    margin_text=q
+    for term in (*dict(TOPICS)['gross_margin'],*dict(TOPICS)['net_margin']):
+        margin_text=re.sub(_term_pattern(term),' ',margin_text)
+    unsupported_margin=matches(margin_text,'margin') or bool(re.search(r'利润(?:率|比率|比例)',margin_text))
     overview=any(w in q for w in ('经营','诊断','概览','全景','整体','数据质量','数据缺口','核查指标','overview','summary'))
     if not topics and overview:topics=list(defaults)
     # Remove only named supported turnover phrases. Any remaining turnover
@@ -125,6 +177,8 @@ def resolve_question(text, data, defaults):
     status='supported';notice=''
     if any(word in q for word in ('不继续','不要继续','停止继续','别继续')):
         status='needs_clarification';notice='已停止沿用上一轮范围；请单独写明新的指标与目标季度，避免把被否定的指标仍作为核查对象。'
+    elif negated_metrics:
+        status='needs_clarification';notice='问题包含被否定或排除的指标，本地助手不会把它们仍当作核查对象；请单独写明需要核查的指标和季度。'
     elif (previous and yearly) or '同环比' in q:
         status='needs_clarification';notice='一次计划使用一个比较基期；请明确同比或环比，避免静默选择。'
     elif len(quarters)>1:
@@ -141,10 +195,16 @@ def resolve_question(text, data, defaults):
         status='unsupported_topic';notice='当前问答不支持库存或存货金额、余额和存量，不能用库存周转率代替金额。请核对原始财务表；如需核查已支持的库存周转率或其他指标，请单独提问。'
     elif unsupported_rd_amount:
         status='unsupported_topic';notice='当前问答不支持研发费用金额或研发支出金额，不能用研发费用率或研发占比代替。请核对原始财务表；如需核查已支持的研发费用率或其他指标，请单独提问。'
+    elif unsupported_cost_ratio:
+        status='unsupported_topic';notice='当前问答不支持该成本比率，不能用营业成本金额替代比例。请单独提问已支持的营业成本金额或研发费用率。'
+    elif unsupported_margin:
+        status='unsupported_topic';notice='当前问答仅支持明确的毛利率（gross margin）与净利率（net profit margin）；未明确口径或不支持的 margin 指标不能用毛利率替代。请单独提问已支持的指标。'
     elif gross_profit_amount:
         status='unsupported_topic';notice='毛利额或毛利润是金额；当前问答没有提供该金额指标，不能用毛利率百分比替代。请核对原始财务表中的收入与成本，或明确改问已支持的毛利率。'
     elif unsupported_turnover:
         status='unsupported_topic';notice='当前不支持该周转指标或未明确对象的周转问题；本地仅可核查存货/库存周转率与总资产周转率，不支持应收账款、固定/流动资产周转或周转天数。请将受支持指标单独提问，不用另一指标或单位代替。'
+    elif modifier_notice:
+        status='unsupported_topic';notice=modifier_notice
     elif not topics and any(w in q for w in ('证据','资料','记忆','偏好','任务','执行','断点','行动','待办','跟进','截止','情景','敏感','假设','涨价','跌价')):
         status='workspace_query';notice='已按当前企业与工作身份查询相关资料或工作记录；本问题没有指定财务指标，因此不附加无关指标结论。'
     elif not topics:
