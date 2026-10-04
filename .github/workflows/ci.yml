@@ -71,7 +71,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Bind every native audit to the explicitly reviewed application revision.
       # Every probe must pass; failed or incomplete evidence remains a failure.
-      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree c007d4e411a98a49c176c824efe358cb0e5b3f61 --expected-server-tree c60d7ef8e7d941389e6d8984b9b6891f1162a811
+      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 85d10439febbaafc51b9c10ebfdb28b9ba4c4862 --expected-server-tree c60d7ef8e7d941389e6d8984b9b6891f1162a811
       - run: python scripts/pack_product_audit.py
         if: always()
       - uses: actions/upload-artifact@v4
@@ -169,6 +169,34 @@ jobs:
         with:
           name: product-audit-${{ matrix.os }}-part-12
           path: evidence/product-audit-transfer/part-12/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-13
+          path: evidence/product-audit-transfer/part-13/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-14
+          path: evidence/product-audit-transfer/part-14/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-15
+          path: evidence/product-audit-transfer/part-15/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-audit-${{ matrix.os }}-part-16
+          path: evidence/product-audit-transfer/part-16/
           if-no-files-found: ignore
           retention-days: 14
   dependency-audit:

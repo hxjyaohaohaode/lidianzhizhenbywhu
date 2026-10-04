@@ -410,6 +410,10 @@ document.addEventListener('submit', async (event) => {
                     if (!submittedCurrent())
                         break;
                     output.innerHTML = reportComparisonView(r);
+                    const header = output.closest('dialog')?.querySelector('.dialog-head');
+                    output.style.scrollMarginTop = ((header?.getBoundingClientRect().height ?? 0) + 12) + 'px';
+                    output.scrollIntoView({ block: 'start', behavior: 'auto' });
+                    output.focus({ preventScroll: true });
                 }
                 catch (error) {
                     if (!submittedCurrent())

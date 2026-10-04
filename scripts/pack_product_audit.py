@@ -12,7 +12,7 @@ import re
 import zipfile
 
 PART_BYTES = 24 * 1024 * 1024
-MAX_PARTS = 12
+MAX_PARTS = 16
 ROOT = Path(__file__).resolve().parents[1]
 
 

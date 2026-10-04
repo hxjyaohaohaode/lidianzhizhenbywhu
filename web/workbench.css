@@ -60,3 +60,19 @@ body{background:var(--bg)}h1{font-size:clamp(23px,2.1vw,31px);line-height:1.3}h2
 @media(max-height:650px){.sidebar{padding-top:10px;padding-bottom:8px}.sidebar .brand{min-height:38px}.sidebar .command-button{margin-top:10px}.sidebar-footer{padding-top:8px;margin-top:7px;min-height:48px}.sidebar-role{padding-top:6px;margin-top:7px}.copilot-full{min-height:320px}.copilot-header{padding-top:12px;padding-bottom:10px}.assistant-composer textarea{min-height:65px}}
 /* Frozen sources remain readable on narrow screens, including long hashes and excerpts. */
 .business-source{min-width:0}.business-source p,.timeline-entry small{overflow-wrap:anywhere}.preserve-lines{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* The full chat uses the height left by its real header and sync notice.
+   Late notices and wrapped headings shrink the message pane, not the composer. */
+@media screen{
+ .workspace-shell[data-copilot=full]>.main-shell{height:100dvh;display:flex;flex-direction:column}
+ .workspace-shell[data-copilot=full]>.main-shell>.topbar,.workspace-shell[data-copilot=full] #sync-notice{flex:none}
+ .workspace-shell[data-copilot=full] #main{flex:1;display:flex;flex-direction:column;min-height:0;width:100%;overflow:auto}
+ .workspace-shell[data-copilot=full] #main>.page-heading{flex:none}
+ .workspace-shell[data-copilot=full] .copilot-full{flex:1;min-height:300px;height:auto;width:100%}
+}
+#report-comparison{scroll-margin-top:12px;outline-offset:4px}
+.report-change-summary{list-style:none;padding:0;margin:12px 0;display:grid;gap:8px}
+.report-change-summary li{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;padding:10px 12px;background:var(--panel-soft);border:1px solid var(--line);border-radius:8px}
+.report-change-summary li>strong:last-child{margin-left:auto}
+.report-bound-sources{overflow-wrap:anywhere;font-size:12px;line-height:1.8;margin:16px 0}
+.report-bound-sources p{margin:8px 0}

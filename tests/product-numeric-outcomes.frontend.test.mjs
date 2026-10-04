@@ -71,9 +71,9 @@ assert(start>=0&&end>start);
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
 const submitComparison=new AsyncFunction('env',`const {str,workspace,submittedCurrent,document,reportComparisonView,notice}=env;switch('report-compare-form'){${app.slice(start,end)}}`);
 for(const current of [true,false])test(`actual comparison submit ${current?'renders frozen point differences':'does not overwrite a replaced comparison'}`,async()=>{
- const node={innerHTML:'newer view'};let reads=0;
+ const movements=[];const node={innerHTML:'newer view',style:{},closest:()=>({querySelector:()=>({getBoundingClientRect:()=>({height:72})})}),scrollIntoView:options=>movements.push(['scroll',options]),focus:options=>movements.push(['focus',options])};let reads=0;
  await submitComparison({str:key=>key==='left'?'old':'new',workspace:async()=>{reads++;return comparison('gross_margin',.2,.25,.05)},submittedCurrent:()=>current,document:{querySelector:()=>node},reportComparisonView,notice});
- assert.equal(reads,current?1:0);if(current){assert(node.innerHTML.includes('+5 个百分点'));assert(node.innerHTML.includes('data-report-left="old"'));assert(node.innerHTML.includes('data-report-right="new"'));}else assert.equal(node.innerHTML,'newer view');
+ assert.equal(reads,current?1:0);assert.deepEqual(movements,current? [['scroll',{block:'start',behavior:'auto'}],['focus',{preventScroll:true}]]:[]);if(current){assert.equal(node.style.scrollMarginTop,'84px');assert(node.innerHTML.includes('+5 个百分点'));assert(node.innerHTML.includes('data-report-left="old"'));assert(node.innerHTML.includes('data-report-right="new"'));}else assert.equal(node.innerHTML,'newer view');
 });
 test('selection changes during comparison never publish a late result under new inputs',async()=>{
  const node={innerHTML:'old values'};let current=true;
@@ -134,4 +134,34 @@ test('result-locating buttons never overwrite the message’s opened-detail stat
  const nestedButton={dataset:{message:'message-a'},querySelectorAll:()=>[]};
  const host={querySelectorAll:selector=>selector.includes('.chat-turn')?[message]:[message,nestedButton]};
  assert.deepEqual(collectDetails(host).get('message-a'),[0]);
+});
+
+// Whole-task discoverability: a frozen delta must be visible before a long table.
+test('comparison leads with changed numerical facts and binds readable sources by actual response IDs',()=>{
+ state.cache={reports:[{id:'new',query:'实际新问题',current_period:'2024-Q4',dataset_version:2,created_at:'2026-10-04T18:39:10Z'},{id:'old',query:'实际旧问题',current_period:'2024-Q4',dataset_version:1,created_at:'2026-10-04T18:39:08Z'}]};
+ const r={...comparison('gross_margin',.2,.25,.05),changes:[{metric:'leverage',before:.3,after:.3,delta:0},{metric:'gross_margin',before:.2,after:.25,delta:.05},{metric:'roe',before:null,after:.1,delta:null}]};
+ const frozen=structuredClone(r),html=reportComparisonView(r);
+ assert.match(html,/<li[^>]*data-change-metric="gross_margin"[^>]*>[^]*?20%[^]*?25%[^]*?\+5 个百分点/);
+ assert(!html.includes('data-change-metric="leverage"'));assert(!html.includes('data-change-metric="roe"'));
+ assert(html.indexOf('data-change-metric="gross_margin"')<html.indexOf('<table'));
+ assert(html.includes('实际旧问题'));assert(html.includes('实际新问题'));assert(html.includes('数据修订 1'));assert(html.includes('数据修订 2'));assert.deepEqual(r,frozen);
+ assert.match(reportCompareForm(),/id="report-comparison"[^>]*role="region"[^>]*aria-label="报告差异结果"[^>]*tabindex="-1"/);
+});
+test('zero and unavailable deltas do not manufacture a change summary',()=>{
+ state.cache={reports:[]};
+ let html=reportComparisonView(comparison('gross_margin',.2,.2,0));assert(html.includes('可比较指标没有数值变化'));
+ html=reportComparisonView(comparison('gross_margin',null,.2,null));assert(html.includes('没有可计算的数值差异'));assert(!html.includes('data-change-metric='));
+ assert(html.includes('来源摘要未加载')); // A missing list entry is not invented from current data.
+});
+test('a newer comparison finishes before an older response without old values or focus stealing',async()=>{
+ let releaseOld,currentOld=true;const events=[];
+ const older={innerHTML:'',style:{},closest:()=>null,scrollIntoView:()=>events.push('old-scroll'),focus:()=>events.push('old-focus')};
+ const newer={innerHTML:'',style:{},closest:()=>null,scrollIntoView:()=>events.push('new-scroll'),focus:()=>events.push('new-focus')};
+ const base={reportComparisonView,notice};
+ const pending=submitComparison({...base,str:key=>key==='left'?'old':'new',workspace:()=>new Promise(resolve=>{releaseOld=resolve}),submittedCurrent:()=>currentOld,document:{querySelector:()=>older}});
+ currentOld=false;
+ await submitComparison({...base,str:key=>key==='left'?'new':'old',workspace:async()=>({...comparison('gross_margin',.25,.2,-.05),left:'new',right:'old'}),submittedCurrent:()=>true,document:{querySelector:()=>newer}});
+ const displayed=newer.innerHTML;assert(displayed.includes('-5 个百分点'));assert(displayed.includes('data-report-left="new"'));
+ releaseOld(comparison('gross_margin',.2,.25,.05));await pending;
+ assert.equal(newer.innerHTML,displayed);assert.deepEqual(events,['new-scroll','new-focus']);assert(!older.innerHTML.includes('+5 个百分点'));
 });

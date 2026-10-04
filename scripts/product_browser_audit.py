@@ -377,6 +377,23 @@ def probe_forecast(p):
     p.bootstrap()
     p.navigate('copilot')
     failures = []
+    notice_was_visible = p.page.locator('#sync-notice .sync-bar').is_visible()
+    followup = '2023-Q2经营现金流是多少'
+    p.fill('#assistant-query', followup, '先保留真实未发送问题，观察稍后的工作区变更提示')
+    p.step('等待真实同步周期提示，不注入通知或刷新未保存输入', lambda: p.page.locator('#sync-notice .sync-bar').wait_for(state='visible', timeout=RUN_TIMEOUT_MS))
+    composer = p.page.locator('#assistant-query')
+    send = p.page.locator('#assistant-form button[type="submit"]')
+    assert composer.input_value() == followup, 'Live notice replaced the unsent draft.'
+    banner_view = {'composer':visible_geometry(composer),'send':visible_geometry(send)}
+    if any(value.get('ratio',0)<.95 for value in banner_view.values()):
+        failures.append('Live change notice clips the composer/send control below the viewport')
+    p.observations['live_notice_viewport']={'geometry':banner_view,'notice_already_visible_before_draft':notice_was_visible,'draft_retained':True,'arrival_retention_scope':'notice-present only' if notice_was_visible else 'draft preceded observed notice'}
+    before = p.page.locator('#assistant-answer .chat-turn').count()
+    p.submit('#assistant-form')
+    turn = p.page.locator('#assistant-answer .chat-turn').nth(before)
+    turn.wait_for(state='visible',timeout=RUN_TIMEOUT_MS)
+    assert turn.locator('.user-message p').inner_text() == followup
+    p.observations['ask_after_live_notice']={'question':followup,'actual_visible_control_submission':True,'rewrote_draft_before_submit':False}
     for metric, question, title, expected_raw in (
         ('gross_margin', '预测毛利率并展示回测依据', '毛利率', .2),
         ('revenue', '预测营业收入并展示回测依据', '营业收入', FIXTURE_REVENUE),
@@ -417,6 +434,30 @@ def probe_forecast(p):
         p.observations[metric] = {'independent_expected_raw': expected_raw, 'independent_expected_display': '20%' if metric=='gross_margin' else '10 万元', 'initial_viewport': initial, 'initial_result_discoverable': initial_ok, 'after_real_jump': after, 'message_id': message_id, 'closed_card_text': visible_text, 'row': cells, 'headers': headers, 'stored_metric': artifact['metric'], 'stored_forecast': artifact['forecast'], 'unit_and_scale_correct': unit_ok}
         p.step('核对闭合卡的指标、预测期间与单位', lambda: None)
         p.step('展开实际回测来源和限制作为旁证', lambda: card.locator('summary').filter(has_text='回测、边界与每折结果').click())
+    # Extra chat-only adaptations, after testing the original failure size.
+    # Low-height screens may use ordinary main scrolling, never hide the notice.
+    adaptations = []
+    for viewport in [{'width':390,'height':844}, {'width':800,'height':600}]:
+        p.step(f'仅当前聊天切换到额外视口{viewport}', lambda viewport=viewport: p.page.set_viewport_size(viewport))
+        draft_text = '2023-Q2经营现金流是多少'
+        p.fill('#assistant-query', draft_text, '在额外视口输入真实未发送问题')
+        assert p.page.locator('#assistant-query').input_value() == draft_text
+        send = p.page.locator('#assistant-form button[type="submit"]')
+        def reveal_send():
+            send.scroll_into_view_if_needed()
+            assert is_in_view(visible_geometry(send)), visible_geometry(send)
+            assert send.is_enabled()
+        p.step('普通滚动使发送按钮可见，通知不被隐藏，原稿不丢', reveal_send)
+        assert p.page.locator('#sync-notice .sync-bar').is_visible()
+        assert p.page.locator('#assistant-query').input_value() == draft_text
+        before = p.page.locator('#assistant-answer .chat-turn').count()
+        p.submit('#assistant-form')
+        turn = p.page.locator('#assistant-answer .chat-turn').nth(before)
+        turn.wait_for(state='visible',timeout=RUN_TIMEOUT_MS)
+        assert turn.locator('.user-message p').inner_text() == draft_text
+        adaptations.append({'viewport':viewport,'ordinary_scroll_to_send':True,'draft_preserved':True,'real_submission':True,'scope':'chat-only extra adaptation, not full-device acceptance'})
+    p.step('恢复原始1520×1080视口，额外适配不替代原始缺陷复验', lambda: p.page.set_viewport_size({'width':1520,'height':1080}))
+    p.observations['extra_chat_viewports']=adaptations
     p.no_external()
     assert not failures, 'F2 independent usability/number contract: ' + '; '.join(failures)
 
@@ -444,11 +485,30 @@ def check_selection_summary(p, left, right, query):
         assert re.search(r'\d{2}:\d{2}:\d{2}', fields.get('生成时间', '')), fields
 
 
-def check_comparison(p, left, right, before, after):
+def check_comparison(p, left, right, before, after, fresh_result=True):
     bound = p.page.locator('#report-comparison [data-report-left][data-report-right]')
     bound.wait_for(state='visible', timeout=FORM_TIMEOUT_MS)
     assert bound.count() == 1 and bound.get_attribute('data-report-left') == left and bound.get_attribute('data-report-right') == right
-    table = p.page.locator('#report-comparison table').first
+    region = p.page.get_by_role('region', name='报告差异结果', exact=True)
+    assert region.count() == 1
+    if fresh_result:
+        assert region.evaluate('el => el === document.activeElement'), 'Fresh successful comparison must focus its named result region.'
+    summary = region.locator('[data-change-metric="gross_margin"]')
+    assert summary.count() == 1
+    before_after = summary.locator('span').inner_text().split('→')
+    assert len(before_after) == 2 and percentage_display(before_after[0], '', before) and percentage_display(before_after[1], '', after)
+    assert points_display(summary.locator('strong').last.inner_text(), '', after-before)
+    summary_geometry = visible_geometry(summary)
+    if fresh_result:
+        assert is_in_view(summary_geometry), 'Comparison summary is not visible after the product result-location action: '+str(summary_geometry)
+    sticky_header = p.page.locator('#modal .dialog-head').bounding_box()
+    assert sticky_header is not None
+    sticky_bottom = sticky_header['y'] + sticky_header['height']
+    if fresh_result:
+        assert summary_geometry['box']['y'] >= sticky_bottom - 1, 'Sticky dialog title covers the change summary.'
+    p.observations.setdefault('comparison_result_visibility', []).append({'left':left,'right':right,'summary':summary.inner_text(),'observed_summary_geometry':summary_geometry,'fresh_result_visibility_required':fresh_result})
+    table = p.page.locator('#report-comparison table').filter(has=p.page.get_by_role('columnheader', name='基准', exact=True)).filter(has=p.page.get_by_role('columnheader', name='对照', exact=True))
+    assert table.count() == 1, 'The frozen metric comparison table must be uniquely identifiable by its semantic columns.'
     rows = [row.locator('td').all_text_contents() for row in table.locator('tbody tr').all()]
     margin = next(row for row in rows if row[0].strip() == '毛利率')
     header = table.locator('thead').inner_text()
@@ -456,6 +516,18 @@ def check_comparison(p, left, right, before, after):
     assert points_display(margin[3], header, after-before), margin
     text = p.page.locator('#report-comparison').inner_text()
     assert '同季度' in text and '跨季度变化包含期间差异' not in text
+    margin_element = table.get_by_role('row').filter(has=p.page.get_by_role('cell', name='毛利率', exact=True))
+    assert margin_element.count() == 1
+    def reveal_metric():
+        if fresh_result:
+            margin_element.scroll_into_view_if_needed()
+        for element in [margin_element, table.locator('thead'), bound]:
+            geometry = visible_geometry(element)
+            assert is_in_view(geometry), geometry
+            assert geometry['box']['y'] >= sticky_bottom - 1, 'Sticky dialog title covers a required result/binding row.'
+    # submit's original viewport is already preserved. This is an actual
+    # browser scroll, not reading a hidden row and calling it a pixel pass.
+    p.step('普通模态滚动：毛利率、表头、实际绑定必须同屏可读' if fresh_result else '保持已有滚动位置，只核当前可见表格与绑定', reveal_metric)
     return {'left':left, 'right':right, 'margin_row':margin, 'header':header, 'text':text}
 
 
@@ -466,11 +538,11 @@ def require_no_comparison(p, reason):
     assert reason in result.inner_text(), result.inner_text()
 
 
-def wait_comparison_idle(p):
+def wait_comparison_idle(p, original_form=None):
     # Use the existing CSP-compatible MutationObserver lifecycle helper. It
     # observes the original form; it does not compile a polling predicate.
     from service_browser_check import FORM_COMPLETION
-    form = p.page.locator('#report-compare-form').element_handle()
+    form = original_form if original_form is not None else p.page.locator('#report-compare-form').element_handle()
     assert form is not None, 'Original comparison form disappeared.'
     return form.evaluate(FORM_COMPLETION, FORM_TIMEOUT_MS)
 
@@ -592,6 +664,87 @@ def probe_report_points(p):
         p.page.unroute(pattern,fail_read)
     p.submit('#report-compare-form',after='#report-comparison table')
     p.observations['retry_comparison']=check_comparison(p,earlier['id'],later['id'],.2,.25)
+    # Genuine overlapping UI lifecycles: close the pending original dialog,
+    # reopen normally, and complete a new form before releasing the old GET.
+    # No disabled control is force-clicked and no app state is injected.
+    concurrent = []
+    for new_outcome, old_outcome in [('success','success'), ('success','failure'), ('failure','success')]:
+        select_report_by_human_label(p,'left',query,1,earlier['id'])
+        select_report_by_human_label(p,'right',query,2,later['id'])
+        original_form = p.page.locator('#report-compare-form').element_handle()
+        assert original_form is not None
+        old_pending = []
+        focus_before = None
+        def hold_original(route):
+            assert route.request.method == 'GET'
+            old_pending.append(route)
+        p.page.route(pattern,hold_original,times=1)
+        try:
+            with p.page.expect_request(lambda r: '/api/workspace/reports/compare?' in r.url, timeout=FORM_TIMEOUT_MS):
+                p.click('#report-compare-form button[type="submit"]',label=f'保留旧表单读取，准备新{new_outcome}/旧{old_outcome}乱序回执')
+            assert len(old_pending)==1
+            p.click('#modal [data-action="close-modal"]',label='真实关闭仍在读取的旧比较窗口')
+            p.page.locator('#modal').wait_for(state='hidden',timeout=FORM_TIMEOUT_MS)
+            p.click('#main [data-action="report-compare-dialog"]',after='#report-compare-form',label='真实重新打开比较窗口，创建新的表单生命周期')
+            select_report_by_human_label(p,'left',query,2,later['id'])
+            select_report_by_human_label(p,'right',query,1,earlier['id'])
+            check_selection_summary(p,later,earlier,query)
+            if new_outcome=='success':
+                p.submit('#report-compare-form',after='#report-comparison table')
+                before_result=check_comparison(p,later['id'],earlier['id'],.25,.2)
+            else:
+                def fail_new(route):
+                    assert route.request.method=='GET'
+                    route.abort('failed')
+                p.page.route(pattern,fail_new,times=1)
+                try:
+                    p.click('#report-compare-form button[type="submit"]',label='新表单读取明确断网，先形成当前可读错误')
+                    wait_comparison_idle(p)
+                    require_no_comparison(p,'本次比较未完成')
+                finally:
+                    p.page.unroute(pattern,fail_new)
+                before_result=None
+            before_error=p.page.locator('#report-compare-form .form-error').inner_text()
+            assert bool(before_error.strip()) == (new_outcome=='failure')
+            before_toasts=p.page.locator('#notifications .toast.error').all_text_contents()
+            scroll_before=p.page.locator('#modal').evaluate('el => el.scrollTop')
+            focus_before=p.page.evaluate_handle('() => document.activeElement')
+            def release_original():
+                route=old_pending.pop()
+                assert 'left='+earlier['id'] in route.request.url and 'right='+later['id'] in route.request.url
+                if old_outcome=='success':
+                    response=route.fetch(timeout=FORM_TIMEOUT_MS)
+                    assert response.status==200
+                    payload=response.json()
+                    assert payload['left']==earlier['id'] and payload['right']==later['id']
+                    route.fulfill(response=response)
+                else:
+                    route.abort('failed')
+                # The original detached form is still observed until its own
+                # pending attribute clears; replacing the DOM is not completion.
+                wait_comparison_idle(p, original_form)
+            p.step('新表单已完成后才释放旧回执，等待原表单finally',release_original)
+            scroll_after=p.page.locator('#modal').evaluate('el => el.scrollTop')
+            assert abs(scroll_after-scroll_before)<=1, 'Stale response moved the current result viewport.'
+            assert focus_before.evaluate('el => el === document.activeElement'), 'Stale response changed the current focus.'
+            check_selection_summary(p,later,earlier,query)
+            if new_outcome=='success':
+                after_result=check_comparison(p,later['id'],earlier['id'],.25,.2,fresh_result=False)
+                assert after_result['margin_row']==before_result['margin_row']
+            else:
+                require_no_comparison(p,'本次比较未完成')
+            assert p.page.locator('#report-compare-form .form-error').inner_text()==before_error
+            assert p.page.locator('#notifications .toast.error').all_text_contents()==before_toasts, 'Stale error leaked as a global toast.'
+            p.step('当前新结果或新错误仍绑定正确报告，不受旧窗口回执污染',lambda:None)
+            concurrent.append({'new_outcome':new_outcome,'old_outcome':old_outcome,'new_left':later['id'],'new_right':earlier['id'],'old_left':earlier['id'],'old_right':later['id'],'new_request_completed_before_old_release':True,'current_error':before_error,'stale_global_error_absent':True,'modal_scroll_before':scroll_before,'modal_scroll_after':scroll_after,'focus_preserved':True})
+        finally:
+            p.page.unroute(pattern,hold_original)
+            for route in old_pending:
+                route.abort('failed')
+            if focus_before is not None:
+                focus_before.dispose()
+            original_form.dispose()
+    p.observations['reopened_form_out_of_order']=concurrent
     p.no_external()
 
 

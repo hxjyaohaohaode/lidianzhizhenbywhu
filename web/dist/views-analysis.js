@@ -55,7 +55,7 @@ export function reportSelectionDetails(left, right) {
 export function reportCompareForm() {
     const options = (state.cache.reports ?? []).map((r) => ({ value: r.id, label: String(r.query ?? r.title ?? '问题未记录').slice(0, 100) + ' · ' + (r.current_period ?? '季度未记录') + ' · 数据修订 ' + (r.dataset_version ?? '未记录') + ' · ' + reportTime(r.created_at) + ' · #' + String(r.id).slice(0, 8) }));
     const left = options[1]?.value ?? '', right = options[0]?.value ?? '';
-    return `<form id="report-compare-form" class="stack">${field('较早 / 基准报告', select('left', options, left))}${field('本次 / 对照报告', select('right', options, right))}<div id="report-selection-details" aria-live="polite">${reportSelectionDetails(left, right)}</div>${formFooter('查看差异')}</form><div id="report-comparison"></div>`;
+    return `<form id="report-compare-form" class="stack">${field('基准报告', select('left', options, left))}${field('对照报告', select('right', options, right))}<div id="report-selection-details" aria-live="polite">${reportSelectionDetails(left, right)}</div>${formFooter('查看差异')}</form><div id="report-comparison" role="region" aria-label="报告差异结果" tabindex="-1"></div>`;
 }
 const reportMultiples = new Set(['inventory_turnover', 'asset_turnover', 'sales_production_ratio']);
 const reportRatios = new Set(['gross_margin', 'net_margin', 'roe', 'cash_ratio', 'leverage', 'rd_ratio', 'revenue_growth', 'margin_change']);
@@ -69,8 +69,16 @@ function reportNumber(id, value, delta = false) {
         return delta || id === 'margin_change' ? sign + num(value * 100) + ' 个百分点' : pct(value);
     return num(value) + '（单位未记录）';
 }
+/** Describe the immutable report selected by the response, never the current dataset. */
+function comparedReportSource(label, id) {
+    const row = (state.cache.reports ?? []).find((v) => v.id === id);
+    return `<p><strong>${label}</strong> ${row ? esc(row.query ?? '问题未记录') + ' · ' + esc(row.current_period ?? '季度未记录') + ' · 数据修订 ' + esc(row.dataset_version ?? '未记录') + ' · ' + esc(reportTime(row.created_at)) : '来源摘要未加载'} <span class="micro">#${esc(String(id ?? '未记录').slice(0, 8))}</span></p>`;
+}
 export function reportComparisonView(r) {
-    return `<section class="panel"><h3>${esc(r.left_period)} → ${esc(r.right_period)}</h3>${notice(r.warning, r.same_period ? 'neutral' : 'warm')}${!r.same_rule_version ? notice('规则版本不同，不可直接将得分变化解释为经营变化。', 'warm') : ''}<p class="micro" data-report-left="${esc(r.left)}" data-report-right="${esc(r.right)}">本次绑定：基准 #${esc(String(r.left ?? '未记录').slice(0, 8))} → 对照 #${esc(String(r.right ?? '未记录').slice(0, 8))}。</p><p class="micro">以下保留两份报告的冻结数值。变化 = 对照 − 基准；比率差值以百分点表示，倍数差值以倍表示。</p>${table(['指标', '基准', '对照', '变化'], r.changes.map((c) => [esc(metricNames[c.metric] ?? c.metric), reportNumber(c.metric, c.before), reportNumber(c.metric, c.after), reportNumber(c.metric, c.delta, true)]))}<details><summary>输入修订差异</summary>${jsonView(r.input_diff)}</details></section>`;
+    const comparable = r.changes.filter((c) => typeof c.delta === 'number' && Number.isFinite(c.delta));
+    const changed = comparable.filter((c) => c.delta !== 0);
+    const summary = changed.length ? `<ul class="report-change-summary">${changed.map((c) => `<li data-change-metric="${esc(c.metric)}"><strong>${esc(metricNames[c.metric] ?? c.metric)}</strong><span>${reportNumber(c.metric, c.before)} → ${reportNumber(c.metric, c.after)}</span><strong>${reportNumber(c.metric, c.delta, true)}</strong></li>`).join('')}</ul>` : notice(comparable.length ? '可比较指标没有数值变化。' : '没有可计算的数值差异，请核对下方缺失值。');
+    return `<section class="panel"><h3>${esc(r.left_period)} → ${esc(r.right_period)}</h3><h4>数值变化摘要</h4>${summary}<p class="micro">变化 = 对照 − 基准；比率差值以百分点表示，倍数差值以倍表示。这里只说明冻结数值差异，不直接判断经营改善或恶化。</p>${notice(r.warning, r.same_period ? 'neutral' : 'warm')}${!r.same_rule_version ? notice('规则版本不同，不可直接将得分变化解释为经营变化。', 'warm') : ''}<div class="report-bound-sources" data-report-left="${esc(r.left)}" data-report-right="${esc(r.right)}">${comparedReportSource('基准报告', r.left)}${comparedReportSource('对照报告', r.right)}</div><h4>完整冻结指标</h4><p class="micro">以下保留两份报告的冻结数值；缺失值不作为零值计算。</p>${table(['指标', '基准', '对照', '变化'], r.changes.map((c) => [esc(metricNames[c.metric] ?? c.metric), reportNumber(c.metric, c.before), reportNumber(c.metric, c.after), reportNumber(c.metric, c.delta, true)]))}<details><summary>输入修订差异</summary>${jsonView(r.input_diff)}</details></section>`;
 }
 export async function actionsPage() {
     const rows = await workspace('/actions');
