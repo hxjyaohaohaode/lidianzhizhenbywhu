@@ -19,9 +19,9 @@ import tempfile
 import uuid
 
 try:
-    from .product_readout_oracles import expect_first_use_readout, expect_reader_first_markdown, observe_text_by_normal_scroll, verify_frozen_report_after_later_input
+    from .product_readout_oracles import expect_first_use_readout, expect_reader_first_markdown, observe_text_by_normal_scroll, verify_frozen_report_after_later_input, inspect_human_import_values, read_preview_table
 except ImportError:
-    from product_readout_oracles import expect_first_use_readout, expect_reader_first_markdown, observe_text_by_normal_scroll, verify_frozen_report_after_later_input
+    from product_readout_oracles import expect_first_use_readout, expect_reader_first_markdown, observe_text_by_normal_scroll, verify_frozen_report_after_later_input, inspect_human_import_values, read_preview_table
 
 REVIEWED_REMOTE = '915cbde3f107b79bc767fad7dde90694a1ef1740'
 REVIEWED_WEB = '85d10439febbaafc51b9c10ebfdb28b9ba4c4862'
@@ -259,6 +259,7 @@ def inspect_import_preview(p, corrected):
     assert '0 项结构警告' in text and '字段与来源提示' in text and '未独立核验' in text
     for period in PERIODS:
         assert any(period in row and '经营现金流' in row for row in modal.locator('tr').all_inner_texts()), 'Each incomplete quarter must be identified.'
+    inspect_human_import_values(p, corrected=corrected)
     detail = open_detail(p, modal, '查看标准化后的完整数据', '展开实际预览的归一化输入')
     parsed = json.loads(detail.locator('pre.json-view').inner_text())
     expect_dataset(parsed, corrected=corrected)
@@ -268,6 +269,44 @@ def inspect_import_preview(p, corrected):
     assert p.get('/api/datasets')['items'] == []
     assert p.get('/api/runs')['items'] == []
     p.observations.setdefault('import_previews', []).append({'corrected': corrected, 'normalized': parsed})
+
+
+
+def preview_zero_without_committing(p, template, original_run):
+    # Additional synthetic preview only; the main 9->8, null and frozen-report
+    # narrative/files remain exactly as previously reviewed.
+    rows = list(csv.reader(io.StringIO(synthetic_csv(template, corrected=True).decode('utf-8-sig'))))
+    rows[1][3] = '0'          # Q1 net profit is real zero; Q1 cash flow stays blank.
+    rows[2][4] = '0'          # Q2 cash flow is a supplied zero, not missing.
+    rows[2][3] = '0.000029'   # 0.29 yuan shown in explicitly chosen wan, no binary tail.
+    output = io.StringIO(newline=''); csv.writer(output, lineterminator='\n').writerows(rows)
+    path = Path(p.directory) / 'L1-zero-only-preview.csv'; path.write_bytes(output.getvalue().encode('utf-8-sig'))
+    p.record_artifact(path, kind='synthetic-input')
+    before = p.get('/api/datasets')['items']; assert len(before)==1 and before[0]['version']==2
+    p.navigate('data')
+    p.click('#main [data-action="import-dialog"]', after='#import-file-form')
+    p.select('#import-file-form [name="target_id"]', '', '明确这是额外新文件预览，不修订原数据')
+    p.fill('#import-file-form [name="company"]', COMPANY)
+    p.select('#import-file-form [name="amount_unit"]', 'wan')
+    p.select('#import-file-form [name="basis"]', 'standalone_quarter')
+    p.step('选择仅用于0与缺失核对的合成文件', lambda: p.visible('#import-file-form [name="file"]').set_input_files(str(path)))
+    p.submit('#import-file-form', after='#modal section.import-readable')
+    section = p.visible('#modal section.import-readable')
+    first = section.locator('details[data-preview-period="2024-Q1"]')
+    second = section.locator('details[data-preview-period="2024-Q2"]')
+    read_preview_table(p, first.locator(':scope > .preview-values'), [
+        ('cost',['营业成本','8','万元']),('cash_flow',['经营现金流','未提供','万元']),('net_profit',['净利润','0','万元']),
+    ], '额外预览Q1明确0与未提供不同')
+    p.step('实际打开Q2核对已提供0和小金额', lambda: second.locator(':scope > summary').click())
+    read_preview_table(p, second.locator(':scope > .preview-values'), [
+        ('cash_flow',['经营现金流','0','万元']),('net_profit',['净利润','0.000029','万元']),
+    ], '额外预览Q2已提供0与0.29元的万元展示')
+    p.click('#modal [data-action="close-modal"]', label='通过真实关闭按钮放弃额外预览，不点击确认保存')
+    after = p.get('/api/datasets')['items']; assert after==before, 'A preview/cancel must not mutate current financial data.'
+    old = p.get('/api/runs/'+original_run['id'])
+    assert old['result']==original_run['result'] and old['snapshot']==original_run['snapshot']
+    p.observations['zero_preview_cancelled_without_commit']={'source_file':path.name,'sha256':sha256(path),'Q1_cash_flow':None,'Q1_net_profit':0,'Q2_cash_flow':0,'Q2_net_profit_CNY':.29,'current_dataset_revision':2,'actual_close_control':True,'data_and_report_unchanged':True}
+    p.no_external()
 
 
 def l1_new_user_report(p, *, repository_root, data_dir, expected_web_tree, expected_server_tree):
@@ -427,5 +466,6 @@ def l1_new_user_report(p, *, repository_root, data_dir, expected_web_tree, expec
         'download_content_verification': 'parsed_actual_bytes', 'download_document_readability_review': 'pending_human_review',
         'external_calls': 0, 'live_model_quality': 'not_tested_no_model_requested'}
     verify_frozen_report_after_later_input(p, run, j, m, download_visible)
+    preview_zero_without_committing(p, template, run)
     p.no_external()
     return run

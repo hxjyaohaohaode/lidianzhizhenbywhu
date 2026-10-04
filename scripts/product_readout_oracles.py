@@ -93,7 +93,10 @@ _TEXT_GEOMETRY = r'''(element, needle) => {
  for(let p=element;p;p=p.parentElement){const s=getComputedStyle(p),q=p.getBoundingClientRect();
  if(s.overflowX!=='visible'){clip.left=Math.max(clip.left,q.left);clip.right=Math.min(clip.right,q.right);}
  if(s.overflowY!=='visible'){clip.top=Math.max(clip.top,q.top);clip.bottom=Math.min(clip.bottom,q.bottom);}}
- const head=element.closest('dialog')?.querySelector('.dialog-head');if(head)clip.top=Math.max(clip.top,head.getBoundingClientRect().bottom);
+ const dialog=element.closest('dialog'),head=dialog?.querySelector('.dialog-head');if(head)clip.top=Math.max(clip.top,head.getBoundingClientRect().bottom);
+ // The application topbar is a sibling overlay, not an overflow ancestor.
+ // It visibly covered the heading in original 3433 frame072 despite old geometry.
+ const bar=!dialog&&document.querySelector('.topbar');if(bar){const br=bar.getBoundingClientRect();if(br.bottom>0&&br.top<innerHeight&&r.left<br.right&&r.right>br.left)clip.top=Math.max(clip.top,br.bottom);}
  const rootClip={left:Math.max(root.left,clip.left),right:Math.min(root.right,clip.right),top:Math.max(root.top,clip.top),bottom:Math.min(root.bottom,clip.bottom)};
  return {found:true,top:r.top,bottom:r.bottom,left:r.left,right:r.right,clip,root:rootClip,
  visible:r.width>0&&r.height>0&&r.top>=clip.top-1&&r.bottom<=clip.bottom+1&&r.left>=clip.left-1&&r.right<=clip.right+1};
@@ -176,3 +179,64 @@ def verify_frozen_report_after_later_input(p, original_run, first_json, first_ma
         'old_database_migration_claimed': False,
     }
     p.no_external()
+
+
+def read_preview_table(p, table, expected_rows, label):
+    """Check every displayed cell and record normal-scroll reading, not hidden DOM."""
+    p.step(label + '：正常滚动查看中文字段表', lambda: table.scroll_into_view_if_needed())
+    observations = []
+    for key, expected in expected_rows:
+        row = table.locator(f'tr[data-preview-field="{key}"]')
+        assert row.count() == 1
+        cells = [cell.inner_text().strip() for cell in row.locator('td').all()]
+        assert cells == expected, f'{key}: expected exact human value/unit {expected}, observed {cells}'
+        needle = ''.join(cells)
+        geometry = row.evaluate(_TEXT_GEOMETRY, needle)
+        if not geometry.get('visible'):
+            observe_text_by_normal_scroll(p, row, needle, label + ' ' + key)
+            geometry = row.evaluate(_TEXT_GEOMETRY, needle)
+        assert geometry.get('visible'), 'A value outside the reading viewport does not pass human review.'
+        observations.append({'field':key,'cells':cells,'reading_geometry':geometry})
+    p.observations.setdefault('human_preview_tables', []).append({'label':label,'rows':observations,'pixel_review':'pending_independent_review'})
+
+
+def inspect_human_import_values(p, *, corrected):
+    section = p.visible('#modal section.import-readable')
+    assert '逐季度核对将保存的数据' in section.inner_text()
+    assert '单季度值' in section.inner_text() and '未提供与数值 0 分开显示' in section.inner_text()
+    first = section.locator('details[data-preview-period="2024-Q1"]')
+    second = section.locator('details[data-preview-period="2024-Q2"]')
+    assert first.get_attribute('open') is not None and second.get_attribute('open') is None
+    read_preview_table(p, first.locator(':scope > .preview-values'), [
+        ('revenue',['营业收入','10','万元']),('cost',['营业成本','8' if corrected else '9','万元']),
+        ('cash_flow',['经营现金流','未提供','万元']),('net_profit',['净利润','0.5','万元']),
+        ('assets',['总资产','50','万元']),('liabilities',['总负债','20','万元']),('inventory',['库存金额','2','万元']),
+    ], ('修正后' if corrected else '原文件') + 'Q1基础字段')
+    supplement = first.locator(':scope > details.preview-supplement')
+    assert supplement.get_attribute('open') is None
+    p.step('真实展开Q1产销与补充指标', lambda: supplement.locator(':scope > summary').click())
+    read_preview_table(p, supplement.locator('.preview-values'), [
+        ('equity_begin',['期初净资产','30','万元']),('equity_end',['期末净资产','30','万元']),
+        ('sales_volume',['销量（统一单位）','100','原填数量']),
+        ('production_volume',['产量（相同单位）','120','原填数量']),
+        ('manufacturing_cost',['制造费用','0.2','万元']),('rd_expense',['研发费用','0.3','万元']),
+        ('lithium_price',['锂价 / 元每吨','100,000','元/吨']),
+        ('industry_volatility',['行业波动率 / 比值','0.15','比值']),
+    ], ('修正后' if corrected else '原文件') + 'Q1补充字段与量纲')
+    p.step('收起已核对的Q1补充字段', lambda: supplement.locator(':scope > summary').click())
+    p.step('实际打开另一个季度，不用Q1值替代Q2', lambda: second.locator(':scope > summary').click())
+    read_preview_table(p, second.locator(':scope > .preview-values'), [
+        ('revenue',['营业收入','12','万元']),('cost',['营业成本','10','万元']),
+        ('cash_flow',['经营现金流','未提供','万元']),('net_profit',['净利润','0.6','万元']),
+        ('assets',['总资产','55','万元']),('liabilities',['总负债','22','万元']),('inventory',['库存金额','2.2','万元']),
+    ], ('修正后' if corrected else '原文件') + 'Q2基础字段')
+    supplement2 = second.locator(':scope > details.preview-supplement')
+    p.step('真实展开Q2补充字段，核对不会复制Q1数值', lambda: supplement2.locator(':scope > summary').click())
+    read_preview_table(p, supplement2.locator('.preview-values'), [
+        ('equity_begin',['期初净资产','30','万元']),('equity_end',['期末净资产','33','万元']),
+        ('sales_volume',['销量（统一单位）','110','原填数量']),('production_volume',['产量（相同单位）','130','原填数量']),
+        ('manufacturing_cost',['制造费用','0.25','万元']),('rd_expense',['研发费用','0.35','万元']),
+        ('lithium_price',['锂价 / 元每吨','110,000','元/吨']),('industry_volatility',['行业波动率 / 比值','0.16','比值']),
+    ], ('修正后' if corrected else '原文件') + 'Q2补充字段与量纲')
+    p.step('收起已核对的Q2补充字段', lambda: supplement2.locator(':scope > summary').click())
+    p.step('收起已核对的Q2', lambda: second.locator(':scope > summary').click())

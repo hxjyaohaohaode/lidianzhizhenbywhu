@@ -71,7 +71,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Bind every native audit to the explicitly reviewed application revision.
       # Every probe must pass; failed or incomplete evidence remains a failure.
-      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 12d2976689dd4d354d89c0d5d1c6f0641995d91c --expected-server-tree 61c1025ccdd059c0249ba681a6a3c19a0e73a25d
+      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 7dbf518b25cb79e759313e4849ca35237bfa8865 --expected-server-tree 61c1025ccdd059c0249ba681a6a3c19a0e73a25d
       - run: python scripts/pack_product_audit.py
         if: always()
       - uses: actions/upload-artifact@v4
@@ -218,7 +218,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # L1 alone, with an independent account, native lifecycle and evidence.
       # The runner retains its existing 300-second bound; no L6 heavy setup.
-      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 12d2976689dd4d354d89c0d5d1c6f0641995d91c --expected-server-tree 61c1025ccdd059c0249ba681a6a3c19a0e73a25d
+      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 7dbf518b25cb79e759313e4849ca35237bfa8865 --expected-server-tree 61c1025ccdd059c0249ba681a6a3c19a0e73a25d
       - run: python scripts/pack_product_audit.py --suite first-use
         if: always()
       - uses: actions/upload-artifact@v4

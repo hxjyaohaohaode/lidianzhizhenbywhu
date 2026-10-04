@@ -78,3 +78,4 @@ body{background:var(--bg)}h1{font-size:clamp(23px,2.1vw,31px);line-height:1.3}h2
 .report-bound-sources p{margin:8px 0}
 
 .report-readout{overflow-wrap:anywhere}.report-readout>h3{margin-top:22px;margin-bottom:12px}.report-readout td p{margin:5px 0}.report-readout td{vertical-align:top}.report-readout .compact-list li{margin:8px 0}
+.import-readable{min-width:0}.preview-quarter>summary{overflow-wrap:anywhere}.preview-quarter>summary strong{margin-right:12px}.preview-quarter>summary span{font-weight:400;line-height:1.7}.preview-values table{min-width:0;table-layout:fixed}.preview-values th,.preview-values td{white-space:normal;overflow-wrap:anywhere}.preview-values th:first-child{width:42%}.preview-values th:last-child{width:23%}.preview-supplement{margin:12px 0 0}
