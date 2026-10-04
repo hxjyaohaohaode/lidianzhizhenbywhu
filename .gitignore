@@ -23,3 +23,6 @@ evidence/*.xml
 
 evidence/*-browser-events.jsonl
 evidence/*-process-events.jsonl
+evidence/product-audit/
+evidence/product-browser-audit.json
+evidence/product-audit-service-command.json

@@ -172,12 +172,14 @@ def test_backup_rejects_valid_but_nonmatching_key_and_cleans_outputs(actor,tmp_p
     assert not target.with_name(target.name+'.backup.json').exists()
 
 
-def test_native_acceptance_invalidates_stale_success_before_launch(tmp_path,monkeypatch):
+@pytest.mark.parametrize('product_audit', [False, True])
+def test_native_acceptance_invalidates_stale_success_before_launch(tmp_path,monkeypatch,product_audit):
     native=module('native_acceptance')
     monkeypatch.setattr(native,'ROOT',tmp_path)
-    monkeypatch.setattr(sys,'argv',['native_acceptance.py'])
+    monkeypatch.setattr(sys,'argv',['native_acceptance.py']+(['--product-audit'] if product_audit else []))
+    monkeypatch.setenv('GITHUB_ACTIONS','true')
     out=tmp_path/'evidence';out.mkdir()
-    report=out/'native-service-browser.json'
+    report=out/('product-browser-audit.json' if product_audit else 'native-service-browser.json')
     report.write_text(json.dumps({'all_checks_passed':True,'screenshots':['old.png']}))
     class UnavailableSocket:
         def __enter__(self):return self
@@ -188,3 +190,19 @@ def test_native_acceptance_invalidates_stale_success_before_launch(tmp_path,monk
     current=json.loads(report.read_text())
     assert current['all_checks_passed'] is False and current['screenshots']==[]
     assert current['status']=='not_completed' and current['attempted_at']
+
+
+def test_product_audit_does_not_start_local_server_or_browser(tmp_path,monkeypatch):
+    native=module('native_acceptance')
+    monkeypatch.setattr(native,'ROOT',tmp_path)
+    monkeypatch.setattr(sys,'argv',['native_acceptance.py','--product-audit'])
+    monkeypatch.delenv('GITHUB_ACTIONS',raising=False)
+    def prohibited(*args,**kwargs):
+        pytest.fail('Local product audit must stop before a socket, server or browser is started')
+    monkeypatch.setattr(native.socket,'socket',prohibited)
+    monkeypatch.setattr(native.subprocess,'Popen',prohibited)
+    with pytest.raises(SystemExit,match='GitHub runner'):
+        native.main()
+    report=json.loads((tmp_path/'evidence/product-browser-audit.json').read_text())
+    assert report['all_checks_passed'] is False and report['native_network_e2e'] is False
+    assert report['status']=='not_completed'

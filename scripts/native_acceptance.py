@@ -47,18 +47,29 @@ class WindowsSafeTemporaryDirectory(tempfile.TemporaryDirectory):
                 if attempt==9:raise
                 time.sleep(.2)
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--bridge',action='store_true',help='Run separately labeled DOM/API bridge acceptance');args=parser.parse_args()
-    mode='bridge' if args.bridge else 'native'
+    parser=argparse.ArgumentParser()
+    mode_args=parser.add_mutually_exclusive_group()
+    mode_args.add_argument('--bridge',action='store_true',help='Run separately labeled DOM/API bridge acceptance')
+    mode_args.add_argument('--product-audit',action='store_true',help='Run independent native user-outcome probes on the authorized CI runner')
+    parser.add_argument('--expected-web-tree')
+    parser.add_argument('--expected-server-tree')
+    args=parser.parse_args()
+    if not args.product_audit and (args.expected_web_tree or args.expected_server_tree):
+        parser.error('Expected application trees apply only to --product-audit')
+    mode='product-audit' if args.product_audit else 'bridge' if args.bridge else 'native'
     out=ROOT/'evidence';out.mkdir(exist_ok=True)
     journal=EventJournal(out/(mode+'-process-events.jsonl'))
     atexit.register(journal.close)
     journal.emit('acceptance_started',mode=mode)
-    report=out/('service-browser-check.json' if args.bridge else 'native-service-browser.json')
+    report=out/('product-browser-audit.json' if args.product_audit else 'service-browser-check.json' if args.bridge else 'native-service-browser.json')
     attempt={'attempted_at':datetime.now(timezone.utc).isoformat(),
         'mode':mode,'all_checks_passed':False,'native_network_e2e':False,
         'status':'not_completed','checks':[],'count':0,'screenshots':[],
         'policy_modified':False,'note':'本次执行尚未完成；不继承旧验收成功或历史截图。'}
     report.write_text(json.dumps(attempt,ensure_ascii=False,indent=2),encoding='utf-8')
+    if args.product_audit and os.getenv('GITHUB_ACTIONS')!='true':
+        journal.emit('product_audit_blocked',reason='authorized_ci_runner_required');journal.close()
+        raise SystemExit('独立原生产品审计仅在已授权的 GitHub runner 执行；没有启动本地服务或浏览器。')
     with socket.socket() as sock:
         try:sock.bind(('127.0.0.1',8000))
         except OSError:
@@ -67,7 +78,7 @@ def main():
     with WindowsSafeTemporaryDirectory(prefix='lidian-native-') as tmp:
         env={k:v for k,v in os.environ.items() if not k.endswith('_API_KEY') and k not in ('APP_ENV','REGISTRATION_CODE')}
         env.update(DATA_DIR=tmp,APP_ORIGIN='http://127.0.0.1:8000',PYTHONUTF8='1')
-        with open(out/'native-server.log','w',encoding='utf-8') as log:
+        with open(out/('product-audit-server.log' if args.product_audit else 'native-server.log'),'w',encoding='utf-8') as log:
             journal.emit('server_spawn_requested')
             server=subprocess.Popen([sys.executable,'-m','uvicorn','server.app:app','--host','127.0.0.1','--port','8000','--log-level','warning'],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)
             journal.emit('server_spawned',pid=server.pid)
@@ -85,12 +96,17 @@ def main():
                         journal.emit('startup_health_failed',attempt=index+1,error_type=type(exc).__name__)
                     if server.poll() is not None:raise RuntimeError('隔离服务启动失败')
                     time.sleep(.1)
-                command=[sys.executable,'scripts/service_browser_check.py']+([] if args.bridge else ['--native'])
+                browser_script='scripts/product_browser_audit.py' if args.product_audit else 'scripts/service_browser_check.py'
+                options=[] if args.bridge or args.product_audit else ['--native']
+                if args.product_audit:
+                    for flag,value in (('--expected-web-tree',args.expected_web_tree),('--expected-server-tree',args.expected_server_tree)):
+                        if value:options.extend([flag,value])
+                command=[sys.executable,browser_script,*options]
                 journal.emit('browser_command_started',server_exit_code=server.poll(),timeout_seconds=300)
                 result=subprocess.run(command,cwd=ROOT,env=env,timeout=300,capture_output=True,text=True,encoding='utf-8',errors='replace')
                 journal.emit('browser_command_finished',exit_code=result.returncode,server_exit_code=server.poll())
                 (out/(mode+'-service-browser.log')).write_text(result.stdout+result.stderr,encoding='utf-8')
-                (out/(mode+'-service-command.json')).write_text(json.dumps({'exit_code':result.returncode,'command':['python','scripts/service_browser_check.py']+([] if args.bridge else ['--native']),'bridge':args.bridge,'isolated':True,'policy_changed':False},indent=2),encoding='utf-8')
+                (out/(mode+'-service-command.json')).write_text(json.dumps({'exit_code':result.returncode,'command':['python',browser_script,*options],'bridge':args.bridge,'isolated':True,'policy_changed':False},indent=2),encoding='utf-8')
                 current=json.loads(report.read_text(encoding='utf-8'))
                 current.update(attempted_at=attempt['attempted_at'],exit_code=result.returncode)
                 if result.returncode and current.get('status')=='not_completed':
