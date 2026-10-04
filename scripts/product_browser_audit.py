@@ -327,8 +327,9 @@ def probe_handoff(p):
     p.click(f'[data-message="{message_id}"] [data-x-action="chat-trace"]', after=region)
     trace = p.visible(region)
     assert '2023-Q2' in trace.inner_text()
-    cash = trace.locator('.assistant-fact').filter(has_text='经营现金流')
-    assert cash.count() == 1 and '10,000 元' in cash.inner_text()
+    label = p.page.locator('.assistant-fact-head > span').filter(has_text=re.compile(r'^经营现金流$'))
+    cash = trace.locator('.assistant-fact').filter(has=label)
+    assert cash.count() == 1 and '10,000 元' in cash.inner_text() and '2023-Q2' in cash.inner_text()
     target = f'[data-message="{message_id}"] .trace-container [data-action="assistant-route"][data-route="agents"]'
     button = p.visible(target)
     assert button.get_attribute('data-query') == wanted
