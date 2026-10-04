@@ -670,6 +670,17 @@ def main():
             assert '请单独提问' in unsupported_answer
             unsupported.scroll_into_view_if_needed();assert not overflow();snap('ui-current-cash-balance-unsupported.png')
             record('现金余额与经营现金流混合提问明确拒绝余额替代，保留来源提示且不显示无关金额或比率')
+            for index,(question,subject) in enumerate([
+                    ('总负债是多少','负债'),('库存金额是多少','库存'),
+                    ('研发费用是多少元','研发'),('毛利多少钱','毛利')],start=3):
+                page.locator('#assistant-query').fill(target_period+question);submit('#assistant-form')
+                amount_turn=page.locator('.chat-turn').nth(index);amount_turn.wait_for()
+                assert amount_turn.locator('.fact-tile').count()==0
+                answer=amount_turn.locator('.research-answer');answer.wait_for()
+                assert subject in answer.inner_text() and '金额' in answer.inner_text() and '不能' in answer.inner_text()
+                if subject=='负债':
+                    answer.scroll_into_view_if_needed();assert not overflow();snap('ui-current-liability-amount-unsupported.png',full_page=False)
+            record('明确负债/库存/研发/毛利金额问法保留单位含义，不以资产负债率、周转率、费用率或毛利率冒充金额')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')
