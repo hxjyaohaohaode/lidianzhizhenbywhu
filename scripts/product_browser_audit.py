@@ -22,7 +22,7 @@ import sys
 import tempfile
 import traceback
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 import uuid
 
 FIXTURE_COMPANY = '独立合同验收合成企业（非真实财报）'
@@ -668,6 +668,7 @@ def probe_report_points(p):
     # reopen normally, and complete a new form before releasing the old GET.
     # No disabled control is force-clicked and no app state is injected.
     concurrent = []
+    p.observations['reopened_form_out_of_order'] = concurrent
     for new_outcome, old_outcome in [('success','success'), ('success','failure'), ('failure','success')]:
         select_report_by_human_label(p,'left',query,1,earlier['id'])
         select_report_by_human_label(p,'right',query,2,later['id'])
@@ -675,10 +676,33 @@ def probe_report_points(p):
         assert original_form is not None
         old_pending = []
         focus_before = None
-        def hold_original(route):
+        routed = []
+        old_browser_responses = []
+        old_pair = {'left': [earlier['id']], 'right': [later['id']]}
+        new_pair = {'left': [later['id']], 'right': [earlier['id']]}
+        def comparison_router(route):
+            # Keep ONE handler installed until the held original is released.
+            # A times=1 handler disappearing can disable interception and let
+            # an unrelated outstanding Route proceed before our release.
             assert route.request.method == 'GET'
-            old_pending.append(route)
-        p.page.route(pattern,hold_original,times=1)
+            pair = parse_qs(urlsplit(route.request.url).query)
+            if not routed:
+                assert pair == old_pair, 'First request must be the old form pair.'
+                routed.append('old-held')
+                old_pending.append(route)
+            else:
+                assert routed == ['old-held'], 'Unexpected extra comparison GET.'
+                assert pair == new_pair, 'Second request must be the new form pair.'
+                routed.append('new-' + new_outcome)
+                if new_outcome == 'failure':
+                    route.abort('failed')
+                else:
+                    route.continue_()
+        def record_old_browser_response(response):
+            if '/api/workspace/reports/compare?' in response.url and parse_qs(urlsplit(response.url).query) == old_pair:
+                old_browser_responses.append(response.status)
+        p.page.on('response',record_old_browser_response)
+        p.page.route(pattern,comparison_router)
         try:
             with p.page.expect_request(lambda r: '/api/workspace/reports/compare?' in r.url, timeout=FORM_TIMEOUT_MS):
                 p.click('#report-compare-form button[type="submit"]',label=f'保留旧表单读取，准备新{new_outcome}/旧{old_outcome}乱序回执')
@@ -693,17 +717,13 @@ def probe_report_points(p):
                 p.submit('#report-compare-form',after='#report-comparison table')
                 before_result=check_comparison(p,later['id'],earlier['id'],.25,.2)
             else:
-                def fail_new(route):
-                    assert route.request.method=='GET'
-                    route.abort('failed')
-                p.page.route(pattern,fail_new,times=1)
-                try:
-                    p.click('#report-compare-form button[type="submit"]',label='新表单读取明确断网，先形成当前可读错误')
-                    wait_comparison_idle(p)
-                    require_no_comparison(p,'本次比较未完成')
-                finally:
-                    p.page.unroute(pattern,fail_new)
+                p.click('#report-compare-form button[type="submit"]',label='新表单读取明确断网，先形成当前可读错误')
+                wait_comparison_idle(p)
+                require_no_comparison(p,'本次比较未完成')
                 before_result=None
+            assert routed == ['old-held', 'new-' + new_outcome]
+            assert old_browser_responses == [], 'Old browser response arrived before the controlled release.'
+            assert original_form.evaluate("el => el.dataset.submitting === 'true' || el.dataset.pending === 'true'"), 'Old form finished before controlled release.'
             before_error=p.page.locator('#report-compare-form .form-error').inner_text()
             assert bool(before_error.strip()) == (new_outcome=='failure')
             before_toasts=p.page.locator('#notifications .toast.error').all_text_contents()
@@ -724,6 +744,7 @@ def probe_report_points(p):
                 # pending attribute clears; replacing the DOM is not completion.
                 wait_comparison_idle(p, original_form)
             p.step('新表单已完成后才释放旧回执，等待原表单finally',release_original)
+            assert old_browser_responses == ([200] if old_outcome == 'success' else []), 'Unexpected browser response for controlled old outcome.'
             scroll_after=p.page.locator('#modal').evaluate('el => el.scrollTop')
             assert abs(scroll_after-scroll_before)<=1, 'Stale response moved the current result viewport.'
             assert focus_before.evaluate('el => el === document.activeElement'), 'Stale response changed the current focus.'
@@ -736,11 +757,13 @@ def probe_report_points(p):
             assert p.page.locator('#report-compare-form .form-error').inner_text()==before_error
             assert p.page.locator('#notifications .toast.error').all_text_contents()==before_toasts, 'Stale error leaked as a global toast.'
             p.step('当前新结果或新错误仍绑定正确报告，不受旧窗口回执污染',lambda:None)
-            concurrent.append({'new_outcome':new_outcome,'old_outcome':old_outcome,'new_left':later['id'],'new_right':earlier['id'],'old_left':earlier['id'],'old_right':later['id'],'new_request_completed_before_old_release':True,'current_error':before_error,'stale_global_error_absent':True,'modal_scroll_before':scroll_before,'modal_scroll_after':scroll_after,'focus_preserved':True})
+            concurrent.append({'new_outcome':new_outcome,'old_outcome':old_outcome,'new_left':later['id'],'new_right':earlier['id'],'old_left':earlier['id'],'old_right':later['id'],'new_request_completed_before_old_release':True,'current_error':before_error,'stale_global_error_absent':True,'modal_scroll_before':scroll_before,'modal_scroll_after':scroll_after,'focus_preserved':True,'routed_requests':routed,'old_browser_response_statuses':old_browser_responses})
         finally:
-            p.page.unroute(pattern,hold_original)
+            # Resolve held requests before removing the final interceptor.
             for route in old_pending:
                 route.abort('failed')
+            p.page.unroute(pattern,comparison_router)
+            p.page.remove_listener('response',record_old_browser_response)
             if focus_before is not None:
                 focus_before.dispose()
             original_form.dispose()
