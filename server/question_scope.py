@@ -280,5 +280,6 @@ def plan_scope(query, data):
     resolved=resolve_question(query,data,[])
     blocked=resolved['status'] in ('needs_clarification','period_unavailable')
     return {'status':'blocked' if blocked else 'selected','period':resolved['period'],
+            'topics':list(resolved['topics']),'question_status':resolved['status'],
             'explicit':resolved['period_explicit'],'requested_comparison':resolved['comparison'] if resolved['comparison_explicit'] else None,'available_periods':resolved['available_periods'],
             'notice':resolved['notice'] if blocked else '限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。'}

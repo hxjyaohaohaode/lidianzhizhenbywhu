@@ -38,6 +38,7 @@ def report_payload(run, events, reviews, assessment=None):
             'identity': snapshot.get('identity'), 'research_goal': snapshot.get('profile', {}).get('objective', ''),
             'success_criteria': snapshot.get('studio', {}).get('success_criteria', ''),
             'human_reviews_at_export': reviews, 'assessment_at_export': assessment,
+            'readout_notice':'原问题级事实与来源摘要随报告冻结。' if run['result'].get('readout') else '此历史报告当时未记录问题级答案或原文件回执；不从当前数据回填。',
             'review_notice': '人工审阅为导出时保存的意见；不改写原始报告与输入快照。'}}
 
 
@@ -85,6 +86,35 @@ def math_markdown(kind, output):
     parts += ['#### 方法边界', *[text(x) for x in output.get('limitations', [])],
               '#### 完整已保存产物（包含输入、逐折与网格，未重新计算）', code(output)]
     return '\n\n'.join(parts)
+
+
+def readable_front(result):
+    from .report_readout import display_number, UNIT_LABELS, BASIS_LABELS
+    readout=result.get('readout')
+    if not readout:return []
+    unit=readout['amount_unit'];source=readout['input_source']
+    # Labels are sourced from the existing finite calculator catalog.
+    from .report_readout import FIELD_LABELS
+    def input_text(fact):
+        return '；'.join(FIELD_LABELS.get(p.get('field') or p['path'].rsplit('/',1)[-1],p.get('field','原字段'))+' '+display_number(p.get('value'),p.get('unit','CNY'),unit) for p in fact['inputs']) or '原输入路径未记录'
+    parts=['# '+text(result.get('title')),'## 本次问题的回答',text(result.get('query')),text(readout['notice'])]
+    if readout['facts']:
+        parts.append(table(['目标季度','所问指标','已保存结果','原输入与公式'],[[f['period'],f['label'],display_number(f['value'],f['unit'],unit)+(('；'+f['reason']) if f['reason'] else ''),input_text(f)+'；'+f['formula']] for f in readout['facts']]))
+    else:parts.append('本次问题未映射到已支持的确定性指标；一般计算不能冒充原问题的直接答案。' if readout['scope_recorded'] else '当时未记录可逐项对应的问题指标；不重新解析历史问题或生成替代答案。')
+    parts+=['## 输入来源与保存范围',table(['项目','本报告保存值'],[
+        ['目标季度',readout['period']],['数据修订',result.get('dataset_version')],
+        ['确认使用的文件',source.get('file',{}).get('name','当时未记录或目标季度未绑定文件')],
+        ['原文件 SHA256',source.get('file',{}).get('sha256','当时未记录')],
+        ['导入确认时间',source.get('confirmed_at','当时未记录')],
+        ['原文件金额单位' if source.get('status')=='recorded' else '输入金额单位（冻结声明）',UNIT_LABELS.get(source.get('input_amount_unit'),'当时未记录')],
+        ['原文件期间口径' if source.get('status')=='recorded' else '输入期间口径（冻结声明）',BASIS_LABELS.get(source.get('input_basis'),'当时未记录')],
+        ['系统保存口径','金额归一为元；独立单季度'],['本页金额展示单位',UNIT_LABELS.get(unit,'元')],
+        ['数据 SHA256',result.get('dataset_hash')],['回执 SHA256',source.get('receipt_hash','当时未记录')]]),text(source['notice']),
+        '## 下一步需要补充什么',table(['期间','条件','具体操作'],[[s['period'],'仅在需要该项进一步核查时' if s['conditional'] else '补全所问指标',s['action']] for s in readout['next_steps']])]
+    llm=result.get('llm',{})
+    parts+=['## 本次解释边界',('本次未请求外部模型；没有外部模型解释，以上为已保存输入与本地计算。' if llm.get('state')=='not_requested' else '模型解释须结合已关联资料与人工复核；调用回执保留在技术附录。'),
+        '缺失指标不按零值补齐；尚无指定基期时不能把本期水平当作同比或环比变化。' if any(s['conditional'] and not s['fields'] for s in readout['next_steps']) else '数值来自冻结输入；用户提供的内容仍需原始资料核验。']
+    return parts
 
 
 def markdown_report(result):
@@ -136,4 +166,7 @@ def markdown_report(result):
               text(ctx.get('review_notice')), code(ctx.get('assessment_at_export')), code(reviews),
               '## 模型调用回执', code(result.get('llm', {}).get('calls', [])),
               '## 执行事件', code(result.get('execution_events', []))]
+    front=readable_front(result)
+    if front:parts=front+['## 技术附录：完整冻结计算、来源和执行记录']+parts[1:]
+    else:parts.insert(1,'此历史报告当时未记录问题级答案或原文件回执；不从当前数据回填，以下原冻结内容保留。')
     return '\n\n'.join(parts) + '\n'

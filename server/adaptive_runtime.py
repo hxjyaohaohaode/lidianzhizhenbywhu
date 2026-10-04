@@ -602,7 +602,10 @@ class AdaptiveRun:
         from .saved_comparisons import provenance as comparison_provenance
         maths=self.outputs['quant'];review=self.outputs[self.latest_review];data=self.s['dataset']
         def pct(v):return '不可计算' if v is None else f'{v*100:.2f}%'
-        findings=[f"{data['company']} · {maths['current_period']}：毛利率{pct(maths['metrics']['gross_margin'])}，经营现金收入比{pct(maths['metrics']['cash_ratio'])}。"]
+        from .report_readout import build_readout,answer_findings
+        readout=build_readout(self.s,maths,lineage(data,maths))
+        findings=answer_findings(readout)
+        if not findings:findings=[f"{data['company']} · {maths['current_period']}：毛利率{pct(maths['metrics']['gross_margin'])}，经营现金收入比{pct(maths['metrics']['cash_ratio'])}。"]
         if not self.s['citations']:findings.append('没有符合范围的资料；行业事实与支持/反向论据保留为缺口。')
         ledger=self.store.all('SELECT * FROM adaptive_calls WHERE run_id=? ORDER BY created_at,id',(self.id,))
         success=[c for c in ledger if c['state']=='completed'];sent=set();memory=set()
@@ -619,7 +622,7 @@ class AdaptiveRun:
             'dataset_id':self.row['dataset_id'],'dataset_version':self.s['dataset_version'],'dataset_hash':self.s['dataset_hash'],
             'snapshot_hash':digest(self.s),'research_scope':self.s.get('research_scope'),'experiment':provenance(self.s.get('experiment')),'model_version':MODEL_VERSION,'analysis':maths,'quality':self.outputs['quality'],
             'comparison_artifact':self.s.get('comparison_artifact'),'comparison_provenance':comparison_provenance(self.s.get('comparison_artifact')),
-            'findings':findings,'citations':self.s['citations'],'lineage':lineage(data,maths),
+            'readout':readout,'findings':findings,'citations':self.s['citations'],'lineage':lineage(data,maths),
             'memory_selected':[{'id':x['id'],'version':x['version']} for x in self.s['memory']],
             'memory_used':[{'id':x['id'],'version':x['version']} for x in self.s['memory'] if x['id'] in memory],
             'citation_ids_sent':sorted(sent),'llm':{'state':state,'review':review,'calls':[

@@ -76,3 +76,5 @@ body{background:var(--bg)}h1{font-size:clamp(23px,2.1vw,31px);line-height:1.3}h2
 .report-change-summary li>strong:last-child{margin-left:auto}
 .report-bound-sources{overflow-wrap:anywhere;font-size:12px;line-height:1.8;margin:16px 0}
 .report-bound-sources p{margin:8px 0}
+
+.report-readout{overflow-wrap:anywhere}.report-readout>h3{margin-top:22px;margin-bottom:12px}.report-readout td p{margin:5px 0}.report-readout td{vertical-align:top}.report-readout .compact-list li{margin:8px 0}

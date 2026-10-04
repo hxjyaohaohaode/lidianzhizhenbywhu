@@ -97,14 +97,16 @@ def quality_report(data, today=None):
                     add('ORDER_OF_MAGNITUDE','warning',period,[k],'较上一记录增长超过十倍，请核查金额单位或业务合并范围')
     optional=['net_profit','cash_flow','assets','liabilities','inventory','sales_volume','production_volume','rd_expense']
     missing=[k for k in optional if ps[-1].get(k) is None]
-    if missing:
-        add('MISSING_FIELDS','info',ps[-1]['period'],missing,'缺失字段保持空值；不会以零或行业均值填补')
+    for period_row in ps:
+        period_missing=[k for k in optional if period_row.get(k) is None]
+        if period_missing:
+            add('MISSING_FIELDS','info',period_row['period'],period_missing,'该季度缺失字段保持空值；不会以零或行业均值填补')
     if not data.get('source_url'):
         add('MISSING_SOURCE','info',ps[-1]['period'],['source_url'],'未填写原始来源地址，可在证据库关联文件并人工审阅')
     if data.get('source_kind')=='sample':
         add('SYNTHETIC_DATA','warning',ps[-1]['period'],['source_kind'],'历史导入内容标为合成样例，不代表真实企业')
     return {'findings':findings, 'warning_count':sum(x['severity']=='warning' for x in findings),
-        'field_coverage':{'present':len(optional)-len(missing),'total':len(optional),'missing':missing},
+        'field_coverage':{'present':len(optional)-len(missing),'total':len(optional),'missing':missing,'period':ps[-1]['period']},
         'closed_quarters':sum(closed_quarter(p['period'],today) for p in ps),
         'source_state':'user_declared_not_verified','input_hash':digest(data),'as_of':today.isoformat()}
 

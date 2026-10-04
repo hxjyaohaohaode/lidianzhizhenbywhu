@@ -190,10 +190,12 @@ document.addEventListener('submit', async (event) => {
                 const versions = JSON.parse(form.dataset.targetVersions ?? '{}');
                 if (target && !versions[target.id])
                     throw new Error('目标版本缺失，请重新打开导入窗口');
+                const originalMergeMode = str('merge_mode');
                 f.set('target_version', String(target ? versions[target.id] : 0));
                 if (!target)
                     f.set('merge_mode', 'replace');
                 state.cache.editorDraft = null;
+                state.cache.importDraft = { identity_id: state.identity, active_dataset: state.active, company: str('company'), amount_unit: str('amount_unit'), basis: str('basis'), target_id: str('target_id'), merge_mode: originalMergeMode, target_versions: versions };
                 const preview = await workspace('/imports/file', 'POST', f);
                 if (submittedCurrent())
                     await showStage(preview);
@@ -637,6 +639,7 @@ document.addEventListener('click', async (event) => {
                 await render();
                 break;
             case 'import-dialog':
+                state.cache.importDraft = null;
                 dialog('导入自己的经营数据', importForm());
                 break;
             case 'add-period': {
@@ -659,7 +662,7 @@ document.addEventListener('click', async (event) => {
                     modal.querySelector('[name="basis"]').value = state.cache.editorDraft.basis;
                 }
                 else
-                    dialog('重新选择导入文件', importForm());
+                    dialog('重新选择导入文件', importForm(state.cache.importDraft ?? {}));
                 break;
             case 'commit-stage': {
                 const p = state.cache.stage;

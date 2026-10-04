@@ -1,0 +1,1396 @@
+# 独立L1合成电池企业（非真实财报） · 协同研判
+
+## 任务与归档依据
+
+| 项目 | 保存值 |
+| --- | --- |
+| 原始研究问题 | 核查范围：2024\-Q1，同比，毛利率、经营现金流、经营现金收入比。 当前目标：2024\-Q1毛利率和经营现金流是多少 |
+| 执行状态 | degraded |
+| 报告保存时间 | 2026\-10\-04T20:55:55\.020\+00:00 |
+| 归档模型 / 规则版本 | rules\-3\.0\.0 |
+| 财务目标季度 | 2024\-Q1 |
+| 期间范围边界 | 限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。 |
+| 数据版本 | 1 |
+| 数据哈希 | 0a29a801fa1f096c66c252a96048f4687fbb92a02f7699731f84c57eafb7c363 |
+| 快照哈希 | 9aca6df94bb150d961a7af60a94c4081a74abd17e035ba75b67dea8a9fd4f762 |
+| 企业研究目标 |  |
+| 人工验收标准 |  |
+
+工作身份（执行时快照）：
+
+```json
+null
+```
+
+## 已保存计算结论
+
+独立L1合成电池企业（非真实财报） · 2024\-Q1：毛利率20\.00%，经营现金收入比不可计算。
+
+没有符合范围的资料；行业事实与支持/反向论据保留为缺口。
+
+## 数据与方法边界
+
+缺少指定的同/环比季度；基期指标保持缺失，不改用任意季度。
+
+输入未经本系统独立核验；来源链接不等于真实性认证。
+
+行业波动率由用户提供，不是实时拉取或历史校准结果。
+
+GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。
+
+存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。
+
+规划自适应不等于模型训练或自动修改程序。
+
+回测与情景计算不是已校准的未来概率。
+
+多角色可能使用同一模型；引用合法不证明解释真实。
+
+## 指标、规则与输入血缘
+
+```json
+{
+  "baseline_period": null,
+  "comparison": "year_over_year",
+  "current_period": "2024-Q1",
+  "dqi": {
+    "coverage": 0,
+    "dimensions": [
+      {
+        "change": null,
+        "formula": "clamp(50+50×变化/0.1,0,100)",
+        "id": "profit",
+        "label": "盈利质量",
+        "metric": "net_margin",
+        "scale": 0.1,
+        "score": null,
+        "weight": 0.25
+      },
+      {
+        "change": null,
+        "formula": "clamp(50+50×变化/0.3,0,100)",
+        "id": "growth",
+        "label": "收入成长",
+        "metric": "revenue_growth",
+        "scale": 0.3,
+        "score": null,
+        "weight": 0.2
+      },
+      {
+        "change": null,
+        "formula": "clamp(50+50×变化/0.15,0,100)",
+        "id": "cash",
+        "label": "现金质量",
+        "metric": "cash_ratio",
+        "scale": 0.15,
+        "score": null,
+        "weight": 0.2
+      },
+      {
+        "change": null,
+        "formula": "clamp(50+50×变化/0.5,0,100)",
+        "id": "assets",
+        "label": "资产效率",
+        "metric": "asset_turnover",
+        "scale": 0.5,
+        "score": null,
+        "weight": 0.15
+      },
+      {
+        "change": null,
+        "formula": "clamp(50+50×变化/0.05,0,100)",
+        "id": "rd",
+        "label": "研发强度",
+        "metric": "rd_ratio",
+        "scale": 0.05,
+        "score": null,
+        "weight": 0.1
+      },
+      {
+        "change": null,
+        "formula": "clamp(50+50×变化/1.0,0,100)",
+        "id": "inventory",
+        "label": "库存效率",
+        "metric": "inventory_turnover",
+        "scale": 1.0,
+        "score": null,
+        "weight": 0.1
+      }
+    ],
+    "method": "变化型经营质量规则指数，50为中性；非原版比值DQI，版本不可直接混比",
+    "score": null,
+    "status": "不可计算"
+  },
+  "gmps": {
+    "coverage": 0.36,
+    "dimensions": [
+      {
+        "direction": "increasing",
+        "formula": "-(本期毛利率-基期毛利率)",
+        "group": "毛利率结果",
+        "id": "margin",
+        "label": "毛利率下降幅度",
+        "score": null,
+        "status": "missing",
+        "thresholds": [
+          0,
+          0.15
+        ],
+        "value": null,
+        "weight": 0.14
+      },
+      {
+        "direction": "increasing",
+        "formula": "成本增速-收入增速",
+        "group": "毛利率结果",
+        "id": "gap",
+        "label": "成本收入增速差",
+        "score": null,
+        "status": "missing",
+        "thresholds": [
+          0,
+          0.12
+        ],
+        "value": null,
+        "weight": 0.11
+      },
+      {
+        "direction": "increasing",
+        "formula": "本期锂价/基期锂价-1",
+        "group": "材料成本",
+        "id": "lithium",
+        "label": "锂价变化",
+        "score": null,
+        "status": "missing",
+        "thresholds": [
+          0,
+          0.3
+        ],
+        "value": null,
+        "weight": 0.1
+      },
+      {
+        "direction": "increasing",
+        "formula": "(成本/销量)/(基期成本/基期销量)-1",
+        "group": "材料成本",
+        "id": "unit_cost",
+        "label": "单位销售成本变化",
+        "score": null,
+        "status": "missing",
+        "thresholds": [
+          0,
+          0.15
+        ],
+        "value": null,
+        "weight": 0.12
+      },
+      {
+        "direction": "increasing",
+        "formula": "本期库存/基期库存-1",
+        "group": "产销负荷",
+        "id": "inventory",
+        "label": "库存变化",
+        "score": null,
+        "status": "missing",
+        "thresholds": [
+          0,
+          0.25
+        ],
+        "value": null,
+        "weight": 0.09
+      },
+      {
+        "direction": "decreasing",
+        "formula": "销量/产量",
+        "group": "产销负荷",
+        "id": "sales_production",
+        "label": "产销率",
+        "score": 66.66666666666666,
+        "status": "available",
+        "thresholds": [
+          0.75,
+          1
+        ],
+        "value": 0.8333333333333334,
+        "weight": 0.1
+      },
+      {
+        "direction": "increasing",
+        "formula": "制造费用/营业成本",
+        "group": "产销负荷",
+        "id": "manufacturing",
+        "label": "制造费用占比",
+        "score": 0,
+        "status": "available",
+        "thresholds": [
+          0.5,
+          0.85
+        ],
+        "value": 0.025,
+        "weight": 0.12
+      },
+      {
+        "direction": "increasing",
+        "formula": "用户提供的行业波动率",
+        "group": "外部风险",
+        "id": "volatility",
+        "label": "行业波动率",
+        "score": 0,
+        "status": "available",
+        "thresholds": [
+          0.15,
+          0.5
+        ],
+        "value": 0.15,
+        "weight": 0.07
+      },
+      {
+        "direction": "decreasing",
+        "formula": "经营现金流/营业收入",
+        "group": "现金安全",
+        "id": "cash",
+        "label": "经营现金收入比",
+        "score": null,
+        "status": "missing",
+        "thresholds": [
+          -0.05,
+          0.15
+        ],
+        "value": null,
+        "weight": 0.08
+      },
+      {
+        "direction": "increasing",
+        "formula": "总负债/总资产",
+        "group": "现金安全",
+        "id": "leverage",
+        "label": "资产负债率",
+        "score": 12.50000000000001,
+        "status": "available",
+        "thresholds": [
+          0.35,
+          0.75
+        ],
+        "value": 0.4,
+        "weight": 0.07
+      }
+    ],
+    "level": "不可计算",
+    "method": "可用维度权重归一；覆盖率不足60%拒绝总分",
+    "probability": null,
+    "probability_status": "not_calibrated",
+    "score": null
+  },
+  "input_hash": "727872e58638c3816e8166881fe8a7ffbf005d5b384acc0e0af80e0486e7aaba",
+  "metrics": {
+    "asset_turnover": 0.2,
+    "cash_ratio": null,
+    "gross_margin": 0.2,
+    "inventory_turnover": 4.0,
+    "leverage": 0.4,
+    "margin_change": null,
+    "net_margin": 0.05,
+    "period": "2024-Q1",
+    "rd_ratio": 0.03,
+    "revenue_growth": null,
+    "roe": 0.016666666666666666,
+    "sales_production_ratio": 0.8333333333333334
+  },
+  "model_version": "rules-3.0.0",
+  "series": [
+    {
+      "asset_turnover": 0.2,
+      "assets": 500000.0,
+      "cash_flow": null,
+      "cash_ratio": null,
+      "cost": 80000.0,
+      "equity_begin": 300000.0,
+      "equity_end": 300000.0,
+      "gross_margin": 0.2,
+      "industry_volatility": 0.15,
+      "inventory": 20000.0,
+      "inventory_turnover": 4.0,
+      "leverage": 0.4,
+      "liabilities": 200000.0,
+      "lithium_price": 100000.0,
+      "manufacturing_cost": 2000.0,
+      "net_margin": 0.05,
+      "net_profit": 5000.0,
+      "period": "2024-Q1",
+      "production_volume": 120.0,
+      "rd_expense": 3000.0,
+      "rd_ratio": 0.03,
+      "revenue": 100000.0,
+      "roe": 0.016666666666666666,
+      "sales_production_ratio": 0.8333333333333334,
+      "sales_volume": 100.0
+    }
+  ],
+  "warnings": [
+    "缺少指定的同/环比季度；基期指标保持缺失，不改用任意季度。",
+    "输入未经本系统独立核验；来源链接不等于真实性认证。",
+    "行业波动率由用户提供，不是实时拉取或历史校准结果。",
+    "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。",
+    "存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。"
+  ]
+}
+```
+
+```json
+[
+  {
+    "baseline_period": null,
+    "formula": "(收入−成本)/收入",
+    "id": "gross_margin",
+    "inputs": [
+      {
+        "field": "revenue",
+        "path": "periods/2024-Q1/revenue",
+        "unit": "CNY",
+        "value": 100000.0
+      },
+      {
+        "field": "cost",
+        "path": "periods/2024-Q1/cost",
+        "unit": "CNY",
+        "value": 80000.0
+      }
+    ],
+    "label": "毛利率",
+    "period": "2024-Q1",
+    "source_url": "",
+    "status": "computed",
+    "value": 0.2
+  },
+  {
+    "baseline_period": null,
+    "formula": "净利润/收入",
+    "id": "net_margin",
+    "inputs": [
+      {
+        "field": "net_profit",
+        "path": "periods/2024-Q1/net_profit",
+        "unit": "CNY",
+        "value": 5000.0
+      },
+      {
+        "field": "revenue",
+        "path": "periods/2024-Q1/revenue",
+        "unit": "CNY",
+        "value": 100000.0
+      }
+    ],
+    "label": "净利率",
+    "period": "2024-Q1",
+    "source_url": "",
+    "status": "computed",
+    "value": 0.05
+  },
+  {
+    "baseline_period": null,
+    "formula": "经营现金流/收入",
+    "id": "cash_ratio",
+    "inputs": [
+      {
+        "field": "cash_flow",
+        "path": "periods/2024-Q1/cash_flow",
+        "unit": "CNY",
+        "value": null
+      },
+      {
+        "field": "revenue",
+        "path": "periods/2024-Q1/revenue",
+        "unit": "CNY",
+        "value": 100000.0
+      }
+    ],
+    "label": "经营现金收入比",
+    "period": "2024-Q1",
+    "source_url": "",
+    "status": "missing",
+    "value": null
+  },
+  {
+    "baseline_period": null,
+    "formula": "负债/资产",
+    "id": "leverage",
+    "inputs": [
+      {
+        "field": "liabilities",
+        "path": "periods/2024-Q1/liabilities",
+        "unit": "CNY",
+        "value": 200000.0
+      },
+      {
+        "field": "assets",
+        "path": "periods/2024-Q1/assets",
+        "unit": "CNY",
+        "value": 500000.0
+      }
+    ],
+    "label": "资产负债率",
+    "period": "2024-Q1",
+    "source_url": "",
+    "status": "computed",
+    "value": 0.4
+  },
+  {
+    "baseline_period": null,
+    "formula": "研发支出/收入",
+    "id": "rd_ratio",
+    "inputs": [
+      {
+        "field": "rd_expense",
+        "path": "periods/2024-Q1/rd_expense",
+        "unit": "CNY",
+        "value": 3000.0
+      },
+      {
+        "field": "revenue",
+        "path": "periods/2024-Q1/revenue",
+        "unit": "CNY",
+        "value": 100000.0
+      }
+    ],
+    "label": "研发强度",
+    "period": "2024-Q1",
+    "source_url": "",
+    "status": "computed",
+    "value": 0.03
+  },
+  {
+    "baseline_period": null,
+    "formula": "季度收入/期末资产（非平均资产口径）",
+    "id": "asset_turnover",
+    "inputs": [
+      {
+        "field": "revenue",
+        "path": "periods/2024-Q1/revenue",
+        "unit": "CNY",
+        "value": 100000.0
+      },
+      {
+        "field": "assets",
+        "path": "periods/2024-Q1/assets",
+        "unit": "CNY",
+        "value": 500000.0
+      }
+    ],
+    "label": "资产周转率",
+    "period": "2024-Q1",
+    "source_url": "",
+    "status": "computed",
+    "value": 0.2
+  },
+  {
+    "baseline_period": null,
+    "formula": "季度成本/期末存货（非平均存货口径）",
+    "id": "inventory_turnover",
+    "inputs": [
+      {
+        "field": "cost",
+        "path": "periods/2024-Q1/cost",
+        "unit": "CNY",
+        "value": 80000.0
+      },
+      {
+        "field": "inventory",
+        "path": "periods/2024-Q1/inventory",
+        "unit": "CNY",
+        "value": 20000.0
+      }
+    ],
+    "label": "库存周转率",
+    "period": "2024-Q1",
+    "source_url": "",
+    "status": "computed",
+    "value": 4.0
+  },
+  {
+    "baseline_period": null,
+    "formula": "季度净利润/平均净资产（未年化）",
+    "id": "roe",
+    "inputs": [
+      {
+        "field": "net_profit",
+        "path": "periods/2024-Q1/net_profit",
+        "unit": "CNY",
+        "value": 5000.0
+      },
+      {
+        "field": "equity_begin",
+        "path": "periods/2024-Q1/equity_begin",
+        "unit": "CNY",
+        "value": 300000.0
+      },
+      {
+        "field": "equity_end",
+        "path": "periods/2024-Q1/equity_end",
+        "unit": "CNY",
+        "value": 300000.0
+      }
+    ],
+    "label": "季度净资产收益率",
+    "period": "2024-Q1",
+    "source_url": "",
+    "status": "computed",
+    "value": 0.016666666666666666
+  }
+]
+```
+
+### 数据缺口与补充计划
+
+| 缺失字段 | 待补充工作 |
+| --- | --- |
+| cash\_flow | 补充同口径的原始报表字段并保存新修订 |
+| gmps:margin | 核对毛利率下降幅度的当前期与指定基期输入：\-\(本期毛利率\-基期毛利率\) |
+| gmps:gap | 核对成本收入增速差的当前期与指定基期输入：成本增速\-收入增速 |
+| gmps:lithium | 核对锂价变化的当前期与指定基期输入：本期锂价/基期锂价\-1 |
+| gmps:unit\_cost | 核对单位销售成本变化的当前期与指定基期输入：\(成本/销量\)/\(基期成本/基期销量\)\-1 |
+| gmps:inventory | 核对库存变化的当前期与指定基期输入：本期库存/基期库存\-1 |
+| gmps:cash | 核对经营现金收入比的当前期与指定基期输入：经营现金流/营业收入 |
+| dqi:profit | 核对盈利质量的当前期与指定基期输入：clamp\(50\+50×变化/0\.1,0,100\) |
+| dqi:growth | 核对收入成长的当前期与指定基期输入：clamp\(50\+50×变化/0\.3,0,100\) |
+| dqi:cash | 核对现金质量的当前期与指定基期输入：clamp\(50\+50×变化/0\.15,0,100\) |
+| dqi:assets | 核对资产效率的当前期与指定基期输入：clamp\(50\+50×变化/0\.5,0,100\) |
+| dqi:rd | 核对研发强度的当前期与指定基期输入：clamp\(50\+50×变化/0\.05,0,100\) |
+| dqi:inventory | 核对库存效率的当前期与指定基期输入：clamp\(50\+50×变化/1\.0,0,100\) |
+| comparison\_baseline | 补充指定同/环比季度；不自动改用其他季度，也不将缺失基期当作零 |
+
+#### 方法边界
+
+#### 完整已保存产物（包含输入、逐折与网格，未重新计算）
+
+```json
+{
+  "baseline_requirement": {
+    "action": "补充指定同/环比季度；不自动改用其他季度，也不将缺失基期当作零",
+    "comparison": "year_over_year",
+    "current_period": "2024-Q1"
+  },
+  "findings": [
+    {
+      "code": "MISSING_FIELDS",
+      "fields": [
+        "cash_flow"
+      ],
+      "message": "缺失字段保持空值；不会以零或行业均值填补",
+      "period": "2024-Q1",
+      "severity": "info"
+    },
+    {
+      "code": "MISSING_SOURCE",
+      "fields": [
+        "source_url"
+      ],
+      "message": "未填写原始来源地址，可在证据库关联文件并人工审阅",
+      "period": "2024-Q1",
+      "severity": "info"
+    }
+  ],
+  "items": [
+    {
+      "action": "补充同口径的原始报表字段并保存新修订",
+      "auto_imputed": false,
+      "field": "cash_flow"
+    },
+    {
+      "action": "核对毛利率下降幅度的当前期与指定基期输入：-(本期毛利率-基期毛利率)",
+      "auto_imputed": false,
+      "field": "gmps:margin"
+    },
+    {
+      "action": "核对成本收入增速差的当前期与指定基期输入：成本增速-收入增速",
+      "auto_imputed": false,
+      "field": "gmps:gap"
+    },
+    {
+      "action": "核对锂价变化的当前期与指定基期输入：本期锂价/基期锂价-1",
+      "auto_imputed": false,
+      "field": "gmps:lithium"
+    },
+    {
+      "action": "核对单位销售成本变化的当前期与指定基期输入：(成本/销量)/(基期成本/基期销量)-1",
+      "auto_imputed": false,
+      "field": "gmps:unit_cost"
+    },
+    {
+      "action": "核对库存变化的当前期与指定基期输入：本期库存/基期库存-1",
+      "auto_imputed": false,
+      "field": "gmps:inventory"
+    },
+    {
+      "action": "核对经营现金收入比的当前期与指定基期输入：经营现金流/营业收入",
+      "auto_imputed": false,
+      "field": "gmps:cash"
+    },
+    {
+      "action": "核对盈利质量的当前期与指定基期输入：clamp(50+50×变化/0.1,0,100)",
+      "auto_imputed": false,
+      "field": "dqi:profit"
+    },
+    {
+      "action": "核对收入成长的当前期与指定基期输入：clamp(50+50×变化/0.3,0,100)",
+      "auto_imputed": false,
+      "field": "dqi:growth"
+    },
+    {
+      "action": "核对现金质量的当前期与指定基期输入：clamp(50+50×变化/0.15,0,100)",
+      "auto_imputed": false,
+      "field": "dqi:cash"
+    },
+    {
+      "action": "核对资产效率的当前期与指定基期输入：clamp(50+50×变化/0.5,0,100)",
+      "auto_imputed": false,
+      "field": "dqi:assets"
+    },
+    {
+      "action": "核对研发强度的当前期与指定基期输入：clamp(50+50×变化/0.05,0,100)",
+      "auto_imputed": false,
+      "field": "dqi:rd"
+    },
+    {
+      "action": "核对库存效率的当前期与指定基期输入：clamp(50+50×变化/1.0,0,100)",
+      "auto_imputed": false,
+      "field": "dqi:inventory"
+    },
+    {
+      "action": "补充指定同/环比季度；不自动改用其他季度，也不将缺失基期当作零",
+      "auto_imputed": false,
+      "field": "comparison_baseline"
+    }
+  ],
+  "limitation": "可计算不等于来源真实；缺口由已保存字段、指定基期和实际规则结果导出，不自动补值",
+  "status": "needs_input",
+  "unavailable_rule_components": [
+    {
+      "formula": "-(本期毛利率-基期毛利率)",
+      "id": "margin",
+      "label": "毛利率下降幅度",
+      "model": "gmps"
+    },
+    {
+      "formula": "成本增速-收入增速",
+      "id": "gap",
+      "label": "成本收入增速差",
+      "model": "gmps"
+    },
+    {
+      "formula": "本期锂价/基期锂价-1",
+      "id": "lithium",
+      "label": "锂价变化",
+      "model": "gmps"
+    },
+    {
+      "formula": "(成本/销量)/(基期成本/基期销量)-1",
+      "id": "unit_cost",
+      "label": "单位销售成本变化",
+      "model": "gmps"
+    },
+    {
+      "formula": "本期库存/基期库存-1",
+      "id": "inventory",
+      "label": "库存变化",
+      "model": "gmps"
+    },
+    {
+      "formula": "经营现金流/营业收入",
+      "id": "cash",
+      "label": "经营现金收入比",
+      "model": "gmps"
+    },
+    {
+      "formula": "clamp(50+50×变化/0.1,0,100)",
+      "id": "profit",
+      "label": "盈利质量",
+      "model": "dqi"
+    },
+    {
+      "formula": "clamp(50+50×变化/0.3,0,100)",
+      "id": "growth",
+      "label": "收入成长",
+      "model": "dqi"
+    },
+    {
+      "formula": "clamp(50+50×变化/0.15,0,100)",
+      "id": "cash",
+      "label": "现金质量",
+      "model": "dqi"
+    },
+    {
+      "formula": "clamp(50+50×变化/0.5,0,100)",
+      "id": "assets",
+      "label": "资产效率",
+      "model": "dqi"
+    },
+    {
+      "formula": "clamp(50+50×变化/0.05,0,100)",
+      "id": "rd",
+      "label": "研发强度",
+      "model": "dqi"
+    },
+    {
+      "formula": "clamp(50+50×变化/1.0,0,100)",
+      "id": "inventory",
+      "label": "库存效率",
+      "model": "dqi"
+    }
+  ]
+}
+```
+
+## 模型解释与人工复核
+
+结构门禁与引用关联不等于事实核验。
+
+模型调用状态：not\_requested
+
+## 原始证据与定位
+
+没有匹配证据；不生成来源或引用。
+
+## 执行复盘
+
+```json
+{
+  "automatic_code_changes": 0,
+  "call_attempts": 0,
+  "context_characters": 0,
+  "criteria_verification": "需要人工验收，未将自然语言标准标为自动通过",
+  "data_coverage": {
+    "missing": [
+      "cash_flow"
+    ],
+    "present": 7,
+    "total": 8
+  },
+  "graph_revisions": 1,
+  "issues": [
+    {
+      "node": "evidence",
+      "reason": null,
+      "state": "missing"
+    },
+    {
+      "node": "gaps",
+      "reason": null,
+      "state": "needs_input"
+    }
+  ],
+  "model_weight_updates": 0,
+  "rejected_claims": 0,
+  "restored_nodes": [],
+  "scope": "本次实际执行质量，不是模型准确率或能力自我证明",
+  "success_criteria": "",
+  "successful_calls": 0
+}
+```
+
+## 导出时人工验收与复核记录
+
+人工审阅为导出时保存的意见；不改写原始报告与输入快照。
+
+```json
+null
+```
+
+```json
+[]
+```
+
+## 模型调用回执
+
+```json
+[]
+```
+
+## 执行事件
+
+```json
+[
+  {
+    "seq": 1,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "queued",
+    "payload": {
+      "dataset_version": 1,
+      "external_consent": false,
+      "fingerprint": "12ee3ba4c3e60372c5cd481c63443e5e0abd3263a7203e2fa401291a952caca1",
+      "plan_id": "dc9eaa9d1d2a4b759491f639a6f3e8f4"
+    },
+    "created_at": "2026-10-04T20:55:54.864+00:00"
+  },
+  {
+    "seq": 2,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "running",
+    "payload": {
+      "model_version": "rules-3.0.0",
+      "plan": [
+        {
+          "capability": "quality",
+          "depends_on": [],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quality",
+          "name": "数据核验",
+          "purpose": "口径、时效、异常与缺失项检查",
+          "reason": "所有结论的输入门槛",
+          "skip_reason": null,
+          "tools": [
+            "quality"
+          ]
+        },
+        {
+          "capability": "quant",
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quant",
+          "name": "量化建模",
+          "purpose": "唯一计算源、指标贡献与输入血缘",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "quant"
+          ]
+        },
+        {
+          "capability": "evidence",
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "lexical",
+          "id": "evidence",
+          "name": "证据检索",
+          "purpose": "冻结且已披露的企业作用域证据",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "evidence"
+          ]
+        },
+        {
+          "capability": "context",
+          "depends_on": [
+            "quant",
+            "evidence"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "context",
+          "name": "上下文装配",
+          "purpose": "完整条目预算、来源隔离与最小披露",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "context"
+          ]
+        },
+        {
+          "capability": "review",
+          "depends_on": [
+            "context"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "review",
+          "name": "证据门禁",
+          "purpose": "验证输出合同、数值和实际发送引用",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "review"
+          ]
+        },
+        {
+          "capability": "reflection",
+          "depends_on": [
+            "review"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "reflection",
+          "name": "执行复盘",
+          "purpose": "实测调用、异常、覆盖和未达成条件；不修改模型权重",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "reflection"
+          ]
+        },
+        {
+          "capability": "report",
+          "depends_on": [
+            "reflection"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "report",
+          "name": "报告归档",
+          "purpose": "输入、节点和结论一一对应，冻结归档",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "report"
+          ]
+        }
+      ]
+    },
+    "created_at": "2026-10-04T20:55:54.944+00:00"
+  },
+  {
+    "seq": 3,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_started",
+    "payload": {
+      "depends_on": [],
+      "input_hash": "c7d8e5003ff5b7ea61bf423ac462f860632f099bcfbab5c4d8cdeb65d3d9983d",
+      "node": "quality",
+      "reason": "所有结论的输入门槛"
+    },
+    "created_at": "2026-10-04T20:55:54.974+00:00"
+  },
+  {
+    "seq": 4,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_completed",
+    "payload": {
+      "artifact_id": "0b3025d215064cb8b2ccb713de764cd3",
+      "checkpoint_state": "succeeded",
+      "node": "quality",
+      "outcome": "completed",
+      "output_hash": "c6166eaefc6c6af9ced0a24e54c268eedd26f878fc1022d6d5e1dea7762c5a8c"
+    },
+    "created_at": "2026-10-04T20:55:54.978+00:00"
+  },
+  {
+    "seq": 5,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "node_timing",
+    "payload": {
+      "duration_ms": 2.91,
+      "node": "quality"
+    },
+    "created_at": "2026-10-04T20:55:54.980+00:00"
+  },
+  {
+    "seq": 6,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "graph_replanned",
+    "payload": {
+      "graph_hash": "b8485f638c3c48fa5d6f232a956c604612d2da186ff845fd9a8913058ac3555e",
+      "nodes": [
+        {
+          "capability": "quality",
+          "depends_on": [],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quality",
+          "name": "数据核验",
+          "purpose": "口径、时效、异常与缺失项检查",
+          "reason": "所有结论的输入门槛",
+          "skip_reason": null,
+          "tools": [
+            "quality"
+          ]
+        },
+        {
+          "capability": "quant",
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quant",
+          "name": "量化建模",
+          "purpose": "唯一计算源、指标贡献与输入血缘",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "quant"
+          ]
+        },
+        {
+          "capability": "evidence",
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "lexical",
+          "id": "evidence",
+          "name": "证据检索",
+          "purpose": "冻结且已披露的企业作用域证据",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "evidence"
+          ]
+        },
+        {
+          "capability": "context",
+          "depends_on": [
+            "quant",
+            "evidence",
+            "gaps"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "context",
+          "name": "上下文装配",
+          "purpose": "完整条目预算、来源隔离与最小披露",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "context"
+          ]
+        },
+        {
+          "capability": "review",
+          "depends_on": [
+            "context"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "review",
+          "name": "证据门禁",
+          "purpose": "验证输出合同、数值和实际发送引用",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "review"
+          ]
+        },
+        {
+          "capability": "reflection",
+          "depends_on": [
+            "review"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "reflection",
+          "name": "执行复盘",
+          "purpose": "实测调用、异常、覆盖和未达成条件；不修改模型权重",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "reflection"
+          ]
+        },
+        {
+          "capability": "report",
+          "depends_on": [
+            "reflection"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "report",
+          "name": "报告归档",
+          "purpose": "输入、节点和结论一一对应，冻结归档",
+          "reason": "",
+          "skip_reason": null,
+          "tools": [
+            "report"
+          ]
+        },
+        {
+          "capability": "gaps",
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "gaps",
+          "name": "缺口补全规划",
+          "purpose": "将无法计算的字段转成具体待补清单，不填假值",
+          "reason": "数据核验发现缺失字段，追加只读缺口补全规划",
+          "skip_reason": null,
+          "tools": [
+            "gaps"
+          ]
+        }
+      ],
+      "reason": "数据核验发现缺失字段，追加只读缺口补全规划",
+      "version": 2
+    },
+    "created_at": "2026-10-04T20:55:54.981+00:00"
+  },
+  {
+    "seq": 7,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_started",
+    "payload": {
+      "depends_on": [
+        "quality"
+      ],
+      "input_hash": "a4c174cd6d21be2902ba8af7e8ac43f557c6e2c53a507569ead10c13bbc78d7f",
+      "node": "quant",
+      "reason": "唯一计算源、指标贡献与输入血缘"
+    },
+    "created_at": "2026-10-04T20:55:54.983+00:00"
+  },
+  {
+    "seq": 8,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_started",
+    "payload": {
+      "depends_on": [
+        "quality"
+      ],
+      "input_hash": "fbb7d6631898c883fcc94e9f746c26f36ec4aa0e0fa8bd4fea88c21a525ac786",
+      "node": "evidence",
+      "reason": "冻结且已披露的企业作用域证据"
+    },
+    "created_at": "2026-10-04T20:55:54.984+00:00"
+  },
+  {
+    "seq": 9,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_completed",
+    "payload": {
+      "artifact_id": "bf2876d1d6fb4ea4bb65103ba7a65427",
+      "checkpoint_state": "succeeded",
+      "node": "quant",
+      "outcome": "completed",
+      "output_hash": "136fb465ce27bdc6dfcc9bc2df98c16c67fa35eda41ba3b6c054f988ad538d7c"
+    },
+    "created_at": "2026-10-04T20:55:54.986+00:00"
+  },
+  {
+    "seq": 10,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "node_timing",
+    "payload": {
+      "duration_ms": 4.0,
+      "node": "quant"
+    },
+    "created_at": "2026-10-04T20:55:54.987+00:00"
+  },
+  {
+    "seq": 11,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_completed",
+    "payload": {
+      "artifact_id": "b627e6a3401d4930b213d345503ebb91",
+      "checkpoint_state": "degraded",
+      "node": "evidence",
+      "outcome": "missing",
+      "output_hash": "8cbf5e44a6df9e0828591096e35096e38ca816720f62189d354fab735f8c0347"
+    },
+    "created_at": "2026-10-04T20:55:54.988+00:00"
+  },
+  {
+    "seq": 12,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "node_timing",
+    "payload": {
+      "duration_ms": 5.87,
+      "node": "evidence"
+    },
+    "created_at": "2026-10-04T20:55:54.991+00:00"
+  },
+  {
+    "seq": 13,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_started",
+    "payload": {
+      "depends_on": [
+        "quality"
+      ],
+      "input_hash": "2594c2a71510eb05e00ed309bfa9817ce13f880c4708097724f9468e4b9ecbb4",
+      "node": "gaps",
+      "reason": "数据核验发现缺失字段，追加只读缺口补全规划"
+    },
+    "created_at": "2026-10-04T20:55:54.994+00:00"
+  },
+  {
+    "seq": 14,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_completed",
+    "payload": {
+      "artifact_id": "13e8c5c6edc348c284d13c3e4a9722b6",
+      "checkpoint_state": "degraded",
+      "node": "gaps",
+      "outcome": "needs_input",
+      "output_hash": "7ff56cb3b8ce63de0939104ca615451feefc0b116d48f20e9de0b3ad89863542"
+    },
+    "created_at": "2026-10-04T20:55:54.996+00:00"
+  },
+  {
+    "seq": 15,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "node_timing",
+    "payload": {
+      "duration_ms": 5.89,
+      "node": "gaps"
+    },
+    "created_at": "2026-10-04T20:55:55.001+00:00"
+  },
+  {
+    "seq": 16,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_started",
+    "payload": {
+      "depends_on": [
+        "quant",
+        "evidence",
+        "gaps"
+      ],
+      "input_hash": "76fda0af6345620abccae785fb786c076154f1a922a402c847941e3dbc58e589",
+      "node": "context",
+      "reason": "完整条目预算、来源隔离与最小披露"
+    },
+    "created_at": "2026-10-04T20:55:55.003+00:00"
+  },
+  {
+    "seq": 17,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_completed",
+    "payload": {
+      "artifact_id": "a5d34f41265a4ee4a0dcebb4381e2fd6",
+      "checkpoint_state": "succeeded",
+      "node": "context",
+      "outcome": "completed",
+      "output_hash": "ab95702f6be462dbed5cc6941a6a95d1bba3ec36b269cefe77c4b30608690461"
+    },
+    "created_at": "2026-10-04T20:55:55.003+00:00"
+  },
+  {
+    "seq": 18,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "node_timing",
+    "payload": {
+      "duration_ms": 0.97,
+      "node": "context"
+    },
+    "created_at": "2026-10-04T20:55:55.004+00:00"
+  },
+  {
+    "seq": 19,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_started",
+    "payload": {
+      "depends_on": [
+        "context"
+      ],
+      "input_hash": "1d286ff9f537d1effa905b2604f8a33eb7de8edcfd4ef42969d546a5bcbb6a2b",
+      "node": "review",
+      "reason": "验证输出合同、数值和实际发送引用"
+    },
+    "created_at": "2026-10-04T20:55:55.005+00:00"
+  },
+  {
+    "seq": 20,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_completed",
+    "payload": {
+      "artifact_id": "563d77a4e73e4b419018f975fcb17680",
+      "checkpoint_state": "succeeded",
+      "node": "review",
+      "outcome": "completed",
+      "output_hash": "cbf7b2dffb3648d54df080736fc774d9e75be5f6a8e4e4a6fc104944f7f77edc"
+    },
+    "created_at": "2026-10-04T20:55:55.008+00:00"
+  },
+  {
+    "seq": 21,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "node_timing",
+    "payload": {
+      "duration_ms": 0.99,
+      "node": "review"
+    },
+    "created_at": "2026-10-04T20:55:55.008+00:00"
+  },
+  {
+    "seq": 22,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_started",
+    "payload": {
+      "depends_on": [
+        "review"
+      ],
+      "input_hash": "f6ae6556ffeb5c8ba9aa025aca03c603623a705b4b308fcb9d0408d6bea14210",
+      "node": "reflection",
+      "reason": "实测调用、异常、覆盖和未达成条件；不修改模型权重"
+    },
+    "created_at": "2026-10-04T20:55:55.010+00:00"
+  },
+  {
+    "seq": 23,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_completed",
+    "payload": {
+      "artifact_id": "23fa055eda6942409ff73a81653e50e9",
+      "checkpoint_state": "succeeded",
+      "node": "reflection",
+      "outcome": "completed",
+      "output_hash": "678766f30f93b0a64e9ac449f76b5b09c8f7abe51d627a7b05064bebd815ffc0"
+    },
+    "created_at": "2026-10-04T20:55:55.013+00:00"
+  },
+  {
+    "seq": 24,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "node_timing",
+    "payload": {
+      "duration_ms": 1.94,
+      "node": "reflection"
+    },
+    "created_at": "2026-10-04T20:55:55.014+00:00"
+  },
+  {
+    "seq": 25,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_started",
+    "payload": {
+      "depends_on": [
+        "reflection"
+      ],
+      "input_hash": "650cddff1922dc8186bcf6f941c0e92d730cfda072b26af4f32d2d2f85035683",
+      "node": "report",
+      "reason": "输入、节点和结论一一对应，冻结归档"
+    },
+    "created_at": "2026-10-04T20:55:55.017+00:00"
+  },
+  {
+    "seq": 26,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "step_completed",
+    "payload": {
+      "artifact_id": "a565e0ca3878438aab0ccf700f0dc7bf",
+      "checkpoint_state": "succeeded",
+      "node": "report",
+      "outcome": "completed",
+      "output_hash": "9136b759ae3f1334479358b751436de76d456e3c8a71756ad1d545dfb5428b9d"
+    },
+    "created_at": "2026-10-04T20:55:55.025+00:00"
+  },
+  {
+    "seq": 27,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "node_timing",
+    "payload": {
+      "duration_ms": 5.62,
+      "node": "report"
+    },
+    "created_at": "2026-10-04T20:55:55.025+00:00"
+  },
+  {
+    "seq": 28,
+    "run_id": "d7ff1fafcd7f45468ffb82f8c3004063",
+    "type": "degraded",
+    "payload": {
+      "graph_version": 2,
+      "report_ready": true,
+      "snapshot_hash": "9aca6df94bb150d961a7af60a94c4081a74abd17e035ba75b67dea8a9fd4f762",
+      "state": "degraded"
+    },
+    "created_at": "2026-10-04T20:55:55.027+00:00"
+  }
+]
+```

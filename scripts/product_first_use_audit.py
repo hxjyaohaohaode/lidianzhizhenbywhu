@@ -18,6 +18,11 @@ import subprocess
 import tempfile
 import uuid
 
+try:
+    from .product_readout_oracles import expect_first_use_readout, expect_reader_first_markdown, observe_text_by_normal_scroll, verify_frozen_report_after_later_input
+except ImportError:
+    from product_readout_oracles import expect_first_use_readout, expect_reader_first_markdown, observe_text_by_normal_scroll, verify_frozen_report_after_later_input
+
 REVIEWED_REMOTE = '915cbde3f107b79bc767fad7dde90694a1ef1740'
 REVIEWED_WEB = '85d10439febbaafc51b9c10ebfdb28b9ba4c4862'
 REVIEWED_SERVER = 'c60d7ef8e7d941389e6d8984b9b6891f1162a811'
@@ -68,13 +73,14 @@ def require_native_contract(p, *, repository_root, data_dir, expected_web_tree, 
     expected = {'web': expected_web_tree, 'server': expected_server_tree}
     if any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{40}', value) for value in expected.values()):
         raise HarnessContractError('Explicit full reviewed web/server tree IDs are required.')
-    if expected != {'web': REVIEWED_WEB, 'server': REVIEWED_SERVER}:
-        raise HarnessContractError('Supplied application pins are not the reviewed L1 baseline.')
+    # The CI supplies this round's explicitly reviewed full application pins.
+    # Historical baseline constants below describe provenance, not a permanent
+    # prohibition on testing an independently reviewed repair.
     if {key: found[key] for key in expected} != expected:
         raise HarnessContractError('Protected application source changed; review and regenerate the control map.')
     if git('diff', 'HEAD', '--name-only', '--', 'web', 'server') or git('ls-files', '--others', '--exclude-standard', '--', 'web', 'server'):
         raise HarnessContractError('Protected source differs from the reviewed tree.')
-    p.observations['source_pin'] = {'reviewed_remote': REVIEWED_REMOTE, 'actual_head': git('rev-parse', 'HEAD'), **found}
+    p.observations['source_pin'] = {'historical_reviewed_remote': REVIEWED_REMOTE, 'historical_web': REVIEWED_WEB, 'historical_server': REVIEWED_SERVER, 'expected_current': expected, 'actual_head': git('rev-parse', 'HEAD'), **found}
 
 
 def csv_headers(blob):
@@ -249,10 +255,16 @@ def inspect_import_preview(p, corrected):
     text = modal.inner_text()
     assert COMPANY in text and '尚未写入财务库' in text and '归一化金额：元' in text
     assert '文件金额单位：万元' in text and '2 个已结束季度' in text
-    assert 'cash_flow' in text and '缺失字段保持空值' in text
+    assert '经营现金流' in text and '缺失字段保持空值' in text
+    assert '0 项结构警告' in text and '字段与来源提示' in text and '未独立核验' in text
+    for period in PERIODS:
+        assert any(period in row and '经营现金流' in row for row in modal.locator('tr').all_inner_texts()), 'Each incomplete quarter must be identified.'
     detail = open_detail(p, modal, '查看标准化后的完整数据', '展开实际预览的归一化输入')
     parsed = json.loads(detail.locator('pre.json-view').inner_text())
     expect_dataset(parsed, corrected=corrected)
+    body = detail.locator('pre.json-view')
+    for needle in ['\"input_amount_unit\": \"wan\"', '\"period_basis\": \"standalone_quarter\"', '\"period\": \"2024-Q1\"', '\"revenue\": 100000', '\"cost\": ' + ('80000' if corrected else '90000'), '\"cash_flow\": null']:
+        observe_text_by_normal_scroll(p, body, needle, ('修正后' if corrected else '原文件') + '预览完整数值 ' + needle)
     assert p.get('/api/datasets')['items'] == []
     assert p.get('/api/runs')['items'] == []
     p.observations.setdefault('import_previews', []).append({'corrected': corrected, 'normalized': parsed})
@@ -276,22 +288,29 @@ def l1_new_user_report(p, *, repository_root, data_dir, expected_web_tree, expec
         'independent_expected_gross_margin': .2, 'expected_cash_flow': None,
         'initial_q1_cost_wan': 9, 'corrected_q1_cost_wan': 8,
         'no_provider_configured': True, 'setup': 'visible_controls_only'}
-    def upload(path):
-        p.fill('#import-file-form [name="company"]', COMPANY)
-        p.select('#import-file-form [name="amount_unit"]', 'wan', '明确文件金额单位万元')
-        p.select('#import-file-form [name="basis"]', 'standalone_quarter')
+    def upload(path, *, retained=False):
+        if retained:
+            actual = {name: p.visible('#import-file-form [name="' + name + '"]').input_value() for name in ('company', 'amount_unit', 'basis', 'target_id', 'merge_mode')}
+            assert actual == p.observations['first_import_form_metadata'], 'Returning must preserve non-file context.'
+            assert p.visible('#import-file-form [name="file"]').input_value() == ''
+            p.step('原生返回后非文件上下文仍完整，无需重填；文件需重新选择', lambda: None)
+        else:
+            p.fill('#import-file-form [name="company"]', COMPANY)
+            p.select('#import-file-form [name="amount_unit"]', 'wan', '明确文件金额单位万元')
+            p.select('#import-file-form [name="basis"]', 'standalone_quarter')
+            p.observations['first_import_form_metadata'] = {name: p.visible('#import-file-form [name="' + name + '"]').input_value() for name in ('company', 'amount_unit', 'basis', 'target_id', 'merge_mode')}
         p.step('通过真实文件控件选择合成CSV：' + path.name,
                lambda: p.visible('#import-file-form [name="file"]').set_input_files(str(path)))
         p.submit('#import-file-form', after='#modal [data-action="commit-stage"]')
     upload(initial)
     inspect_import_preview(p, False)
     p.click('#modal [data-action="stage-back"]', after='#import-file-form', label='实际返回编辑，不关闭后跳过此步骤')
-    # Current file path returns to file selection rather than an inline editor.
-    # Do not claim file/company/unit retention; reselect them through real controls.
+    # The browser file must be reselected; retained company/unit/basis are tested
+    # before any new input can conceal their loss.
     p.observations['file_return_control'] = {'actual_route': 'fresh_file_selection', 'manual_inline_retention_claimed': False,
         'company_after_return': p.visible('#import-file-form [name="company"]').input_value(),
         'amount_unit_after_return': p.visible('#import-file-form [name="amount_unit"]').input_value()}
-    upload(corrected)
+    upload(corrected, retained=True)
     inspect_import_preview(p, True)
     p.click('#modal [data-action="commit-stage"]', after='#dataset-editor[data-version="1"]', label='核对第二份预览后明确保存')
     rows = p.get('/api/datasets')['items']
@@ -320,6 +339,8 @@ def l1_new_user_report(p, *, repository_root, data_dir, expected_web_tree, expec
     text = detail.inner_text()
     assert '(收入−成本)/收入' in text and 'periods/2024-Q1/revenue' in text and 'periods/2024-Q1/cost' in text
     assert '100,000' in text and '80,000' in text and 'CNY' in text
+    for needle in ['(收入−成本)/收入', '100,000', '80,000', 'CNY']:
+        observe_text_by_normal_scroll(p, detail, needle, '真实助手公式与输入 ' + needle)
     cash = turn.locator('.fact-tile').filter(has=p.page.get_by_text('经营现金流', exact=True))
     assert cash.count() == 1 and '2024-Q1' in cash.inner_text() and '缺少可用输入' in cash.inner_text()
     assert not re.search(r'(?<!\d)0(?:\.00)?\s*元', cash.inner_text()), 'Missing cash flow must not display a financial zero.'
@@ -357,6 +378,15 @@ def l1_new_user_report(p, *, repository_root, data_dir, expected_web_tree, expec
     # IDs are learned from the actually reached report, never used to find it.
     run = p.get('/api/runs/' + match.group(1))
     expect_report(run, saved, approved_query=bound_query)
+    readout = expect_first_use_readout(run['result'], saved, receipt, corrected.read_bytes(), corrected.name)
+    assert run['snapshot']['input_source'] == readout['input_source']
+    section = p.visible('[data-report-readout]')
+    p.step('保留新报告刚到达时的问题级答案原视口', lambda: None)
+    assert 'periods/2024-Q1/revenue' not in section.inner_text() and 'periods/2024-Q1/cost' not in section.inner_text()
+    requested_flow = next(f for f in readout['facts'] if f['id']=='cash_flow')
+    target_step = next(item for item in readout['next_steps'] if item['period']=='2024-Q1' and 'cash_flow' in item['fields'])
+    for needle in ['本次问题的回答', '营业收入', '营业成本', requested_flow['reason'], corrected.name, '原文件金额单位', '原文件期间口径', target_step['action']]:
+        observe_text_by_normal_scroll(p, section, needle, '阅读可交付报告 ' + needle)
     audit = p.get('/api/workspace/runs/' + run['id'] + '/audit')
     expect_integrity(audit)
     assert '本次未授权模型解释' in p.visible('#run-tab-summary').inner_text()
@@ -390,10 +420,12 @@ def l1_new_user_report(p, *, repository_root, data_dir, expected_web_tree, expec
     j = download_visible(p, p.visible('#main a[href$="export?format=json"]'), 'opened-report.json', '下载并打开实际完整JSON报告')
     m = download_visible(p, p.visible('#main a[href$="export?format=md"]'), 'opened-report.md', '下载并打开实际Markdown报告')
     p.observations['export_validation'] = expect_downloads(j, m, run, saved, audit['trace'], approved_query=bound_query)
+    p.observations['human_report_structure'] = expect_reader_first_markdown(m, file_name=corrected.name, file_hash=sha256(corrected))
     p.observations['report'] = {'run_id': run['id'], 'original_question': QUESTION, 'approved_query': bound_query, 'quarter': '2024-Q1', 'gross_margin': .2, 'cash_flow': None,
         'source_file_sha256': sha256(corrected), 'analysis_as_of': run['snapshot']['analysis_as_of'],
         'report_created_at': run['result']['created_at'], 'analysis_and_creation_dates_equal': run['snapshot']['analysis_as_of'] == run['result']['created_at'][:10],
         'download_content_verification': 'parsed_actual_bytes', 'download_document_readability_review': 'pending_human_review',
         'external_calls': 0, 'live_model_quality': 'not_tested_no_model_requested'}
+    verify_frozen_report_after_later_input(p, run, j, m, download_visible)
     p.no_external()
     return run

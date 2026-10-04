@@ -112,7 +112,9 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
         if body.include_history:
             rows=store.all('SELECT role,payload FROM messages WHERE session_id=? AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 6',(body.session_id,user['id']))
             history=[{'role':h['role'],'text':h['payload']['text'][:500]} for h in reversed(rows)]
+    from .report_readout import capture_input_source
     snapshot={'dataset':d['payload'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],
+        'input_source':capture_input_source(store,user['id'],d,research_scope['period']),
         'citations':citations,'memory':memories,'preferences':user['preferences'],'profile':profile,
         'history':history,'comparison':body.comparison,'identity':identity_context(identity),
         'research_scope':research_scope,'analysis_as_of':utc_today().isoformat()}
@@ -473,9 +475,10 @@ async def perform_studio(worker,id):
         return {'claims':valid,'rejected_claims':len(rejected),'rejections':rejected,
             'scope':'引用、数值合同与结构校验，不等同语义事实证明'}
     reviewed=await node('review',review,'不能用模型自信或多代理一致替代证据')
-    data=s['dataset'];m=maths['metrics'];findings=[]
+    from .report_readout import build_readout,answer_findings
+    data=s['dataset'];m=maths['metrics'];readout=build_readout(s,maths,lineage(data,maths));findings=answer_findings(readout)
     def value_text(v):return '不可计算' if v is None else f'{v*100:.2f}%'
-    findings.append(f"{data['company']} · {maths['current_period']}：毛利率{value_text(m['gross_margin'])}，经营现金收入比{value_text(m['cash_ratio'])}。")
+    if not findings:findings.append(f"{data['company']} · {maths['current_period']}：毛利率{value_text(m['gross_margin'])}，经营现金收入比{value_text(m['cash_ratio'])}。")
     if m['margin_change'] is not None:findings.append(f"相对{maths['baseline_period']}，毛利率变化{m['margin_change']*100:+.2f}个百分点。")
     if not citations:findings.append('没有相关证据片段；本次不生成有来源要求的行业事实。')
     warnings=list(maths['warnings'])
@@ -485,7 +488,7 @@ async def perform_studio(worker,id):
         return {'title':data['company']+' · 经营研判','query':r['query'],'mode':r['mode'],
             'dataset_id':row['dataset_id'],'dataset_version':s['dataset_version'],'dataset_hash':s['dataset_hash'],
             'snapshot_hash':digest(s),'research_scope':s.get('research_scope'),'model_version':MODEL_VERSION,'analysis':maths,'quality':quality,
-            'findings':findings,'citations':citations,'lineage':lineage(data,maths),'memory_selected':[{'id':x['id'],'version':x['version']} for x in s['memory']],
+            'readout':readout,'findings':findings,'citations':citations,'lineage':lineage(data,maths),'memory_selected':[{'id':x['id'],'version':x['version']} for x in s['memory']],
             'memory_used':[{'id':x['id'],'version':x['version']} for x in used_memory], 'citation_ids_sent':sent,
             'llm':{'state':state,'calls':calls,'review':reviewed,'unavailable_reason':unavailable_reason},'warnings':warnings,
             'missing':[x for out in outputs for x in out.get('missing',[])],

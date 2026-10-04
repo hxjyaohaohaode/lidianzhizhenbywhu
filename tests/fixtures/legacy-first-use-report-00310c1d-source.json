@@ -1,0 +1,13 @@
+{
+  "source_kind": "actual_download_from_isolated_synthetic_CI",
+  "repository": "hxjyaohaohaode/lidianzhizhenbywhu",
+  "commit": "00310c1d3b7c5b13acfa28fb6761ab17544bbb98",
+  "workflow_run": 37233916664,
+  "artifact_summary_id": 11314624823,
+  "file_sha256": "1b0f8c115365758868eff97a967f06739c41ea2147e71d74029791774545ef10",
+  "bytes": 29272,
+  "scenario": "L1-first-use-report",
+  "scope": "Exact old exported bytes for read-only formatter compatibility, not a migrated database or newly created report with fields deleted.",
+  "markdown_file_sha256": "fbf4b0f3d8e2dcb59d7b9bbbc758ccd86e803d226eb777f45319a0e3650f0768",
+  "markdown_bytes": 38041
+}
