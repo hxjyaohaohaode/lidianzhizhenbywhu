@@ -1,0 +1,428 @@
+{
+  "recorded_at": "2026-10-04T12:18:30.041898+00:00",
+  "verification_completed_at": "2026-10-04T12:15:43.898263+00:00",
+  "base_commit": "24775f1634df7ddef29605b4f107187402499322",
+  "base_tree": "e8488aadc1c19f910bce253b4b4744b9f0567a9a",
+  "scope": "Authorized premerge audit and necessary source-integrity fix; user performs merge; software-copyright technical candidate only",
+  "frozen_execution_files": {
+    "server/business_provenance.py": "3f6569457aceb6cb71fc4ec340b184f9fc6bf892270694dccb58a34e28ce5286",
+    "tests/test_alert_origin_premerge.py": "962e5d934a4da201eb31a8eee07be4042b2e17479debe88752d40f084a5851ff",
+    "scripts/full_chain_check.py": "ac06be17808648d84920de9cd680e8014565f8a29f1f49c6b13a80864b2f1d2d"
+  },
+  "reproduction": {
+    "baseline": "corrupt report artifact -> alert-sourced action incorrectly 201/current; isolated data only",
+    "expected": "409 REPORT_INTEGRITY, unchanged records",
+    "independent_followup": "incomplete v1 origin incorrectly current or 500; now SOURCE_INTEGRITY in action/watch with either historical option"
+  },
+  "focused": {
+    "new_origin_tests": 30,
+    "new_origin_passed": true,
+    "independent_origin_tests": 30,
+    "independent_origin_seconds": 7.34,
+    "metric_input_backend": 230,
+    "lifecycle_backend": 109,
+    "metric_frontend": 21,
+    "affected_backend_before_structural_followup": 120,
+    "overlap_notice": "All focused suites overlap aggregate; do not add their counts"
+  },
+  "aggregate": {
+    "stages": 7,
+    "backend": 1472,
+    "backend_failures": 0,
+    "backend_skipped": 0,
+    "frontend": 347,
+    "http_journeys": 18,
+    "all_passed": true,
+    "pytest_progress_complete": {
+      "event": "session_finished",
+      "utc": "2026-10-04T12:15:25.706039+00:00",
+      "elapsed_seconds": 257.869478,
+      "process_cpu_seconds": 245.735062,
+      "exit_code": 0,
+      "collected": 1472,
+      "started": 1472,
+      "completed": 1472,
+      "complete": true,
+      "phase_outcomes": {
+        "setup_passed": 1472,
+        "call_passed": 1472,
+        "teardown_passed": 1472
+      }
+    },
+    "checks": [
+      {
+        "check": "python-compile",
+        "command": [
+          "python",
+          "-m",
+          "compileall",
+          "-q",
+          "server",
+          "scripts"
+        ],
+        "exit_code": 0,
+        "seconds": 0.11,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "typecheck",
+        "command": [
+          "node",
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "-p",
+          "tsconfig.json"
+        ],
+        "exit_code": 0,
+        "seconds": 2.068,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "build",
+        "command": [
+          "node",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ],
+        "exit_code": 0,
+        "seconds": 1.94,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "-p",
+          "no:faulthandler",
+          "-p",
+          "scripts.pytest_diagnostics",
+          "--diagnostics-output=evidence/pytest-progress.jsonl",
+          "--diagnostics-test-timeout=120",
+          "--durations=20",
+          "--junitxml=evidence/pytest.xml"
+        ],
+        "exit_code": 0,
+        "seconds": 268.544,
+        "timeout_seconds": 900
+      },
+      {
+        "check": "frontend-tests",
+        "command": [
+          "node",
+          "--test",
+          "tests/actions.frontend.test.mjs",
+          "tests/business-source.frontend.test.mjs",
+          "tests/comparison-cleanup.frontend.test.mjs",
+          "tests/copilot-message-trace.frontend.test.mjs",
+          "tests/copilot-research-inputs.frontend.test.mjs",
+          "tests/data-draft-continuation.frontend.test.mjs",
+          "tests/data-editor-isolation.frontend.test.mjs",
+          "tests/dataset-source.frontend.test.mjs",
+          "tests/evidence.frontend.test.mjs",
+          "tests/form-snapshot.frontend.test.mjs",
+          "tests/frontend.test.mjs",
+          "tests/import-navigation.frontend.test.mjs",
+          "tests/import.frontend.test.mjs",
+          "tests/math-results.frontend.test.mjs",
+          "tests/metric-comparison.frontend.test.mjs",
+          "tests/preferences-completion.frontend.test.mjs",
+          "tests/proposal-preview.frontend.test.mjs",
+          "tests/recovery.frontend.test.mjs",
+          "tests/report-integrity.frontend.test.mjs",
+          "tests/saved-comparisons.frontend.test.mjs",
+          "tests/saved-experiments.frontend.test.mjs",
+          "tests/saved-mutation.frontend.test.mjs",
+          "tests/service-completion.frontend.test.mjs",
+          "tests/services.frontend.test.mjs",
+          "tests/workflow-inputs.frontend.test.mjs"
+        ],
+        "exit_code": 0,
+        "seconds": 1.51,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "source-guard",
+        "command": [
+          "python",
+          "scripts/source_guard.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.288,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "full-chain-http",
+        "command": [
+          "python",
+          "scripts/full_chain_check.py"
+        ],
+        "exit_code": 0,
+        "seconds": 6.635,
+        "timeout_seconds": 240
+      }
+    ]
+  },
+  "other_checks": {
+    "openapi_matches": true,
+    "pip_check": "passed",
+    "diff_check": "passed",
+    "brand_and_financial_formula_bytes": "unchanged"
+  },
+  "local_native": {
+    "all_checks_passed": false,
+    "business_checks": 0,
+    "attempts": [
+      {
+        "method": "default Playwright managed Chromium",
+        "result": "executable missing"
+      },
+      {
+        "method": "installed /usr/bin/chromium with supported CHROMIUM_PATH",
+        "result": "startup denied: process_singleton socket Operation not permitted"
+      }
+    ],
+    "policy_modified": false,
+    "note": "Both failures retained; new exact-SHA CI must provide native-browser evidence"
+  },
+  "review_map": [
+    {
+      "review_id": "4157290866",
+      "status": "already_fixed",
+      "finding": "同比 treated as comparison basis",
+      "code": [
+        "server/question_scope.py"
+      ],
+      "tests": [
+        "tests/test_question_scope.py"
+      ]
+    },
+    {
+      "review_id": "4157290872",
+      "status": "already_fixed",
+      "finding": "Unsupported turnover fails closed",
+      "code": [
+        "server/question_scope.py"
+      ],
+      "tests": [
+        "tests/test_question_scope.py"
+      ]
+    },
+    {
+      "review_id": "4158088599",
+      "status": "already_fixed",
+      "finding": "Strategy source deletion and consumption revalidation",
+      "code": [
+        "server/store.py",
+        "server/evolution.py",
+        "server/autonomy.py"
+      ],
+      "tests": [
+        "tests/test_strategy_source_lifecycle.py",
+        "tests/test_strategy_cleanup.py"
+      ]
+    },
+    {
+      "review_id": "4158088615",
+      "status": "already_fixed",
+      "finding": "Report integrity gates direct and inherited business sources",
+      "code": [
+        "server/report_integrity.py",
+        "server/business_provenance.py"
+      ],
+      "tests": [
+        "tests/test_report_source_integrity.py"
+      ]
+    },
+    {
+      "review_id": "4158088621",
+      "status": "conservative_alternative",
+      "finding": "Recover known unsent failure truthfully; no automatic retry",
+      "code": [
+        "server/adaptive_runtime.py"
+      ],
+      "tests": [
+        "tests/test_adaptive_recovery_selection.py"
+      ]
+    },
+    {
+      "review_id": "4158088630",
+      "status": "already_fixed",
+      "finding": "Proposal-bound nonexecutable preview and atomic confirmation",
+      "code": [
+        "server/copilot.py",
+        "server/studio.py",
+        "server/service_api.py"
+      ],
+      "tests": [
+        "tests/test_proposal_execution_binding.py",
+        "tests/proposal-preview.frontend.test.mjs"
+      ]
+    },
+    {
+      "review_id": "4162962208",
+      "status": "fixed_this_round",
+      "finding": "Preserve and validate alert rule ancestry separately from numerical observation",
+      "code": [
+        "server/business_provenance.py"
+      ],
+      "tests": [
+        "tests/test_alert_origin_premerge.py",
+        "scripts/full_chain_check.py"
+      ]
+    },
+    {
+      "review_id": "4162962214",
+      "status": "already_fixed",
+      "finding": "Gross-profit amount never replaced by margin",
+      "code": [
+        "server/question_scope.py"
+      ],
+      "tests": [
+        "tests/test_review_input_contracts.py"
+      ]
+    },
+    {
+      "review_id": "4162962217",
+      "status": "already_fixed",
+      "finding": "Minimize structured evidence URL metadata at dispatch boundary",
+      "code": [
+        "server/model_context.py",
+        "server/studio.py",
+        "server/adaptive_runtime.py"
+      ],
+      "tests": [
+        "tests/test_evidence_model_disclosure.py"
+      ]
+    },
+    {
+      "review_id": "4162962219",
+      "status": "already_fixed",
+      "finding": "Required viewed experiment revision",
+      "code": [
+        "server/contracts.py",
+        "server/saved_experiments.py"
+      ],
+      "tests": [
+        "tests/test_review_input_contracts.py"
+      ]
+    },
+    {
+      "review_id": "4163074553",
+      "status": "already_fixed",
+      "finding": "Net margin alias distinct from profit amount",
+      "code": [
+        "server/question_scope.py"
+      ],
+      "tests": [
+        "tests/test_question_scope.py"
+      ]
+    },
+    {
+      "review_id": "4163239086",
+      "status": "already_fixed",
+      "finding": "Explicit cancel of interrupted legacy run enables versioned archive",
+      "code": [
+        "server/workflows.py",
+        "server/workspace_api.py"
+      ],
+      "tests": [
+        "tests/test_legacy_studio_lifecycle.py"
+      ]
+    },
+    {
+      "review_id": "4163239092",
+      "status": "already_fixed",
+      "finding": "Selected evidence requires exact reviewed references",
+      "code": [
+        "server/contracts.py",
+        "server/business_provenance.py"
+      ],
+      "tests": [
+        "tests/test_action_evidence_binding.py"
+      ]
+    },
+    {
+      "review_id": "4164043830",
+      "status": "already_fixed",
+      "finding": "Growth baseline units and availability correctly rendered",
+      "code": [
+        "server/metric_facts.py",
+        "web/metric-comparison.ts"
+      ],
+      "tests": [
+        "tests/test_cash_growth_semantics.py",
+        "tests/metric-comparison.frontend.test.mjs"
+      ]
+    },
+    {
+      "review_id": "4164264753",
+      "status": "already_fixed",
+      "finding": "Dataset sources require viewed version/hash in one transaction",
+      "code": [
+        "server/business_provenance.py",
+        "server/workspace_api.py",
+        "server/service_api.py"
+      ],
+      "tests": [
+        "tests/test_dataset_source_bindings.py"
+      ]
+    },
+    {
+      "review_id": "4164264761",
+      "status": "already_fixed",
+      "finding": "Cash stock requests are not operating flows",
+      "code": [
+        "server/question_scope.py"
+      ],
+      "tests": [
+        "tests/test_cash_growth_semantics.py"
+      ]
+    },
+    {
+      "review_id": "PRR_kwDOSGgyNM8AAAABQNQnKw",
+      "status": "already_fixed",
+      "finding": "All optional specialists honor planner omission",
+      "code": [
+        "server/adaptive_runtime.py"
+      ],
+      "tests": [
+        "tests/test_adaptive_recovery_selection.py"
+      ]
+    },
+    {
+      "review_id": "PRR_kwDOSGgyNM8AAAABQS6oxQ",
+      "status": "already_fixed",
+      "finding": "Transport guard blocks retain truthful unsent disclosure",
+      "code": [
+        "server/studio.py",
+        "server/network.py",
+        "server/providers.py"
+      ],
+      "tests": [
+        "tests/test_legacy_studio_lifecycle.py",
+        "tests/test_adaptive_transport_disclosure.py",
+        "tests/test_transport_lifecycle.py"
+      ]
+    }
+  ],
+  "github_gate_read": {
+    "read_date_utc": "2026-10-04",
+    "main_protected": false,
+    "repository_rulesets": [],
+    "head_before_fix_actions": "push36999726858 and PR36999732765 success; not evidence for the new fix",
+    "vercel": "failure; not configured as a required gate",
+    "automatic_review": "latest bot comment reports review quota exhausted; no current automatic approval claimed"
+  },
+  "not_verified": [
+    "New exact-SHA CI until terminal artifacts are checked",
+    "Live DeepSeek/GLM/MiMo/Qwen calls",
+    "Real enterprise/battery samples",
+    "Production load and public hosting",
+    "Windows batch double-click",
+    "Formal software-copyright name/ownership/dates/final filing materials"
+  ]
+}

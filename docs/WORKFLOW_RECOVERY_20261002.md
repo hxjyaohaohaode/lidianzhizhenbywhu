@@ -40,3 +40,8 @@ The fixture now explicitly enters the action purpose and the separate memory con
 The PR Windows job and both Linux jobs passed all 52 native checks. Push Windows failed the pre-existing immediate second-turn count check after the shared submit helper's 500 ms delay. Its diagnostic journal shows message POST at elapsed 15.400867 s and assertion failure at 15.913739 s, without a response yet; the screenshot still shows the active local-computation indicator. No JavaScript exception or HTTP 5xx was captured. Artifact `11210321797` remains a failed attempt.
 
 The fixture now waits for the second rendered turn under the existing 10-second locator timeout before asserting the exact count of two. This matches the adjacent later-turn waits. No application source, timeout limit, business-request retry or count assertion is changed. Final acceptance requires the new commit's complete CI cycle; the three prior successful jobs do not relabel this failed job.
+
+
+## 2026-10-04 bounded integrity follow-up
+
+The inherited alert-origin integrity gap is now covered by [the premerge fix](PREMERGE_REVIEW_20261004.md): numerical observations remain frozen, while new derived writes cannot bypass corrupt reports through an alert. Replay-consent withdrawal still does not revoke ordinary business use. The broader feedback/display design is not expanded.

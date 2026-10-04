@@ -29,3 +29,8 @@ The alert-origin review overlaps the previously recorded report → watch → al
 ## Execution record
 
 The dated execution record is `evidence/review-input-boundaries-20261002.json`. It distinguishes focused regressions, aggregate checks, native browser execution and provider-double captures. Earlier workflow CI evidence and failed attempts remain historical evidence for their exact commits; they are not repurposed as proof for this follow-on patch.
+
+
+## 2026-10-04 bounded integrity follow-up
+
+The inherited alert-origin integrity gap is now covered by [the premerge fix](PREMERGE_REVIEW_20261004.md): numerical observations remain frozen, while new derived writes cannot bypass corrupt reports through an alert. Replay-consent withdrawal still does not revoke ordinary business use. The broader feedback/display design is not expanded.

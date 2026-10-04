@@ -1,20 +1,20 @@
-# 验收证据索引（2026-10-01）
+# 验收证据索引（2026-10-04）
 
-当前候选范围见 `docs/CANDIDATE_ACCEPTANCE_20261001.md`，最终精确提交与 CI 终态见 [PR #2 顶部](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。历史文件、旧数量和旧同名截图不替代新提交结果。
+当前候选范围见 `docs/PREMERGE_REVIEW_20261004.md`，本轮聚焦/聚合见 `premerge-review-20261004.json`，最终精确提交与 CI 终态见 [PR #2 顶部](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。历史文件、旧数量和旧同名截图不替代新提交结果。
 
 ## 当前生成记录
 
 - `verification.json`：最近一次本地聚合的实际时间、逐阶段命令、退出码、耗时及未测范围；带 `--full-chain` 的运行有七阶段，不与早先六阶段混同。后端/前端具体计数见对应同次日志和CI工件
-- `full-chain-http.json`：当前17组实际Uvicorn/HTTP/SSE/强制退出恢复/在线备份旅程；不是原生浏览器验收
+- `full-chain-http.json`：当前18组实际Uvicorn/HTTP/SSE/强制退出恢复/在线备份旅程；不是原生浏览器验收
 - `launcher-smoke-20261001.json`：复制当前受版本控制的应用与启动器到无.env/业务库的临时目录，实际通过start.py注册、读取前端静态资源、关闭后重启再登录；本地Linux，未执行Windows批处理双击
 - `comparison-cleanup-20261001.json`、`copilot-research-inputs-20261001.json`：各自功能轮次的合同与回归；记录当时的数量，不随新测试自动变成新结果
 - `source-guard.json`：限定语法/模式检查，不是完整安全审计；`brand-integrity.json`为原始PNG/MP4来源与摘要，不是素材授权证明
 
-## 原生工件身份
+## 历史原生工件身份（10月1日基线）
 
-最近已核对的应用基线为 `865a43abbd14aeecd0d388bb8b989b092e3afdf8` / tree `859bd2632e4dea97a85b6eeb794c80b9a7ac2df7`。成功原生来源是运行 [36866612001](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36866612001) 与 [36866617534](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36866617534) 的四份Windows/Linux报告，各48检查、14图、998后端、239前端和17HTTP。PR Windows成功为attempt 2，首次44项后连接读取失败仍保留，原因未确认。
+以下是10月1日已核对的应用基线，不代替当前新提交： `865a43abbd14aeecd0d388bb8b989b092e3afdf8` / tree `859bd2632e4dea97a85b6eeb794c80b9a7ac2df7`。成功原生来源是运行 [36866612001](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36866612001) 与 [36866617534](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36866617534) 的四份Windows/Linux报告，各48检查、14图、998后端、239前端和17HTTP。PR Windows成功为attempt 2，首次44项后连接读取失败仍保留，原因未确认。
 
-本次只补诊断/测试/材料，应用字节不变，但新精确提交仍须新CI实跑。每次CI首先清理已知生成输出并写 `run-context.json`，只认匹配SHA、运行号及尝试号的新报告：
+该历史轮次只补诊断/测试/材料；当前来源链修复已修改应用，必须以新精确提交的CI实跑为准。每次CI首先清理已知生成输出并写 `run-context.json`，只认匹配SHA、运行号及尝试号的新报告：
 
 - `native-service-browser.json`：实际业务结果、原生/桥接区别、截图名称、逐图SHA-256和run_identity
 - `native-service-command.json`：子命令退出码；没有产生报告的阶段不能算通过
@@ -22,7 +22,7 @@
 - `native-process-events.jsonl`：隔离服务、健康探测、子进程、清理与观察退出码时间；不是自动重试或成功替代品
 - `*.log`、`pytest.xml`：同次实际输出。依赖审计由同SHA独立job提供，当时未报告漏洞不等于零漏洞保证
 
-仓库本地的 `native-service-browser.json`、`native-service-command.json`仍是先前宿主Chromium受限记录，保留失败事实，不表示远端当前CI状态。不得绕过策略或混用桥接结果。
+仓库本地的 `native-service-browser.json`、`native-service-command.json`是本轮宿主Chromium启动受限记录，保留失败事实，不表示远端当前CI状态。不得绕过策略或混用桥接结果。
 
 ## 历史与图证边界
 

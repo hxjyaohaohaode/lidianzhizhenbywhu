@@ -14,6 +14,59 @@ from . import workspace_store as ws
 from .identities import resolve_identity, identity_binding
 from .report_integrity import inspect_report_integrity
 
+MAX_RULE_ORIGIN_DEPTH = 8
+
+
+def _rule_origin_structure(origin):
+    """A v1 marker alone is not a usable ownership/source binding."""
+    def text(value):return isinstance(value,str) and bool(value)
+    def revision(value):return type(value) is int and 1<=value<=2**53-1
+    def hash_value(value):return isinstance(value,str) and len(value)==64 and all(c in '0123456789abcdef' for c in value)
+    if not isinstance(origin,dict) or origin.get('schema_version')!=1:return False
+    required={'kind','dataset_id','dataset_version','dataset_hash','identity_id','identity_binding','evidence'}
+    if not required<=origin.keys():return False
+    if not isinstance(origin['kind'],str) or origin['kind'] not in {'dataset','manual','report','copilot','insight','alert','action','watch_evaluation'}:return False
+    if not isinstance(origin['dataset_id'],str) or not isinstance(origin['identity_id'],str):return False
+    if origin['identity_binding'] is not None and not isinstance(origin['identity_binding'],dict):return False
+    version,hash=origin['dataset_version'],origin['dataset_hash']
+    # Explicitly missing old bindings remain unknown; malformed bindings do not.
+    if (version is None)!=(hash is None) or (version is not None and not (revision(version) and hash_value(hash))):return False
+    for key in ('evidence','action_acceptance_evidence'):
+        items=origin.get(key,[])
+        if not isinstance(items,list) or any(not isinstance(item,dict) or not text(item.get('id')) for item in items):return False
+    dependencies=origin.get('action_dependencies',[])
+    if not isinstance(dependencies,list) or len(dependencies)>10:return False
+    if any(not isinstance(item,dict) or not text(item.get('action_id')) or not revision(item.get('action_version'))
+           or not hash_value(item.get('action_hash')) for item in dependencies):return False
+    bindings={'report':('run_id','report_hash'),'copilot':('thread_id',None),
+        'insight':('source_key','insight_hash'),'alert':('alert_id','alert_hash'),'action':('action_id','action_hash')}
+    if origin['kind'] in bindings:
+        id_key,hash_key=bindings[origin['kind']]
+        if not text(origin.get(id_key)) or (hash_key and not hash_value(origin.get(hash_key))):return False
+    for id_key,hash_key in (('run_id','report_hash'),('alert_id','alert_hash'),('action_id','action_hash'),('source_message_id','message_hash')):
+        if id_key in origin and (not text(origin[id_key]) or not hash_value(origin.get(hash_key))):return False
+    if 'action_id' in origin and not revision(origin.get('action_version')):return False
+    if origin['kind'] in {'alert','watch_evaluation'} and (not text(origin.get('rule_id')) or not revision(origin.get('rule_version'))):return False
+    if 'comparison_reference' in origin:
+        reference=origin['comparison_reference']
+        if not isinstance(reference,dict) or not isinstance(reference.get('payload'),dict):return False
+        if not hash_value(reference.get('projection_hash')) or digest(reference['payload'])!=reference['projection_hash']:return False
+    return True
+
+
+def _copy_rule_origin(origin):
+    """Bound inherited watch ancestry before copying it into another source."""
+    current = origin
+    seen = set()
+    for _ in range(MAX_RULE_ORIGIN_DEPTH):
+        if not isinstance(current, dict) or current.get('rule_origin') is None:
+            return deepcopy(origin)
+        if id(current) in seen:
+            break
+        seen.add(id(current))
+        current = current['rule_origin']
+    fail('SOURCE_DEPTH_LIMIT','跟踪来源链已达上限，请从原始报告或数据建立新的依据',409)
+
 
 class SourceRef(StrictModel):
     """Dataset refs require both viewed dataset_version and dataset_hash.
@@ -189,6 +242,9 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         extra={'alert_id':alert['id'],'alert_hash':digest({k:v for k,v in ap.items() if k not in {'acknowledged','ack_note','acknowledged_at','acknowledgement'}}),
             'rule_id':ap.get('rule_id'),'rule_version':ap.get('rule_version'),'evaluation_revision':ap.get('evaluation_revision'),
             'alert_snapshot':{k:ap.get(k) for k in ('title','value','metric','period','threshold','operator','evaluated_at','reason')}}
+        # The measurement is the alert's own frozen calculation. Its rule's
+        # origin remains a separate dependency, never a replacement baseline.
+        extra['rule_origin']=_copy_rule_origin((ap.get('provenance') or {}).get('rule_origin'))
     elif kind=='action':
         action=ws.get(store,user_id,'action',ref['action_id']);ap=action['payload']
         if (action['version'],digest(ap))!=(ref.get('action_version'),ref.get('action_hash')):
@@ -201,8 +257,16 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         binding=deepcopy(origin.get('identity_binding'));evidence=deepcopy(origin.get('evidence',[]))
         inherited={'run_id','report_hash','report_title','source_created_at','claim_id','claim_hash','claim_snapshot',
             'comparison_reference','claim_review_version','claim_review_hash','thread_id','source_message_id','message_hash','proposal_id','question',
-            'source_key','insight_hash','insight_binding_hash','insight_snapshot','alert_id','alert_hash','rule_id','rule_version','evaluation_revision','alert_snapshot'}
+            'source_key','insight_hash','insight_binding_hash','insight_snapshot','alert_id','alert_hash','rule_id','rule_version','evaluation_revision','alert_snapshot','rule_origin'}
         extra={k:deepcopy(v) for k,v in origin.items() if k in inherited}
+        if 'rule_origin' in extra:
+            extra['rule_origin']=_copy_rule_origin(extra['rule_origin'])
+        elif origin.get('alert_id'):
+            prior_alert=store.one("SELECT payload FROM workspace_objects WHERE user_id=? AND kind='alert' AND id=?",
+                (user_id,origin['alert_id']))
+            if prior_alert and digest({k:v for k,v in prior_alert['payload'].items()
+                    if k not in {'acknowledged','ack_note','acknowledged_at','acknowledgement'}})==origin.get('alert_hash'):
+                extra['rule_origin']=_copy_rule_origin((prior_alert['payload'].get('provenance') or {}).get('rule_origin'))
         # Flatten an optional API-created chain; never nest entire actions/histories.
         ancestors=deepcopy(origin.get('action_dependencies',[]))
         if origin.get('action_id'):
@@ -263,6 +327,10 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
     # Historical acknowledgement covers changed business facts, never corruption.
     if any(r['code'] in {'report_integrity_failed','report_changed'} for r in impact['reasons']):
         fail('REPORT_INTEGRITY','来源报告与已记录的完整性证据不一致；不能通过保留历史依据继续使用',409)
+    if any(r['code']=='rule_origin_depth_limit' for r in impact['reasons']):
+        fail('SOURCE_DEPTH_LIMIT','跟踪来源链已达上限，请从原始报告或数据建立新的依据',409)
+    if any(r['code'] in {'rule_origin_invalid','alert_changed'} for r in impact['reasons']):
+        fail('SOURCE_INTEGRITY','提醒或其规则来源完整性不可核验，不能作为新的业务依据',409)
     if impact['state']!='current' and not ref.get('allow_historical'):
         fail('SOURCE_CHANGED','来源已变化或完整来源不可核验；请重新核对，或明确保留历史依据',409)
     return provenance
@@ -286,7 +354,7 @@ def _evidence_changes(store,user_id,snapshots,company):
     return reasons
 
 
-def source_impact(store,user_id,provenance):
+def source_impact(store,user_id,provenance,*,_origin_depth=0):
     """Read-only live overlay. Missing legacy provenance is explicitly unknown."""
     if not provenance or provenance.get('schema_version')!=1:
         return {'state':'unknown','reasons':[{'code':'legacy_unknown','message':'旧记录未保存完整来源，无法回填当时依据'}],
@@ -358,12 +426,39 @@ def source_impact(store,user_id,provenance):
         expected=p.get('insight_binding_hash') or (digest(_insight_binding(p['insight_snapshot'])) if p.get('insight_snapshot') else None)
         if not insight or (expected and digest(_insight_binding(insight))!=expected):
             reasons.append({'code':'insight_changed','message':'原建议已失效、隐藏或其规则依据已变化'})
+    rule_origin=p.get('rule_origin')
+    origin_recorded='rule_origin' in p
     if p.get('alert_id'):
         alert=store.one("SELECT payload FROM workspace_objects WHERE user_id=? AND kind='alert' AND id=?",(user_id,p['alert_id']))
         if not alert:
             reasons.append({'code':'alert_removed','message':'原提醒已归档或删除；历史提醒依据仍保留'});unavailable=True
         elif digest({k:v for k,v in alert['payload'].items() if k not in {'acknowledged','ack_note','acknowledged_at','acknowledgement'}})!=p.get('alert_hash'):
             reasons.append({'code':'alert_changed','message':'原提醒的判定依据已变化'})
+        elif not origin_recorded:
+            # Older derived actions omitted this field, but their alert hash
+            # binds the immutable rule origin. Recheck it without backfilling or
+            # altering the saved action, watch, alert or its numerical value.
+            rule_origin=(alert['payload'].get('provenance') or {}).get('rule_origin')
+            origin_recorded=True
+    if origin_recorded:
+        if _origin_depth>=MAX_RULE_ORIGIN_DEPTH and rule_origin is not None:
+            reasons.append({'code':'rule_origin_depth_limit','message':'跟踪来源链超过可核验上限，不能作为新的业务依据','dependency':'watch_origin'});unavailable=True
+        elif rule_origin is None:
+            reasons.append({'code':'rule_origin_unknown','message':'旧提醒没有完整的规则来源；数值记录保留，来源关联不可回填','dependency':'watch_origin'});unknown=True
+        elif not _rule_origin_structure(rule_origin):
+            reasons.append({'code':'rule_origin_invalid','message':'提醒保存的规则来源结构无效，不能作为新的业务依据','dependency':'watch_origin'});unavailable=True
+        else:
+            try:
+                inherited=source_impact(store,user_id,rule_origin,_origin_depth=_origin_depth+1)
+            except (AttributeError,KeyError,TypeError,ValueError):
+                # A malformed optional frozen projection must not turn a list
+                # read into a 500, or become current through historical consent.
+                reasons.append({'code':'rule_origin_invalid','message':'提醒保存的规则来源内容无法核验，不能作为新的业务依据','dependency':'watch_origin'});unavailable=True
+            else:
+                reasons.extend({**reason,'dependency':'watch_origin','origin_depth':reason.get('origin_depth',0)+1}
+                    for reason in inherited['reasons'])
+                unavailable=unavailable or inherited['state']=='unavailable'
+                unknown=unknown or inherited['state']=='unknown'
     if p.get('rule_id'):
         rule=store.one("SELECT version,payload FROM workspace_objects WHERE user_id=? AND kind='watch' AND id=?",(user_id,p['rule_id']))
         expected=p.get('evaluation_revision') if p.get('evaluation_revision') is not None else p.get('rule_version')
@@ -379,7 +474,7 @@ def source_impact(store,user_id,provenance):
     reasons.extend(_evidence_changes(store,user_id,p.get('evidence',[]),p.get('company','')))
     reasons.extend({**r,'dependency':'action_acceptance'} for r in
         _evidence_changes(store,user_id,p.get('action_acceptance_evidence',[]),p.get('company','')))
-    changed=any(r['code'] not in {'baseline_unknown','identity_baseline_unknown'} for r in reasons)
+    changed=any(r['code'] not in {'baseline_unknown','identity_baseline_unknown','rule_origin_unknown','legacy_unknown'} for r in reasons)
     return {'state':'unavailable' if unavailable else 'changed' if changed else 'unknown' if unknown else 'current',
         'reasons':reasons,'baseline':baseline,'current':current}
 

@@ -265,6 +265,7 @@ def main():
             watch=require(c.post('/api/services/watches',json={'request_id':'http-lifecycle-watch','title':'行动关联指标跟踪','dataset_id':d['id'],
                 'metric':'gross_margin','operator':'lt','threshold':.99,'stale_after_days':1460,'source_ref':{'kind':'action','action_id':action['id'],'action_version':action['version'],'action_hash':action['object_hash']}}),201)
             tracking=require(c.get('/api/services/tracking'));assert any(a['payload']['rule_id']==watch['id'] for a in tracking['alerts'])
+            linked_alert=next(a for a in tracking['alerts'] if a['payload']['rule_id']==watch['id'])
             spec={k:watch['payload'][k] for k in ('title','identity_id','dataset_id','metric','operator','threshold','active','stale_after_days','expires_at')}
             unchanged=require(c.put('/api/services/watches/'+watch['id'],json={**spec,'version':watch['version']}));assert unchanged['version']==watch['version']
             assert len(require(c.get('/api/services/tracking'))['alerts'])==len(tracking['alerts'])
@@ -337,7 +338,20 @@ def main():
                     assert new_revision['version']==recovered_data['version']+1 and new_revision['payload']==d['payload']
                     assert require(recovered.get('/api/runs/'+linked_run['id']))['result']==original_report
                     assert require(c.get('/api/datasets/'+d['id']))['version']==recovered_data['version']
-                record('备份→全新DATA_DIR实际Uvicorn重启→重新登录→完整来源/报告核对→跨账户拒绝→历史恢复新修订且原库/报告不变')
+                    record('备份→全新DATA_DIR实际Uvicorn重启→重新登录→完整来源/报告核对→跨账户拒绝→历史恢复新修订且原库/报告不变')
+                    # Inject corruption only into the disposable restored copy.
+                    # The original service and all frozen numerical alerts stay intact.
+                    before_objects=require(recovered.get('/api/account/export'))['data']['workspace_objects']
+                    with contextlib.closing(sqlite3.connect(restored.dir/'lidian.sqlite3')) as db:
+                        db.execute("UPDATE agent_artifacts SET content_hash=? WHERE run_id=? AND node='report'",('0'*64,linked_run['id']))
+                        db.commit()
+                    rejected=recovered.post('/api/workspace/actions',json={'dataset_id':d['id'],
+                        'title':'复核提醒继承的原报告来源','acceptance':'核对原始报告完整性后才能建立后续行动',
+                        'source_ref':{'kind':'alert','alert_id':linked_alert['id'],'allow_historical':True}})
+                    assert rejected.status_code==409 and rejected.json()['error']['code']=='REPORT_INTEGRITY',rejected.text
+                    assert require(recovered.get('/api/account/export'))['data']['workspace_objects']==before_objects
+                    assert require(c.get('/api/workspace/runs/'+linked_run['id']+'/audit'))['report_integrity']['valid']
+                    record('实际HTTP报告→行动→规则→提醒的来源链不可借历史确认绕过损坏报告；只损坏隔离副本且原库/数值记录不变')
             finally:restored.stop()
         finally:srv.stop()
       evidence.update({'passed':True,'checks':checks,'load_probe':timings,'elapsed_seconds':round(time.time()-start,2)})
