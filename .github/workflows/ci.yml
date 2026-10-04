@@ -199,6 +199,153 @@ jobs:
           path: evidence/product-audit-transfer/part-16/
           if-no-files-found: ignore
           retention-days: 14
+  product-first-use:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python scripts/prepare_evidence.py
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      # L1 alone, with an independent account, native lifecycle and evidence.
+      # The runner retains its existing 300-second bound; no L6 heavy setup.
+      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 85d10439febbaafc51b9c10ebfdb28b9ba4c4862 --expected-server-tree c60d7ef8e7d941389e6d8984b9b6891f1162a811
+      - run: python scripts/pack_product_audit.py --suite first-use
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-summary
+          path: |
+            evidence/run-context.json
+            evidence/product-first-use-audit.json
+            evidence/product-first-use-service-command.json
+            evidence/product-first-use-transfer-status.json
+            evidence/product-first-use*.log
+            evidence/product-first-use*-events.jsonl
+            evidence/product-first-use-transfer/manifest.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-01
+          path: evidence/product-first-use-transfer/part-01/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-02
+          path: evidence/product-first-use-transfer/part-02/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-03
+          path: evidence/product-first-use-transfer/part-03/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-04
+          path: evidence/product-first-use-transfer/part-04/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-05
+          path: evidence/product-first-use-transfer/part-05/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-06
+          path: evidence/product-first-use-transfer/part-06/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-07
+          path: evidence/product-first-use-transfer/part-07/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-08
+          path: evidence/product-first-use-transfer/part-08/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-09
+          path: evidence/product-first-use-transfer/part-09/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-10
+          path: evidence/product-first-use-transfer/part-10/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-11
+          path: evidence/product-first-use-transfer/part-11/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-12
+          path: evidence/product-first-use-transfer/part-12/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-13
+          path: evidence/product-first-use-transfer/part-13/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-14
+          path: evidence/product-first-use-transfer/part-14/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-15
+          path: evidence/product-first-use-transfer/part-15/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-first-use-${{ matrix.os }}-part-16
+          path: evidence/product-first-use-transfer/part-16/
+          if-no-files-found: ignore
+          retention-days: 14
   dependency-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10

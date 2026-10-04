@@ -28,3 +28,8 @@ evidence/product-audit-transfer/
 evidence/product-audit-transfer-status.json
 evidence/product-browser-audit.json
 evidence/product-audit-service-command.json
+evidence/product-first-use/
+evidence/product-first-use-transfer/
+evidence/product-first-use-transfer-status.json
+evidence/product-first-use-audit.json
+evidence/product-first-use-service-command.json

@@ -6,10 +6,15 @@ and every file hash before inspecting the screenshots, traces and videos.
 Never truncate, recompress images, or treat packaging success as UI success.
 """
 from pathlib import Path
+import argparse
 import hashlib
 import json
 import re
 import zipfile
+try:
+    from .product_audit_config import AUDIT_SUITES, audit_suite
+except ImportError:
+    from product_audit_config import AUDIT_SUITES, audit_suite
 
 PART_BYTES = 24 * 1024 * 1024
 MAX_PARTS = 16
@@ -21,17 +26,26 @@ def sha256(path):
         return hashlib.file_digest(source, 'sha256').hexdigest()
 
 
-def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS):
+def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS, suite='contract'):
     evidence = Path(evidence).resolve()
-    report_path = evidence / 'product-browser-audit.json'
+    configuration = audit_suite(suite)
+    mode = configuration['mode']
+    report_path = evidence / configuration['report']
     report = json.loads(report_path.read_text(encoding='utf-8'))
-    audit = evidence / 'product-audit'
+    if report.get('suite', 'contract') != suite:
+        raise ValueError('Audit report belongs to a different suite')
+    audit = evidence / mode
     selected = {}
 
     def include(path, expected=None, optional=False):
         path = Path(path)
         if not path.resolve().is_relative_to(evidence) or path.is_symlink():
             raise ValueError('Evidence path escapes the current output directory')
+        for parent in path.parents:
+            if parent == evidence:
+                break
+            if parent.is_symlink():
+                raise ValueError('Evidence path contains a symlink directory')
         if optional and not path.exists():
             return
         if not path.is_file():
@@ -42,9 +56,9 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS):
         selected[path.relative_to(evidence).as_posix()] = {'bytes': path.stat().st_size, 'sha256': actual}
 
     include(report_path)
-    for name in ('run-context.json', 'product-audit-service-command.json',
-                 'product-audit-service-browser.log', 'product-audit-server.log',
-                 'product-audit-process-events.jsonl'):
+    for name in ('run-context.json', mode + '-service-command.json',
+                 mode + '-service-browser.log', mode + '-server.log',
+                 mode + '-process-events.jsonl'):
         include(evidence / name, optional=True)
     for row in report.get('scenarios', []):
         code = row['id']
@@ -57,6 +71,24 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS):
             item = row.get(kind)
             if item:
                 include(audit / item['file'], item['sha256'])
+        seen_artifacts = set()
+        for item in row.get('artifacts', []):
+            name = item.get('file', '')
+            if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name):
+                raise ValueError('Artifact must name a direct scenario file')
+            if name in seen_artifacts:
+                raise ValueError('Duplicate scenario artifact')
+            seen_artifacts.add(name)
+            if item.get('kind') not in ('download', 'synthetic-input'):
+                raise ValueError('Unknown scenario artifact kind')
+            if not isinstance(item.get('sha256'), str) or not re.fullmatch(r'[0-9a-f]{64}', item['sha256']):
+                raise ValueError('Artifact requires a current-report SHA256')
+            if type(item.get('bytes')) is not int or item['bytes'] <= 0:
+                raise ValueError('Artifact requires its positive byte length')
+            target = directory / name
+            include(target, item['sha256'])
+            if target.stat().st_size != item['bytes']:
+                raise ValueError('Artifact byte length mismatch')
         # The current root report already embeds each scenario and its steps.
         # Do not sweep auxiliary JSON that may belong to an earlier attempt.
         fixture_hash = row.get('observations', {}).get('fixture', {}).get('csv_sha256')
@@ -65,7 +97,7 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS):
 
     if not 1 <= part_bytes <= PART_BYTES or not 1 <= max_parts <= MAX_PARTS:
         raise ValueError('Transfer bounds cannot exceed the declared safe limits')
-    output = evidence / 'product-audit-transfer'
+    output = evidence / (mode + '-transfer')
     output.mkdir(exist_ok=False)  # Never silently reuse a prior run's fragments.
     archive = output / 'current-evidence.zip'
     with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_STORED) as target:
@@ -75,8 +107,9 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS):
     required = (archive_size + part_bytes - 1) // part_bytes
     if required > max_parts:
         raise ValueError(f'Current evidence needs {required} fragments, exceeds explicit {max_parts} limit; no evidence was truncated')
-    manifest = {'format': 'lidian-native-audit-fragments-v1', 'part_bytes_limit': part_bytes,
+    manifest = {'format': 'lidian-native-audit-fragments-v1', 'suite': suite, 'part_bytes_limit': part_bytes,
                 'archive_bytes': archive_size, 'archive_sha256': sha256(archive),
+                'source_report_file': configuration['report'],
                 'source_report_sha256': sha256(report_path), 'audit_passed': report.get('all_checks_passed') is True,
                 'runner': report.get('runner', {}), 'git': report.get('git', {}),
                 'files': selected, 'parts': []}
@@ -98,13 +131,16 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS):
     return manifest
 
 
-def main():
+def main(argv=()):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--suite', choices=tuple(AUDIT_SUITES), default='contract')
+    args = parser.parse_args(argv)
     evidence = ROOT / 'evidence'
-    status_path = evidence / 'product-audit-transfer-status.json'
+    status_path = evidence / (audit_suite(args.suite)['mode'] + '-transfer-status.json')
     status = {'status': 'running', 'complete': False}
     status_path.write_text(json.dumps(status), encoding='utf-8')
     try:
-        result = package(evidence)
+        result = package(evidence, suite=args.suite)
         status.update(status='completed', complete=True, parts=len(result['parts']),
                       archive_bytes=result['archive_bytes'], archive_sha256=result['archive_sha256'],
                       audit_passed=result['audit_passed'])
@@ -117,4 +153,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(None)

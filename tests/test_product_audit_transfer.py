@@ -93,3 +93,82 @@ def test_packaging_failure_gets_an_explicit_incomplete_receipt(tmp_path, monkeyp
     assert receipt['status'] == 'failed' and receipt['complete'] is False
     assert 'exceeds capacity' in receipt['error']
     assert json.loads((evidence / 'product-browser-audit.json').read_text())['all_checks_passed'] is False
+
+
+def first_use_fixture(tmp_path):
+    evidence = tmp_path / 'evidence'
+    directory = evidence / 'product-first-use/L1-first-use-report'
+    directory.mkdir(parents=True)
+    artifacts = []
+    for name, kind in [('opened-header-only-template.csv', 'download'), ('L1-synthetic-first.csv', 'synthetic-input'),
+        ('L1-synthetic-corrected.csv', 'synthetic-input'), ('opened-report.json', 'download'), ('opened-report.md', 'download')]:
+        blob = ('contract-only bytes: ' + name).encode()
+        (directory / name).write_bytes(blob)
+        artifacts.append({'file': name, 'kind': kind, 'sha256': digest(blob), 'bytes': len(blob)})
+    (directory / 'unreferenced-old.csv').write_text('must not sweep this file')
+    (evidence / 'product-browser-audit.json').write_text('{"suite":"contract","secret":"unrelated"}')
+    report = {'suite': 'first-use', 'all_checks_passed': False,
+        'scenarios': [{'id': 'L1-first-use-report', 'status': 'failed', 'artifacts': artifacts}]}
+    (evidence / 'product-first-use-audit.json').write_text(json.dumps(report))
+    return evidence, directory, report
+
+
+def test_only_current_report_hashed_downloads_and_csvs_are_transferred(tmp_path):
+    evidence, directory, _ = first_use_fixture(tmp_path)
+    manifest = package(evidence, suite='first-use', part_bytes=1024)
+    assert manifest['suite'] == 'first-use' and manifest['audit_passed'] is False
+    assert manifest['source_report_file'] == 'product-first-use-audit.json'
+    assert digest((evidence / manifest['source_report_file']).read_bytes()) == manifest['source_report_sha256']
+    assert len(manifest['files']) == 6  # report plus exactly five explicit artifacts
+    assert 'product-browser-audit.json' not in manifest['files']
+    assert not any('unreferenced' in file for file in manifest['files'])
+    output = evidence / 'product-first-use-transfer'
+    combined = b''.join((output / f"part-{p['number']:02}" / p['file']).read_bytes() for p in manifest['parts'])
+    assert digest(combined) == manifest['archive_sha256']
+    with zipfile.ZipFile(BytesIO(combined)) as archive:
+        for name in manifest['files']:
+            assert digest(archive.read(name)) == manifest['files'][name]['sha256']
+
+
+@pytest.mark.parametrize('bad_field,bad_value,error', [('sha256', None, 'SHA256'), ('sha256', '0' * 64, 'hash mismatch'),
+    ('file', '../other.csv', 'direct scenario'), ('file', 'C:\\unrelated.csv', 'direct scenario'),
+    ('bytes', 1, 'length mismatch'), ('bytes', True, 'byte length'), ('kind', 'folder-sweep', 'kind')])
+def test_bad_download_manifest_fails_closed_before_packaging(tmp_path, bad_field, bad_value, error):
+    evidence, _, report = first_use_fixture(tmp_path)
+    report['scenarios'][0]['artifacts'][0][bad_field] = bad_value
+    (evidence / 'product-first-use-audit.json').write_text(json.dumps(report))
+    with pytest.raises(ValueError, match=error):
+        package(evidence, suite='first-use')
+    assert not (evidence / 'product-first-use-transfer').exists()
+
+
+def test_first_use_cannot_admit_a_contract_report(tmp_path):
+    evidence, _, report = first_use_fixture(tmp_path)
+    report['suite'] = 'contract'
+    (evidence / 'product-first-use-audit.json').write_text(json.dumps(report))
+    with pytest.raises(ValueError, match='different suite'):
+        package(evidence, suite='first-use')
+
+
+@pytest.mark.parametrize('linked_directory', [False, True])
+def test_manifest_cannot_admit_symlink_files_or_directories(tmp_path, linked_directory):
+    evidence, directory, report = first_use_fixture(tmp_path)
+    name = report['scenarios'][0]['artifacts'][0]['file']
+    if linked_directory:
+        moved = evidence / 'unrelated-directory'
+        directory.rename(moved)
+        try:
+            directory.symlink_to(moved, target_is_directory=True)
+        except OSError:
+            pytest.skip('Symlink creation unavailable on this test host')
+    else:
+        source = directory / name
+        other = evidence / 'unrelated.csv'
+        source.rename(other)
+        try:
+            source.symlink_to(other)
+        except OSError:
+            pytest.skip('Symlink creation unavailable on this test host')
+    with pytest.raises(ValueError, match='escapes|symlink'):
+        package(evidence, suite='first-use')
+    assert not (evidence / 'product-first-use-transfer').exists()

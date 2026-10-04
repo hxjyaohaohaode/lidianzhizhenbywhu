@@ -24,6 +24,12 @@ import traceback
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlsplit
 import uuid
+from functools import partial
+
+try:
+    from .product_audit_config import AUDIT_SUITES, audit_suite
+except ImportError:
+    from product_audit_config import AUDIT_SUITES, audit_suite
 
 FIXTURE_COMPANY = '独立合同验收合成企业（非真实财报）'
 FIXTURE_REVENUE = 100_000
@@ -32,11 +38,7 @@ FIXTURE_REVISED_COST = 75_000
 FIXTURE_QUARTERS = [f'{2022 + i // 4}-Q{i % 4 + 1}' for i in range(12)]
 FORM_TIMEOUT_MS = 10_000
 RUN_TIMEOUT_MS = 30_000
-SCENARIOS = (
-    ('F1-trace-handoff', '历史季度追踪→真实下一步按钮保留问题与企业'),
-    ('F2-forecast-units', '预测卡明确毛利率百分数及收入金额单位'),
-    ('F3-report-points', '同季度报告毛利率差值明确为百分点'),
-)
+SCENARIOS = AUDIT_SUITES['contract']['scenarios']
 
 
 def now():
@@ -117,8 +119,22 @@ class Probe:
         self.steps = []
         self.screenshots = []
         self.observations = {}
+        self.artifacts = []
         self.dataset_id = ''
         self.step_no = 0
+
+    def record_artifact(self, path, *, kind):
+        """Admit explicit current-scenario files, never sweep an output folder."""
+        path = Path(path)
+        if path.is_symlink() or path.resolve().parent != self.directory.resolve():
+            raise ValueError('Artifact must be a regular file directly in this scenario directory.')
+        if kind not in ('download', 'synthetic-input') or not path.is_file():
+            raise ValueError('Unknown artifact kind or missing scenario file.')
+        item = {'file': path.name, 'kind': kind, 'sha256': digest(path), 'bytes': path.stat().st_size}
+        if any(existing['file'] == item['file'] for existing in self.artifacts):
+            raise ValueError('Scenario artifact was already recorded: ' + path.name)
+        self.artifacts.append(item)
+        return item
 
     def screenshot(self, suffix):
         name = f'{self.step_no:03d}-{suffix}.png'
@@ -771,7 +787,21 @@ def probe_report_points(p):
     p.no_external()
 
 
-def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_root, expected_web_tree, expected_server_tree, report_path=None, submit_form=None):
+def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_server_tree):
+    try:
+        from .product_first_use_audit import l1_new_user_report
+    except ImportError:
+        from product_first_use_audit import l1_new_user_report
+    return {
+        'F1-trace-handoff': probe_handoff,
+        'F2-forecast-units': probe_forecast,
+        'F3-report-points': probe_report_points,
+        'L1-first-use-report': partial(l1_new_user_report, repository_root=repository_root,
+            data_dir=data_dir, expected_web_tree=expected_web_tree, expected_server_tree=expected_server_tree),
+    }
+
+
+def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_root, expected_web_tree, expected_server_tree, report_path=None, submit_form=None, suite='contract'):
     """Callable from the existing *native* isolated runner; returns aggregate report.
 
     Does not terminate an existing browser. Always creates its own fresh contexts.
@@ -779,6 +809,7 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
     baseline is still FAIL and never emits PASS or an XFAIL success.
     """
     require_isolated_runner(base_url, data_dir)
+    configuration = audit_suite(suite)
     root = Path(repository_root).resolve()
     out = Path(output_dir).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -794,13 +825,16 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
     if identity['protected_tree_ids'] != expected or identity['protected_diff'] or identity['protected_untracked']:
         raise RuntimeError("Protected web/server content differs from this run's explicitly reviewed tree IDs. Never silently inherit baseline approval after product edits.")
     report = {'started_at': now(), 'status': 'running', 'all_checks_passed': False, 'transport': 'native Playwright Chromium + actual isolated Uvicorn', 'policy_modified': False, 'bridge_used': False, 'direct_api_mutations_used': False, 'synthetic_only': True, 'repository': str(root), 'expected_protected_tree_ids': expected, 'git': identity, 'browser': browser.version, 'viewport': {'width': 1520, 'height': 1080}, 'timezone_id': 'UTC', 'runner': {k: os.getenv(k, '') for k in ('GITHUB_SHA', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'RUNNER_OS')}, 'scenarios': []}
-    report_path = Path(report_path) if report_path else root / 'evidence' / 'product-browser-audit.json'
+    report['suite'] = suite
+    report_path = Path(report_path) if report_path else root / 'evidence' / configuration['report']
     dump(report_path, report)
-    functions = [probe_handoff, probe_forecast, probe_report_points]
-    for (code, name), function in zip(SCENARIOS, functions):
+    registry = scenario_registry(repository_root=root, data_dir=data_dir,
+        expected_web_tree=expected_web_tree, expected_server_tree=expected_server_tree)
+    for code, name in configuration['scenarios']:
+        function = registry[code]
         directory = out / code
         directory.mkdir(exist_ok=True)
-        result = {'id': code, 'name': name, 'status': 'running', 'started_at': now(), 'precondition': 'Fresh synthetic account, 12 constant closed standalone quarters, yuan import, explicit wan display, no configured providers', 'screenshots': [], 'js_errors': [], 'http': [], 'external_requests': [], 'unexpected_dialogs': [], 'evidence_errors': []}
+        result = {'id': code, 'name': name, 'status': 'running', 'started_at': now(), 'precondition': configuration['precondition'], 'screenshots': [], 'artifacts': [], 'js_errors': [], 'http': [], 'external_requests': [], 'unexpected_dialogs': [], 'evidence_errors': []}
         report['scenarios'].append(result)
         journal = EventJournal(directory / 'browser-events.jsonl')
         journal.emit('probe_scenario_started', scenario=code, viewport=report['viewport'])
@@ -850,6 +884,7 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
             if probe is not None:
                 result['observations'] = probe.observations
                 result['steps'] = probe.steps
+                result['artifacts'] = probe.artifacts
                 try:
                     probe.screenshot('final-' + result['status'])
                 except Exception as exc:
@@ -896,16 +931,18 @@ def main():
     parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--out', type=Path)
     parser.add_argument('--report', type=Path)
+    parser.add_argument('--suite', choices=tuple(AUDIT_SUITES), default='contract')
     parser.add_argument('--expected-web-tree', required=True)
     parser.add_argument('--expected-server-tree', required=True)
     args = parser.parse_args()
+    configuration = audit_suite(args.suite)
     root = args.repo.resolve()
-    out = (args.out or root / 'evidence' / 'product-audit').resolve()
-    report_path = (args.report or root / 'evidence' / 'product-browser-audit.json').resolve()
+    out = (args.out or root / 'evidence' / configuration['mode']).resolve()
+    report_path = (args.report or root / 'evidence' / configuration['report']).resolve()
     out.mkdir(parents=True, exist_ok=True)
     initial = {'started_at': now(), 'status': 'not_run', 'all_checks_passed': False,
                'transport': 'native Playwright Chromium + existing isolated Uvicorn',
-               'policy_modified': False, 'bridge_used': False, 'scenarios': [],
+               'policy_modified': False, 'bridge_used': False, 'scenarios': [], 'suite': args.suite,
                'expected_protected_tree_ids': {'web': args.expected_web_tree, 'server': args.expected_server_tree}}
     dump(report_path, initial)
     try:
@@ -923,7 +960,7 @@ def main():
                 report = run_contract_audit(browser, base_url='http://127.0.0.1:8000',
                     data_dir=os.environ['DATA_DIR'], output_dir=out, repository_root=root,
                     expected_web_tree=args.expected_web_tree,
-                    expected_server_tree=args.expected_server_tree, report_path=report_path)
+                    expected_server_tree=args.expected_server_tree, report_path=report_path, suite=args.suite)
             finally:
                 browser.close()
         return 0 if report['all_checks_passed'] else 1
