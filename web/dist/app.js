@@ -16,7 +16,7 @@ import { state, routes, activeDataset, activeIdentity, scopedDatasets, roleNames
 import { esc, icon, button, routeButton, notice, heading, field, input, textarea, select, formFooter, jsonView, table, timeText, badge, status, citationCard, metricValue } from './components.js';
 import { briefPage, settingsPage, opsPage } from './pages.js';
 import { revisionHistory, dataPage, datasetEditor, periodRow, financialFields, importForm, stageView, qualityPanel, evidencePage, evidenceForm, reviewEvidenceForm, evidenceScope, evidenceMetadataForm, memoryPage, memoryForm } from './views-data.js';
-import { agentsPage, templateForm } from './views-studio.js';
+import { agentsPage, templateForm, claimReviewForm, claimReviewState } from './views-studio.js';
 import { labPage, comparePage, comparisonOutput, reportsPage, reportCompareForm, reportSelectionDetails, reportComparisonView, actionsPage, actionForm, actionDetail, actionEditForm } from './views-analysis.js';
 const root = document.querySelector('#app');
 const modal = document.querySelector('#modal');
@@ -470,10 +470,16 @@ document.addEventListener('submit', async (event) => {
             case 'assistant-form':
                 await ask(str('query'));
                 break;
-            case 'claim-review-form':
-                await workspace('/runs/' + state.cache.run.id + '/reviews', 'POST', { claim_id: form.dataset.id, version: Number(form.dataset.version), verdict: str('verdict'), note: str('note') });
+            case 'claim-review-form': {
+                const current = claimReviewState(form.dataset.id ?? '');
+                if (current.readOnly)
+                    throw new Error(current.readOnly.reason);
+                if (current.blocked || form.dataset.runId !== state.cache.run?.id || Number(form.dataset.version) !== current.version)
+                    throw new Error('当前审阅关联或版本已改变，请重新打开复核窗口。');
+                await workspace('/runs/' + form.dataset.runId + '/reviews', 'POST', { claim_id: form.dataset.id, version: Number(form.dataset.version), verdict: str('verdict'), note: str('note') });
                 changed = true;
                 break;
+            }
             case 'dismiss-insight-form':
                 await workspace('/insights/dismiss', 'POST', { identity_id: state.identity, key: form.dataset.key, note: str('reason') });
                 changed = true;
@@ -520,7 +526,7 @@ document.addEventListener('submit', async (event) => {
         }
     }
     catch (e) {
-        if (form.id === 'comparison-delete-form' && (!submittedContext() || !submittedCurrent()))
+        if (['comparison-delete-form', 'claim-review-form'].includes(form.id) && (!submittedContext() || !submittedCurrent()))
             return;
         const msg = e instanceof Error ? e.message : '操作失败';
         if (error && error.isConnected)
@@ -1052,11 +1058,9 @@ document.addEventListener('click', async (event) => {
                 navigate(route, true);
                 break;
             }
-            case 'review-claim': {
-                const old = state.cache.reviews.find((r) => r.payload.claim_id === id);
-                dialog('人工复核模型解释', `<form id="claim-review-form" class="stack" data-id="${esc(id)}" data-version="${old?.version ?? 0}">${field('复核结论', select('verdict', { accepted: '接受，依据已记录', rejected: '不接受', needs_evidence: '需要补充证据' }, old?.payload.verdict ?? 'needs_evidence'))}${field('核对依据 / 反向证据', textarea('note', old?.payload.note ?? '', 'rows="5" required minlength="5"'))}${formFooter('记录人工复核')}</form>`);
+            case 'review-claim':
+                dialog('人工复核模型解释', claimReviewForm(id));
                 break;
-            }
             case 'password-dialog':
                 dialog('修改密码', `<form id="password-form" class="stack">${field('当前密码', input('current_password', '', 'type="password" autocomplete="current-password" required'))}${field('新密码', input('new_password', '', 'type="password" autocomplete="new-password" required minlength="12" maxlength="128"'))}${notice('修改后将吊销全部登录会话，包括当前会话。')}${formFooter('修改并退出所有会话')}</form>`);
                 break;

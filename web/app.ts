@@ -16,7 +16,7 @@ import {state,routes,activeDataset,activeIdentity,scopedDatasets,roleNames} from
 import {esc,icon,button,routeButton,notice,empty,heading,field,input,textarea,select,formFooter,jsonView,table,timeText,pct,num,badge,status,citationCard,metricNames,metricValue} from './components.js';
 import {briefPage,settingsPage,opsPage} from './pages.js';
 import {revisionHistory,dataPage,datasetEditor,periodRow,financialFields,importForm,stageView,qualityPanel,evidencePage,evidenceForm,reviewEvidenceForm,evidenceScope,evidenceMetadataForm,memoryPage,memoryForm} from './views-data.js';
-import {agentsPage,runPage,templateForm,rulesView} from './views-studio.js';
+import {agentsPage,runPage,templateForm,rulesView,claimReviewForm,claimReviewState} from './views-studio.js';
 import {labPage,comparePage,comparisonOutput,reportsPage,reportCompareForm,reportSelectionDetails,reportComparisonView,actionsPage,actionForm,actionDetail,actionEditForm} from './views-analysis.js';
 const root=document.querySelector<HTMLDivElement>('#app')!;
 const modal=document.querySelector<HTMLDialogElement>('#modal')!;
@@ -87,7 +87,7 @@ document.addEventListener('submit',async(event)=>{const form=event.target as HTM
  case 'password-form':await api('/auth/password','POST',{current_password:str('current_password'),new_password:str('new_password')});resetAuth();toast('密码已修改，所有会话已退出，请重新登录。');break;
  case 'delete-account-form':if(str('confirmation')!=='删除全部数据')throw new Error('请完整输入确认短语');await api('/account','DELETE',{email:state.user.email,password:str('password')});resetAuth();toast('账户与所属数据已删除。');break;
  case 'assistant-form':await ask(str('query'));break;
- case 'claim-review-form':await workspace('/runs/'+state.cache.run.id+'/reviews','POST',{claim_id:form.dataset.id,version:Number(form.dataset.version),verdict:str('verdict'),note:str('note')});changed=true;break;
+ case 'claim-review-form':{const current=claimReviewState(form.dataset.id??'');if(current.readOnly)throw new Error(current.readOnly.reason);if(current.blocked||form.dataset.runId!==state.cache.run?.id||Number(form.dataset.version)!==current.version)throw new Error('当前审阅关联或版本已改变，请重新打开复核窗口。');await workspace('/runs/'+form.dataset.runId+'/reviews','POST',{claim_id:form.dataset.id,version:Number(form.dataset.version),verdict:str('verdict'),note:str('note')});changed=true;break;}
  case 'dismiss-insight-form':await workspace('/insights/dismiss','POST',{identity_id:state.identity,key:form.dataset.key,note:str('reason')});changed=true;break;
  default:throw new Error('未识别的表单，未执行任何写入。');
  }
@@ -104,7 +104,7 @@ document.addEventListener('submit',async(event)=>{const form=event.target as HTM
    syncPending=true;showSyncNotice();toast('内容已保存，但同步读取未完成；请核对并刷新，无需重复提交。',true);
   }
  }
- }catch(e){if(form.id==='comparison-delete-form'&&(!submittedContext()||!submittedCurrent()))return;const msg=e instanceof Error?e.message:'操作失败';if(error&&error.isConnected)error.textContent=msg;else toast(msg,true);if(e instanceof ApiError&&e.status===401&&form.id!=='auth-form'&&form.id!=='password-form')toast('会话已失效。当前输入未自动丢弃，请保存内容后重新登录。',true);}
+ }catch(e){if(['comparison-delete-form','claim-review-form'].includes(form.id)&&(!submittedContext()||!submittedCurrent()))return;const msg=e instanceof Error?e.message:'操作失败';if(error&&error.isConnected)error.textContent=msg;else toast(msg,true);if(e instanceof ApiError&&e.status===401&&form.id!=='auth-form'&&form.id!=='password-form')toast('会话已失效。当前输入未自动丢弃，请保存内容后重新登录。',true);}
  finally{form.dataset.submitting='false';if(submit)submit.disabled=form.dataset.saved==='true';}
 });
 document.addEventListener('click',async(event)=>{const el=(event.target as Element).closest<HTMLElement>('[data-action],[data-route]');if(!el)return;if(el.dataset.route&&el.dataset.action!=='assistant-route'){event.preventDefault();navigate(el.dataset.route);return;}const act=el.dataset.action;const id=el.dataset.id??'';if(el.dataset.pending==='true'||el instanceof HTMLButtonElement&&el.disabled)return;el.dataset.pending='true';el.setAttribute('aria-busy','true');if(['data-quality','data-lineage','data-revisions','assessment-dialog','node-details','archive-dialog','action-detail'].includes(act??''))invalidateInteractions();const valid=interactionGuard();
@@ -232,7 +232,7 @@ document.addEventListener('click',async(event)=>{const el=(event.target as Eleme
  case 'insight-details':{const i=state.cache.insights.find((v:Json)=>v.key===id);inspect(i.title,`<p>${esc(i.message)}</p><h3>触发依据</h3>${jsonView(i.proof)}<p class="micro">数据修订 ${i.dataset_version} · 本地确定性规则，不是模型预测。</p><div class="inline-actions">${button('转为行动','insight-action','primary',`data-id="${esc(id)}"`)}${routeButton('打开相关工作区',i.target)}</div><details><summary>本次不再提示</summary><form id="dismiss-insight-form" data-key="${esc(id)}">${field('搁置原因',textarea('reason','','required minlength="5" rows="2"'))}${formFooter('仅对当前身份与本次依据关闭提示')}</form></details>`);break;}
  case 'assistant-query':await ask(el.dataset.query??'');break;
  case 'assistant-route':{const route=el.dataset.route,dataset=el.dataset.datasetId;if(!route||!Object.hasOwn(routes,route))throw new Error('原问题的目标工作区不可用，请重新核查。');if(dataset&&!scopedDatasets().some(d=>d.id===dataset))throw new Error('原问题的企业已不在当前身份范围内，请重新核查。');if(!safeToLeave())break;if(dataset&&dataset!==state.active){invalidateContext();state.cache={};state.active=dataset;}state.query=el.dataset.query??'';navigate(route,true);break;}
- case 'review-claim':{const old=state.cache.reviews.find((r:Json)=>r.payload.claim_id===id);dialog('人工复核模型解释',`<form id="claim-review-form" class="stack" data-id="${esc(id)}" data-version="${old?.version??0}">${field('复核结论',select('verdict',{accepted:'接受，依据已记录',rejected:'不接受',needs_evidence:'需要补充证据'},old?.payload.verdict??'needs_evidence'))}${field('核对依据 / 反向证据',textarea('note',old?.payload.note??'','rows="5" required minlength="5"'))}${formFooter('记录人工复核')}</form>`);break;}
+ case 'review-claim':dialog('人工复核模型解释',claimReviewForm(id));break;
  case 'password-dialog':dialog('修改密码',`<form id="password-form" class="stack">${field('当前密码',input('current_password','','type="password" autocomplete="current-password" required'))}${field('新密码',input('new_password','','type="password" autocomplete="new-password" required minlength="12" maxlength="128"'))}${notice('修改后将吊销全部登录会话，包括当前会话。')}${formFooter('修改并退出所有会话')}</form>`);break;
  case 'delete-account-dialog':dialog('删除账户与全部数据',`<form id="delete-account-form" class="stack">${notice('永久删除账户、数据、证据、记忆、报告及审计记录，无法在应用内撤销。先导出重要数据。','danger')}${field('当前密码',input('password','','type="password" autocomplete="current-password" required'))}${field('输入“删除全部数据”确认',input('confirmation','','required'))}${formFooter('永久删除')}</form>`);break;
  case 'delete-conversation':if(!confirm('永久删除此会话、关联报告与执行记录？进行中的任务会被取消。'))return;await api('/conversations/'+id+'?version='+encodeURIComponent(el.dataset.version??''),'DELETE');await render();break;

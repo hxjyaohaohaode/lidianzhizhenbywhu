@@ -31,6 +31,19 @@ AUDIT_SUITES = {
         'scenarios': (('L4-tracking-units', '明确百分比与人民币元→取消保全→真实阈值触发→历史依据→暂停重启'),),
         'precondition': 'Fresh synthetic account; actual header-only CSV template and last closed quarter in yuan; explicit wan preference; all mutations via visible controls; one declared discard decision for the cancelled draft; no fixture faults or providers',
     },
+    'memory-eligibility': {
+        'mode': 'product-memory-eligibility',
+        'report': 'product-memory-eligibility-audit.json',
+        'scenarios': (('I8-memory-preference', '批准记忆生成本地报告→真实偏好关闭→新预览排除→旧来源提示与明确历史选择'),),
+        'precondition': 'Fresh synthetic account; approved company memory, report, action and watch created by visible UI; actual memory preference withdrawal; new plan excludes memory; trusted frozen history and original records remain unchanged; no database faults or providers',
+    },
+    'report-export': {
+        'mode': 'product-report-export',
+        'report': 'product-report-export-audit.json',
+        'scenarios': (('I9-report-export', '真实原报告下载→坏产物阻止导出→新建另一份可信报告下载→保留坏历史'),),
+        'precondition': 'Fresh synthetic account; visible CSV/plan/report and four real MD/JSON downloads; one declared owner-bound temporary report-artifact fault; no fixture restore; fresh report does not repair or rewrite damaged history; no providers',
+        'database_fault_injection': True,
+    },
     'integrity': {
         'mode': 'product-integrity',
         'report': 'product-integrity-audit.json',

@@ -1,0 +1,89 @@
+{
+  "date": "2026-10-05",
+  "verified_at_utc": "2026-10-05T09:03:56.787365+00:00",
+  "base_commit": "a9f71deffb0ef83d2bb472f3ecb2b6b31129dbf2",
+  "scope": "Focused backend export-integrity gate in a shared worktree with separate eligibility and transport changes",
+  "implementation_files": [
+    "server/app.py"
+  ],
+  "new_test_file": "tests/test_report_export_integrity.py",
+  "new_tests": 33,
+  "http_contract": {
+    "known_invalid_saved_result": {
+      "status": 409,
+      "error_code": "REPORT_INTEGRITY"
+    },
+    "unready_or_empty_result": {
+      "status": 409,
+      "error_code": "NOT_READY"
+    },
+    "unsupported_format": {
+      "status": 422,
+      "error_code": "VALIDATION_ERROR"
+    },
+    "foreign_or_missing_run": {
+      "status": 404,
+      "error_code": "NOT_FOUND"
+    }
+  },
+  "verified": [
+    "Both MD and JSON reject known-invalid result, readout, snapshot, dataset, artifact, event-anchor and ledger evidence before formatting",
+    "Modern readout deletion fails its saved whole-result hash instead of becoming a legacy success",
+    "Valid studio, adaptive, newly anchored legacy, unanchored legacy and actual pre-anchor fixture bytes equal the pre-gate formatting contract",
+    "Honest current dataset revision retains exact historical JSON/Markdown bytes and immutable saved report values",
+    "Unrelated healthy report exports are byte-identical after isolated corruption of another report",
+    "Entire database table snapshots and SQLite total_changes remain unchanged during export and audit reads",
+    "Existing direct and inherited source guards pass without edits to their implementation"
+  ],
+  "unchanged_core_files_match_current_index": {
+    "server/report_integrity.py": true,
+    "server/report_export.py": true,
+    "server/business_provenance.py": true,
+    "server/source_bindings.py": true
+  },
+  "commands": [
+    {
+      "command": "../lidian-venv/bin/python -m pytest -q tests/test_report_export_integrity.py -k \"readout_number or missing_readout\"",
+      "stage": "before gate",
+      "exit_code": 1,
+      "result": "2 failed, 31 deselected; corrupt JSON exports returned 200 instead of 409",
+      "log": "before-gate.log"
+    },
+    {
+      "command": "../lidian-venv/bin/python -m pytest -q tests/test_report_export_integrity.py tests/test_report_export.py tests/test_report_readout.py tests/test_report_source_integrity.py tests/test_historical_source_shape.py tests/test_legacy_comparison_shape.py",
+      "stage": "after gate",
+      "exit_code": 0,
+      "result": "122 passed, 1 warning in 22.38s",
+      "log": "focused-tests.log"
+    },
+    {
+      "command": "../lidian-venv/bin/python -m compileall -q server/app.py tests/test_report_export_integrity.py",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check -- server/app.py",
+      "exit_code": 0
+    }
+  ],
+  "source_sha256": {
+    "server/app.py": "33e2c99835c52e31a586bb55dee45009d27a46dd4e573320225b1833b4b16afc",
+    "tests/test_report_export_integrity.py": "055cdf7cd00b30351060771b976a99fbb3785d00f57d747b903bc3b2aebee124",
+    "server/report_integrity.py": "d36fe40db1f4b6612116cbf478a14703f87c7e207948672e0985302ec2927f0d",
+    "server/report_export.py": "5ed9b0b9a523c517d48c8eafbcc144c00555e91493ce3a70447e6e4f218b7955",
+    "server/business_provenance.py": "8bd6691c921d16bbbe1b2479378c3801b6c43b9b9b5af12b0af233d1af053e3e",
+    "server/source_bindings.py": "abd864575646a95422c7be43ec87abbe09e68b11e5c065a0b8cea49afc8d7f5e"
+  },
+  "limitations": [
+    "Pre-anchor output without an independently recorded whole-result hash retains partial verification, not a new certification",
+    "Focused backend validation only; final aggregate suite and UI integration are owned by the coordinating task",
+    "No real provider, browser, TCP listener, production database, migration, publication or deployment was used"
+  ],
+  "external_provider_calls": 0,
+  "log_publication_normalization": {
+    "before-gate.log": {
+      "raw_sha256": "76a2702333a130e2d90baf760de1e6ad09f0b7d3fc4a3304389a44ff47ef8317",
+      "published_sha256": "1368b393a7aa26fd3227c43723c3cc0af437a5b044f19999c4cf24f01abd4a42",
+      "change": "Only trailing whitespace on two blank traceback lines removed; line count, failed assertions and outcomes retained. Original bytes preserved during review."
+    }
+  }
+}

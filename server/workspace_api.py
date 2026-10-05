@@ -561,8 +561,62 @@ def run_audit(id:str,request:Request,user=Depends(require_user)):
 
 @router.get('/runs/{id}/reviews')
 def claim_reviews(id:str,request:Request,user=Depends(require_user)):
-    store=dbof(request);owned(store,user,'runs',id)
-    return {'items':[r for r in ws.objects(store,user['id'],'claim_review',1000) if r['payload']['run_id']==id]}
+    store=dbof(request);run=owned(store,user,'runs',id)
+    # A corrupt payload must not erase the versioned record from this read model.
+    # Scope by the owned live report first, then consider both saved bindings.
+    # Alias raw JSON so Store.unpack cannot abort on one malformed row.
+    prefix=id+':'
+    rows=store.all("""SELECT id,user_id,kind,natural_key,payload AS review_payload,
+        version,created_at,updated_at FROM workspace_objects
+        WHERE user_id=? AND kind='claim_review' AND (substr(natural_key,1,?)=?
+        OR CASE WHEN json_valid(payload) THEN json_extract(payload,'$.run_id') END=?)
+        ORDER BY updated_at DESC,id""",(user['id'],len(prefix),prefix,id))
+    result=run.get('result');llm=result.get('llm') if isinstance(result,dict) else None
+    review=llm.get('review') if isinstance(llm,dict) else None
+    claims=review.get('claims') if isinstance(review,dict) else None
+    claim_ids={c.get('id',digest(c)[:24]) for c in (claims if isinstance(claims,list) else [])
+        if isinstance(c,dict) and isinstance(c.get('id',''),str)}
+    items=[];unavailable=[];read_only=[]
+    for row in rows:
+        parsed=True
+        try:payload=json.loads(row['review_payload'])
+        except (TypeError,ValueError):payload=None;parsed=False
+        key=row['natural_key']
+        key_claim=key[len(prefix):] if isinstance(key,str) and key.startswith(prefix) else None
+        # Missing content may be associated by an exact saved key. Conflicting
+        # payload identifiers are ambiguous, never a verified prior verdict.
+        target_claim=key_claim if isinstance(key_claim,str) and 1<=len(key_claim)<=100 and key_claim in claim_ids else None
+        associated=target_claim is not None and (not isinstance(payload,dict) or
+            (('run_id' not in payload or payload['run_id']==id) and
+             ('claim_id' not in payload or payload['claim_id']==key_claim)))
+        version_ok=type(row['version']) is int and 1<=row['version']<=MAX_SAFE_INTEGER
+        recoverable_version=version_ok and row['version']<MAX_SAFE_INTEGER
+        valid=False
+        if associated and isinstance(payload,dict) and payload.get('run_id')==id and payload.get('claim_id')==key_claim:
+            try:
+                ClaimReview.model_validate({k:v for k,v in payload.items() if k!='run_id'},strict=True)
+                valid=version_ok
+            except (TypeError,ValueError):pass
+        if valid:
+            items.append({('payload' if k=='review_payload' else k):(payload if k=='review_payload' else v) for k,v in row.items()})
+            if not recoverable_version:
+                read_only.append({'id':row['id'],'version':row['version'],'claim_id':key_claim,
+                    'reason_code':'version_limit','reason':'审阅版本计数已达上限；已有结论与依据仍可查看，当前记录只读，不能再次提交复核'})
+            continue
+        reason=('保存的审阅内容不是有效 JSON，当前版本接口无法安全重新审阅；请核对可信备份' if not parsed else
+            '保存的审阅与本报告解释的关联不明确；暂不能重新审阅，请核对可信记录' if not associated else
+            '保存的审阅版本无效或已达版本上限；暂不能重新审阅，请核对可信记录' if not recoverable_version else
+            '已有审阅记录无法核验；原结论与依据不可用，可明确提交新的人工复核')
+        unavailable.append({'id':row['id'],'version':row['version'],
+            'claim_id':key_claim if associated else None,'target_claim_id':target_claim,
+            'candidate_claim_ids':[payload['claim_id']] if not associated and isinstance(payload,dict)
+                and payload.get('run_id')==id and isinstance(payload.get('claim_id'),str) and payload['claim_id'] in claim_ids else [],
+            'reason_code':'malformed_json' if not parsed else 'ambiguous_association' if not associated else 'invalid_version' if not recoverable_version else 'invalid_payload',
+            'association':'natural_key' if associated else 'unverified',
+            'reason':reason,'can_rereview':parsed and associated and recoverable_version})
+    # Preserve the healthy response contract, including the absence of extras.
+    return {'items':items,**({'unavailable':unavailable} if unavailable else {}),
+        **({'read_only':read_only} if read_only else {})}
 
 
 @router.post('/runs/{id}/reviews')
@@ -573,7 +627,17 @@ def review_claim(id:str,body:ClaimReview,request:Request,user=Depends(require_us
         if not r['result']:fail('NOT_READY','运行尚未产生报告',409)
         claims=r['result']['llm']['review']['claims']
         if body.claim_id not in {c.get('id',digest(c)[:24]) for c in claims}:fail('NOT_FOUND','对应解释不存在',404)
-        return ws.save(store,db,user['id'],'claim_review',{'run_id':id,**body.model_dump(exclude={'version'})},key=id+':'+body.claim_id,expected=body.version)
+        key=id+':'+body.claim_id
+        # Check the exact owned slot under the same transaction as the write.
+        # A stale submission remains a version conflict, even at the counter cap.
+        current=store.one("SELECT version FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND natural_key=?",(user['id'],key))
+        if current:
+            if body.version!=current['version']:fail('VERSION_CONFLICT','记录已改变；请刷新，未覆盖他人的修改',409)
+            if type(current['version']) is not int or current['version']<1:
+                fail('INVALID_VERSION','保存的审阅版本无效；请核对可信记录，未修复或覆盖现有审阅',409)
+            if current['version']>=MAX_SAFE_INTEGER:
+                fail('VERSION_LIMIT','审阅版本计数已达上限；已有结论与依据仍可查看，当前记录只读，不能再次提交复核',409)
+        return ws.save(store,db,user['id'],'claim_review',{'run_id':id,**body.model_dump(exclude={'version'})},key=key,expected=body.version)
 
 
 def _finite_metric(value):

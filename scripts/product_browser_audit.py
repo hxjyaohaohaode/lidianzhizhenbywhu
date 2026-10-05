@@ -219,7 +219,11 @@ class Probe:
     def get(self, path):
         if not path.startswith('/api/') or '://' in path or '..' in path:
             raise ValueError('Corroborating reads must be same-origin API GETs.')
-        response = self.page.context.request.get(self.base_url + path, timeout=RUN_TIMEOUT_MS)
+        # Ask Uvicorn to close supplementary connections from the first read,
+        # rather than leave this helper's sockets in the idle pool. Never replay
+        # a read: some GETs also evaluate tracking/produce alerts.
+        response = self.page.context.request.get(
+            self.base_url + path, timeout=RUN_TIMEOUT_MS, headers={'Connection': 'close'})
         if response.status != 200:
             raise AssertionError(f'Corroborating GET {path}: HTTP {response.status}')
         return response.json()
@@ -873,6 +877,14 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         from .product_tracking_units import tracking_units_outcome
     except ImportError:
         from product_tracking_units import tracking_units_outcome
+    try:
+        from .product_memory_eligibility import memory_preference_withdrawal
+    except ImportError:
+        from product_memory_eligibility import memory_preference_withdrawal
+    try:
+        from .product_report_export import report_export_fresh_report
+    except ImportError:
+        from product_report_export import report_export_fresh_report
     bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
         expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
@@ -890,6 +902,8 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'I7-tracking-source': bind(tracking_source_recovery),
         'L6-plan-history': bind(plan_history_retrieval),
         'L4-tracking-units': bind(tracking_units_outcome),
+        'I8-memory-preference': bind(memory_preference_withdrawal),
+        'I9-report-export': bind(report_export_fresh_report),
     }
 
 

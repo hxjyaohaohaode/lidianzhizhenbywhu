@@ -418,11 +418,15 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     @app.get('/api/runs/{id}/export')
     def export_report(id: str,request: Request,format: str=Query('json',pattern='^(json|md)$'),user=Depends(require_user)):
         from .report_export import report_payload, markdown_report
+        from .report_integrity import inspect_report_integrity
         db=store(request)
         # The archived report and export-time reviews are read consistently.
         with db.transaction():
             run=owned(db,'runs',user,id)
             if not run['result']:fail('NOT_READY','任务尚无可导出结果。',409)
+            # Validate frozen evidence, not whether current sources have changed.
+            if not inspect_report_integrity(db,run)['report_integrity']['valid']:
+                fail('REPORT_INTEGRITY','报告完整性校验失败；已保存报告与冻结产物、事件或输入快照不一致，无法导出。',409)
             events=db.all('SELECT * FROM run_events WHERE run_id=? ORDER BY seq',(id,))
             reviews=db.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND json_extract(payload,'$.run_id')=? ORDER BY created_at,id",(user['id'],id))
             assessment=db.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assessment' AND natural_key=?",(user['id'],id))

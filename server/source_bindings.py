@@ -25,11 +25,61 @@ def require_dataset_content(row):
         fail('SOURCE_INTEGRITY', '财务输入与保存的校验值不一致，未采用该内容；请核对原始资料或可信备份后重新预览', 409)
 
 
+def evidence_document_valid(document):
+    """A stored hash alone does not verify the live document bytes."""
+    try:
+        text = document['payload']['text']
+        return isinstance(text, str) and digest(text) == document['content_hash']
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def identity_context_valid(identity):
+    """Validate stored scope fields without supplying missing consent defaults."""
+    from .service_contracts import IdentitySpec
+    try:
+        payload = identity['payload']
+        if not isinstance(payload, dict) or not {'dataset_ids', 'perspective', 'include_shared_memory'} <= payload.keys():
+            return False
+        IdentitySpec.model_validate(payload, strict=True)
+        return True
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def effective_memory_user(user, identity):
+    """Malformed live settings supply no effective memory authority."""
+    from .schemas import Preferences
+    from .identities import context_user
+    try:
+        preferences = user['preferences']
+        if not isinstance(preferences, dict) or not {'role', 'memory_enabled'} <= preferences.keys():
+            return None
+        Preferences.model_validate({**preferences, 'name': user['name'], 'version': user['version']}, strict=True)
+        if identity is not None and not identity_context_valid(identity):
+            return None
+        return context_user(user, identity)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def memory_eligible(payload, effective_user, company):
+    """Current consent and scope, independent of retrieval order or its budget."""
+    identity = effective_user.get('service_identity')
+    identity_id = identity['id'] if identity else ''
+    return bool(payload['approved'] and effective_user['preferences'].get('memory_enabled', True)
+        and not (payload.get('expires_at') and payload['expires_at'] < utc_today().isoformat())
+        and (not payload.get('company') or payload['company'] == company)
+        and payload.get('role') in ('all', effective_user['preferences'].get('role'))
+        and (not payload.get('identity_id') or payload['identity_id'] == identity_id)
+        and (not identity or identity['payload']['include_shared_memory'] or payload.get('identity_id')))
+
+
 def evidence_content_valid(document, citation):
     try:
         text = document['payload']['text']
         start, end, excerpt = citation['start'], citation['end'], citation['excerpt']
-        return (isinstance(text, str) and digest(text) == document['content_hash']
+        return (evidence_document_valid(document)
                 and type(start) is int and type(end) is int and 0 <= start < end <= len(text)
                 and end - start <= 1100 and excerpt == text[start:end]
                 and citation['document_hash'] == document['content_hash']
@@ -106,13 +156,7 @@ def source_error(store, user, request, snapshot, bindings):
             row = store.owned('memories', owner, memory['id'])
             if not row or row['version'] != memory['version'] or digest(row['payload']) != baseline:
                 return '记忆已修改、撤回或删除，请重新预览'
-            p = row['payload']; identity_id = identity['id'] if identity else ''
-            if (not p['approved'] or not effective['preferences'].get('memory_enabled', True)
-                    or p.get('expires_at') and p['expires_at'] < utc_today().isoformat()
-                    or p.get('company') and p['company'] != company
-                    or p.get('role') not in ('all', effective['preferences'].get('role'))
-                    or p.get('identity_id') and p['identity_id'] != identity_id
-                    or identity and not identity['payload']['include_shared_memory'] and not p.get('identity_id')):
+            if not memory_eligible(row['payload'], effective, company):
                 return '记忆的企业、角色、身份或使用许可已变化，请重新预览'
         from .saved_comparisons import current_impact
         if current_impact(store, owner, snapshot.get('comparison_artifact'))['state'] != 'current':

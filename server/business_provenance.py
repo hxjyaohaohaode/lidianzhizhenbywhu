@@ -18,7 +18,7 @@ from .identities import resolve_identity, identity_binding
 from .report_integrity import inspect_report_integrity
 
 MAX_RULE_ORIGIN_DEPTH = 8
-UNKNOWN_REASON_CODES = {'baseline_unknown','identity_baseline_unknown','rule_origin_unknown','legacy_unknown','memory_baseline_unknown'}
+UNKNOWN_REASON_CODES = {'baseline_unknown','identity_baseline_unknown','rule_origin_unknown','legacy_unknown','memory_baseline_unknown','objective_baseline_unknown','claim_review_baseline_unknown'}
 
 
 def _comparison_receipt_valid(reference):
@@ -228,6 +228,19 @@ def _comparison_reference(frozen):
     return {k:frozen[k] for k in ('id','version','hash')}|{'payload':payload,'projection_hash':digest(payload)}
 
 
+def _claim_review_valid(review, run_id, claim_id):
+    """A selected live review needs its stored scope and contract, not defaults."""
+    from .contracts import ClaimReview
+    try:
+        payload=review['payload']
+        if not isinstance(payload,dict) or payload.get('run_id')!=run_id or payload.get('claim_id')!=claim_id:
+            return False
+        ClaimReview.model_validate({k:v for k,v in payload.items() if k!='run_id'},strict=True)
+        return True
+    except (KeyError,TypeError,ValueError):
+        return False
+
+
 def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, run_id='', source_key=''):
     """Resolve client IDs to immutable server-owned origin, rejecting stale approval.
 
@@ -265,6 +278,8 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
                         if c.get('id',digest(c)[:24])==ref['claim_id']),None)
             if not claim:fail('NOT_FOUND','来源解释不存在于该报告',404)
             review=ws.keyed(store,user_id,'claim_review',run['id']+':'+ref['claim_id'])
+            if review and not _claim_review_valid(review,run['id'],ref['claim_id']):
+                fail('SOURCE_INTEGRITY','当前解释审阅记录无法校验，不能将其保存为新来源；请先核对原始审阅记录',409)
             extra.update(claim_id=ref['claim_id'],claim_hash=digest(claim),claim_snapshot=deepcopy(claim),
                 claim_review_version=review['version'] if review else 0,
                 claim_review_hash=digest(review['payload']) if review else None)
@@ -359,6 +374,11 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         elif kind=='insight':fail('SOURCE_CHANGED','建议已变化或不属于当前身份，请刷新后重新选择',409)
         else:extra={'unverified_source_key':source_key}  # Legacy keys are labels, not verified insight lineage.
     data=_owned(store,user_id,'datasets',dataset_id) if dataset_id else None
+    if identity_id:
+        from .source_bindings import identity_context_valid
+        selected_identity=ws.get(store,user_id,'identity',identity_id)
+        if not identity_context_valid(selected_identity):
+            fail('SOURCE_INTEGRITY','当前服务身份的范围或记忆设置无法校验，不能以历史确认代替当前身份授权',409)
     identity=resolve_identity(store,user_id,identity_id,dataset_id)
     if data and (baseline is None or kind=='insight'):
         from .source_bindings import require_dataset_content
@@ -394,6 +414,8 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         fail('SOURCE_DEPTH_LIMIT','跟踪来源链已达上限，请从原始报告或数据建立新的依据',409)
     if any(r['code'] in {'rule_origin_invalid','alert_changed'} for r in impact['reasons']):
         fail('SOURCE_INTEGRITY','提醒或其规则来源完整性不可核验，不能作为新的业务依据',409)
+    if any(r['code']=='claim_review_integrity' for r in impact['reasons']):
+        fail('SOURCE_INTEGRITY','保存的解释审阅指纹无效，不能通过保留历史依据继续使用',409)
     if any(r['code']=='comparison_receipt_changed' for r in impact['reasons']):
         fail('SOURCE_INTEGRITY','行动归档的企业对照摘要无法校验，不能通过保留历史依据继续使用；请核对完整原报告或可信原始资料后重新建立行动',409)
     if impact['state']!='current' and not ref.get('allow_historical'):
@@ -403,12 +425,15 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
 
 def _evidence_changes(store,user_id,snapshots,company):
     from .intelligence import evidence_catalog
+    from .source_bindings import evidence_document_valid
     catalog={e['id']:e for e in evidence_catalog(store,user_id)} if snapshots else {}
     reasons=[]
     for snap in snapshots:
         doc=catalog.get(snap['id'])
         code=None;message=''
         if not doc:code='evidence_removed';message='原依据已删除；历史快照仍保留'
+        elif not evidence_document_valid(doc):
+            code='evidence_integrity';message='当前依据原文与保存指纹不一致，不能认定为当前有效依据；历史快照保持原值'
         elif snap.get('content_hash') and doc['content_hash']!=snap['content_hash']:
             code='evidence_changed';message='原依据内容已变化'
         elif not doc['eligible'] or doc['review'].get('company') not in ('',company):
@@ -424,7 +449,7 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
     if not provenance or provenance.get('schema_version')!=1:
         return {'state':'unknown','reasons':[{'code':'legacy_unknown','message':'旧记录未保存完整来源，无法回填当时依据'}],
             'baseline':None,'current':None}
-    from .source_bindings import dataset_content_valid
+    from .source_bindings import dataset_content_valid, identity_context_valid
     p=provenance;reasons=[];unavailable=False;unknown=False
     baseline={'dataset_id':p.get('dataset_id',''),'version':p.get('dataset_version'),'hash':p.get('dataset_hash')}
     d=store.owned('datasets',user_id,p['dataset_id']) if p.get('dataset_id') else None
@@ -440,7 +465,9 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
             reasons.append({'code':'dataset_changed','message':'当前企业数据已修订；历史依据不自动改写'})
     if p.get('identity_id'):
         identity=store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='identity' AND id=?",(user_id,p['identity_id']))
-        if not identity or (identity['payload']['dataset_ids'] and p.get('dataset_id') not in identity['payload']['dataset_ids']):
+        if identity and not identity_context_valid(identity):
+            reasons.append({'code':'identity_integrity','message':'当前服务身份的范围或记忆设置无法校验，不能认定为当前有效身份'});unavailable=True
+        elif not identity or (identity['payload']['dataset_ids'] and p.get('dataset_id') not in identity['payload']['dataset_ids']):
             reasons.append({'code':'identity_unavailable','message':'服务身份已删除或企业已不在当前范围'});unavailable=True
         elif p.get('identity_binding') and identity_binding(identity)!=p['identity_binding']:
             reasons.append({'code':'identity_changed','message':'服务身份设置已变化'})
@@ -455,20 +482,34 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
         if run:
             # The report helper deliberately omits run_id in its base provenance,
             # avoiding recursion while rechecking original contextual dependencies.
-            extra_codes={'memory_removed','memory_withdrawn','memory_changed','memory_baseline_unknown','objective_changed',
-                'experiment_removed','experiment_changed','report_integrity_failed'}
-            if not p.get('claim_id'):extra_codes.add('human_review_disputes')
+            extra_codes={'memory_context_unavailable','memory_removed','memory_withdrawn','memory_changed','memory_baseline_unknown','objective_changed',
+                'objective_baseline_unknown','experiment_removed','experiment_changed','report_integrity_failed'}
+            if not p.get('claim_id'):extra_codes.update({'human_review_disputes','claim_review_unavailable'})
             report_dependencies=report_impact(store,user_id,run)
-            if report_dependencies['state']=='unavailable':unavailable=True
+            # Evidence is scoped by this origin's own frozen citations below.
+            # An unrelated claim's live document must not mark this claim stale.
+            if report_dependencies['state']=='unavailable' and any(r['code'] in {'report_integrity_failed','memory_context_unavailable'}
+                    or r['code']=='claim_review_unavailable' and not p.get('claim_id')
+                    or r['code'].startswith('comparison_') for r in report_dependencies['reasons']):unavailable=True
             if report_dependencies['state']=='unknown':unknown=True
             reasons.extend(r for r in report_dependencies['reasons'] if (r['code'] in extra_codes or r['code'].startswith('comparison_'))
                 and r['code'] not in {existing['code'] for existing in reasons})
         if p.get('claim_id'):
             review=ws.keyed(store,user_id,'claim_review',p['run_id']+':'+p['claim_id'])
-            if review and review['payload'].get('verdict')=='rejected':
+            frozen_hash=p.get('claim_review_hash')
+            if frozen_hash is not None and (not isinstance(frozen_hash,str) or not re.fullmatch(r'[a-f0-9]{64}',frozen_hash)):
+                reasons.append({'code':'claim_review_integrity','message':'保存的人工审阅指纹无效，来源无法核验'});unavailable=True
+            if review and not _claim_review_valid(review,p['run_id'],p['claim_id']):
+                reasons.append({'code':'claim_review_unavailable','message':'当前人工审阅记录无法校验；已保存的历史审阅指纹保持原值'});unavailable=True
+            elif review and review['payload'].get('verdict')=='rejected':
                 reasons.append({'code':'claim_rejected','message':'来源解释当前已被人工排除'})
             elif (review['version'] if review else 0)!=p.get('claim_review_version',0):
                 reasons.append({'code':'claim_review_changed','message':'来源解释的人工审阅已变化'})
+            elif review:
+                if frozen_hash is None:
+                    reasons.append({'code':'claim_review_baseline_unknown','message':'旧来源未记录人工审阅内容指纹，不能以当前审阅补填历史'});unknown=True
+                elif digest(review['payload'])!=frozen_hash:
+                    reasons.append({'code':'claim_review_changed','message':'来源解释的人工审阅内容与记录指纹不一致'})
     if 'comparison_reference' in p:
         from .saved_comparisons import current_impact
         reference=p['comparison_reference']
@@ -543,6 +584,7 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
     reasons.extend(_evidence_changes(store,user_id,p.get('evidence',[]),p.get('company','')))
     reasons.extend({**r,'dependency':'action_acceptance'} for r in
         _evidence_changes(store,user_id,p.get('action_acceptance_evidence',[]),p.get('company','')))
+    unavailable=unavailable or any(r['code']=='evidence_integrity' for r in reasons)
     changed=any(r['code'] not in UNKNOWN_REASON_CODES for r in reasons)
     return {'state':'unavailable' if unavailable else 'changed' if changed else 'unknown' if unknown else 'current',
         'reasons':reasons,'baseline':baseline,'current':current}
@@ -555,6 +597,7 @@ def assert_source_current(store,user_id,provenance):
 
 def evidence_snapshots(store,user_id,company,evidence_ids,evidence_refs=()):
     from .intelligence import evidence_catalog
+    from .source_bindings import evidence_document_valid
     refs={r.id:r for r in evidence_refs}
     if len(refs)!=len(evidence_refs) or len(set(evidence_ids))!=len(evidence_ids):
         fail('EVIDENCE_DUPLICATE','同一依据不能重复选择',422)
@@ -568,6 +611,8 @@ def evidence_snapshots(store,user_id,company,evidence_ids,evidence_refs=()):
     for id in ids:
         doc=catalog.get(id)
         if not doc:fail('NOT_FOUND','验收依据不存在或无访问权限',404)
+        if not evidence_document_valid(doc):
+            fail('SOURCE_INTEGRITY','验收依据原文与保存指纹不一致，请核对可信原始资料后重新选择',409)
         if not doc['eligible'] or doc['review'].get('company') not in ('',company):
             fail('ACTION_EVIDENCE_SCOPE','关联证据已失效、被排除或不属于该企业，请重新选择',409)
         ref=refs[id]
@@ -589,7 +634,7 @@ def with_source_impact(store,user_id,row):
         if accepted:
             last=accepted[-1];snapshots=last.get('evidence_snapshots')
             reasons=_evidence_changes(store,user_id,snapshots or [],row['payload'].get('company',''))
-            out['acceptance_impact']={'state':'unknown' if snapshots is None else 'changed' if reasons else 'current',
+            out['acceptance_impact']={'state':'unknown' if snapshots is None else 'unavailable' if any(r['code']=='evidence_integrity' for r in reasons) else 'changed' if reasons else 'current',
                 'accepted_at':last.get('at'),'reasons':reasons,'historical_acceptance_preserved':True}
         else:out['acceptance_impact']=None
     return out
@@ -597,9 +642,13 @@ def with_source_impact(store,user_id,row):
 
 def report_impact(store,user_id,run,*,integrity=None):
     """Historical report truth and present-day applicability are separate read models."""
-    from .clock import utc_today
-    reviews=store.all("SELECT payload FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND json_extract(payload,'$.run_id')=?",(user_id,run['id']))
-    disputed=sum(r['payload']['verdict']!='accepted' for r in reviews)
+    from .source_bindings import memory_eligible, effective_memory_user
+    from .intelligence import profile_for
+    review_prefix=run['id']+':'
+    reviews=store.all("SELECT payload,natural_key FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND (json_extract(payload,'$.run_id')=? OR substr(natural_key,1,?)=?)",
+        (user_id,run['id'],len(review_prefix),review_prefix))
+    review_validity=[_claim_review_valid(r,run['id'],r['natural_key'][len(review_prefix):]) for r in reviews]
+    disputed=sum(not valid or r['payload']['verdict']!='accepted' for r,valid in zip(reviews,review_validity))
     integrity=integrity or inspect_report_integrity(store,run)['report_integrity']
     if not integrity['valid']:
         # Do not derive business context from a known-corrupt snapshot. This is
@@ -614,6 +663,13 @@ def report_impact(store,user_id,run,*,integrity=None):
        'company':snapshot['dataset']['company'],'identity_id':(snapshot.get('identity') or {}).get('id',''),
        'identity_binding':bindings.get('identity'),'evidence':_citation_evidence(snapshot.get('citations',[]))}
     impact=source_impact(store,user_id,p);reasons=impact['reasons']
+    user=store.one('SELECT * FROM users WHERE id=?',(user_id,)) if snapshot.get('memory') else None
+    identity=store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='identity' AND id=?",
+        (user_id,p['identity_id'])) if user and p['identity_id'] else None
+    effective=effective_memory_user(user,identity) if user else None
+    if snapshot.get('memory') and (not effective or p['identity_id'] and not identity):
+        reasons.append({'code':'memory_context_unavailable','message':'当前偏好或服务身份的记忆许可无法校验，不能认定原记忆仍可用；冻结上下文不变'})
+        impact['state']='unavailable'
     for old in snapshot.get('memory',[]):
         memory=store.owned('memories',user_id,old['id'])
         if not memory:reasons.append({'code':'memory_removed','message':'原计划使用的记忆已删除；报告仍保留当时上下文'})
@@ -624,8 +680,10 @@ def report_impact(store,user_id,run,*,integrity=None):
             except (ValidationError,TypeError,ValueError):
                 reasons.append({'code':'memory_changed','message':'当前记忆内容无法校验；不能认定仍与原批准上下文一致'})
                 continue
-            if not checked.approved or (checked.expires_at and checked.expires_at<utc_today()):
-                reasons.append({'code':'memory_withdrawn','message':'原记忆当前已撤回批准或到期'})
+            if not effective or p['identity_id'] and not identity:
+                continue  # Missing/malformed live authority was reported above.
+            if not memory_eligible(checked.model_dump(mode='json'),effective,p['company']):
+                reasons.append({'code':'memory_withdrawn','message':'原记忆当前已撤回批准、到期，或不再符合企业、角色、身份及记忆使用选择'})
             elif memory['version']!=old.get('version'):
                 reasons.append({'code':'memory_changed','message':'原记忆内容或适用范围已有修订'})
             elif not isinstance(old.get('payload_hash'),str) or len(old['payload_hash'])!=64 or any(c not in '0123456789abcdef' for c in old['payload_hash']):
@@ -636,6 +694,10 @@ def report_impact(store,user_id,run,*,integrity=None):
         current=ws.keyed(store,user_id,'profile',p['company'])
         if (current['version'] if current else 0)!=bindings['profile_version']:
             reasons.append({'code':'objective_changed','message':'企业研究目标已有修订；原报告仍依据当时目标'})
+        elif 'profile' not in snapshot:
+            reasons.append({'code':'objective_baseline_unknown','message':'旧报告未记录企业目标快照，不能以当前目标补填历史'})
+        elif digest(profile_for(store,user_id,p['company']))!=digest(snapshot['profile']):
+            reasons.append({'code':'objective_changed','message':'当前企业研究目标与冻结快照不一致；原报告仍依据当时目标'})
     experiment=snapshot.get('experiment')
     if experiment:
         current=store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='experiment' AND id=?",(user_id,experiment['id']))
@@ -648,6 +710,9 @@ def report_impact(store,user_id,run,*,integrity=None):
         comparison_impact=current_impact(store,user_id,comparison)
         reasons.extend(comparison_impact['reasons'])
         if comparison_impact['state']=='unavailable':impact['state']='unavailable'
+    if not all(review_validity):
+        reasons.append({'code':'claim_review_unavailable','message':'当前报告的人工审阅记录无法校验，原报告和已保存审阅指纹保持历史值'})
+        impact['state']='unavailable'
     if disputed:reasons.append({'code':'human_review_disputes','message':f'{disputed} 条解释存在人工拒绝或待补证意见；这不自动否定本地数学计算'})
     if impact['state']!='unavailable' and reasons:
         impact['state']='changed' if any(r['code'] not in UNKNOWN_REASON_CODES for r in reasons) else 'unknown'
