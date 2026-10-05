@@ -8,7 +8,7 @@ concurrency:
 jobs:
   regression:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -71,7 +71,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Bind every native audit to the explicitly reviewed application revision.
       # Every probe must pass; failed or incomplete evidence remains a failure.
-      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 7dbf518b25cb79e759313e4849ca35237bfa8865 --expected-server-tree 86d5b2ad5293efb832efbffc421d5e71a9cb3ed6
+      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 6c733ac3f5e1057f2c5569c98ac55527c8695d94 --expected-server-tree 86d5b2ad5293efb832efbffc421d5e71a9cb3ed6
       - run: python scripts/pack_product_audit.py
         if: always()
       - uses: actions/upload-artifact@v4
@@ -218,7 +218,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # L1 alone, with an independent account, native lifecycle and evidence.
       # The runner retains its existing 300-second bound; no L6 heavy setup.
-      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 7dbf518b25cb79e759313e4849ca35237bfa8865 --expected-server-tree 86d5b2ad5293efb832efbffc421d5e71a9cb3ed6
+      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 6c733ac3f5e1057f2c5569c98ac55527c8695d94 --expected-server-tree 86d5b2ad5293efb832efbffc421d5e71a9cb3ed6
       - run: python scripts/pack_product_audit.py --suite first-use
         if: always()
       - uses: actions/upload-artifact@v4
@@ -365,7 +365,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Explicit temporary-database faults followed by actual UI rejection/recovery.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-integrity --expected-web-tree 7dbf518b25cb79e759313e4849ca35237bfa8865 --expected-server-tree 86d5b2ad5293efb832efbffc421d5e71a9cb3ed6
+      - run: python scripts/native_acceptance.py --product-integrity --expected-web-tree 6c733ac3f5e1057f2c5569c98ac55527c8695d94 --expected-server-tree 86d5b2ad5293efb832efbffc421d5e71a9cb3ed6
       - run: python scripts/pack_product_audit.py --suite integrity
         if: always()
       - uses: actions/upload-artifact@v4

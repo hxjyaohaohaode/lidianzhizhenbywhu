@@ -59,12 +59,37 @@ def _error_submit(p, form_selector, path, code, *, output=None):
         assert status == 409 and body['error']['code'] == code, (status, body)
         errors = handle.evaluate(FORM_COMPLETION, FORM_TIMEOUT_MS)
         assert any(text.strip() for text in errors), 'Server rejection must remain visible in the actual form.'
-        assert body['error']['message'] in p.visible(form_selector + ' .form-error').inner_text()
+        message = body['error']['message']
+        error = form.locator('.form-error').filter(has_text=re.compile(r'^\s*' + re.escape(message) + r'\s*$'))
+        error.wait_for(state='visible', timeout=FORM_TIMEOUT_MS)
+        assert error.count() == 1, 'The exact current server error must identify one visible form message.'
+        assert error.inner_text().strip() == message
         if output:
             require_no_comparison(p, output)
         return body
     return p.step('真实提交并核对拒绝与恢复说明：' + code, operate)
 
+
+
+def _frontmost_dialog_geometry(locator):
+    """Observe actual top-layer visibility; never scroll or alter the page."""
+    view = locator.evaluate("""el => {
+        const r = el.getBoundingClientRect(), dialog = el.closest('dialog');
+        const d = dialog?.getBoundingClientRect(), head = dialog?.querySelector('.dialog-head')?.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return {box:{x:r.x,y:r.y,width:r.width,height:r.height,top:r.top,bottom:r.bottom,right:r.right},
+            viewport:{width:innerWidth,height:innerHeight},dialogOpen:!!dialog?.open,
+            inModalTopLayer:!!dialog?.matches(':modal'),dialogTop:d?.top,dialogBottom:d?.bottom,
+            headerBottom:head?.bottom,centerHit:!!hit && (el===hit || el.contains(hit)),
+            focused:document.activeElement===el};
+    }""")
+    box = view['box']
+    assert view['dialogOpen'] and view['inModalTopLayer'], view
+    assert box['width'] > 0 and box['height'] > 0, view
+    assert box['top'] >= max(0, view.get('headerBottom') or view['dialogTop']), view
+    assert box['bottom'] <= min(view['viewport']['height'], view['dialogBottom']), view
+    assert box['x'] >= 0 and box['right'] <= view['viewport']['width'] and view['centerHit'], view
+    return view
 
 def _form_state(p, form):
     return {name: p.visible(form + ' [name="' + name + '"]').input_value()
@@ -108,11 +133,22 @@ def integrity_import_recovery(p, *, repository_root, data_dir, expected_web_tree
         status, body = _capture_response(p, 'POST', '/api/workspace/imports/' + original['id'] + '/commit',
                                         lambda: p.visible('#modal [data-action="commit-stage"]').click())
         assert status == 409 and body['error']['code'] == 'PREVIEW_INTEGRITY', (status, body)
-        assert '未写入数据' in p.visible('#notifications .toast.error').inner_text()
+        error = p.visible('#modal [data-import-stage-error][role="alert"]')
+        assert error.inner_text().strip() == body['error']['message'] and '未写入数据' in error.inner_text()
+        error_geometry = _frontmost_dialog_geometry(error)
+        assert error_geometry['focused'], 'The actual failure explanation must receive focus.'
+        p.observations['import_error_visible'] = {'error':error_geometry,
+            'back':_frontmost_dialog_geometry(p.visible('#modal [data-action="stage-back"]')),
+            'confirm':_frontmost_dialog_geometry(p.visible('#modal [data-action="commit-stage"]')),
+            'message':body['error']['message'],'probe_scroll_used':False}
+        assert p.page.locator('#notifications .toast.error').filter(has_text=body['error']['message']).count() == 0
         assert p.get('/api/datasets')['items'] == [], 'A corrupt preview must not create any business data.'
         assert p.page.locator('#dataset-editor[data-version]').count() == 0
-    p.step('损坏预览真实确认被拒绝，保留返回入口且零数据写入', reject_original)
+        return body
+    rejected = p.step('损坏预览真实确认被拒绝，当前弹窗内说明及返回入口同屏可见且零写入', reject_original)
     p.click('#modal [data-action="stage-back"]', after='#import-file-form')
+    assert p.page.locator('[data-import-stage-error]').count() == 0
+    assert p.page.locator('#notifications .toast.error').filter(has_text=rejected['error']['message']).count() == 0
     assert _form_state(p, '#import-file-form') == intended_form
     assert p.visible('#import-file-form [name="file"]').input_value() == ''
     p.step('原生返回保留单位企业口径；原文件明确重选', lambda: None)
@@ -123,6 +159,11 @@ def integrity_import_recovery(p, *, repository_root, data_dir, expected_web_tree
     assert len(rows) == 1 and rows[0]['version'] == 1
     expect_dataset(rows[0]['payload'])
     p.dataset_id = rows[0]['id']
+    assert p.page.locator('#modal').get_attribute('open') is None
+    assert not p.page.locator('#modal [data-import-stage-error]').is_visible()
+    assert all(rejected['error']['message'] not in text for text in p.page.locator('#modal [data-import-stage-error]').all_text_contents())
+    assert p.page.locator('#notifications .toast.error').filter(has_text=rejected['error']['message']).count() == 0
+    p.step('新预览已保存同一份正确输入，原失败不再冒充当前状态', lambda: None)
     p.observations['import_recovery'] = {'original_stage': original['id'], 'fresh_stage': fresh['id'],
         'dataset_id': p.dataset_id, 'version': 1, 'intended_cost': 80000, 'non_file_context_preserved': True,
         'fault_left_only_in_disposable_original_stage': True}

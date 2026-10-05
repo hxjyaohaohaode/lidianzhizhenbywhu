@@ -112,5 +112,6 @@ def test_artifact_upload_does_not_include_unexecuted_baseline_reports():
     assert not re.search(r'^\s*(?:path:\s*)?[\"\']?evidence/?[\"\']?\s*$', workflow, re.MULTILINE)
     assert 'evidence/run-context.json' in workflow and 'evidence/ui-current-*.png' in workflow
     assert 'evidence/pytest-progress.jsonl' in workflow and 'evidence/*.log' in workflow
-    assert 'timeout-minutes: 20' in workflow
+    regression=workflow.split('  regression:',1)[1].split('\n  product-audit:',1)[0]
+    assert 'timeout-minutes: 25' in regression
     assert 'evidence/brand-integrity.json' not in workflow  # Static reference, not a generated run report.

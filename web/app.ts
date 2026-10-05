@@ -128,7 +128,43 @@ document.addEventListener('click',async(event)=>{const el=(event.target as Eleme
  case 'add-period':{const form=el.closest('form');form?.querySelector('#period-rows')?.insertAdjacentHTML('beforeend',periodRow({},form.querySelectorAll('[data-period-row]').length));state.dirty=true;break;}
  case 'remove-period':{const form=el.closest('form'),row=el.closest('[data-period-row]');if(form&&row&&form.contains(row)){row.remove();state.dirty=true;}break;}
  case 'stage-back':if(state.cache.editorDraft){dialog('继续编辑数据',datasetEditor(state.cache.editorDraft),true);modal.querySelector<HTMLSelectElement>('[name="basis"]')!.value=state.cache.editorDraft.basis;}else dialog('重新选择导入文件',importForm(state.cache.importDraft??{}));break;
- case 'commit-stage':{const p=state.cache.stage;const label=el.textContent;const sameContext=contextGuard();let saved=false;el.setAttribute('disabled','');el.textContent='正在保存并同步…';try{const d=await workspace('/imports/'+p.id+'/commit','POST',{version:p.version,fingerprint:p.payload.fingerprint});saved=true;const applied=await finishMutation(()=>valid()&&sameContext(),refreshData,()=>{state.active=d.id;state.dirty=false;modal.close();navigate('data',true);});if(!sameContext())break;if(!applied){syncPending=true;showSyncNotice();}toast(applied?'已保存标准化数据和修订记录。':'数据已保存；保留你当前的页面和输入，可核对并刷新。');}catch(e){if(!sameContext())break;if(!saved)throw e;if(e instanceof ApiError&&e.status===401){resetAuth();toast('数据已保存，但登录已失效；请重新登录后核对。',true);break;}if(valid()){state.dirty=false;modal.close();}syncPending=true;showSyncNotice();toast('数据已保存，但同步读取未完成，请核对并刷新；无需重复导入。',true);}finally{el.removeAttribute('disabled');el.textContent=label;}break;}
+ case 'commit-stage':{
+  const p=state.cache.stage,label=el.textContent,sameContext=contextGuard();
+  const feedback=modal.querySelector<HTMLElement>('[data-import-stage-error]');
+  if(feedback)feedback.textContent='';
+  let saved=false;el.setAttribute('disabled','');el.textContent='正在保存并同步…';
+  try{
+   const d=await workspace('/imports/'+p.id+'/commit','POST',{version:p.version,fingerprint:p.payload.fingerprint});saved=true;
+   const applied=await finishMutation(()=>valid()&&sameContext(),refreshData,()=>{state.active=d.id;state.dirty=false;modal.close();navigate('data',true);});
+   if(!sameContext())break;
+   if(!applied){syncPending=true;showSyncNotice();}
+   toast(applied?'已保存标准化数据和修订记录。':'数据已保存；保留你当前的页面和输入，可核对并刷新。');
+  }catch(e){
+   if(!sameContext())break;
+   if(!saved){
+    if(!valid()||(feedback&&!feedback.isConnected)){
+     const refusals:Record<string,number>={PREVIEW_INTEGRITY:409,PREVIEW_MISMATCH:409,PREVIEW_EXPIRED:409,VERSION_CONFLICT:409,RESOURCE_LIMIT:409,NOT_FOUND:404,UNAUTHORIZED:401,CSRF_REJECTED:403};
+     const refused=e instanceof ApiError&&refusals[e.code]===e.status;
+     if(!refused)toast('上一份数据预览的保存结果未能确认。请核对当前数据和修订记录；不要重复导入。',true);
+     break;
+    }
+    // The native dialog is above the global toast layer. Keep a failed or
+    // uncertain save with this exact preview, including its recovery controls.
+    if(valid()&&feedback?.isConnected){
+     feedback.textContent=e instanceof Error?e.message:'保存结果无法确认，请核对当前数据后再操作。';
+     const group=feedback.parentElement??feedback;
+     group.style.scrollMarginTop=((modal.querySelector('.dialog-head')?.getBoundingClientRect().height??0)+12)+'px';
+     group.scrollIntoView({block:'nearest',behavior:'auto'});feedback.focus({preventScroll:true});
+     break;
+    }
+    throw e;
+   }
+   if(e instanceof ApiError&&e.status===401){resetAuth();toast('数据已保存，但登录已失效；请重新登录后核对。',true);break;}
+   if(valid()){state.dirty=false;modal.close();}
+   syncPending=true;showSyncNotice();toast('数据已保存，但同步读取未完成，请核对并刷新；无需重复导入。',true);
+  }finally{el.removeAttribute('disabled');el.textContent=label;}
+  break;
+ }
  case 'data-quality':{const quality=await workspace('/datasets/'+state.active+'/quality');if(valid())inspect('数据质量与缺项',qualityPanel(quality));break;}
  case 'data-lineage':{const r=await workspace('/datasets/'+state.active+'/lineage');if(!valid())break;inspect('指标血缘',r.items.map((l:Json)=>`<details><summary>${esc(l.label)} · ${metricValue(l.id,l.value)}</summary><code>${esc(l.formula)}</code>${jsonView(l.inputs)}</details>`).join(''));break;}
  case 'data-revisions':{const r=await workspace('/datasets/'+state.active+'/revisions');if(!valid())break;dialog('数据修订记录',revisionHistory(r.items),true);break;}

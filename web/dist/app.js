@@ -665,9 +665,10 @@ document.addEventListener('click', async (event) => {
                     dialog('重新选择导入文件', importForm(state.cache.importDraft ?? {}));
                 break;
             case 'commit-stage': {
-                const p = state.cache.stage;
-                const label = el.textContent;
-                const sameContext = contextGuard();
+                const p = state.cache.stage, label = el.textContent, sameContext = contextGuard();
+                const feedback = modal.querySelector('[data-import-stage-error]');
+                if (feedback)
+                    feedback.textContent = '';
                 let saved = false;
                 el.setAttribute('disabled', '');
                 el.textContent = '正在保存并同步…';
@@ -686,8 +687,26 @@ document.addEventListener('click', async (event) => {
                 catch (e) {
                     if (!sameContext())
                         break;
-                    if (!saved)
+                    if (!saved) {
+                        if (!valid() || (feedback && !feedback.isConnected)) {
+                            const refusals = { PREVIEW_INTEGRITY: 409, PREVIEW_MISMATCH: 409, PREVIEW_EXPIRED: 409, VERSION_CONFLICT: 409, RESOURCE_LIMIT: 409, NOT_FOUND: 404, UNAUTHORIZED: 401, CSRF_REJECTED: 403 };
+                            const refused = e instanceof ApiError && refusals[e.code] === e.status;
+                            if (!refused)
+                                toast('上一份数据预览的保存结果未能确认。请核对当前数据和修订记录；不要重复导入。', true);
+                            break;
+                        }
+                        // The native dialog is above the global toast layer. Keep a failed or
+                        // uncertain save with this exact preview, including its recovery controls.
+                        if (valid() && feedback?.isConnected) {
+                            feedback.textContent = e instanceof Error ? e.message : '保存结果无法确认，请核对当前数据后再操作。';
+                            const group = feedback.parentElement ?? feedback;
+                            group.style.scrollMarginTop = ((modal.querySelector('.dialog-head')?.getBoundingClientRect().height ?? 0) + 12) + 'px';
+                            group.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                            feedback.focus({ preventScroll: true });
+                            break;
+                        }
                         throw e;
+                    }
                     if (e instanceof ApiError && e.status === 401) {
                         resetAuth();
                         toast('数据已保存，但登录已失效；请重新登录后核对。', true);

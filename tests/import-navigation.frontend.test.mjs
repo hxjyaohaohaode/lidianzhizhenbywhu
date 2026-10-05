@@ -176,7 +176,7 @@ test('production import refresh stages auth and workspace responses before guard
 });
 
 import {contextGuard,invalidateContext,ApiError} from '../web/dist/api.js';
-const appSource=readFileSync(new URL('../web/app.ts',import.meta.url),'utf8');
+const appSource=readFileSync(new URL('../web/dist/app.js',import.meta.url),'utf8');
 const commitStart=appSource.indexOf("case 'commit-stage':");
 const commitEnd=appSource.indexOf("case '",commitStart+6);
 const commitBranch=appSource.slice(commitStart,commitEnd);
@@ -186,23 +186,30 @@ const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
 const executeCommit=new AsyncFunction('env',`
  const {state,el,workspace,valid,contextGuard,finishMutation,refreshData,modal,navigate,showSyncNotice,toast,ApiError,resetAuth}=env;
  let syncPending=false;
- switch('commit-stage'){${commitBranch}}
+ try{switch('commit-stage'){${commitBranch}}}
+ catch(e){toast(e instanceof Error?e.message:'操作失败',true);}
  return {syncPending};
 `);
 function handlerFixture(){
  invalidateInteractions();invalidateContext();
  const pending=deferred(),entered=deferred();
- const calls={writes:[],notices:0,toasts:[],closes:0,navigations:[],refreshes:0};
+ const calls={writes:[],notices:0,toasts:[],closes:0,navigations:[],refreshes:0,scrolls:0,focuses:0};
  const state={cache:{stage:{id:'stage',version:7,payload:{fingerprint:'fingerprint'}}},active:'original',dirty:true,route:'data',datasets:['original']};
  const el={textContent:'确认保存',attributes:new Map(),setAttribute(key,value){this.attributes.set(key,value);},removeAttribute(key){this.attributes.delete(key);}};
- const modal={open:true,close(){calls.closes++;this.open=false;}};
+ const errorGroup={style:{},scrollIntoView(){calls.scrolls++;}};
+ const feedback={textContent:'',isConnected:true,parentElement:errorGroup,focus(){calls.focuses++;}};
+ const modal={open:true,close(){calls.closes++;this.open=false;},querySelector(selector){
+  if(selector==='[data-import-stage-error]')return feedback;
+  if(selector==='.dialog-head')return {getBoundingClientRect:()=>({height:72})};
+  throw new Error('Unexpected selector: '+selector);
+ }};
  const env={state,el,modal,ApiError,resetAuth:()=>{invalidateContext();state.route='login';},valid:interactionGuard(),contextGuard,finishMutation,
   workspace:async(...args)=>{calls.writes.push(args);return {id:'saved'};},
   refreshData:async valid=>{calls.refreshes++;entered.resolve();const data=await pending.promise;if(!valid())return false;state.datasets=data;return true;},
   navigate:(route,force)=>{calls.navigations.push([route,force]);state.route=route;},
   showSyncNotice:()=>{calls.notices++;},toast:(...args)=>{calls.toasts.push(args);}
  };
- return {pending,entered,calls,state,el,modal,env,run:()=>executeCommit(env)};
+ return {pending,entered,calls,state,el,modal,feedback,errorGroup,env,run:()=>executeCommit(env)};
 }
 
 test('production commit keeps controls pending then applies current synchronized completion once',async()=>{
@@ -266,15 +273,55 @@ for(const replacement of ['logout','account-switch'])for(const failed of [false,
  });
 }
 
-test('production failed server commit propagates without claiming saved or refreshing',async()=>{
+test('production rejected preview puts its error in the current modal without a hidden global toast',async()=>{
  const f=handlerFixture();
- const failure=new Error('version conflict');
+ const failure=new ApiError('预览完整性校验失败；未写入数据，请返回重新预览',409,'PREVIEW_INTEGRITY','');
  f.env.workspace=async()=>{throw failure;};
- await assert.rejects(f.run(),error=>error===failure);
+ assert.deepEqual(await f.run(),{syncPending:false});
+ assert.equal(f.feedback.textContent,failure.message);
+ assert.equal(f.calls.scrolls,1);assert.equal(f.calls.focuses,1);
+ assert.equal(f.errorGroup.style.scrollMarginTop,'84px');
  assert.equal(f.calls.refreshes,0);assert.equal(f.calls.notices,0);assert.deepEqual(f.calls.toasts,[]);
  assert.equal(f.modal.open,true);assert.equal(f.state.dirty,true);assert.equal(f.state.active,'original');
  assert.equal(f.el.textContent,'确认保存');assert.equal(f.el.attributes.has('disabled'),false);
 });
+
+test('production preview retry clears only its previous error before successful completion',async()=>{
+ const f=handlerFixture();f.feedback.textContent='上一轮明确拒绝';
+ const completion=f.run();await f.entered.promise;
+ assert.equal(f.feedback.textContent,'');
+ f.pending.resolve(['saved']);await completion;
+ assert.equal(f.calls.toasts.length,1);assert.match(f.calls.toasts[0][0],/已保存标准化/);
+ assert.equal(f.calls.toasts[0][1],undefined);
+});
+
+test('production uncertain write outcome remains explicit inside the preview without automatic retry',async()=>{
+ const f=handlerFixture(),message='请求超时。写入可能已被服务端接收，请刷新状态后确认；不会自动重复提交。';let writes=0;
+ f.env.workspace=async()=>{writes++;throw new Error(message);};
+ await f.run();assert.equal(writes,1);assert.equal(f.feedback.textContent,message);
+ assert.equal(f.calls.refreshes,0);assert.equal(f.state.dirty,true);assert.equal(f.modal.open,true);
+ assert.deepEqual(f.calls.toasts,[]);
+});
+
+test('late rejected preview cannot change a newer dialog or escape to the global click-error boundary',async()=>{
+ const f=handlerFixture(),request=deferred(),failure=new ApiError('原预览已拒绝；未写入',409,'PREVIEW_INTEGRITY','');
+ f.env.workspace=()=>request.promise;const completion=f.run();
+ invalidateInteractions();f.feedback.isConnected=false;f.feedback.textContent='new dialog message';
+ request.reject(failure);await completion;
+ assert.equal(f.feedback.textContent,'new dialog message');assert.equal(f.calls.focuses,0);assert.equal(f.calls.scrolls,0);
+ assert.deepEqual(f.calls.toasts,[]);
+});
+
+for(const failure of [new Error('network unavailable'),new ApiError('request timeout',408,'PREVIEW_INTEGRITY',''),new ApiError('non-JSON gateway',404,'NON_JSON',''),new ApiError('server failure',500,'ERROR','')]){
+test(`late uncertain preview (${failure instanceof ApiError?failure.code+failure.status:'network'}) preserves a labelled old-result warning`,async()=>{
+ const f=handlerFixture(),request=deferred();f.env.workspace=()=>request.promise;const completion=f.run();
+ invalidateInteractions();f.feedback.isConnected=false;f.feedback.textContent='new dialog message';
+ request.reject(failure);await completion;
+ assert.equal(f.feedback.textContent,'new dialog message');assert.equal(f.calls.focuses,0);assert.equal(f.calls.scrolls,0);
+ assert.equal(f.calls.toasts.length,1);assert.match(f.calls.toasts[0][0],/上一份数据预览.*未能确认.*不要重复导入/);
+ assert.equal(f.calls.notices,0);assert.equal(f.calls.refreshes,0);assert.equal(f.state.dirty,true);
+});
+}
 
 test('production saved commit followed by current-session 401 resets auth with an explicit saved notice',async()=>{
  const f=handlerFixture(),completion=f.run();

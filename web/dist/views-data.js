@@ -42,8 +42,8 @@ function readableImportPreview(p) {
 }
 export function stageView(row) {
     const p = row.payload;
-    return `<div class="stack"><div class="row-between"><div><h3>${esc(p.dataset.company)} · ${esc(p.dataset.name)}</h3><p class="muted">${p.dataset.periods.length} 个季度 · 归一化金额：元 · 尚未写入财务库</p></div>${badge('待确认', 'warm')}</div>${importSummary(p)}${qualityPanel(p.quality)}${readableImportPreview(p)}${p.diff.length ? `<h3>将保存的变更</h3>${table(['字段路径', '原值', '新值'], p.diff.map((d) => [esc(d.path), esc(d.before ?? '空'), esc(d.after ?? '空')]))}` : notice(p.target_id ? '与当前数据没有字段差异；确认仍会记录一次修订。' : '这是一份新的数据集；预览确认前不会生成诊断。')}
-<details><summary>查看标准化后的完整数据</summary>${jsonView(p.dataset)}</details><p class="form-error" role="alert"></p><div class="form-footer">${button('返回继续编辑', 'stage-back', 'secondary')}${button('确认保存 ' + icon('check'), 'commit-stage', 'primary', `data-id="${esc(row.id)}"`)}</div></div>`;
+    return `<div class="stack" data-import-stage="${esc(row.id)}"><div class="row-between"><div><h3>${esc(p.dataset.company)} · ${esc(p.dataset.name)}</h3><p class="muted">${p.dataset.periods.length} 个季度 · 归一化金额：元 · 尚未写入财务库</p></div>${badge('待确认', 'warm')}</div>${importSummary(p)}${qualityPanel(p.quality)}${readableImportPreview(p)}${p.diff.length ? `<h3>将保存的变更</h3>${table(['字段路径', '原值', '新值'], p.diff.map((d) => [esc(d.path), esc(d.before ?? '空'), esc(d.after ?? '空')]))}` : notice(p.target_id ? '与当前数据没有字段差异；确认仍会记录一次修订。' : '这是一份新的数据集；预览确认前不会生成诊断。')}
+<details><summary>查看标准化后的完整数据</summary>${jsonView(p.dataset)}</details><div class="stack" data-import-stage-feedback><p class="form-error" role="alert" tabindex="-1" data-import-stage-error></p><div class="form-footer">${button('返回继续编辑', 'stage-back', 'secondary')}${button('确认保存 ' + icon('check'), 'commit-stage', 'primary', `data-id="${esc(row.id)}"`)}</div></div></div>`;
 }
 export async function dataPage() {
     const d = activeDataset();

@@ -37,8 +37,10 @@ def main():
         # Since the 654-test checkpoint, the suite grew to 1422 with the same
         # 600s cap (see docs/CI_EXECUTION_BOUNDS_20261002.md).
         # Windows completed in 506s; a slower attempt reached 1245 in 600s
-        # (~685s projected). Keep finite 900s/20min suite/job limits and an
-        # independent 120s whole-test hard watchdog; never relax security costs.
+        # (~685s projected). The suite stays at 900s with an independent 120s
+        # whole-test watchdog. The 25min CI job also covers installation/browser/
+        # artifact work (see the measured 2026-10-05 bounds supplement).
+        # Security costs and product assertions remain unchanged.
         timeout=900 if name=='pytest' else 240
         try:
             if name=='pytest':clear_pytest_outputs(out)
