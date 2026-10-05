@@ -1,0 +1,199 @@
+{
+  "completed_at_utc": "2026-10-05T21:29:32.471141+00:00",
+  "base_commit": "a20318a1a89588f487c39b488dde319869e997a8",
+  "source_freeze": {
+    "file_count": 468,
+    "before_after_equal": true,
+    "manifest_sha256": "42d08c17563df3e410da3f1761e94d728e268061003f7f3e094f36df2db0fc55",
+    "scope": "All tracked and new non-ignored files except evidence and dependency symlink; includes source, compiled JS, tests, docs, CI and original brand bytes."
+  },
+  "checks": [
+    {
+      "check": "python-compile",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts",
+        "tests/test_product_report_gap_reading.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.032
+    },
+    {
+      "check": "typecheck",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.318
+    },
+    {
+      "check": "build",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.518
+    },
+    {
+      "check": "backend",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:faulthandler",
+        "-p",
+        "scripts.pytest_diagnostics",
+        "--diagnostics-output=/workspace/scratch/ace785cd6eaa/lidian-report-gap-reader/evidence/report-gap-native-preparation-20261005/pytest-progress.jsonl",
+        "--diagnostics-test-timeout=120",
+        "--durations=10",
+        "--junitxml=/workspace/scratch/ace785cd6eaa/lidian-report-gap-reader/evidence/report-gap-native-preparation-20261005/pytest.xml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 475.592,
+      "passed": 3563,
+      "subtests_passed": 3,
+      "diagnostics_collected": 3563,
+      "diagnostics_started": 3563,
+      "diagnostics_finished": 3563
+    },
+    {
+      "check": "frontend",
+      "command": [
+        "node",
+        "--test",
+        "tests/action-evidence-reader.frontend.test.mjs",
+        "tests/action-review-binding.frontend.test.mjs",
+        "tests/actions.frontend.test.mjs",
+        "tests/agents-route-reads.frontend.test.mjs",
+        "tests/assistant-handoff.frontend.test.mjs",
+        "tests/business-source.frontend.test.mjs",
+        "tests/claim-review-readout.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
+        "tests/copilot-message-trace.frontend.test.mjs",
+        "tests/copilot-report-integrity.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
+        "tests/counterevidence-coverage.frontend.test.mjs",
+        "tests/data-draft-continuation.frontend.test.mjs",
+        "tests/data-editor-isolation.frontend.test.mjs",
+        "tests/dataset-source.frontend.test.mjs",
+        "tests/evaluation-detail.frontend.test.mjs",
+        "tests/evidence.frontend.test.mjs",
+        "tests/experiment-recovery.frontend.test.mjs",
+        "tests/form-snapshot.frontend.test.mjs",
+        "tests/frontend.test.mjs",
+        "tests/historical-question-scope.frontend.test.mjs",
+        "tests/import-navigation.frontend.test.mjs",
+        "tests/import-readability.frontend.test.mjs",
+        "tests/import.frontend.test.mjs",
+        "tests/late-actions.frontend.test.mjs",
+        "tests/math-results.frontend.test.mjs",
+        "tests/metric-comparison.frontend.test.mjs",
+        "tests/plan-history.frontend.test.mjs",
+        "tests/preferences-completion.frontend.test.mjs",
+        "tests/product-numeric-outcomes.frontend.test.mjs",
+        "tests/proposal-preview.frontend.test.mjs",
+        "tests/recovery.frontend.test.mjs",
+        "tests/report-comparison-drafts.frontend.test.mjs",
+        "tests/report-gaps.frontend.test.mjs",
+        "tests/report-integrity.frontend.test.mjs",
+        "tests/report-pagination.frontend.test.mjs",
+        "tests/report-readout.frontend.test.mjs",
+        "tests/research-form-lifecycle.frontend.test.mjs",
+        "tests/review-context-unavailable.frontend.test.mjs",
+        "tests/saved-comparisons.frontend.test.mjs",
+        "tests/saved-experiments.frontend.test.mjs",
+        "tests/saved-mutation.frontend.test.mjs",
+        "tests/service-completion.frontend.test.mjs",
+        "tests/services.frontend.test.mjs",
+        "tests/strategy-actions.frontend.test.mjs",
+        "tests/watch-units.frontend.test.mjs",
+        "tests/workflow-inputs.frontend.test.mjs"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.037,
+      "passed": 1052
+    },
+    {
+      "check": "source-guard",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/source_guard.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.465
+    },
+    {
+      "check": "full-chain",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-c",
+        "from pathlib import Path; import scripts.full_chain_check as s; s.OUT=Path('evidence/report-gap-native-preparation-20261005'); s.main()"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 6.437,
+      "external_supplier_calls": 0
+    }
+  ],
+  "all_checks_pass": true,
+  "earlier_preparation_checks": {
+    "focused_backend": "119 passed, including 33 new report-gap preparation contracts; not native.",
+    "dependency_setup": "First typecheck attempted a dangling dependency symlink and failed before compiler execution. Linked the existing lidianzhizhenbywhu/node_modules instead; no installation. Final stages above use that existing dependency."
+  },
+  "independent_review": "Read-only review found no blockers in selectors, full-cell geometry/ancestor clips, header-row-column binding, frozen null baseline/zero citations, or unchanged L12 boundaries. Not native validation.",
+  "not_exercised": [
+    "Native browser rendering, scrolling, screenshots or trace on this delta",
+    "L12 end-to-end runtime within its unchanged 300-second native budget",
+    "Windows or narrow-screen native layout",
+    "Zero-denominator native scenario (existing API/renderer contract only)",
+    "Live suppliers",
+    "Publishing, pushing, merging, CI registration changes"
+  ],
+  "evidence_sha256": {
+    "backend.log": "c3669e7cde9667ae7dffa82568809a03fa320083783b8c3e97774c3394d674fc",
+    "build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "frontend.log": "40e7c0e7fb7ae46377a729bf8e7d157281dcdba666da8e52db72876417377614",
+    "frozen-inputs.json": "42d08c17563df3e410da3f1761e94d728e268061003f7f3e094f36df2db0fc55",
+    "full-chain-http.json": "7c97111a3cc89f057eb1db406c8a19b5194958bf0194b37655359e96b49222f0",
+    "full-chain.log": "4707ee1fca0537a4b454a34adb675e937fee5da9b37aa90a790292edc79d0a89",
+    "pytest-progress.jsonl.gz": "7412147e8a3b3ee0cf9fb2f076d19628af22567be2eb55ace95a02945c3b048e",
+    "pytest-progress.stacks.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pytest.xml": "8582fc19c00a2d6313fc881a9bf7bdec5ca8dc9bdfced7362b7a3954cfe29355",
+    "python-compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source-guard.json": "66b8200c250ba1c42fec0de459b85ef660104291519160f8199c99697fdadcba",
+    "source-guard.log": "33d1eaae89c7c84747ab7fd7dcfacba60d715e39dafd16548c448ec6f757de6e",
+    "typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "diagnostics": {
+    "events": {
+      "session_started": 1,
+      "test_collected": 3563,
+      "collection_finished": 1,
+      "test_started": 3563,
+      "phase_started": 10689,
+      "phase_finished": 10692,
+      "test_finished": 3563,
+      "session_finished": 1
+    },
+    "uncompressed_sha256": "f83e9835d922e0c655c83645ae3fdcfb896e21d5189900dfd87e7f7753b77034",
+    "journal": "pytest-progress.jsonl.gz",
+    "lossless_gzip_verified": true
+  },
+  "unchanged_trees": {
+    "web": "06314bb02971e528764101cd55ed713d44be7550",
+    "server": "f6dbb3a3f3649574237cea12aecb43fd96d14283"
+  },
+  "native_integration_prerequisite": "Public workflow registration was deliberately unchanged. Its old expected web tree remains cf73135af981a41d8e2d3e38898815b63f5b70a9; a later authorized integration must register the reviewed new tree before native execution."
+}

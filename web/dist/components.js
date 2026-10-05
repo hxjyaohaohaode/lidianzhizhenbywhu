@@ -43,8 +43,9 @@ export function select(name, options, selected = '', attrs = '') { const opts = 
 export function formFooter(label) { return `<p class="form-error" role="alert"></p><div class="form-footer"><button class="primary" type="submit">${esc(label)} ${icon('arrow')}</button></div>`; }
 export function jsonView(value) { return `<pre class="json-view">${esc(JSON.stringify(value, null, 2))}</pre>`; }
 export function table(headers, rows, cls = '') { return `<div class="table-scroll ${cls}" role="region" tabindex="0" aria-label="${esc(headers.join('、'))}"><table><thead><tr>${headers.map(h => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`; }
-export const metricNames = { revenue: '营业收入', cost: '营业成本', net_profit: '净利润', cash_flow: '经营现金流', gross_margin: '毛利率', net_margin: '净利率', roe: '季度净资产收益率', cash_ratio: '经营现金收入比', leverage: '资产负债率', asset_turnover: '资产周转率', rd_ratio: '研发强度', inventory_turnover: '库存周转率', sales_production_ratio: '产销率', revenue_growth: '收入增速', margin_change: '毛利率变化' };
-export function metricValue(id, v) { return ['inventory_turnover', 'asset_turnover', 'sales_production_ratio'].includes(id) ? num(v) : pct(v); }
+export const metricNames = { revenue: '营业收入', cost: '营业成本', net_profit: '净利润', cash_flow: '经营现金流', assets: '总资产', liabilities: '总负债', gross_margin: '毛利率', net_margin: '净利率', roe: '季度净资产收益率', cash_ratio: '经营现金收入比', leverage: '资产负债率', asset_turnover: '资产周转率', rd_ratio: '研发强度', inventory_turnover: '库存周转率', sales_production_ratio: '产销率', revenue_growth: '收入增速', margin_change: '毛利率变化' };
+export function metricValue(id, v) { if (['assets', 'liabilities'].includes(id))
+    return typeof v === 'number' ? amount(v, 'yuan') + ' 元' : '未提供'; return ['inventory_turnover', 'asset_turnover', 'sales_production_ratio'].includes(id) ? num(v) : pct(v); }
 export function metricCard(label, value, detail, action = '') { return `<article class="metric"><div class="metric-label">${esc(label)}${action ? button(icon('info'), action, 'icon-button', 'aria-label="查看计算依据"') : ''}</div><strong>${esc(value)}</strong><small>${esc(detail)}</small></article>`; }
 export function quarterOrdinal(label) { return Number(label.slice(0, 4)) * 4 + Number(label.slice(-1)) - 1; }
 export function lineChart(series, keys, unit = '万元', scale = 1e4) {

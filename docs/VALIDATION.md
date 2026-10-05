@@ -1,3 +1,7 @@
+# 当前只读比较与实际读者旅程（2026-10-05）
+
+本轮说明见 [实际读者旅程整合](READER_NATIVE_COVERAGE_20261005.md)，完整本地执行记录为 `evidence/reader-native-integration-20261005.json`。新精确SHA的原生结果须独立验证，完整产品仍暂不建议合并。
+
 # 当前同快照报告与可读来源（2026-10-05）
 
 本轮 [同快照报告与可读来源](COHERENT_REPORT_READERS_20261005.md) 区分真实原生失败、代码/API修正与尚未执行的新界面旅程；完整本地记录见 `evidence/coherent-readers-integration-20261005.json`。完整产品验收继续进行，暂不建议合并。

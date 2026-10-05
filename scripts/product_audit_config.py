@@ -76,6 +76,27 @@ AUDIT_SUITES = {
         'scenarios': (('L11-late-actions', '实际删除与刷新迟到保留新输入→自然关闭重开→正常编辑研究提案'),),
         'precondition': 'Fresh synthetic account; native-created evidence and exact target-bound confirmation; delay only delivery of one real successful deletion and four real refresh reads; newer drafts preserved; native research form edit/close/reopen and one current proposal; detached-form refusal remains DOM-test evidence; no providers or database faults',
     },
+    'action-evidence': {
+        'mode': 'product-action-evidence',
+        'report': 'product-action-evidence-audit.json',
+        'fixture_file': 'action-evidence-synthetic-financials.csv',
+        'scenarios': (('L12-action-evidence', '完整阅读人工审阅与原文→展开保留选择草稿→明确完成→后来审阅不改原历史'),),
+        'precondition': 'Fresh synthetic account; all report/action/evidence/review writes through visible UI; exactly one reviewed company source selected and one global unreviewed source left unselected; full long-note/text ranges via native scrolling; later review changes preserve completed action payload/history; no database faults or providers',
+    },
+    'copilot-integrity': {
+        'mode': 'product-copilot-integrity',
+        'report': 'product-copilot-integrity-audit.json',
+        'scenarios': (('I10-copilot-report-integrity', '真实助手报告→声明单值损坏→历史卡拒绝正常展示与原文阅读→独立新报告→旧坏历史保持'),),
+        'precondition': 'Fresh synthetic account; actual assistant message/proposal and explicit zero-call approvals; one declared owner-bound saved-result scalar fault after healthy native reading; real raw disclosure and same-thread fresh report preserve every old damaged row; no fixture restoration or providers',
+        'database_fault_injection': True,
+    },
+    'historical-warning': {
+        'mode': 'product-historical-warning',
+        'report': 'product-historical-warning-audit.json',
+        'scenarios': (('historical-cost-percentage-warning', '真实旧报告范围警示与原金额→原始下载→当前同问拒绝→冻结历史保持'),),
+        'precondition': 'Fresh native synthetic registration; separately admitted genuine old API/worker completed-report closure of 49 rows, only outer owner mapping, no queued rows; preparation is not a UI business write or old-account upgrade; current visible list/read/download/refusal/back/reload; no providers or damaged-row injection',
+        'legacy_history_preparation': 'historical-cost-percentage-legacy-completed-v1',
+    },
     'integrity': {
         'mode': 'product-integrity',
         'report': 'product-integrity-audit.json',
@@ -123,3 +144,17 @@ def audit_suite(name):
         return AUDIT_SUITES[name]
     except KeyError as exc:
         raise ValueError('Unknown native product audit suite: ' + str(name)) from exc
+
+
+def audit_artifact_kinds(name):
+    configuration = audit_suite(name)
+    kinds = ('download', 'synthetic-input')
+    if configuration.get('database_fault_injection'):
+        kinds += ('fault-injection',)
+    scope = configuration.get('legacy_history_preparation')
+    if scope:
+        if (name != 'historical-warning' or scope != 'historical-cost-percentage-legacy-completed-v1'
+                or configuration.get('database_fault_injection')):
+            raise ValueError('Historical preparation needs its separate exact suite and scope, without fault admission')
+        kinds += ('legacy-history-preparation',)
+    return kinds

@@ -139,8 +139,12 @@ def assistant_answer(store,user,query,dataset_id='',*,resolved_scope=None):
     facts=[]
     for f in selected:
         link=links.get(f)
-        if f in ('revenue','cost','net_profit','cash_flow'):
+        if f in ('revenue','cost','net_profit','cash_flow','assets','liabilities'):
             value=latest.get(f);formula='原始季度录入值';inputs=[{'path':f"periods/{latest['period']}/{f}",'value':value}]
+            if f in ('assets','liabilities'):
+                from .metric_facts import raw_input_formula
+                formula=raw_input_formula(f)
+                inputs[0].update(field=f,unit='CNY')
         elif f=='revenue_growth':
             value=analysis['metrics'][f];formula='本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0'
             inputs=[{'path':f"periods/{latest['period']}/revenue",'value':latest['revenue']}]
@@ -160,6 +164,22 @@ def assistant_answer(store,user,query,dataset_id='',*,resolved_scope=None):
             'formula':formula,'inputs':inputs,'trend':trend,'source_url':data.get('source_url',''),
             'verification':data.get('verification','unverified_user_input'),
             'comparison':fact_comparison(f,value,analysis)})
+        if {'assets','liabilities'}.intersection(selected):
+            from .metric_facts import balance_amount_text
+            displays={item['path']:balance_amount_text(item['value']) for item in inputs
+                if item['path'].rsplit('/',1)[-1] in ('assets','liabilities')}
+            if displays:facts[-1]['input_display_values']=displays
+        if f in ('assets','liabilities'):
+            from .metric_facts import balance_amount_text
+            from .report_readout import display_number
+            unit=user['preferences'].get('amount_unit','yuan')
+            facts[-1].update(unit='CNY',status='missing' if value is None else 'available',
+                display_value=balance_amount_text(value,unit),source_display_value=balance_amount_text(value),
+                display_amount_unit=unit,period_basis='quarter_end_stock')
+            for point in facts[-1]['trend']:point['display_value']=balance_amount_text(point['value'],unit)
+            change=facts[-1]['comparison']['change']
+            if change is not None:
+                facts[-1]['comparison']['display_change']=(balance_amount_text(change,unit) if 0<abs(change)<.005 else display_number(change,'CNY',unit))
     quality=quality_report(data)
     evidence=scoped_retrieve(store,owner,query,data['company'],3)
     tasks=build_insights(store,owner,[d],identity_id=(user.get('service_identity') or {}).get('id',''))['items'] if question_scope['can_calculate'] and data['periods']==d['payload']['periods'] else []

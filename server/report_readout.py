@@ -7,7 +7,7 @@ from __future__ import annotations
 import copy
 import math
 from .analytics import METRIC_LABELS
-from .metric_facts import AMOUNT_METRICS, RATIO_METRICS
+from .metric_facts import AMOUNT_METRICS, RATIO_METRICS, BALANCE_METRICS, raw_input_formula, balance_amount_text
 from .store import digest
 
 FIELD_LABELS={**METRIC_LABELS,'assets':'总资产','liabilities':'总负债','inventory':'库存金额',
@@ -79,6 +79,8 @@ def display_number(value, unit, amount_unit='yuan'):
 def build_readout(snapshot, analysis, links):
     """Copy recorded numbers; never calculate a replacement historical metric."""
     scope=snapshot.get('research_scope') or {};period=analysis['current_period']
+    amount_unit=snapshot.get('preferences',{}).get('amount_unit','yuan')
+    if amount_unit not in UNIT_LABELS:amount_unit='yuan'
     topics=scope.get('topics');known=isinstance(topics,list)
     current=next((p for p in analysis['series'] if p['period']==period),{})
     lineage={p['id']:p for p in links};facts=[];missing={}
@@ -89,7 +91,7 @@ def build_readout(snapshot, analysis, links):
         value=current.get(key) if raw else analysis['metrics'].get(key)
         if not isinstance(value,(int,float)) or isinstance(value,bool) or not math.isfinite(value):value=None
         inputs=([{'path':f'periods/{period}/{key}','field':key,'value':value,'unit':'CNY'}] if raw else copy.deepcopy(link.get('inputs',[])))
-        formula='已保存的单季度输入（标准化为元）' if raw else link.get('formula','已保存计算结果，原公式未记录')
+        formula=raw_input_formula(key) if key in BALANCE_METRICS else '已保存的单季度输入（标准化为元）' if raw else link.get('formula','已保存计算结果，原公式未记录')
         if key=='revenue_growth':
             formula='本期收入 ÷ 指定同比或环比基期收入 − 1；基期收入必须大于0'
             inputs=[{'path':f"periods/{p['period']}/revenue",'field':'revenue','value':p.get('revenue'),'unit':'CNY'}
@@ -101,11 +103,16 @@ def build_readout(snapshot, analysis, links):
             '冻结输入不满足本指标的计算条件，请核对分母或指定基期；未以0代替结果。') if value is None else ''
         facts.append({'id':key,'label':METRIC_LABELS[key],'period':period,'value':value,'unit':unit,
             'status':'missing' if value is None else 'available','reason':reason,'formula':formula,'inputs':inputs})
+        if key in BALANCE_METRICS:
+            facts[-1].update(period_basis='quarter_end_stock',display_value=balance_amount_text(value,amount_unit))
+        if BALANCE_METRICS.intersection(topics or []):
+            for item in inputs:
+                if item.get('field') in BALANCE_METRICS:item['display_value']=balance_amount_text(item.get('value'),amount_unit)
         for p in unavailable:
             field=p.get('field') or p['path'].rsplit('/',1)[-1]
             target=p['path'].split('/')[1]
             missing[(target,field)]={'period':target,'fields':[field],'conditional':False,
-                'action':f'补充{target}的{FIELD_LABELS.get(field,field)}，确认金额单位和单季度口径，保存新修订后重新研判。'}
+                'action':f'补充{target}的{FIELD_LABELS.get(field,field)}，确认金额单位和'+('季度期末存量' if field in BALANCE_METRICS else '单季度')+'口径，保存新修订后重新研判。'}
     steps=list(missing.values())
     if analysis['baseline_period'] is None:
         year,quarter=int(period[:4]),int(period[-1]);previous=analysis['comparison']=='previous'
@@ -115,8 +122,6 @@ def build_readout(snapshot, analysis, links):
     if not snapshot.get('citations'):
         steps.append({'period':period,'fields':['supporting_evidence'],'conditional':True,
             'action':'如需核验录入值或形成行业判断，请关联并审阅本次问题的原始资料；没有资料时保留证据缺口。'})
-    amount_unit=snapshot.get('preferences',{}).get('amount_unit','yuan')
-    if amount_unit not in UNIT_LABELS:amount_unit='yuan'
     source=copy.deepcopy(snapshot.get('input_source') or {'status':'not_recorded',
         'notice':'当时未记录原文件指纹与导入回执，不能从当前数据补写为旧报告依据。',
         'input_amount_unit':snapshot['dataset'].get('input_amount_unit'),'input_basis':None,
@@ -130,7 +135,7 @@ def build_readout(snapshot, analysis, links):
 def answer_findings(readout):
     result=[]
     for f in readout['facts']:
-        statement=f"{f['period']} {f['label']}："+display_number(f['value'],f['unit'],readout['amount_unit'])+'。'
+        statement=f"{f['period']} {f['label']}："+(f.get('display_value') or display_number(f['value'],f['unit'],readout['amount_unit']))+'。'
         if f['reason']:statement+=f['reason']
         result.append(statement)
     return result

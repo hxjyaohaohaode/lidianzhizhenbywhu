@@ -1,0 +1,76 @@
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 26%]
+........................................................................ [ 28%]
+........................................................................ [ 30%]
+........................................................................ [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+........................................................................ [ 52%]
+........................................................................ [ 54%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+..................................................................... [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 74%]
+........................................................................ [ 76%]
+........................................................................ [ 78%]
+........................................................................ [ 80%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 90%]
+........................................................................ [ 92%]
+........................................................................ [ 94%]
+........................................................................ [ 96%]
+........................................................................ [ 98%]
+......................................                                   [100%]
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_product_read_transport.py::test_uvicorn_honors_close_without_idle_pool_or_timing_change[False]
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_product_read_transport.py::test_uvicorn_honors_close_without_idle_pool_or_timing_change[False]
+  /workspace/scratch/ace785cd6eaa/lidian-venv/lib/python3.12/site-packages/uvicorn/protocols/websockets/websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 10 durations =============================
+3.78s call     tests/test_comparison_cleanup.py::test_account_comparison_capacity_is_released_only_by_valid_owned_delete
+3.24s call     tests/test_comparison_cleanup.py::test_existing_owner_delete_can_cleanup_orphan_without_reviving_identity
+2.69s call     tests/test_pytest_diagnostics.py::test_watchdog_cancellation_cannot_kill_the_following_test
+2.68s call     tests/test_pytest_diagnostics.py::test_watchdog_budget_is_not_reset_between_setup_call_and_teardown
+1.63s call     tests/test_dispatch_source_bindings.py::test_normal_versioned_user_changes_still_stop_undispatched_work[api_dataset-adaptive]
+1.62s setup    tests/test_watch_units_contract.py::test_watch_proposals_preview_and_confirm_canonical_percent_and_yuan_without_migration
+1.62s call     tests/test_strategy_source_lifecycle.py::test_reconsenting_a_source_requires_fresh_evaluation_and_explicit_activation
+1.61s setup    tests/test_workflows.py::test_evidence_snapshot_survives_deletion
+1.60s call     tests/test_workspace_api.py::test_minimum_required_specialists_and_explicit_budget[3-deep_dive-True-3]
+1.59s setup    tests/test_report_pagination.py::test_invalid_bounds_reject_without_unbounded_reads[params7]
+3563 passed, 3 warnings, 3 subtests passed in 465.77s (0:07:45)

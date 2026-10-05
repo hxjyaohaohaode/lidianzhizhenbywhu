@@ -71,7 +71,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Bind every native audit to the explicitly reviewed application revision.
       # Every probe must pass; failed or incomplete evidence remains a failure.
-      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py
         if: always()
       - uses: actions/upload-artifact@v4
@@ -218,7 +218,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # L1 alone, with an independent account, native lifecycle and evidence.
       # The runner retains its existing 300-second bound; no L6 heavy setup.
-      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite first-use
         if: always()
       - uses: actions/upload-artifact@v4
@@ -365,7 +365,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Explicit temporary-database faults followed by actual UI rejection/recovery.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-integrity --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -512,7 +512,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # One separate comparison-receipt rejection/reconstruction task.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-comparison-integrity --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-comparison-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite comparison-integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -659,7 +659,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Two separate source-integrity refusal and real application recovery tasks.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-source-integrity --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-source-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite source-integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -806,7 +806,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # One separate existing-watch integrity and real revision recovery task.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-tracking-integrity --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-tracking-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite tracking-integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -953,7 +953,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Seven plans via visible controls, paging, browser Back and same-account login.
       # Separate synthetic account, unchanged 300-second bound, no database faults.
-      - run: python scripts/native_acceptance.py --product-plan-history --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-plan-history --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite plan-history
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1100,7 +1100,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Explicit percentage and yuan thresholds, cancellation, frozen alerts, pause and resume.
       # Separate synthetic account, unchanged 300-second bound, no database faults.
-      - run: python scripts/native_acceptance.py --product-tracking-units --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-tracking-units --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite tracking-units
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1247,7 +1247,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Normal memory preference withdrawal, preserved records and explicit historical choice.
       # Separate synthetic account, unchanged 300-second bound, no database faults.
-      - run: python scripts/native_acceptance.py --product-memory-eligibility --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-memory-eligibility --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite memory-eligibility
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1394,7 +1394,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Real exports, one declared artifact fault, blocked exports and a distinct new report.
       # Separate synthetic account, unchanged 300-second bound, no fixture restore or providers.
-      - run: python scripts/native_acceptance.py --product-report-export --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-report-export --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite report-export
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1541,7 +1541,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Four real questions, explicit metrics/comparison units and a real service identity.
       # Actual reload and re-login preservation; synthetic account, no database faults or providers.
-      - run: python scripts/native_acceptance.py --product-question-scope --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-question-scope --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite question-scope
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1688,7 +1688,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Three committed POST response losses and three explicit UI recoveries: six POSTs, three experiments/audits.
       # Preserve v1 history after v2 and the newer draft; no database faults or providers; orphan manager is outside this suite.
-      - run: python scripts/native_acceptance.py --product-experiment-recovery --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-experiment-recovery --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite experiment-recovery
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1835,7 +1835,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # One synthetic input/report; visible human feedback and explicit replay consent 0 to 1 to 0.
       # Read the blocked saved case in Chinese and preserve history; no successful activation, database faults or providers.
-      - run: python scripts/native_acceptance.py --product-strategy-consent --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      - run: python scripts/native_acceptance.py --product-strategy-consent --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite strategy-consent
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1980,9 +1980,9 @@ jobs:
       - run: python scripts/prepare_evidence.py
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m playwright install --with-deps chromium
-      # One synthetic input/report; visible human feedback and explicit replay consent 0 to 1 to 0.
-      # Read the blocked saved case in Chinese and preserve history; no successful activation, database faults or providers.
-      - run: python scripts/native_acceptance.py --product-report-history --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      # Create21 actual reports via visible forms; read complete source rows and compare frozen results.
+      # Preserve originals across Back/reload/relogin; no database faults or providers.
+      - run: python scripts/native_acceptance.py --product-report-history --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite report-history
         if: always()
       - uses: actions/upload-artifact@v4
@@ -2127,9 +2127,9 @@ jobs:
       - run: python scripts/prepare_evidence.py
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m playwright install --with-deps chromium
-      # One synthetic input/report; visible human feedback and explicit replay consent 0 to 1 to 0.
-      # Read the blocked saved case in Chinese and preserve history; no successful activation, database faults or providers.
-      - run: python scripts/native_acceptance.py --product-late-actions --expected-web-tree fc2d662decb35ad551cae0e39766d07f6b90ee92 --expected-server-tree f6dbb3a3f3649574237cea12aecb43fd96d14283
+      # Delay delivery of one actual successful deletion and four actual refresh reads.
+      # Preserve new drafts and the current research proposal; no database faults or providers.
+      - run: python scripts/native_acceptance.py --product-late-actions --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
       - run: python scripts/pack_product_audit.py --suite late-actions
         if: always()
       - uses: actions/upload-artifact@v4
@@ -2255,6 +2255,447 @@ jobs:
         with:
           name: product-late-actions-${{ matrix.os }}-part-16
           path: evidence/product-late-actions-transfer/part-16/
+          if-no-files-found: ignore
+          retention-days: 14
+  product-action-evidence:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python scripts/prepare_evidence.py
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      # Read long review/source content with native scrolling; preserve explicit selection and action drafts.
+      # Complete with one reviewed source, then preserve original history after later review changes; no database faults or providers.
+      - run: python scripts/native_acceptance.py --product-action-evidence --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/pack_product_audit.py --suite action-evidence
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-summary
+          path: |
+            evidence/run-context.json
+            evidence/product-action-evidence-audit.json
+            evidence/product-action-evidence-service-command.json
+            evidence/product-action-evidence-transfer-status.json
+            evidence/product-action-evidence*.log
+            evidence/product-action-evidence*-events.jsonl
+            evidence/product-action-evidence-transfer/manifest.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-01
+          path: evidence/product-action-evidence-transfer/part-01/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-02
+          path: evidence/product-action-evidence-transfer/part-02/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-03
+          path: evidence/product-action-evidence-transfer/part-03/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-04
+          path: evidence/product-action-evidence-transfer/part-04/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-05
+          path: evidence/product-action-evidence-transfer/part-05/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-06
+          path: evidence/product-action-evidence-transfer/part-06/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-07
+          path: evidence/product-action-evidence-transfer/part-07/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-08
+          path: evidence/product-action-evidence-transfer/part-08/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-09
+          path: evidence/product-action-evidence-transfer/part-09/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-10
+          path: evidence/product-action-evidence-transfer/part-10/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-11
+          path: evidence/product-action-evidence-transfer/part-11/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-12
+          path: evidence/product-action-evidence-transfer/part-12/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-13
+          path: evidence/product-action-evidence-transfer/part-13/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-14
+          path: evidence/product-action-evidence-transfer/part-14/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-15
+          path: evidence/product-action-evidence-transfer/part-15/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-action-evidence-${{ matrix.os }}-part-16
+          path: evidence/product-action-evidence-transfer/part-16/
+          if-no-files-found: ignore
+          retention-days: 14
+  product-copilot-integrity:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python scripts/prepare_evidence.py
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      # After a healthy native report, declare one owner-bound saved-result scalar fault in the disposable database.
+      # Read the unavailable card/raw disclosure, create a distinct healthy report and preserve the old fault; no restore or providers.
+      - run: python scripts/native_acceptance.py --product-copilot-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/pack_product_audit.py --suite copilot-integrity
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-summary
+          path: |
+            evidence/run-context.json
+            evidence/product-copilot-integrity-audit.json
+            evidence/product-copilot-integrity-service-command.json
+            evidence/product-copilot-integrity-transfer-status.json
+            evidence/product-copilot-integrity*.log
+            evidence/product-copilot-integrity*-events.jsonl
+            evidence/product-copilot-integrity-transfer/manifest.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-01
+          path: evidence/product-copilot-integrity-transfer/part-01/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-02
+          path: evidence/product-copilot-integrity-transfer/part-02/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-03
+          path: evidence/product-copilot-integrity-transfer/part-03/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-04
+          path: evidence/product-copilot-integrity-transfer/part-04/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-05
+          path: evidence/product-copilot-integrity-transfer/part-05/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-06
+          path: evidence/product-copilot-integrity-transfer/part-06/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-07
+          path: evidence/product-copilot-integrity-transfer/part-07/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-08
+          path: evidence/product-copilot-integrity-transfer/part-08/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-09
+          path: evidence/product-copilot-integrity-transfer/part-09/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-10
+          path: evidence/product-copilot-integrity-transfer/part-10/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-11
+          path: evidence/product-copilot-integrity-transfer/part-11/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-12
+          path: evidence/product-copilot-integrity-transfer/part-12/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-13
+          path: evidence/product-copilot-integrity-transfer/part-13/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-14
+          path: evidence/product-copilot-integrity-transfer/part-14/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-15
+          path: evidence/product-copilot-integrity-transfer/part-15/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-copilot-integrity-${{ matrix.os }}-part-16
+          path: evidence/product-copilot-integrity-transfer/part-16/
+          if-no-files-found: ignore
+          retention-days: 14
+  product-historical-warning:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python scripts/prepare_evidence.py
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      # Genuine old completed-report closure: 49 declared fixture rows, only owner mapping; no old queue.
+      # This is separate legacy-history-preparation admission, not a damaged-row fault or a UI creation claim.
+      - run: python scripts/native_acceptance.py --product-historical-warning --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/pack_product_audit.py --suite historical-warning
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-summary
+          path: |
+            evidence/run-context.json
+            evidence/product-historical-warning-audit.json
+            evidence/product-historical-warning-service-command.json
+            evidence/product-historical-warning-transfer-status.json
+            evidence/product-historical-warning*.log
+            evidence/product-historical-warning*-events.jsonl
+            evidence/product-historical-warning-transfer/manifest.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-01
+          path: evidence/product-historical-warning-transfer/part-01/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-02
+          path: evidence/product-historical-warning-transfer/part-02/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-03
+          path: evidence/product-historical-warning-transfer/part-03/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-04
+          path: evidence/product-historical-warning-transfer/part-04/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-05
+          path: evidence/product-historical-warning-transfer/part-05/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-06
+          path: evidence/product-historical-warning-transfer/part-06/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-07
+          path: evidence/product-historical-warning-transfer/part-07/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-08
+          path: evidence/product-historical-warning-transfer/part-08/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-09
+          path: evidence/product-historical-warning-transfer/part-09/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-10
+          path: evidence/product-historical-warning-transfer/part-10/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-11
+          path: evidence/product-historical-warning-transfer/part-11/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-12
+          path: evidence/product-historical-warning-transfer/part-12/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-13
+          path: evidence/product-historical-warning-transfer/part-13/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-14
+          path: evidence/product-historical-warning-transfer/part-14/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-15
+          path: evidence/product-historical-warning-transfer/part-15/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-historical-warning-${{ matrix.os }}-part-16
+          path: evidence/product-historical-warning-transfer/part-16/
           if-no-files-found: ignore
           retention-days: 14
   dependency-audit:

@@ -2,7 +2,7 @@
 
 面向锂电企业经营研究的工作台：数学建模、动态 Agent 协同和可审阅的策略演进是基础，研究助手、数据、证据、报告、行动与跟踪围绕同一条真实数据链工作。
 
-完整产品验收进行中，暂不建议合并。最新改动、已知未完成项和独立验证边界见[本轮记录](docs/COHERENT_REPORT_READERS_20261005.md)及[PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。
+完整产品验收进行中，暂不建议合并。最新改动、已知未完成项和独立验证边界见[本轮记录](docs/READER_NATIVE_COVERAGE_20261005.md)及[PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。
 
 保留比赛工程原始 Logo 和开场动画。首次工作区为空，没有自动生成的企业财报、模拟模型回复或无来源概率。
 

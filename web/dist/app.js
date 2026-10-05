@@ -1171,11 +1171,11 @@ document.addEventListener('click', async (event) => {
 document.addEventListener('input', (event) => { const el = event.target; invalidateInputs(); if (el.id === 'command-filter') {
     document.querySelectorAll('#command-results button').forEach(b => b.hidden = !b.textContent.includes(el.value));
     return;
-} const form = el.closest('form'); if (form && !['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'comparison-delete-form', 'public-search-form'].includes(form.id))
+} const form = el.closest('form'); if (form && !['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'report-compare-form', 'comparison-delete-form', 'public-search-form'].includes(form.id))
     state.dirty = true; });
 document.addEventListener('change', async (event) => { const el = event.target; const form = el.closest('form'); if (form) {
     invalidateInputs();
-    if (!['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'comparison-delete-form', 'public-search-form'].includes(form.id))
+    if (!['auth-form', 'assistant-form', 'evidence-search', 'compare-form', 'report-compare-form', 'comparison-delete-form', 'public-search-form'].includes(form.id))
         state.dirty = true;
 } try {
     if (el.closest('#report-compare-form') && ['left', 'right'].includes(el.name)) {

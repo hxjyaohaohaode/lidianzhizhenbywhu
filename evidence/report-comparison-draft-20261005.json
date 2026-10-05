@@ -1,0 +1,53 @@
+{
+  "recorded_at": "2026-10-05T19:32:40Z",
+  "base_commit": "3c733750609aec9d32ef949378a67998862a7b48",
+  "scope": "Read-only report comparison selection does not create an unsaved-write warning. Existing drafts and selection continuation invalidation stay protected.",
+  "reproduction": {
+    "command": "node --test tests/report-comparison-drafts.frontend.test.mjs",
+    "compiled_base_result": {
+      "tests": 8,
+      "passed": 4,
+      "failed": 4
+    },
+    "observed": "Both input and change on report-compare-form set dirty, then close followed by logout prompts. Declining prevents logout. Real draft retention already passes."
+  },
+  "validation": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "node --test tests/report-comparison-drafts.frontend.test.mjs",
+      "result": "passed",
+      "tests": 8
+    },
+    {
+      "command": "npm run test:frontend",
+      "result": "passed",
+      "tests": 1042
+    }
+  ],
+  "coverage": [
+    "Compiled production input, change, submit, close-modal and logout handlers",
+    "Production comparison form, source details, numerical readout, form snapshot and API transport with explicit DOM/fetch doubles",
+    "Input and change each preserve pending continuation invalidation",
+    "Read-only compare GET followed by close/logout emits exactly one intended logout POST without confirm",
+    "Existing underlying dirty state survives comparison selection, successful read and modal close",
+    "Real editable input/change, cancelled logout, retained input and zero POST",
+    "New comparison selection rejects late results without focus, scroll or dirty state"
+  ],
+  "not_run": [
+    "Backend regression and HTTP/SSE/restart/backup chain; parent owns the full integrated run",
+    "Native browser L10 replay and current rendered UI; parent owns the hosted run"
+  ],
+  "evidence_boundary": "No browser, server, listener, network call, live provider, or native-pixel claim in this local regression. Fetch is an explicit in-memory double.",
+  "file_sha256": {
+    "web/app.ts": "fd4ee051737a68136cc1f80fe26cc20b7e201ad734f9947bb8cb7fbe4b0bde2d",
+    "web/dist/app.js": "eaf5b9d8a3a4ea39f25e3b9b6c229feb807f5e7e7696c8fc60ccd2b9e7710c3b",
+    "tests/report-comparison-drafts.frontend.test.mjs": "63e93baa3d08379d651237580e93663aa1734edb0bf9f9fad2d73983e76ffc54"
+  }
+}

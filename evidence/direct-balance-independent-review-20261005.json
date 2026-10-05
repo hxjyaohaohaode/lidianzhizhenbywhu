@@ -1,0 +1,50 @@
+{
+  "date_utc": "2026-10-05",
+  "candidate_status": "isolated candidate frozen by source manifest, before final full regression/commit",
+  "manifest_sha256": "fef6149435f8ed03735f6c7930313ec017eaaa4ef676b450cfe171d1af7f0405",
+  "source_files_verified": 346,
+  "key_source_sha256": {
+    "server/question_scope.py": "6503cf2a00ef79ff61f0c9586cc6c3885b4d1fc894b0b73d21c60f75611e3297",
+    "server/metric_facts.py": "e9803572391dde1d26057b4f9a21993e56126ae0990ec066e3bc90423583f579",
+    "server/copilot.py": "6aa57ba04b73c444177480843a3f4621271d3a4e8f4dbe056f5d5bb3a2220dc0",
+    "server/intelligence.py": "1e32c72108a9ca4b4df94fcdc0e87a87588359f44d8c6ed5e41260495bb32156",
+    "server/report_readout.py": "6d54662383407316825a980cbb90e88125ca52763375cc40ead6846d5fb7ea70",
+    "web/assistant.ts": "820c6ec7a3a9dcf3af121158c6aad4f96b372d8d26fc1d9952b931baf715dc66",
+    "web/report-readout.ts": "56d2971810738a445671b71828af88b0bc31ecf97a54ff2e22d940ac46c0cd93",
+    "web/metric-comparison.ts": "4b6819bfdf9148977db10a35a08e43ede3d8f9ddcd1e2d4f1c2d9e8104ca9b68"
+  },
+  "independent_runs": [
+    {
+      "command": "python -m pytest -q tests/test_direct_balance_fields.py",
+      "execution_boundary": "existing offline wrapper blocks application network and listeners; isolated authenticated TestClient/SQLite and pure contracts",
+      "passed": 161,
+      "failed": 0,
+      "network_listener_attempts": 0
+    },
+    {
+      "command": "node --test tests/direct-balance-fields.frontend.test.mjs",
+      "execution_boundary": "actual compiled renderer/form contracts with explicit data/DOM doubles, no browser",
+      "passed": 16,
+      "failed": 0
+    }
+  ],
+  "independent_operator_api_recheck": {
+    "scope": "ten exact synthetic questions, both authenticated assistants, original dataset preserved, no supplier/network calls",
+    "refused": [
+      "total assets divided by total liabilities",
+      "total assets less total liabilities",
+      "总资产扣除总负债",
+      "total assets plus total liabilities",
+      "总资产和总负债之差"
+    ],
+    "supported_controls": [
+      "营业收入同比增幅和总资产",
+      "总资产和营业收入同比增幅",
+      "营业收入环比增长率和总负债",
+      "总资产和资产负债率",
+      "总资产和总负债分别是多少"
+    ]
+  },
+  "native_browser": "not executed by this review",
+  "limit": "Finite named totals and tested boundaries; not arbitrary natural language or production/live-provider approval"
+}

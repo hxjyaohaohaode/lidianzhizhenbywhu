@@ -20,6 +20,8 @@ TOPICS = (
     ('rd_ratio', ('研发', 'r&d')),
     ('roe', ('净资产收益', 'roe')),
     ('asset_turnover', ('资产周转', 'asset turnover')),
+    ('assets', ('总资产', '资产总额', '资产总计', 'total assets')),
+    ('liabilities', ('总负债', '负债总额', '负债合计', '负债总计', 'total liabilities')),
 )
 PERIOD_PATTERNS = (r'(?<!\d)((?:19|20)\d{2})\s*年\s*第?\s*([1-4一二三四])\s*季度',
                    r'(?<!\d)((?:19|20)\d{2})\s*[-/]?\s*q([1-4])(?!\d|\.\d)')
@@ -59,7 +61,8 @@ REVENUE_GROWTH_PATTERN = (r'(?:营业收入|收入|营收|销售额)\s*(?:的\s*
     +r'|revenue\s+'+GROWTH_COMPARISON
     +r'|' + GROWTH_COMPARISON + r'\s+revenue(?:\s+'+REVENUE_CHANGE_EN+r')?'
     +r'|'+REVENUE_CHANGE_EN+r'\s+(?:(?:in|of)\s+)?revenue)(?![a-z0-9_])')
-AMOUNT_TOPICS = {'revenue', 'cost', 'net_profit', 'cash_flow'}
+BALANCE_TOPICS = {'assets', 'liabilities'}
+AMOUNT_TOPICS = {'revenue', 'cost', 'net_profit', 'cash_flow', *BALANCE_TOPICS}
 RATIO_TOPICS = {key for key, _ in TOPICS} - AMOUNT_TOPICS
 # Refusal vocabulary, not currency conversion support or arbitrary ISO/NLP
 # recognition. CNY/RMB/人民币/元/yuan and the ambiguous yen/yuan sign are not
@@ -72,11 +75,94 @@ WORKSPACE_TERMS = ('证据','资料','记忆','偏好','任务','执行','断点
 
 
 def _term_pattern(term):
+    if term in ('total assets','total liabilities'):
+        return r'(?<![a-z0-9_])'+re.escape(term)+r'(?![a-z0-9_])'
     return r'(?<![a-z0-9])' + re.escape(term) + r'(?![a-z0-9])' if term.isascii() else re.escape(term)
 
 
 def matches(text, term):
     return bool(re.search(_term_pattern(term), text))
+
+
+def mask_balance_ratios(text, replacement=' '):
+    """Mask complete supported ratios, including their embedded total amount.
+
+    This is local to each occurrence: an independent total in a mixed question
+    remains visible. No ratio acquires another denominator or a new formula.
+    """
+    return re.sub(r'(?:总)?资产\s*(?:负债(?:比率|比例|率)|周转(?:率)?)'
+        r'|净资产收益(?:率)?|(?<![a-z0-9])(?:total\s+)?asset\s+turnover(?![a-z0-9])', replacement, text)
+
+
+def unsupported_balance_companion(text):
+    """Do not silently drop a separate, unrecognized conjunct from a total ask.
+
+    This bounded check is confined to new direct totals. Scope-only comparison,
+    period, unit and source continuations are not extra financial metrics.
+    """
+    if not BALANCE_TOPICS.intersection(topics_for(text)):return False
+    parts=re.split(r'以及|还有|和|与|及|、|(?<![a-z0-9_])(?:and|versus|vs)(?![a-z0-9_])',text.lower())
+    if len(parts)<2:return False
+    for part in parts:
+        if topics_for(part) or any(word in part for word in (*WORKSPACE_TERMS,'来源','公式','血缘','依据','source','formula','trace')):continue
+        for pattern in (*PERIOD_PATTERNS,*COMPARISON_PATTERNS.values()):part=re.sub(pattern,' ',part)
+        remainder=re.sub(r'核查范围|当前目标|人民币|万元|亿元|金额|总额|原值|期末|本期|本季|季度|单位|显示|展示|比较|相比|差额|变化|增加|减少|分别|核查|核对|读取|数据|是多少|多少钱|多少|请|按|用|为|是|呢'
+            r'|(?<![a-z0-9_])(?:please|compare|comparison|difference|in|cny|rmb|yuan|show|amount|value|respectively)(?![a-z0-9_])'
+            r'|[\s，,。.:：;；?？!！()（）-]','',part)
+        if remainder:return True
+    return False
+
+
+def balance_request_issue(text):
+    """Only explicit saved totals are amounts; subtypes never become totals."""
+    q=mask_balance_ratios(text.lower().replace('资产负债表',' '))
+    for term in dict(TOPICS)['leverage']:
+        q=re.sub(_term_pattern(term),' ',q) if term not in ('杠杆','偿债') else q
+    # Inspect qualifiers before removing total aliases, so “平均总资产” and
+    # “total current assets” cannot be accepted via their embedded amount.
+    subject=r'(?:总资产|资产总额|资产总计|总负债|负债总额|负债合计|负债总计|资产|负债)'
+    qualifier=r'(?:期初|年初|季度初|平均|加权平均|净|流动|非流动|固定|有息|无息|经营性|金融|短期|长期)'
+    subtype=bool(re.search(qualifier+r'\s*(?:的\s*)?'+subject+'|'+subject+r'\s*[（(]?\s*(?:的\s*)?'+qualifier,q)
+        or re.search(r'(?<![a-z0-9])(?:(?:current|non[ -]?current|fixed|net|average|opening|beginning|interest[ -]bearing|short[ -]term|long[ -]term)\s+(?:(?:of|the|quarter|period|year)\s+)*(?:total\s+)?(?:assets?|liabilit(?:y|ies))'
+            r'|total\s+(?:current|non[ -]?current|fixed|net|average|opening|beginning|interest[ -]bearing)\s+(?:assets?|liabilit(?:y|ies)))(?![a-z0-9])',q))
+    selected=BALANCE_TOPICS.intersection(topics_for(text))
+    if selected:
+        subtype=subtype or bool(re.search(r'期初|年初|季度初|平均|净额|净值|有息|无息'
+            r'|(?<![a-z0-9_])(?:opening|beginning|average|net\s+(?:amount|balance|basis|value)|interest[ -]bearing)(?![a-z0-9_])',q))
+    # A saved total is a period-end stock. It is not a net amount, average,
+    # constituent, arbitrary ratio, or new relative-growth calculation.
+    for key in BALANCE_TOPICS:
+        for term in dict(TOPICS)[key]:
+            if re.search(_term_pattern(term)+r'\s*(?:的\s*)?(?:净额|平均值|均值|净值|之比|与.+之比|占|/|÷|减去?|扣除|加上?|乘以?|除以?|[+*×−-])',q):subtype=True
+            if re.search(_term_pattern(term)+r'\s+[（(]?\s*(?:(?:at\s+)?(?:the\s+)?)?(?:beginning|opening|average|net|minus|plus|less|divided\s+by)(?![a-z0-9])',q):subtype=True
+            if re.search(r'(?:[0-9.]+\s*(?:倍|times\s+)|twice\s+|double\s+|half\s+of\s+)'+_term_pattern(term),q):subtype=True
+            q=re.sub(_term_pattern(term),' ',q)
+    if BALANCE_TOPICS.issubset(topics_for(text)) and re.search(r'差额|之差|相减|合计|sum|difference',q):subtype=True
+    remainder=bool(re.search(r'资产|负债|债务|借款'
+        r'|(?<![a-z0-9])(?:assets?|liability|liabilities|debt|loans?)(?![a-z0-9])',q)
+        or re.search(r'(?:偿债|杠杆)\s*(?:的\s*)?(?:金额|余额|总额|'+MONEY_QUESTION+r')',q))
+    if BALANCE_TOPICS.intersection(topics_for(text)):
+        remainder=remainder or bool(re.search(r'应收账款|应付账款|商誉|市盈率|营运资本|利润总额'
+            r'|(?<![a-z0-9])(?:receivables?|payables?|goodwill|ebitda|working\s+capital)(?![a-z0-9])',q))
+    if subtype or remainder or unsupported_balance_companion(text):
+        return '当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。'
+    return ''
+
+
+def unsupported_balance_forecast(text):
+    q=text.lower()
+    balance_text=mask_balance_ratios(q.replace('资产负债表',' '))
+    subject=bool(re.search(r'资产|负债|债务|(?<![a-z0-9])(?:assets?|liability|liabilities|debt)(?![a-z0-9])',balance_text))
+    return subject and any(w in q for w in ('预测','回测','forecast'))
+
+
+def unsupported_balance_transform(text):
+    q=mask_balance_ratios(text.lower())
+    # Attach the transform to its own amount subject. A supported revenue
+    # growth request elsewhere must not make an independent total unsupported.
+    transform=r'变(?:化|动)率|增幅|减幅|变动\s*(?:的|了|是|为|多少)?\s*(?:百分比|百分之|%)'
+    return any(re.search(_term_pattern(term)+r'\s*(?:的\s*)?(?:(?:同比|环比)\s*)?(?:(?:金额|总额)\s*)?(?:'+transform+')',q)
+        for key,terms in TOPICS if key in BALANCE_TOPICS for term in terms)
 
 
 def unsupported_growth(text):
@@ -94,15 +180,20 @@ def unsupported_amount_percentage(text):
     amount cannot acquire the masked ratio's following unit. The unit must
     attach locally to the amount; a ratio elsewhere does not block a mixed ask.
     """
-    remainder = re.sub(RD_RATIO_PATTERN, '\0', text.lower())
+    remainder = re.sub(RD_RATIO_PATTERN, '\0', mask_balance_ratios(text.lower(), '\0'))
     for key in ('net_margin', 'cash_ratio'):
         for term in dict(TOPICS)[key]:
             remainder = re.sub(_term_pattern(term), '\0', remainder)
     remainder = re.sub(REVENUE_GROWTH_PATTERN, '\0', remainder)
     unit = (r'\s*(?:的\s*)?(?:(?:金额|数额|总额)\s*)?'
             r'(?:(?:是|为|有|占)\s*)?' + PERCENT_QUESTION_ZH)
-    return any(re.search(_term_pattern(term) + unit, remainder)
-               for key, terms in TOPICS if key in AMOUNT_TOPICS for term in terms)
+    ordinary=any(re.search(_term_pattern(term) + unit, remainder)
+                 for key, terms in TOPICS if key in AMOUNT_TOPICS for term in terms)
+    balance_percent=any(re.search(_term_pattern(term)+r'\s*(?:(?:as|in|is|的|是|为|有|占)\s*)?(?:a\s+)?(?:percent(?:age)?\b|%)',remainder)
+        or re.search(r'(?<![a-z0-9])percent(?:age)?\s+of\s+'+_term_pattern(term),remainder)
+        or re.search(_term_pattern(term)+r'\s*(?:(?:同比|环比|增长|增加|减少|变化|下降|的|了|是|为|多少|increase|decrease|change|growth|by|in|as|a)\s*)*(?:[0-9.]+\s*)?(?:%|percent(?:age)?\b)',remainder)
+        for key,terms in TOPICS if key in BALANCE_TOPICS for term in terms)
+    return ordinary or balance_percent
 
 
 def unsupported_modifier(text):
@@ -111,11 +202,13 @@ def unsupported_modifier(text):
     Mask whole supported compounds locally before inspecting amount aliases;
     an independently requested amount elsewhere in the sentence remains visible.
     """
-    remainder=re.sub(RD_RATIO_PATTERN,' ',text)
+    remainder=re.sub(RD_RATIO_PATTERN,' ',mask_balance_ratios(text))
     for key in ('net_margin','cash_ratio'):
         for term in dict(TOPICS)[key]:
             remainder=re.sub(_term_pattern(term),' ',remainder)
     remainder=re.sub(REVENUE_GROWTH_PATTERN,' ',remainder)
+    if unsupported_balance_transform(text):
+        return '当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。'
     if unsupported_growth(text):
         return '当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。'
     if unsupported_amount_percentage(text):
@@ -123,7 +216,7 @@ def unsupported_modifier(text):
     for key,terms in TOPICS:
         if key not in AMOUNT_TOPICS:continue
         for term in terms:
-            suffix=r'\s*(?:的\s*)?(?:余额|比率|比例|占比|率|(?<![a-z0-9])(?:balance|ratio|rate)(?![a-z0-9]))'
+            suffix=r'\s*(?:的\s*)?(?:'+('' if key in BALANCE_TOPICS else '余额|')+r'比率|比例|占比|率|(?<![a-z0-9])(?:'+('' if key in BALANCE_TOPICS else 'balance|')+r'ratio|rate)(?![a-z0-9]))'
             if re.search(_term_pattern(term)+suffix,remainder):
                 return '当前问答不支持该金额指标的余额或比率口径，不能用原始期间金额替代。请单独提问已支持的金额或明确比率指标。'
     ratio_patterns=[]
@@ -156,7 +249,9 @@ def topics_for(text):
     for term in dict(TOPICS)['cash_ratio']:
         cash_text=re.sub(_term_pattern(term),' ',cash_text)
     amount_text=re.sub(RD_RATIO_PATTERN,' ',cash_text)
-    source_text={'net_profit':profit_text,'cash_flow':cash_text,'revenue':amount_text,'cost':amount_text}
+    balance_text=mask_balance_ratios(q)
+    source_text={'net_profit':profit_text,'cash_flow':cash_text,'revenue':amount_text,'cost':amount_text,
+                 'assets':balance_text,'liabilities':balance_text}
     topics=[key for key, words in TOPICS
             if any(matches(source_text.get(key,q),word) for word in words)]
     # A comparison word selects the baseline; it does not identify revenue.
@@ -178,14 +273,7 @@ def resolve_question(text, data, defaults):
     for term in ('现金流', '现金收入比', 'cash flow', 'cash ratio'):
         balance_text=re.sub(_term_pattern(term),' ',balance_text)
     unsupported_cash_balance=bool(re.search(CASH_BALANCE_PATTERN,balance_text)) or any(matches(balance_text,term) for term in CASH_BALANCE_TERMS)
-    # A liability subject is not a request for the liabilities/assets ratio.
-    # Mask supported ratio wording only; remaining amounts also block mixed
-    # requests instead of silently returning their other recognized metrics.
-    liability_text=q.replace('资产负债表',' ')  # A document name does not request its liability amount.
-    for term in ('负债率','负债比率','负债比例'):
-        liability_text=re.sub(_term_pattern(term),' ',liability_text)
-    unsupported_liability=(any(matches(liability_text,term) for term in ('负债','债务','liability','liabilities','debt'))
-        or bool(re.search(r'(?:偿债|杠杆)\s*(?:的\s*)?(?:金额|余额|总额|'+MONEY_QUESTION+r')',liability_text)))
+    balance_notice=balance_request_issue(q)
     inventory_text=re.sub(r'(?:库存|存货)\s*(?:的\s*)?周转(?:率)?'
         r'|(?<![a-z0-9])inventory\s+turnover(?![a-z0-9])',' ',q)
     unsupported_inventory_amount=bool(re.search(
@@ -256,12 +344,14 @@ def resolve_question(text, data, defaults):
         status='unsupported_topic';notice='当前财务输入和金额计算仅支持人民币（CNY，元）；不支持外币金额或汇率换算，不能用人民币数值替代所问币种。请单独提问人民币口径的已支持指标。'
     elif unsupported_cash_balance:
         status='unsupported_topic';notice='当前不支持现金余额、货币资金或现金及现金等价物余额：当前现金相关原始字段只有经营现金流，不能用期间流量或经营现金收入比代替时点余额。请核对资产负债表等原始来源；如需核查已支持的现金流或其他指标，请单独提问。'
-    elif unsupported_liability:
-        status='unsupported_topic';notice='当前问答不支持负债金额、余额或存量，也不能把未明确口径的负债问题当作资产负债率。金额与比例不能互相替代，请核对资产负债表等原始来源；如需核查已支持的资产负债率或其他指标，请单独提问。'
     elif unsupported_inventory_amount:
         status='unsupported_topic';notice='当前问答不支持库存或存货金额、余额和存量，不能用库存周转率代替金额。请核对原始财务表；如需核查已支持的库存周转率或其他指标，请单独提问。'
     elif unsupported_rd_amount:
         status='unsupported_topic';notice='当前问答不支持研发费用金额或研发支出金额，不能用研发费用率或研发占比代替。请核对原始财务表；如需核查已支持的研发费用率或其他指标，请单独提问。'
+    elif unsupported_balance_forecast(q):
+        status='unsupported_topic';notice='当前仅支持读取已保存的总资产、总负债金额，不支持资产或负债预测、回测；不会改为营业收入预测。请单独询问已保存季度的总额。'
+    elif balance_notice:
+        status='unsupported_topic';notice=balance_notice
     elif unsupported_cost_ratio:
         status='unsupported_topic';notice='当前问答不支持该成本比率，不能用营业成本金额替代比例。请单独提问已支持的营业成本金额或研发费用率。'
     elif unsupported_margin:
@@ -346,7 +436,8 @@ def analysis_dataset(snapshot):
 def plan_scope(query, data):
     resolved=resolve_question(query,data,[])
     blocked=(resolved['status'] in ('needs_clarification','period_unavailable') or resolved['unsupported_currency']
-        or unsupported_growth(query) or unsupported_amount_percentage(query))
+        or unsupported_growth(query) or unsupported_amount_percentage(query) or unsupported_balance_forecast(query)
+        or unsupported_balance_transform(query))
     return {'status':'blocked' if blocked else 'selected','period':resolved['period'],
             'topics':list(resolved['topics']),'question_status':resolved['status'],
             'explicit':resolved['period_explicit'],'requested_comparison':resolved['comparison'] if resolved['comparison_explicit'] else None,'available_periods':resolved['available_periods'],

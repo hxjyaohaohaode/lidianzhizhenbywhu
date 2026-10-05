@@ -89,6 +89,8 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
     from .source_bindings import require_dataset_content
     require_dataset_content(d)
     research_scope=plan_scope(scope_query if scope_query is not None else body.query,d['payload'])
+    if body.execution and body.execution.forecast and {'assets','liabilities'}.intersection(research_scope['topics']):
+        research_scope.update(status='blocked',notice='总资产、总负债仅支持已保存的期末金额；本次金额问题不能启用预测并默认生成收入预测。请关闭预测，或单独明确受支持的预测指标后重新预览。')
     comparison=research_scope.get('requested_comparison')
     if comparison and 'comparison' not in body.model_fields_set:
         body=body.model_copy(update={'comparison':comparison})

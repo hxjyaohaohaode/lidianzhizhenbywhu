@@ -27,6 +27,23 @@ ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
 UI_TIMEOUT_MS=10000
 
 
+def assert_copilot_entity_binding(message, proposal, plan, run, *, message_id,
+        proposal_id, thread_id, dataset_id, prior_run_ids):
+    """Corroborate the exact visible interaction, not list order or equal values."""
+    payload=proposal['payload']
+    assert message['id']==message_id and message['thread_id']==thread_id
+    assert proposal['id']==proposal_id and payload['thread_id']==thread_id
+    assert payload['source_message_id']==message_id and payload['status']=='executed'
+    assert payload['request']['text']==message['payload']['question']
+    assert plan['id']==payload['plan_id']==run['snapshot']['studio']['plan_id']
+    assert run['id']==payload['result']['run_id'] and run['id'] not in prior_run_ids
+    assert run['dataset_id']==dataset_id
+    assert message['user_id']==proposal['user_id']==plan['user_id']==run['user_id']
+    assert plan['payload']['max_calls']==payload['external_calls']==0
+    assert message['payload']['response']['external_calls']==0
+    assert run['result']['llm']['state']=='not_requested' and run['result']['llm']['calls']==[]
+
+
 def assert_form_errors(page, selector):
     """Read one DOM snapshot; a successful transition may remove the old form.
 
@@ -671,17 +688,92 @@ def main():
             unsupported.scroll_into_view_if_needed();assert not overflow();snap('ui-current-cash-balance-unsupported.png')
             record('现金余额与经营现金流混合提问明确拒绝余额替代，保留来源提示且不显示无关金额或比率')
             for index,(question,subject) in enumerate([
-                    ('总负债是多少','负债'),('库存金额是多少','库存'),
+                    ('总资产、总负债和资产负债率分别是多少','总额'),('有息负债是多少','负债'),('库存金额是多少','库存'),
                     ('研发费用是多少元','研发'),('毛利多少钱','毛利')],start=3):
-                page.locator('#assistant-query').fill(target_period+question);submit('#assistant-form')
+                page.locator('#assistant-query').fill(target_period+question)
+                if subject=='总额':
+                    with page.expect_response(lambda response: response.request.method=='POST'
+                            and re.fullmatch(r'/api/services/threads/[^/]+/messages',urlsplit(response.url).path)) as sent:
+                        submit('#assistant-form')
+                    assert sent.value.status==201
+                    stock_created=sent.value.json()
+                else:submit('#assistant-form')
                 amount_turn=page.locator('.chat-turn').nth(index);amount_turn.wait_for()
+                if subject=='总额':
+                    assert amount_turn.locator('.fact-tile').count()==3
+                    stock_message_id=amount_turn.get_attribute('data-message')
+                    stock_message=stock_created['message'];stock_thread_id=stock_created['thread']['id']
+                    assert stock_message['id']==stock_message_id and stock_message['thread_id']==stock_thread_id
+                    assert stock_message['payload']['question']==target_period+question
+                    stock_saved=client.get('/api/services/threads/'+stock_thread_id).json()
+                    assert next(m for m in stock_saved['messages'] if m['id']==stock_message_id)=={
+                        key:stock_message[key] for key in ('id','payload','created_at')}
+                    stock_response=stock_message['payload']['response'];stock_facts=stock_response['facts']
+                    assert [fact['id'] for fact in stock_facts]==['leverage','assets','liabilities']
+                    assert stock_response['external_calls']==0
+                    assert stock_facts[0]['unit']=='ratio'
+                    assert abs(stock_facts[0]['value']-growth_periods[target_period]['liabilities']/growth_periods[target_period]['assets'])<1e-12
+                    for position,key in [(1,'assets'),(2,'liabilities')]:
+                        raw=growth_periods[target_period][key];fact=stock_facts[position]
+                        assert fact['value']==raw and fact['unit']=='CNY' and fact['period']==target_period
+                        assert fact['dataset_id']==growth_data['id'] and fact['dataset_version']==growth_data['version']
+                        assert fact['input_hash']==growth_data['content_hash']
+                        assert fact['inputs']==[{'path':f'periods/{target_period}/{key}','field':key,'value':raw,'unit':'CNY'}]
+                        tile=amount_turn.locator('.fact-tile').nth(position)
+                        assert tile.locator('strong').first.inner_text()==fact['display_value']
+                        tile.locator('summary').click()
+                        assert f'periods/{target_period}/{key}' in tile.inner_text() and 'CNY' in tile.inner_text()
+                    amount_turn.locator('[data-x-action="chat-trace"]').click()
+                    amount_turn.locator('.trace-container .assistant-fact').nth(2).wait_for()
+                    assert amount_turn.locator('.trace-container .assistant-fact').count()==3
+                    for position,key in [(1,'assets'),(2,'liabilities')]:
+                        traced=amount_turn.locator('.trace-container .assistant-fact').nth(position)
+                        assert traced.locator('.assistant-fact-head strong').inner_text()==stock_facts[position]['display_value']
+                        traced.locator('summary').click()
+                        assert '期末存量' in traced.inner_text()
+                    amount_turn.scroll_into_view_if_needed();assert not overflow();snap('ui-current-recorded-balance-fields.png')
+                    amount_turn.locator('[data-x-action="chat-propose"][data-kind="research"]').click()
+                    f='form[data-service-form="proposal"]';page.locator(f).wait_for()
+                    assert page.locator(f).get_attribute('data-thread')==stock_thread_id
+                    assert page.locator(f).get_attribute('data-message')==stock_message_id
+                    assert not page.locator(f+' [name="forecast"]').is_checked()
+                    assert not page.locator(f+' [name="use_llm"]').is_checked()
+                    submit(f);page.locator('form[data-service-form="confirm-proposal"]').wait_for()
+                    stock_proposal_id=page.locator('form[data-service-form="confirm-proposal"]').get_attribute('data-id')
+                    stock_proposal=client.get('/api/services/proposals/'+stock_proposal_id).json()
+                    assert stock_proposal['payload']['source_message_id']==stock_message_id
+                    stock_plan=client.get('/api/workspace/plans/'+stock_proposal['payload']['plan_id']).json()
+                    stock_prior_runs={row['id'] for row in client.get('/api/runs').json()['items']}
+                    assert target_period in page.locator('#modal').inner_text()
+                    assert '总资产' in page.locator('#modal').inner_text() and '总负债' in page.locator('#modal').inner_text()
+                    submit('form[data-service-form="confirm-proposal"]')
+                    stock_card=page.locator('.proposal-card[data-proposal="'+stock_proposal_id+'"]')
+                    stock_card.locator('.chat-run-result [data-report-readout]').wait_for(timeout=25000)
+                    stock_confirmed=client.get('/api/services/proposals/'+stock_proposal_id).json()
+                    stock_run=client.get('/api/runs/'+stock_confirmed['payload']['result']['run_id']).json()
+                    assert_copilot_entity_binding(stock_message,stock_confirmed,stock_plan,stock_run,
+                        message_id=stock_message_id,proposal_id=stock_proposal_id,thread_id=stock_thread_id,
+                        dataset_id=growth_data['id'],prior_run_ids=stock_prior_runs)
+                    stock_readout=stock_run['result']['readout'];stock_report_facts=stock_readout['facts']
+                    assert [fact['id'] for fact in stock_report_facts]==['leverage','assets','liabilities']
+                    assert stock_readout['input_source']['dataset_hash']==growth_data['content_hash']
+                    for position,key in [(1,'assets'),(2,'liabilities')]:
+                        assert stock_report_facts[position]['value']==growth_periods[target_period][key]
+                        assert stock_report_facts[position]['unit']=='CNY'
+                    assert 'forecast' not in stock_run['result']['adaptive']['mathematical_outputs']
+                    report_view=stock_card.locator('.chat-run-result [data-report-readout]')
+                    assert '总资产' in report_view.inner_text() and '总负债' in report_view.inner_text()
+                    assert '期末存量' in report_view.inner_text()
+                    report_view.scroll_into_view_if_needed();assert not overflow();snap('ui-current-recorded-balance-report.png')
+                    record('明确总资产/总负债及资产负债率→双助手原字段、金额单位/季度/来源→预测保持未选→确认后原字段报告，未调用外部模型')
+                    continue
                 assert amount_turn.locator('.fact-tile').count()==0
                 answer=amount_turn.locator('.research-answer');answer.wait_for()
                 assert subject in answer.inner_text() and '金额' in answer.inner_text() and '不能' in answer.inner_text()
                 if subject=='负债':
-                    answer.scroll_into_view_if_needed();assert not overflow();snap('ui-current-liability-amount-unsupported.png',full_page=False)
-            record('明确负债/库存/研发/毛利金额问法保留单位含义，不以资产负债率、周转率、费用率或毛利率冒充金额')
-            for index,question in enumerate(['营业成本率','operating margin'],start=7):
+                    answer.scroll_into_view_if_needed();assert not overflow();snap('ui-current-liability-subtype-unsupported.png',full_page=False)
+            record('未保存的有息负债/库存/研发/毛利金额问法保留单位含义，不以总负债或比率冒充细分金额')
+            for index,question in enumerate(['营业成本率','operating margin'],start=8):
                 page.locator('#assistant-query').fill(target_period+' '+question);submit('#assistant-form')
                 rejected_turn=page.locator('.chat-turn').nth(index);rejected_turn.wait_for()
                 assert rejected_turn.locator('.fact-tile').count()==0

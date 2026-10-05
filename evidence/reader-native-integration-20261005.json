@@ -1,0 +1,46 @@
+{
+  "status": "complete_local_verification_passed_native_pending",
+  "base_local": "3c733750609aec9d32ef949378a67998862a7b48",
+  "base_remote": "8bd74bd997d99e93a8a546a316b67703f1f6bb0e",
+  "protected_tree_ids": {
+    "server": "f6dbb3a3f3649574237cea12aecb43fd96d14283",
+    "web": "cf73135af981a41d8e2d3e38898815b63f5b70a9"
+  },
+  "complete_product_accepted": false,
+  "native": "Not run on this candidate; L12/I10 are preparation contracts, L10 complete relogin still required",
+  "independent_candidates": [
+    "33e348 read-only comparison dirty control cleared",
+    "74e740+4de7 action evidence native source-reader contracts cleared",
+    "ef4acf copilot integrity native source/one-value-fault contracts cleared"
+  ],
+  "budgets": "unchanged pytest1500/pertest120/other240/native300/aggregate35min/product15min;17suites,37jobs per event,74 Push+PR total",
+  "started_at": "2026-10-05T20:10:53.954376+00:00",
+  "registration_fix": "L12 actual CSV name explicitly registered; successful byte-identical packaging and three rejected adverse cases independently verified. Job comments match L10/L11/L12/I10.",
+  "prior_local_result": "3524 backend all complete plus the remaining six stages passed before this registration correction; retained separately and not claimed as final.",
+  "independent_registration": "Final original missing-filename counterexample closed; all original budgets, pins and adverse checks remain.",
+  "completed_at": "2026-10-05T20:19:00.877484+00:00",
+  "backend": {
+    "collected": 3528,
+    "started": 3528,
+    "completed": 3528,
+    "exit_code": 0,
+    "subtests": 3
+  },
+  "frontend": {
+    "passed": 1042,
+    "failed": 0,
+    "skipped": 0
+  },
+  "checks": {
+    "python-compile": 0,
+    "typecheck": 0,
+    "build": 0,
+    "pytest": 0,
+    "frontend-tests": 0,
+    "source-guard": 0,
+    "full-chain-http": 0
+  },
+  "frozen_source_files": 350,
+  "frozen_source_unchanged": true,
+  "external_supplier_calls": 0
+}

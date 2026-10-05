@@ -20,7 +20,8 @@ from .business_provenance import resolve_source, assert_source_current, with_sou
 from .source_bindings import require_dataset_content
 from .historical_question_scope import saved_message_warning
 from .copilot_reports import read_proposal_run
-from .metric_facts import fact_comparison, RATIO_METRICS as _RATIO_METRICS, AMOUNT_METRICS as _AMOUNT_METRICS
+from .metric_facts import fact_comparison, raw_input_formula, balance_amount_text, BALANCE_METRICS, RATIO_METRICS as _RATIO_METRICS, AMOUNT_METRICS as _AMOUNT_METRICS
+from .report_readout import display_number
 
 
 def migrate(store):
@@ -179,7 +180,10 @@ _DEFAULT_TOPICS = {
 }
 
 
-def _metric_text(value, key, *, difference=False):
+def _metric_text(value, key, *, difference=False, amount_unit='yuan'):
+    if key in BALANCE_METRICS:
+        return (display_number(value,'CNY',amount_unit) if difference and value is not None and (value==0 or abs(value)>=.005)
+                else balance_amount_text(value,amount_unit))
     if value is None:
         return '缺少可用输入'
     if key in _RATIO_METRICS:
@@ -187,7 +191,7 @@ def _metric_text(value, key, *, difference=False):
     return f'{value:,.2f}' + ('元' if key in _AMOUNT_METRICS else '次')
 
 
-def _grounded_facts(data, result, topics, dataset, links, trend_limit):
+def _grounded_facts(data, result, topics, dataset, links, trend_limit, amount_unit='yuan'):
     """Present the existing calculator's values, without a second financial engine."""
     series = result['series']; current = series[-1]
     baseline = next((p for p in series if p['period'] == result['baseline_period']), None)
@@ -199,7 +203,7 @@ def _grounded_facts(data, result, topics, dataset, links, trend_limit):
         formula = link.get('formula', '')
         if key in _AMOUNT_METRICS:
             inputs = [{'path': f"periods/{current['period']}/{key}", 'field': key, 'value': value, 'unit': 'CNY'}]
-            formula = '已保存的单季度原始输入（标准化为元）'
+            formula = raw_input_formula(key)
         elif key == 'revenue_growth':
             formula = '本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0'
             inputs = [{'path': f"periods/{p['period']}/revenue", 'field': 'revenue', 'value': p['revenue'], 'unit': 'CNY'}
@@ -213,12 +217,20 @@ def _grounded_facts(data, result, topics, dataset, links, trend_limit):
                 point_value = point.get(key)
             trend.append({'period': point['period'], 'value': point_value})
         facts.append({'id': key, 'label': METRIC_LABELS.get(key, key), 'value': value,
-            'display_value': _metric_text(value, key), 'unit': 'ratio' if key in _RATIO_METRICS else 'CNY' if key in _AMOUNT_METRICS else 'times',
+            'display_value': _metric_text(value, key, amount_unit=amount_unit), 'unit': 'ratio' if key in _RATIO_METRICS else 'CNY' if key in _AMOUNT_METRICS else 'times',
             'period': result['current_period'], 'dataset_id': dataset['id'], 'dataset_version': dataset['version'],
             'input_hash': dataset['content_hash'], 'formula': formula, 'inputs': inputs, 'trend': trend,
             'source_url': data.get('source_url', ''), 'verification': data.get('verification', 'unverified_user_input'),
             'status': 'missing' if value is None else 'available',
             'comparison': fact_comparison(key, value, result)})
+        if BALANCE_METRICS.intersection(topics):
+            displays={item['path']:balance_amount_text(item['value']) for item in inputs if item.get('field') in BALANCE_METRICS}
+            if displays:facts[-1]['input_display_values']=displays
+        if key in BALANCE_METRICS:
+            facts[-1].update(display_amount_unit=amount_unit,period_basis='quarter_end_stock',source_display_value=balance_amount_text(value))
+            for point in facts[-1]['trend']:point['display_value']=balance_amount_text(point['value'],amount_unit)
+            change=facts[-1]['comparison']['change']
+            if change is not None:facts[-1]['comparison']['display_change']=_metric_text(change,key,difference=True,amount_unit=amount_unit)
     return facts
 
 
@@ -273,7 +285,8 @@ def answer_with_tools(store, user, identity, data, text, history):
         # supporting detail, never omissions from explicit or inherited scope.
         result = tool('financial_calculation', lambda: calculate(d, comparison), {'dataset_id': data['id'], 'version': data['version'], 'comparison': comparison})
         rows = tool('metric_lineage', lambda: lineage(d, result), {'metric_ids': topics})
-        facts = _grounded_facts(d, result, topics, data, {r['id']: r for r in rows}, 4 if depth == 'concise' else 8)
+        amount_unit=user['preferences'].get('amount_unit','yuan')
+        facts = _grounded_facts(d, result, topics, data, {r['id']: r for r in rows}, 4 if depth == 'concise' else 8, amount_unit)
         quality = tool('data_quality', lambda: quality_report(d), {'dataset_id': data['id'], 'version': data['version']})
         citations = tool('scoped_evidence_search', lambda: scoped_retrieve(store, user['id'], effective_query + ' ' + company, company, detail_limit), {'company': company, 'query': effective_query})
         insights = tool('proactive_findings', lambda: build_insights(store, user['id'], [data], identity_id=identity['id'] if identity else ''), {'dataset_id': data['id']})
@@ -296,7 +309,7 @@ def answer_with_tools(store, user, identity, data, text, history):
                 if cmp['reason']:
                     sentence += '，' + cmp['reason']
             elif cmp['change'] is not None:
-                sentence += f"，较{cmp['period']}{'增加' if cmp['change'] > 0 else '减少' if cmp['change'] < 0 else '变化'}{_metric_text(abs(cmp['change']), f['id'], difference=True)}"
+                sentence += f"，较{cmp['period']}{'增加' if cmp['change'] > 0 else '减少' if cmp['change'] < 0 else '变化'}{_metric_text(abs(cmp['change']), f['id'], difference=True, amount_unit=amount_unit)}"
             observations.append(sentence)
         answer = f"{company} {result['current_period']}：" + '；'.join(observations) + '。'
         answer += '这些数值来自当前已保存输入，未经独立真实性核验。'
@@ -305,7 +318,10 @@ def answer_with_tools(store, user, identity, data, text, history):
             answer += '目前不能仅凭这些数据确定原因，需逐项核对原始凭证与相反证据。'
         if question_scope['can_calculate']:cards.append({'kind': 'quality', 'title': '输入质量与缺口', 'data': quality})
         if any(w in q for w in ('来源', '怎么算', '公式', '血缘', '依据', 'trace')) or ip.get('output_style') == 'evidence_first':
-            cards.append({'kind': 'lineage', 'title': '字段来源与计算路径', 'data': [r for r in rows if r['id'] in topics]})
+            displays={f['id']:f['input_display_values'] for f in facts if f.get('input_display_values')}
+            selected_rows=[{**r,**({'input_display_values':displays[r['id']]} if r['id'] in displays else {})} for r in rows if r['id'] in topics]
+            direct=[{key:f[key] for key in ('id','label','value','formula','inputs','display_value','source_display_value','input_display_values')} for f in facts if f['id'] in BALANCE_METRICS]
+            cards.append({'kind': 'lineage', 'title': '字段来源与计算路径', 'data': selected_rows+direct})
         if insights['items'] and question_scope['can_calculate'] and not question_scope['period_explicit']:
             cards.append({'kind': 'findings', 'title': '需要跟进的事项', 'data': insights['items'][:detail_limit]})
         next_steps = [{'title': item['title'], 'reason': item['message'], 'route': item['target'], 'acceptance': item['acceptance']}

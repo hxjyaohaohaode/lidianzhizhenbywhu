@@ -16,8 +16,8 @@ export function reportReadout(report:Json,warning?:Json){
  if(!r)return banner+notice('此历史报告当时未记录问题级答案或原文件回执；不从当前数据补写旧依据。原冻结报告与技术记录保留。');
  const unit=r.amount_unit,source=r.input_source;
  const facts=r.facts.length?table(['目标季度',limited?'当时记录的指标':'所问指标','已保存结果','原输入与公式'],r.facts.map((f:Json)=>[
-  esc(f.period),esc(f.label),`<strong>${esc(readoutValue(f.value,f.unit,unit))}</strong>${f.reason?`<p class="micro">${esc(f.reason)}</p>`:''}`,
-  `${f.inputs.map((v:Json)=>`<p>${esc(labels[v.field??v.path?.split('/').at(-1)]??v.field??'原始输入')}：${esc(readoutValue(v.value,v.unit??'CNY',unit))}</p>`).join('')}<p class="micro">${esc(f.formula)}</p>`])):notice(r.scope_recorded?'本次问题未映射到已支持的确定性指标；一般计算不能冒充原问题的直接答案。':'旧计划未记录问题级指标范围；不重新解析历史问题。');
+  esc(f.period),esc(f.label),`<strong>${esc((['assets','liabilities'].includes(f.id)&&typeof f.display_value==='string'?f.display_value:readoutValue(f.value,f.unit,unit)))}</strong>${f.reason?`<p class="micro">${esc(f.reason)}</p>`:''}`,
+  `${f.inputs.map((v:Json)=>`<p>${esc(labels[v.field??v.path?.split('/').at(-1)]??v.field??'原始输入')}：${esc((['assets','liabilities'].includes(v.field)&&typeof v.display_value==='string'?v.display_value:readoutValue(v.value,v.unit??'CNY',unit)))}</p>`).join('')}<p class="micro">${esc(f.formula)}</p>`])):notice(r.scope_recorded?'本次问题未映射到已支持的确定性指标；一般计算不能冒充原问题的直接答案。':'旧计划未记录问题级指标范围；不重新解析历史问题。');
  return banner+`<section class="panel report-readout" data-report-readout aria-label="${limited?'当时保存的指标值':'本次问题的回答'}"><h2>${limited?'当时保存的指标值（未回答原问题的百分比要求）':'本次问题的回答'}</h2><p class="preserve-lines">${esc(report.query)}</p><p class="micro">${esc(r.notice)} 本页金额展示单位：${esc(unitName(unit))}。</p>${facts}<h3>输入来源与保存范围</h3>${table(['项目','本报告保存值'],[
   ['目标季度 / 数据修订',esc(r.period)+' / '+esc(report.dataset_version)],
   ['确认使用的文件',esc(source.file?.name??(source.source_kind==='structured_input'?'结构化编辑，没有本次文件':'当时未记录或目标季度未绑定文件'))],

@@ -9,6 +9,7 @@ from .store import digest
 
 FLOW_FIELDS = {'revenue','cost','net_profit','cash_flow','sales_volume','production_volume','manufacturing_cost','rd_expense'}
 METRIC_LABELS = {'revenue':'营业收入','cost':'营业成本','net_profit':'净利润','cash_flow':'经营现金流',
+    'assets':'总资产','liabilities':'总负债',
     'gross_margin':'毛利率','net_margin':'净利率','cash_ratio':'经营现金收入比','leverage':'资产负债率',
     'asset_turnover':'资产周转率','inventory_turnover':'库存周转率','rd_ratio':'研发强度',
     'roe':'季度净资产收益率','revenue_growth':'收入增速','margin_change':'毛利率变化'}

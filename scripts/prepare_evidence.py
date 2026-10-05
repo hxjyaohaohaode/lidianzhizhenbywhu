@@ -23,6 +23,9 @@ REPORTS=('verification.json','full-chain-http.json','native-service-browser.json
     'product-strategy-consent-audit.json','product-strategy-consent-service-command.json','product-strategy-consent-transfer-status.json',
     'product-report-history-audit.json','product-report-history-service-command.json','product-report-history-transfer-status.json',
     'product-late-actions-audit.json','product-late-actions-service-command.json','product-late-actions-transfer-status.json',
+    'product-action-evidence-audit.json','product-action-evidence-service-command.json','product-action-evidence-transfer-status.json',
+    'product-copilot-integrity-audit.json','product-copilot-integrity-service-command.json','product-copilot-integrity-transfer-status.json',
+    'product-historical-warning-audit.json','product-historical-warning-service-command.json','product-historical-warning-transfer-status.json',
     'source-guard.json','pytest.xml','pytest-progress.jsonl')
 
 

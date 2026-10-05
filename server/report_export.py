@@ -98,10 +98,10 @@ def readable_front(result):
     # Labels are sourced from the existing finite calculator catalog.
     from .report_readout import FIELD_LABELS
     def input_text(fact):
-        return '；'.join(FIELD_LABELS.get(p.get('field') or p['path'].rsplit('/',1)[-1],p.get('field','原字段'))+' '+display_number(p.get('value'),p.get('unit','CNY'),unit) for p in fact['inputs']) or '原输入路径未记录'
+        return '；'.join(FIELD_LABELS.get(p.get('field') or p['path'].rsplit('/',1)[-1],p.get('field','原字段'))+' '+(p['display_value'] if p.get('field') in ('assets','liabilities') and isinstance(p.get('display_value'),str) else display_number(p.get('value'),p.get('unit','CNY'),unit)) for p in fact['inputs']) or '原输入路径未记录'
     parts=['# '+text(result.get('title')),'## 本次问题的回答',text(result.get('query')),text(readout['notice'])]
     if readout['facts']:
-        parts.append(table(['目标季度','所问指标','已保存结果','原输入与公式'],[[f['period'],f['label'],display_number(f['value'],f['unit'],unit)+(('；'+f['reason']) if f['reason'] else ''),input_text(f)+'；'+f['formula']] for f in readout['facts']]))
+        parts.append(table(['目标季度','所问指标','已保存结果','原输入与公式'],[[f['period'],f['label'],(f['display_value'] if f.get('id') in ('assets','liabilities') and isinstance(f.get('display_value'),str) else display_number(f['value'],f['unit'],unit))+(('；'+f['reason']) if f['reason'] else ''),input_text(f)+'；'+f['formula']] for f in readout['facts']]))
     else:parts.append('本次问题未映射到已支持的确定性指标；一般计算不能冒充原问题的直接答案。' if readout['scope_recorded'] else '当时未记录可逐项对应的问题指标；不重新解析历史问题或生成替代答案。')
     parts+=['## 输入来源与保存范围',table(['项目','本报告保存值'],[
         ['目标季度',readout['period']],['数据修订',result.get('dataset_version')],

@@ -12,9 +12,9 @@ import json
 import re
 import zipfile
 try:
-    from .product_audit_config import AUDIT_SUITES, audit_suite
+    from .product_audit_config import AUDIT_SUITES, audit_suite, audit_artifact_kinds
 except ImportError:
-    from product_audit_config import AUDIT_SUITES, audit_suite
+    from product_audit_config import AUDIT_SUITES, audit_suite, audit_artifact_kinds
 
 PART_BYTES = 24 * 1024 * 1024
 MAX_PARTS = 16
@@ -79,7 +79,7 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS, suite='cont
             if name in seen_artifacts:
                 raise ValueError('Duplicate scenario artifact')
             seen_artifacts.add(name)
-            allowed_kinds = ('download', 'synthetic-input', 'fault-injection') if configuration.get('database_fault_injection') else ('download', 'synthetic-input')
+            allowed_kinds = audit_artifact_kinds(suite)
             if item.get('kind') not in allowed_kinds:
                 raise ValueError('Unknown scenario artifact kind')
             if not isinstance(item.get('sha256'), str) or not re.fullmatch(r'[0-9a-f]{64}', item['sha256']):
@@ -90,6 +90,27 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS, suite='cont
             include(target, item['sha256'])
             if target.stat().st_size != item['bytes']:
                 raise ValueError('Artifact byte length mismatch')
+        if configuration.get('legacy_history_preparation'):
+            receipts = [item for item in row.get('artifacts', []) if item.get('kind') == 'legacy-history-preparation']
+            observed = row.get('observations', {}).get('historical_preparation')
+            # A failed preparation can have written its pre-commit receipt before
+            # the transaction outcome is known. Preserve that current evidence;
+            # never call that receipt alone proof of a completed UI journey.
+            if receipts:
+                if len(receipts) != 1 or receipts[0]['file'] != 'historical-preparation.json':
+                    raise ValueError('Historical preparation requires one exact receipt file')
+                receipt = json.loads((directory / receipts[0]['file']).read_text(encoding='utf-8'))
+                if not isinstance(receipt, dict) or receipt.get('scope') != configuration['legacy_history_preparation']:
+                    raise ValueError('Historical receipt scope differs from this admitted suite')
+                if receipt.get('receipt_phase') != 'validated_before_commit' or 'commit_confirmed' in receipt:
+                    raise ValueError('Historical receipt must preserve its original pre-commit phase')
+                if observed is not None and (not isinstance(observed, dict)
+                        or observed.get('commit_confirmed') is not True
+                        or observed != {**receipt, 'commit_confirmed': True}):
+                    raise ValueError('Historical receipt differs from the observed preparation')
+            if row.get('status') == 'passed' or observed is not None:
+                if len(receipts) != 1 or not isinstance(observed, dict):
+                    raise ValueError('Completed historical preparation requires its observed receipt')
         # The current root report already embeds each scenario and its steps.
         # Do not sweep auxiliary JSON that may belong to an earlier attempt.
         fixture = row.get('observations', {}).get('fixture')

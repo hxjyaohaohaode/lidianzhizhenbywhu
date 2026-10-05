@@ -30,8 +30,25 @@ def assert_unsupported(result, amount='负债金额', ratio='资产负债率'):
 def test_liability_amounts_or_generic_requests_never_produce_ratio_facts(actor, query):
     dataset = actor.dataset(); original_hash = digest(dataset['payload'])
     for result in both_answers(actor, dataset, '2025-Q4 ' + query):
-        assert_unsupported(result)
+        if query in {'总负债是多少','负债总额','负债合计','总负债同比','负债总额与营业收入同比',
+                     '资产负债率和总负债','总负债及资产负债率','total liabilities','total liabilities and revenue year over year'}:
+            extra=(['leverage'] if '资产负债率' in query else
+                   ['revenue_growth','revenue'] if '营业收入' in query or 'revenue' in query else [])
+            assert [f['id'] for f in result['facts']]==[*extra,'liabilities']
+            assert_saved_liability(result,dataset,'2025-Q4')
+        else:assert_unsupported(result)
     assert digest(ok(actor.get('/datasets/' + dataset['id']))['payload']) == original_hash
+
+
+def assert_saved_liability(result,dataset,period):
+    fact=next(f for f in result['facts'] if f['id']=='liabilities')
+    source=next(p for p in dataset['payload']['periods'] if p['period']==period)
+    assert fact['value']==source['liabilities'] and fact['unit']=='CNY'
+    assert fact['period']==period and fact['period_basis']=='quarter_end_stock'
+    assert fact['dataset_id']==dataset['id'] and fact['dataset_version']==dataset['version']
+    assert fact['input_hash']==dataset['content_hash'] and fact['source_url']==dataset['payload']['source_url']
+    assert fact['inputs']==[{'path':f'periods/{period}/liabilities','field':'liabilities','value':source['liabilities'],'unit':'CNY'}]
+    assert fact['comparison']['change_unit']=='CNY' and '存量' in fact['formula']
 
 
 @pytest.mark.parametrize('query,comparison', [
@@ -67,7 +84,12 @@ def test_liability_amount_followup_cannot_reinherit_a_supported_ratio(actor, que
     first = ok(message(actor, t, text='2025-Q4资产负债率环比'), 201)['message']['payload']['response']
     assert [fact['id'] for fact in first['facts']] == ['leverage']
     result = ok(message(actor, t, text=query, version=2, key='liability-amount-followup'), 201)['message']['payload']['response']
-    assert_unsupported(result)
+    if query in {'那总负债呢','负债总额环比呢','继续看资产负债率和总负债','继续看 total liabilities and leverage'}:
+        expected=['leverage','liabilities'] if '资产负债率' in query or 'leverage' in query else ['liabilities']
+        assert [f['id'] for f in result['facts']]==expected
+        # This non-continuation still has no explicit quarter; do not invent one.
+        assert_saved_liability(result,dataset,'2026-Q3' if query=='负债总额环比呢' else '2025-Q4')
+    else:assert_unsupported(result)
     assert result['external_calls'] == 0
 
 

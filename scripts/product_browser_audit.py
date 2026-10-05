@@ -27,9 +27,9 @@ import uuid
 from functools import partial
 
 try:
-    from .product_audit_config import AUDIT_SUITES, audit_suite
+    from .product_audit_config import AUDIT_SUITES, audit_suite, audit_artifact_kinds
 except ImportError:
-    from product_audit_config import AUDIT_SUITES, audit_suite
+    from product_audit_config import AUDIT_SUITES, audit_suite, audit_artifact_kinds
 
 FIXTURE_COMPANY = '独立合同验收合成企业（非真实财报）'
 FIXTURE_REVENUE = 100_000
@@ -234,7 +234,7 @@ class Probe:
                 self.journal.emit('probe_step_finished', step=self.step_no, status=entry['status'])
             dump(self.directory / 'steps.json', self.steps)
 
-    def get(self, path):
+    def get(self, path, *, as_bytes=False):
         if not path.startswith('/api/') or '://' in path or '..' in path:
             raise ValueError('Corroborating reads must be same-origin API GETs.')
         # Ask Uvicorn to close supplementary connections from the first read,
@@ -244,7 +244,7 @@ class Probe:
             self.base_url + path, timeout=RUN_TIMEOUT_MS, headers={'Connection': 'close'})
         if response.status != 200:
             raise AssertionError(f'Corroborating GET {path}: HTTP {response.status}')
-        return response.json()
+        return response.body() if as_bytes else response.json()
 
     def visible(self, selector):
         target = self.page.locator(selector)
@@ -921,6 +921,16 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
     except ImportError:
         from product_report_history_journey import report_history_journey
         from product_late_action_journey import late_action_journey
+    try:
+        from .product_action_evidence_journey import action_evidence_journey
+        from .product_copilot_integrity import copilot_report_integrity
+    except ImportError:
+        from product_action_evidence_journey import action_evidence_journey
+        from product_copilot_integrity import copilot_report_integrity
+    try:
+        from .product_historical_warning_journey import historical_warning_journey
+    except ImportError:
+        from product_historical_warning_journey import historical_warning_journey
     bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
         expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
@@ -945,6 +955,10 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'L9-strategy-consent': bind(strategy_consent_journey),
         'L10-report-history': bind(report_history_journey),
         'L11-late-actions': bind(late_action_journey),
+        'L12-action-evidence': bind(action_evidence_journey),
+        'I10-copilot-report-integrity': bind(copilot_report_integrity),
+        'historical-cost-percentage-warning': partial(bind(historical_warning_journey),
+            admission_scope=audit_suite('historical-warning')['legacy_history_preparation']),
     }
 
 
@@ -975,6 +989,8 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
     report['suite'] = suite
     report['database_fault_injection_allowed'] = bool(configuration.get('database_fault_injection'))
     report['direct_database_fault_injection_used'] = False
+    report['legacy_history_preparation_allowed'] = bool(configuration.get('legacy_history_preparation'))
+    report['direct_legacy_history_preparation_used'] = False
     report_path = Path(report_path) if report_path else root / 'evidence' / configuration['report']
     dump(report_path, report)
     registry = scenario_registry(repository_root=root, data_dir=data_dir,
@@ -1012,8 +1028,7 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
                     row['external_requests'].append({'method': request.method, 'origin': url.scheme + '://' + url.netloc})
             page.on('request', request_started)
             probe = Probe(page, base_url, directory, submit_form, journal)
-            if configuration.get('database_fault_injection'):
-                probe.artifact_kinds = (*probe.artifact_kinds, 'fault-injection')
+            probe.artifact_kinds = audit_artifact_kinds(suite)
             def unexpected_dialog(dialog, row=result, current=probe):
                 if current.handle_expected_dialog(dialog):return
                 row['unexpected_dialogs'].append({'type': dialog.type, 'message': dialog.message})
@@ -1036,6 +1051,7 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
             if probe is not None:
                 result['observations'] = probe.observations
                 report['direct_database_fault_injection_used'] = report['direct_database_fault_injection_used'] or bool(probe.observations.get('database_faults'))
+                report['direct_legacy_history_preparation_used'] = report['direct_legacy_history_preparation_used'] or bool(probe.observations.get('historical_preparation'))
                 result['steps'] = probe.steps
                 result['artifacts'] = probe.artifacts
                 try:

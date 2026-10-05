@@ -185,3 +185,123 @@ def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None,
         lease.receipt['harness_receipt_failure_original_restored']=True
         raise RuntimeError('Fault receipt creation failed; original bytes restored; UI outcome was not exercised.') from exc
     return lease
+
+
+COPILOT_BAD_VALUE = 987654321
+
+
+def _copilot_native_database(probe, data_dir):
+    """Same native gate as existing fixtures; never an application endpoint."""
+    try:
+        from .product_browser_audit import require_isolated_runner
+    except ImportError:
+        from product_browser_audit import require_isolated_runner
+    require_isolated_runner(probe.base_url, data_dir)
+    if 'fault-injection' not in getattr(probe, 'artifact_kinds', ()):
+        raise RuntimeError('Probe must admit explicit fault receipts before any database access.')
+    root = Path(data_dir).resolve()
+    if root != Path(os.environ.get('DATA_DIR', '')).resolve():
+        raise RuntimeError('Fault fixture DATA_DIR differs from the running isolated service.')
+    return root / 'lidian.sqlite3'
+
+
+def _read_copilot_records(db, owner, run_id, proposal_id):
+    """Only exact current-owner synthetic completed proposal/report records."""
+    db.row_factory = sqlite3.Row
+    user = db.execute('SELECT email FROM users WHERE id=?', (owner,)).fetchone()
+    if not user or not user['email'].endswith('@test.example'):
+        raise RuntimeError('Only an explicitly synthetic test owner may be inspected.')
+    run = db.execute('SELECT * FROM runs WHERE id=? AND user_id=?', (run_id, owner)).fetchone()
+    proposal = db.execute("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='assistant_proposal'", (proposal_id, owner)).fetchone()
+    if not run or not proposal or run['state'] not in ('succeeded', 'degraded'):
+        raise RuntimeError('Expected an owned completed report and its actual proposal.')
+    payload = json.loads(proposal['payload'])
+    if payload.get('kind') != 'research' or payload.get('status') != 'executed' or payload.get('result', {}).get('run_id') != run_id:
+        raise RuntimeError('Proposal does not bind the exact completed report.')
+    plan = db.execute("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='plan'", (payload['plan_id'], owner)).fetchone()
+    if not plan or json.loads(plan['payload']).get('run_id') != run_id:
+        raise RuntimeError('Original plan does not bind the exact completed report.')
+    dataset = db.execute('SELECT * FROM datasets WHERE id=? AND user_id=?', (run['dataset_id'], owner)).fetchone()
+    return {'run': dict(run), 'proposal': dict(proposal), 'plan': dict(plan), 'dataset': dict(dataset),
+            'artifacts': [dict(row) for row in db.execute('SELECT * FROM agent_artifacts WHERE run_id=? ORDER BY id', (run_id,))],
+            'events': [dict(row) for row in db.execute('SELECT * FROM run_events WHERE run_id=? ORDER BY seq', (run_id,))],
+            'ledger': [dict(row) for row in db.execute('SELECT * FROM event_integrity WHERE run_id=? ORDER BY event_seq', (run_id,))]}
+
+
+def read_copilot_records(probe, *, data_dir, run_id, proposal_id):
+    database = _copilot_native_database(probe, data_dir)
+    owner = probe.get('/api/auth/me')['user']['id']
+    with connect_existing(database) as db:
+        db.execute('BEGIN')
+        return _read_copilot_records(db, owner, run_id, proposal_id)
+
+
+def damaged_copilot_result(raw):
+    """One semantic scalar and its exact bytes only; preserve every other byte."""
+    result = json.loads(raw)
+    canonical = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    if canonical != raw:
+        raise RuntimeError('Only the actual canonical saved-result representation is admitted.')
+    facts = result['readout']['facts']
+    if len(facts) != 1 or facts[0]['id'] != 'gross_margin' or facts[0]['value'] != .2 or facts[0]['unit'] != 'ratio':
+        raise RuntimeError('Expected exactly the viewed 20% gross-margin fact.')
+    original = json.dumps(facts[0], ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    start = raw.index(original, raw.index('"readout":'))
+    replacement = original.replace('"value":0.2', '"value":' + str(COPILOT_BAD_VALUE))
+    if replacement == original or replacement.count('"value":' + str(COPILOT_BAD_VALUE)) != 1:
+        raise RuntimeError('Cannot isolate one saved readout scalar.')
+    after = raw[:start] + replacement + raw[start + len(original):]
+    expected = json.loads(raw)
+    expected['readout']['facts'][0]['value'] = COPILOT_BAD_VALUE
+    if json.loads(after) != expected:
+        raise RuntimeError('Fault would change more than the declared scalar.')
+    return after
+
+
+def inject_copilot_report_result(probe, *, data_dir, run_id, proposal_id, expected_records):
+    """One unrepaired runs.result fault after all healthy UI readings.
+
+    This narrow extension is needed because report_artifact changes a different
+    stored object and cannot expose an altered saved result in raw disclosure.
+    All original rows, bytes, hashes and a precise delta are carried in a receipt.
+    Receipt failure rolls back the uncommitted transaction; no restore API exists.
+    """
+    database = _copilot_native_database(probe, data_dir)
+    if probe.observations.get('database_faults'):
+        raise RuntimeError('This scenario admits exactly one declared database fault.')
+    owner = probe.get('/api/auth/me')['user']['id']
+    audit = probe.get('/api/workspace/runs/' + run_id + '/audit')
+    if audit['report_integrity'] != {'valid': True, 'format': 'studio', 'failures': []} or audit['report_hash_valid'] is not True:
+        raise RuntimeError('The actually viewed original report must still pass its audit.')
+    with connect_existing(database) as db:
+        db.execute('BEGIN IMMEDIATE')
+        before = _read_copilot_records(db, owner, run_id, proposal_id)
+        if before != expected_records:
+            raise RuntimeError('Original report, proposal or protected source changed after healthy reading.')
+        old = before['run']['result']
+        after = damaged_copilot_result(old)
+        final = [row for row in before['artifacts'] if row['node'] == 'report']
+        if len(final) != 1 or final[0]['payload'] != old or final[0]['content_hash'] != sha(old):
+            raise RuntimeError('Original result must match its intact final artifact bytes and hash.')
+        changed = db.execute('UPDATE runs SET result=? WHERE id=? AND user_id=? AND result=? AND snapshot=? AND payload=? AND state=? AND updated_at=?',
+            (after, run_id, owner, old, before['run']['snapshot'], before['run']['payload'], before['run']['state'], before['run']['updated_at'])).rowcount
+        if changed != 1:
+            raise RuntimeError('Exact original report changed; no fixture retry is permitted.')
+        current = _read_copilot_records(db, owner, run_id, proposal_id)
+        expected = json.loads(json.dumps(before))
+        expected['run']['result'] = after
+        if current != expected:
+            raise RuntimeError('Fixture altered an undeclared record; transaction rolled back.')
+        receipt = {'fixture': 'temporary_native_database_corruption', 'kind': 'copilot_report_result',
+            'owner_id': owner, 'table': 'runs', 'record_id': run_id, 'proposal_id': proposal_id, 'column': 'result',
+            'changed_json_path': 'readout.facts[0].value', 'before_value': .2, 'after_value': COPILOT_BAD_VALUE,
+            'before_sha256': sha(old), 'after_sha256': sha(after), 'restored': False,
+            'ui_mutation_claimed': False, 'application_endpoint_added': False,
+            'original_records': before, 'damaged_records': current}
+        path = Path(probe.directory) / 'copilot-result-fault-original-and-damaged.json'
+        with path.open('x', encoding='utf-8') as stream:
+            json.dump(receipt, stream, ensure_ascii=False, sort_keys=True, indent=2)
+        probe.record_artifact(path, kind='fault-injection')
+    probe.observations.setdefault('database_faults', []).append({key: value for key, value in receipt.items()
+        if key not in ('original_records', 'damaged_records')})
+    return receipt

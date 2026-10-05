@@ -1,7 +1,31 @@
 """Presentation metadata for existing calculator outputs, not financial formulas."""
+from decimal import Decimal
 
 RATIO_METRICS = {'gross_margin', 'net_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'rd_ratio', 'roe', 'margin_change'}
-AMOUNT_METRICS = {'revenue', 'cost', 'net_profit', 'cash_flow'}
+BALANCE_METRICS = {'assets', 'liabilities'}
+AMOUNT_METRICS = {'revenue', 'cost', 'net_profit', 'cash_flow', *BALANCE_METRICS}
+
+
+def raw_input_formula(key):
+    return ('已保存的季度期末存量（标准化为人民币元；累计转单季不差分）' if key in BALANCE_METRICS else
+            '已保存的单季度原始输入（标准化为元）')
+
+
+def balance_amount_text(value, amount_unit='yuan'):
+    """Display the original decimal value without rounding a nonzero to zero.
+
+    New balance facts freeze this presentation. Existing generic report/export
+    formatting stays unchanged, including historical artifacts without it.
+    """
+    if value is None:return '未提供'
+    exponent,label={'yuan':(0,'元'),'wan':(-4,'万元'),'yi':(-8,'亿元')}.get(amount_unit,(0,'元'))
+    scaled=Decimal(str(value)).scaleb(exponent)
+    if scaled and scaled.adjusted() < -12:
+        rendered=format(scaled.normalize(),'e')
+    else:
+        rendered=format(scaled,',f')
+        if '.' in rendered:rendered=rendered.rstrip('0').rstrip('.')
+    return rendered+' '+label
 
 
 def fact_comparison(key, value, analysis):

@@ -1,0 +1,120 @@
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 26%]
+........................................................................ [ 28%]
+........................................................................ [ 30%]
+........................................................................ [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........................................................................ [ 51%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 57%]
+........................................................................ [ 59%]
+........................................................................ [ 61%]
+........................................................................ [ 63%]
+..................................................................... [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 69%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 79%]
+........................................................................ [ 81%]
+....................................................................F... [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 87%]
+........................................................................ [ 89%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+....                                                                     [100%]
+=================================== FAILURES ===================================
+_____ test_saved_gap_reader_matches_real_outputs_without_changing_exports ______
+
+actor = <conftest.Actor object at 0x7fab563e3170>
+example = {'amount_unit': 'yuan', 'company': '示例锂电企业（虚构）', 'currency': 'CNY', 'name': '示例企业 · 六季度经营数据', ...}
+
+    
+    @pytest.mark.parametrize('zero_volumes', [False, True])
+    def test_saved_gap_reader_matches_real_outputs_without_changing_exports(actor, example, zero_volumes):
+        # Same missing-input shape observed in the 8bd native screenshot. These are
+        # isolated synthetic test inputs, never runtime company data.
+        for period in example['periods']:
+            if zero_volumes:
+                period['sales_volume'] = period['production_volume'] = 0
+            else:
+                for key in ('sales_volume', 'production_volume', 'lithium_price', 'manufacturing_cost', 'industry_volatility'):
+                    period[key] = None
+        example['source_kind'] = 'user_provided'
+        dataset = ok(actor.post('/datasets', json=example), 201)
+        run = execute(actor, plan(actor, dataset, execution={}))
+        report = run['result']
+        gaps = report['adaptive']['mathematical_outputs']['gaps']
+        assert {p['field'] for p in gaps['items']} == ({'gmps:unit_cost', 'gmps:sales_production'} if zero_volumes else {
+            'sales_volume', 'production_volume', 'gmps:lithium', 'gmps:unit_cost',
+            'gmps:sales_production', 'gmps:manufacturing', 'gmps:volatility'})
+        assert [(i['node'], i['state'], i['reason']) for i in report['adaptive']['reflection']['issues']] == [
+            ('evidence', 'missing', None), ('gaps', 'needs_input', None)]
+        store = actor.client.app.state.store
+        exports, tables, changes = original_export_bytes(store, run), frozen_tables(store), store.db.total_changes
+        result = subprocess.run(['node', '--input-type=module', '-e', """
+            import fs from 'node:fs';
+            import assert from 'node:assert/strict';
+            import {adaptiveReport} from './web/dist/views-orchestrator.js';
+            const report=JSON.parse(fs.readFileSync(0,'utf8')),before=JSON.stringify(report);
+            const html=adaptiveReport(report);
+            assert.equal(JSON.stringify(report),before);
+            process.stdout.write(html);
+>       """], cwd=ROOT, input=json.dumps(report, ensure_ascii=False), text=True, capture_output=True, check=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+E       assert '已列出 7 项待补事项' in '<section class="panel adaptive-results"><div class="section-heading row-between"><h2>建模结果与执行复盘</h2><button type="butt...successful_calls&quot;: 0\n}</pre></details><p class="micro">以上值直接来自本次已保存产物，不随当前数据修订重新计算。自然语言验收标准仍须人工确认。</p></section>'
+
+tests/test_report_gap_reader.py:44: AssertionError
+=============================== warnings summary ===============================
+../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_product_read_transport.py::test_uvicorn_honors_close_without_idle_pool_or_timing_change[False]
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_product_read_transport.py::test_uvicorn_honors_close_without_idle_pool_or_timing_change[False]
+  /workspace/scratch/ace785cd6eaa/lidian-venv/lib/python3.12/site-packages/uvicorn/protocols/websockets/websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 10 durations =============================
+3.00s call     tests/test_comparison_cleanup.py::test_account_comparison_capacity_is_released_only_by_valid_owned_delete
+2.95s call     tests/test_comparison_cleanup.py::test_existing_owner_delete_can_cleanup_orphan_without_reviving_identity
+2.69s call     tests/test_pytest_diagnostics.py::test_watchdog_cancellation_cannot_kill_the_following_test
+2.65s call     tests/test_pytest_diagnostics.py::test_watchdog_budget_is_not_reset_between_setup_call_and_teardown
+1.82s setup    tests/test_ratio_amount_question_scope.py::test_explicit_inventory_amounts_never_become_turnover_or_unrelated_facts[\u5b58\u8d27\u91d1\u989d]
+1.68s setup    tests/test_workflows.py::test_rollback_backup_and_reload
+1.64s setup    tests/test_ratio_amount_question_scope.py::test_explicit_rd_amounts_never_become_ratios_or_unrelated_facts[\u7814\u53d1\u5f00\u652f]
+1.64s call     tests/test_saved_comparisons.py::test_historical_common_quarter_and_asof_adopted_exactly
+1.59s setup    tests/test_workspace_api.py::test_new_object_reads_cannot_cross_accounts[/workspace/plans/{plan}]
+1.59s setup    tests/test_recovery_admission.py::test_corrupt_history_never_becomes_a_new_live_revision[invalid_payload_with_hash]
+=========================== short test summary info ============================
+FAILED tests/test_report_gap_reader.py::test_saved_gap_reader_matches_real_outputs_without_changing_exports
+1 failed, 3528 passed, 3 warnings, 3 subtests passed in 460.54s (0:07:40)

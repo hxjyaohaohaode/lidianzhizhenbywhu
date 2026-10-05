@@ -63,6 +63,32 @@ def test_json_failure_propagates_unchanged_without_retry(tmp_path):
     response.json.assert_called_once_with()
 
 
+def test_exact_export_bytes_use_the_same_single_get_connection_contract(tmp_path):
+    original = b'\xef\xbb\xbf# Original report\r\n\x00'
+    response = SimpleNamespace(status=200, body=Mock(return_value=original), json=Mock())
+    request = SimpleNamespace(get=Mock(return_value=response))
+    path = '/api/runs/synthetic-id/export?format=md'
+    assert make_probe(tmp_path, request).get(path, as_bytes=True) is original
+    assert request.get.call_args_list == [expected_call(path)]
+    response.body.assert_called_once_with()
+    response.json.assert_not_called()
+
+
+@pytest.mark.parametrize('phase', ['transport', 'status', 'body'])
+def test_export_bytes_fail_once_without_decoder_fallback_or_replay(tmp_path, phase):
+    error = OSError('isolated binary read failure')
+    response = SimpleNamespace(status=409 if phase == 'status' else 200,
+        body=Mock(side_effect=error), json=Mock())
+    request = SimpleNamespace(get=Mock(side_effect=error if phase == 'transport' else None,
+                                      return_value=response))
+    path = '/api/runs/synthetic-id/export?format=json'
+    with pytest.raises(AssertionError if phase == 'status' else OSError):
+        make_probe(tmp_path, request).get(path, as_bytes=True)
+    assert request.get.call_args_list == [expected_call(path)]
+    assert response.body.call_count == (phase == 'body')
+    response.json.assert_not_called()
+
+
 @pytest.mark.parametrize('path', ['https://example.com/api/me', '//example.com/api/me',
                                 '/api/../auth/me', '/api/me?next=https://example.com', '/other'])
 def test_existing_path_guard_still_rejects_before_any_request(tmp_path, path):

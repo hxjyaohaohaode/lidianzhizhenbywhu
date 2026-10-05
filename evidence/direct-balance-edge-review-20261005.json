@@ -1,0 +1,5466 @@
+{
+  "executed_at": "2026-10-05T21:38:12.970060+00:00",
+  "source_sha256": {
+    "server/question_scope.py": "6503cf2a00ef79ff61f0c9586cc6c3885b4d1fc894b0b73d21c60f75611e3297",
+    "server/metric_facts.py": "e9803572391dde1d26057b4f9a21993e56126ae0990ec066e3bc90423583f579",
+    "server/intelligence.py": "1e32c72108a9ca4b4df94fcdc0e87a87588359f44d8c6ed5e41260495bb32156",
+    "server/copilot.py": "6aa57ba04b73c444177480843a3f4621271d3a4e8f4dbe056f5d5bb3a2220dc0",
+    "server/report_readout.py": "6d54662383407316825a980cbb90e88125ca52763375cc40ead6846d5fb7ea70",
+    "server/report_export.py": "387a828589646fa0a9bb3cd9a7c6b7c36395bceeb465a42fc1084eb902cc5536",
+    "web/assistant.ts": "820c6ec7a3a9dcf3af121158c6aad4f96b372d8d26fc1d9952b931baf715dc66",
+    "web/copilot-ui.ts": "40d6be514699b2d58b32727ede0f1c5ccbda7b56eb79bc25d88b7caef3c3181d",
+    "web/report-readout.ts": "56d2971810738a445671b71828af88b0bc31ecf97a54ff2e22d940ac46c0cd93",
+    "web/metric-comparison.ts": "4b6819bfdf9148977db10a35a08e43ede3d8f9ddcd1e2d4f1c2d9e8104ca9b68"
+  },
+  "method": "Actual authenticated isolated two-assistant APIs under offline guard. Review counterexamples preserved; no native run.",
+  "cases": [
+    {
+      "source_capture": "owner-edge-baseline.json",
+      "source_capture_sha256": "d7570541a7c56d2b0d2d5ca6bcec9348b7c9d55d78616157d76faf156eeb1aad",
+      "question": "2025-Q4总资产变化率是多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：总资产为0 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-baseline.json",
+      "source_capture_sha256": "d7570541a7c56d2b0d2d5ca6bcec9348b7c9d55d78616157d76faf156eeb1aad",
+      "question": "2025-Q4总负债变化率是多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "liabilities"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "liabilities",
+              "label": "总负债",
+              "value": 0.001,
+              "period": "2025-Q4",
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/liabilities",
+                  "value": 0.001,
+                  "field": "liabilities",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.001
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.001
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.001
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "liabilities"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：总负债为0 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "liabilities",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "liabilities",
+                  "path": "periods/2025-Q4/liabilities",
+                  "unit": "CNY",
+                  "value": 0.001
+                }
+              ],
+              "label": "总负债",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.001
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.001
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.001
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.001,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-baseline.json",
+      "source_capture_sha256": "d7570541a7c56d2b0d2d5ca6bcec9348b7c9d55d78616157d76faf156eeb1aad",
+      "question": "2025-Q4总资产同比增幅是多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": true,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": true,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：总资产为0 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": true,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": true,
+            "default_overview": false,
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-baseline.json",
+      "source_capture_sha256": "d7570541a7c56d2b0d2d5ca6bcec9348b7c9d55d78616157d76faf156eeb1aad",
+      "question": "2025-Q4总负债增长率是多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。",
+          "facts": []
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-baseline.json",
+      "source_capture_sha256": "d7570541a7c56d2b0d2d5ca6bcec9348b7c9d55d78616157d76faf156eeb1aad",
+      "question": "2025-Q4总资产和总负债分别多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            },
+            {
+              "id": "liabilities",
+              "label": "总负债",
+              "value": 0.001,
+              "period": "2025-Q4",
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/liabilities",
+                  "value": 0.001,
+                  "field": "liabilities",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.001
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.001
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.001
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：总资产为0 万元；总负债为0 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "223ad80084394d69a3a9db63d1b02635",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "liabilities",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "liabilities",
+                  "path": "periods/2025-Q4/liabilities",
+                  "unit": "CNY",
+                  "value": 0.001
+                }
+              ],
+              "label": "总负债",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.001
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.001
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.001
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.001,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "input_display_values": {
+                "periods/2025-Q4/assets": "0.004 元"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0.0000004 万元",
+              "source_display_value": "0.004 元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            },
+            {
+              "id": "liabilities",
+              "label": "总负债",
+              "value": 0.001,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/liabilities",
+                  "value": 0.001,
+                  "field": "liabilities",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.001,
+                  "display_value": "0.0000001 万元"
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.001,
+                  "display_value": "0.0000001 万元"
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.001,
+                  "display_value": "0.0000001 万元"
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "input_display_values": {
+                "periods/2025-Q4/liabilities": "0.001 元"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0.0000001 万元",
+              "source_display_value": "0.001 元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：总资产为0.0000004 万元；总负债为0.0000001 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0.0000004 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_display_values": {
+                "periods/2025-Q4/assets": "0.004 元"
+              },
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_display_value": "0.004 元",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0.0000001 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "liabilities",
+              "input_display_values": {
+                "periods/2025-Q4/liabilities": "0.001 元"
+              },
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "liabilities",
+                  "path": "periods/2025-Q4/liabilities",
+                  "unit": "CNY",
+                  "value": 0.001
+                }
+              ],
+              "label": "总负债",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_display_value": "0.001 元",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "display_value": "0.0000001 万元",
+                  "period": "2025-Q2",
+                  "value": 0.001
+                },
+                {
+                  "display_value": "0.0000001 万元",
+                  "period": "2025-Q3",
+                  "value": 0.001
+                },
+                {
+                  "display_value": "0.0000001 万元",
+                  "period": "2025-Q4",
+                  "value": 0.001
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.001,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-transform-baseline.json",
+      "source_capture_sha256": "20ea752be28c3797ddfc6a48ad8b1be9dbafc4d9382d78d1dd6b553f118fb85d",
+      "question": "2025-Q4 total liabilities as a percentage of total assets",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-transform-baseline.json",
+      "source_capture_sha256": "20ea752be28c3797ddfc6a48ad8b1be9dbafc4d9382d78d1dd6b553f118fb85d",
+      "question": "2025-Q4 what percentage of total assets is total liabilities",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-transform-baseline.json",
+      "source_capture_sha256": "20ea752be28c3797ddfc6a48ad8b1be9dbafc4d9382d78d1dd6b553f118fb85d",
+      "question": "2025-Q4 total assets growth percentage",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-transform-baseline.json",
+      "source_capture_sha256": "20ea752be28c3797ddfc6a48ad8b1be9dbafc4d9382d78d1dd6b553f118fb85d",
+      "question": "2025-Q4总资产变动百分比是多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "aa805a8f73f1474ba3bffe9d49960215",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：总资产为0 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "aa805a8f73f1474ba3bffe9d49960215",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-transform-baseline.json",
+      "source_capture_sha256": "20ea752be28c3797ddfc6a48ad8b1be9dbafc4d9382d78d1dd6b553f118fb85d",
+      "question": "2025-Q4总资产变动率是多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "aa805a8f73f1474ba3bffe9d49960215",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：总资产为0 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "aa805a8f73f1474ba3bffe9d49960215",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前总资产、总负债只支持已保存金额及同/环比金额差额；不支持变化率、变动率、增幅或变动百分比，不能用总额或金额差额代替。请单独询问已保存总额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "owner-edge-transform-baseline.json",
+      "source_capture_sha256": "20ea752be28c3797ddfc6a48ad8b1be9dbafc4d9382d78d1dd6b553f118fb85d",
+      "question": "2025-Q4总资产%是多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "lidian-direct-balance-operators-independent.json",
+      "source_capture_sha256": "3551ec3dc250558c10220b75d79c307b4100abb297249fbda902f8d3e81c62ee",
+      "question": "2024-Q4 total assets divided by total liabilities",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对原字段问答合成测试企业的2024-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 2500000.01,
+              "period": "2024-Q4",
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/assets",
+                  "value": 2500000.01,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 1000000.0,
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "250.000001 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            },
+            {
+              "id": "liabilities",
+              "label": "总负债",
+              "value": 500000.0,
+              "period": "2024-Q4",
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/liabilities",
+                  "value": 500000.0,
+                  "field": "liabilities",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 100000.0,
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "50 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "原字段问答合成测试企业 2024-Q4：总资产为250.000001 万元，较2023-Q4增加150.000001 万元；总负债为50 万元，较2023-Q4增加40 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 1000000.0
+              },
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "250.000001 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2024-Q4/assets",
+                  "unit": "CNY",
+                  "value": 2500000.01
+                }
+              ],
+              "label": "总资产",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "unit": "CNY",
+              "value": 2500000.01,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 100000.0
+              },
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "50 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "liabilities",
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "liabilities",
+                  "path": "periods/2024-Q4/liabilities",
+                  "unit": "CNY",
+                  "value": 500000.0
+                }
+              ],
+              "label": "总负债",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 500000.0,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "lidian-direct-balance-operators-independent.json",
+      "source_capture_sha256": "3551ec3dc250558c10220b75d79c307b4100abb297249fbda902f8d3e81c62ee",
+      "question": "2024-Q4 total assets less total liabilities",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对原字段问答合成测试企业的2024-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 2500000.01,
+              "period": "2024-Q4",
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/assets",
+                  "value": 2500000.01,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 1000000.0,
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "250.000001 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            },
+            {
+              "id": "liabilities",
+              "label": "总负债",
+              "value": 500000.0,
+              "period": "2024-Q4",
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/liabilities",
+                  "value": 500000.0,
+                  "field": "liabilities",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 100000.0,
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "50 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "原字段问答合成测试企业 2024-Q4：总资产为250.000001 万元，较2023-Q4增加150.000001 万元；总负债为50 万元，较2023-Q4增加40 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 1000000.0
+              },
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "250.000001 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2024-Q4/assets",
+                  "unit": "CNY",
+                  "value": 2500000.01
+                }
+              ],
+              "label": "总资产",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "unit": "CNY",
+              "value": 2500000.01,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 100000.0
+              },
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "50 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "liabilities",
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "liabilities",
+                  "path": "periods/2024-Q4/liabilities",
+                  "unit": "CNY",
+                  "value": 500000.0
+                }
+              ],
+              "label": "总负债",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 500000.0,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "lidian-direct-balance-operators-independent.json",
+      "source_capture_sha256": "3551ec3dc250558c10220b75d79c307b4100abb297249fbda902f8d3e81c62ee",
+      "question": "2024-Q4总资产扣除总负债",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对原字段问答合成测试企业的2024-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 2500000.01,
+              "period": "2024-Q4",
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/assets",
+                  "value": 2500000.01,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 1000000.0,
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "250.000001 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            },
+            {
+              "id": "liabilities",
+              "label": "总负债",
+              "value": 500000.0,
+              "period": "2024-Q4",
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/liabilities",
+                  "value": 500000.0,
+                  "field": "liabilities",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 100000.0,
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "50 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "原字段问答合成测试企业 2024-Q4：总资产为250.000001 万元，较2023-Q4增加150.000001 万元；总负债为50 万元，较2023-Q4增加40 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 1000000.0
+              },
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "250.000001 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2024-Q4/assets",
+                  "unit": "CNY",
+                  "value": 2500000.01
+                }
+              ],
+              "label": "总资产",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "unit": "CNY",
+              "value": 2500000.01,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 100000.0
+              },
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "50 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "liabilities",
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "liabilities",
+                  "path": "periods/2024-Q4/liabilities",
+                  "unit": "CNY",
+                  "value": 500000.0
+                }
+              ],
+              "label": "总负债",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 500000.0,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "lidian-direct-balance-operators-independent.json",
+      "source_capture_sha256": "3551ec3dc250558c10220b75d79c307b4100abb297249fbda902f8d3e81c62ee",
+      "question": "2024-Q4 total assets plus total liabilities",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "source_capture": "lidian-direct-balance-operators-independent.json",
+      "source_capture_sha256": "3551ec3dc250558c10220b75d79c307b4100abb297249fbda902f8d3e81c62ee",
+      "question": "2024-Q4总资产和总负债分别是多少",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对原字段问答合成测试企业的2024-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 2500000.01,
+              "period": "2024-Q4",
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/assets",
+                  "value": 2500000.01,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 1000000.0,
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "250.000001 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            },
+            {
+              "id": "liabilities",
+              "label": "总负债",
+              "value": 500000.0,
+              "period": "2024-Q4",
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/liabilities",
+                  "value": 500000.0,
+                  "field": "liabilities",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 100000.0,
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "50 万元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "原字段问答合成测试企业 2024-Q4：总资产为250.000001 万元，较2023-Q4增加150.000001 万元；总负债为50 万元，较2023-Q4增加40 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 1000000.0
+              },
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "250.000001 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2024-Q4/assets",
+                  "unit": "CNY",
+                  "value": 2500000.01
+                }
+              ],
+              "label": "总资产",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "unit": "CNY",
+              "value": 2500000.01,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 100000.0
+              },
+              "dataset_id": "926a86887a9840faa9c9ecbb1fcf4204",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "50 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "liabilities",
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "liabilities",
+                  "path": "periods/2024-Q4/liabilities",
+                  "unit": "CNY",
+                  "value": 500000.0
+                }
+              ],
+              "label": "总负债",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 500000.0,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对原字段问答合成测试企业的2024-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 2500000.01,
+              "period": "2024-Q4",
+              "dataset_id": "449ac72b6602465c867f694d6aca4b4e",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/assets",
+                  "value": 2500000.01,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 1000000.0,
+                  "display_value": "100 万元"
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 1200000.0,
+                  "display_value": "120 万元"
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 1400000.0,
+                  "display_value": "140 万元"
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": 1600000.0,
+                  "display_value": "160 万元"
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 2500000.01,
+                  "display_value": "250.000001 万元"
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 1000000.0,
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": "",
+                "display_change": "150.000001 万元"
+              },
+              "input_display_values": {
+                "periods/2024-Q4/assets": "2,500,000.01 元"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "250.000001 万元",
+              "source_display_value": "2,500,000.01 元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            },
+            {
+              "id": "liabilities",
+              "label": "总负债",
+              "value": 500000.0,
+              "period": "2024-Q4",
+              "dataset_id": "449ac72b6602465c867f694d6aca4b4e",
+              "dataset_version": 1,
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q4/liabilities",
+                  "value": 500000.0,
+                  "field": "liabilities",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2023-Q4",
+                  "value": 100000.0,
+                  "display_value": "10 万元"
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 200000.0,
+                  "display_value": "20 万元"
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.0,
+                  "display_value": "0 万元"
+                },
+                {
+                  "period": "2024-Q3",
+                  "value": null,
+                  "display_value": "未提供"
+                },
+                {
+                  "period": "2024-Q4",
+                  "value": 500000.0,
+                  "display_value": "50 万元"
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2023-Q4",
+                "operation": "difference",
+                "value": 100000.0,
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": "",
+                "display_change": "40 万元"
+              },
+              "input_display_values": {
+                "periods/2024-Q4/liabilities": "500,000 元"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "50 万元",
+              "source_display_value": "500,000 元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "assets",
+              "liabilities"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "原字段问答合成测试企业 2024-Q4：总资产为250.000001 万元，较2023-Q4增加150.000001 万元；总负债为50 万元，较2023-Q4增加40 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": 1500000.0099999998,
+                "change_unit": "CNY",
+                "display_change": "150.000001 万元",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 1000000.0
+              },
+              "dataset_id": "449ac72b6602465c867f694d6aca4b4e",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "250.000001 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_display_values": {
+                "periods/2024-Q4/assets": "2,500,000.01 元"
+              },
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2024-Q4/assets",
+                  "unit": "CNY",
+                  "value": 2500000.01
+                }
+              ],
+              "label": "总资产",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_display_value": "2,500,000.01 元",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "display_value": "100 万元",
+                  "period": "2023-Q4",
+                  "value": 1000000.0
+                },
+                {
+                  "display_value": "120 万元",
+                  "period": "2024-Q1",
+                  "value": 1200000.0
+                },
+                {
+                  "display_value": "140 万元",
+                  "period": "2024-Q2",
+                  "value": 1400000.0
+                },
+                {
+                  "display_value": "160 万元",
+                  "period": "2024-Q3",
+                  "value": 1600000.0
+                },
+                {
+                  "display_value": "250.000001 万元",
+                  "period": "2024-Q4",
+                  "value": 2500000.01
+                }
+              ],
+              "unit": "CNY",
+              "value": 2500000.01,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": 400000.0,
+                "change_unit": "CNY",
+                "display_change": "40 万元",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2023-Q4",
+                "reason": "",
+                "status": "available",
+                "value": 100000.0
+              },
+              "dataset_id": "449ac72b6602465c867f694d6aca4b4e",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "50 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "liabilities",
+              "input_display_values": {
+                "periods/2024-Q4/liabilities": "500,000 元"
+              },
+              "input_hash": "29307508dc4122df36965b3e5f97533f44643931842c26dc502e9eadfb03052d",
+              "inputs": [
+                {
+                  "field": "liabilities",
+                  "path": "periods/2024-Q4/liabilities",
+                  "unit": "CNY",
+                  "value": 500000.0
+                }
+              ],
+              "label": "总负债",
+              "period": "2024-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_display_value": "500,000 元",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "display_value": "10 万元",
+                  "period": "2023-Q4",
+                  "value": 100000.0
+                },
+                {
+                  "display_value": "20 万元",
+                  "period": "2024-Q1",
+                  "value": 200000.0
+                },
+                {
+                  "display_value": "0 万元",
+                  "period": "2024-Q2",
+                  "value": 0.0
+                },
+                {
+                  "display_value": "未提供",
+                  "period": "2024-Q3",
+                  "value": null
+                },
+                {
+                  "display_value": "50 万元",
+                  "period": "2024-Q4",
+                  "value": 500000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 500000.0,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "source_capture": "lidian-direct-balance-operators-independent.json",
+      "source_capture_sha256": "3551ec3dc250558c10220b75d79c307b4100abb297249fbda902f8d3e81c62ee",
+      "question": "2024-Q4总资产和总负债之差",
+      "before": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      },
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q4",
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2023-Q4",
+              "2024-Q1",
+              "2024-Q2",
+              "2024-Q3",
+              "2024-Q4",
+              "2025-Q1"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2024-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "question": "2025-Q4 opening balance of total assets",
+      "expected_topics": [],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "question": "2025-Q4 average balance of total assets",
+      "expected_topics": [],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "question": "2025-Q4 net amount of total liabilities",
+      "expected_topics": [],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "question": "2025-Q4总负债按净额列示",
+      "expected_topics": [],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "question": "2025-Q4总资产按期初余额",
+      "expected_topics": [],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "question": "2025-Q4 total assets and net profit",
+      "expected_topics": [
+        "net_profit",
+        "assets"
+      ],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "net_profit",
+              "assets"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "net_profit",
+              "label": "净利润",
+              "value": 1435000.0,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "原始季度录入值",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/net_profit",
+                  "value": 1435000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 1440000.0
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 1444800.0
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 1435000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              }
+            },
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "input_display_values": {
+                "periods/2025-Q4/assets": "0.004 元"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0.0000004 万元",
+              "source_display_value": "0.004 元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "net_profit",
+              "assets"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：净利润为1,435,000.00元；总资产为0.0000004 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_value": "1,435,000.00元",
+              "formula": "已保存的单季度原始输入（标准化为元）",
+              "id": "net_profit",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "net_profit",
+                  "path": "periods/2025-Q4/net_profit",
+                  "unit": "CNY",
+                  "value": 1435000.0
+                }
+              ],
+              "label": "净利润",
+              "period": "2025-Q4",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 1440000.0
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 1444800.0
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 1435000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 1435000.0,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0.0000004 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_display_values": {
+                "periods/2025-Q4/assets": "0.004 元"
+              },
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_display_value": "0.004 元",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "question": "2025-Q4总资产和营业收入同比增幅分别是多少",
+      "expected_topics": [
+        "revenue_growth",
+        "revenue",
+        "assets"
+      ],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "revenue_growth",
+              "revenue",
+              "assets"
+            ],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": true,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "revenue_growth",
+              "label": "收入增速",
+              "value": null,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/revenue",
+                  "value": 17500000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": null
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": null
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "growth_rate",
+                "value": null,
+                "change": null,
+                "change_unit": "ratio",
+                "baseline_input": {
+                  "metric": "revenue",
+                  "period": "2024-Q4",
+                  "value": null,
+                  "unit": "CNY"
+                },
+                "status": "missing_baseline",
+                "reason": "缺少指定基期收入，不能计算收入增速"
+              }
+            },
+            {
+              "id": "revenue",
+              "label": "营业收入",
+              "value": 17500000.0,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "原始季度录入值",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/revenue",
+                  "value": 17500000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 16000000.0
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 16800000.0
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 17500000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              }
+            },
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "year_over_year",
+                "period": "2024-Q4",
+                "operation": "difference",
+                "value": null,
+                "change": null,
+                "change_unit": "CNY",
+                "status": "missing_baseline",
+                "reason": "缺少指定的可比基期"
+              },
+              "input_display_values": {
+                "periods/2025-Q4/assets": "0.004 元"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0.0000004 万元",
+              "source_display_value": "0.004 元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": true,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "revenue_growth",
+              "revenue",
+              "assets"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：收入增速缺少可用输入，保持空值（同比，基期2024-Q4），缺少指定基期收入，不能计算收入增速；营业收入为17,500,000.00元；总资产为0.0000004 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "baseline_input": {
+                  "metric": "revenue",
+                  "period": "2024-Q4",
+                  "unit": "CNY",
+                  "value": null
+                },
+                "change": null,
+                "change_unit": "ratio",
+                "kind": "year_over_year",
+                "operation": "growth_rate",
+                "period": "2024-Q4",
+                "reason": "缺少指定基期收入，不能计算收入增速",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_value": "缺少可用输入",
+              "formula": "本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0",
+              "id": "revenue_growth",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "revenue",
+                  "path": "periods/2025-Q4/revenue",
+                  "unit": "CNY",
+                  "value": 17500000.0
+                }
+              ],
+              "label": "收入增速",
+              "period": "2025-Q4",
+              "source_url": "",
+              "status": "missing",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": null
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": null
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": null
+                }
+              ],
+              "unit": "ratio",
+              "value": null,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_value": "17,500,000.00元",
+              "formula": "已保存的单季度原始输入（标准化为元）",
+              "id": "revenue",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "revenue",
+                  "path": "periods/2025-Q4/revenue",
+                  "unit": "CNY",
+                  "value": 17500000.0
+                }
+              ],
+              "label": "营业收入",
+              "period": "2025-Q4",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 16000000.0
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 16800000.0
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 17500000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 17500000.0,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": null,
+                "change_unit": "CNY",
+                "kind": "year_over_year",
+                "operation": "difference",
+                "period": "2024-Q4",
+                "reason": "缺少指定的可比基期",
+                "status": "missing_baseline",
+                "value": null
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0.0000004 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_display_values": {
+                "periods/2025-Q4/assets": "0.004 元"
+              },
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_display_value": "0.004 元",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "question": "2025-Q4总资产和营业收入环比增长率分别是多少",
+      "expected_topics": [
+        "revenue_growth",
+        "revenue",
+        "assets"
+      ],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "revenue_growth",
+              "revenue",
+              "assets"
+            ],
+            "comparison": "previous",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": true,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对示例锂电企业（虚构）的2025-Q4已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "revenue_growth",
+              "label": "收入增速",
+              "value": 0.04166666666666674,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/revenue",
+                  "value": 17500000.0
+                },
+                {
+                  "path": "periods/2025-Q3/revenue",
+                  "value": 16800000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": null
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.050000000000000044
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.04166666666666674
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "previous",
+                "period": "2025-Q3",
+                "operation": "growth_rate",
+                "value": null,
+                "change": 0.04166666666666674,
+                "change_unit": "ratio",
+                "baseline_input": {
+                  "metric": "revenue",
+                  "period": "2025-Q3",
+                  "value": 16800000.0,
+                  "unit": "CNY"
+                },
+                "status": "available",
+                "reason": ""
+              }
+            },
+            {
+              "id": "revenue",
+              "label": "营业收入",
+              "value": 17500000.0,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "原始季度录入值",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/revenue",
+                  "value": 17500000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 16000000.0
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 16800000.0
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 17500000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "previous",
+                "period": "2025-Q3",
+                "operation": "difference",
+                "value": 16800000.0,
+                "change": 700000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              }
+            },
+            {
+              "id": "assets",
+              "label": "总资产",
+              "value": 0.004,
+              "period": "2025-Q4",
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "inputs": [
+                {
+                  "path": "periods/2025-Q4/assets",
+                  "value": 0.004,
+                  "field": "assets",
+                  "unit": "CNY"
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.004,
+                  "display_value": "0.0000004 万元"
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "previous",
+                "period": "2025-Q3",
+                "operation": "difference",
+                "value": 0.004,
+                "change": 0.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": "",
+                "display_change": "0 万元"
+              },
+              "input_display_values": {
+                "periods/2025-Q4/assets": "0.004 元"
+              },
+              "unit": "CNY",
+              "status": "available",
+              "display_value": "0.0000004 万元",
+              "source_display_value": "0.004 元",
+              "display_amount_unit": "wan",
+              "period_basis": "quarter_end_stock"
+            }
+          ]
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": true,
+            "comparison": "previous",
+            "comparison_explicit": true,
+            "default_overview": false,
+            "notice": "",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "revenue_growth",
+              "revenue",
+              "assets"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "示例锂电企业（虚构） 2025-Q4：收入增速为4.17%（环比，基期2025-Q3）；营业收入为17,500,000.00元，较2025-Q3增加700,000.00元；总资产为0.0000004 万元，较2025-Q3变化0 万元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "comparison": {
+                "baseline_input": {
+                  "metric": "revenue",
+                  "period": "2025-Q3",
+                  "unit": "CNY",
+                  "value": 16800000.0
+                },
+                "change": 0.04166666666666674,
+                "change_unit": "ratio",
+                "kind": "previous",
+                "operation": "growth_rate",
+                "period": "2025-Q3",
+                "reason": "",
+                "status": "available",
+                "value": null
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_value": "4.17%",
+              "formula": "本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0",
+              "id": "revenue_growth",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "revenue",
+                  "path": "periods/2025-Q4/revenue",
+                  "unit": "CNY",
+                  "value": 17500000.0
+                },
+                {
+                  "field": "revenue",
+                  "path": "periods/2025-Q3/revenue",
+                  "unit": "CNY",
+                  "value": 16800000.0
+                }
+              ],
+              "label": "收入增速",
+              "period": "2025-Q4",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": null
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 0.050000000000000044
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 0.04166666666666674
+                }
+              ],
+              "unit": "ratio",
+              "value": 0.04166666666666674,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": 700000.0,
+                "change_unit": "CNY",
+                "kind": "previous",
+                "operation": "difference",
+                "period": "2025-Q3",
+                "reason": "",
+                "status": "available",
+                "value": 16800000.0
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_value": "17,500,000.00元",
+              "formula": "已保存的单季度原始输入（标准化为元）",
+              "id": "revenue",
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "revenue",
+                  "path": "periods/2025-Q4/revenue",
+                  "unit": "CNY",
+                  "value": 17500000.0
+                }
+              ],
+              "label": "营业收入",
+              "period": "2025-Q4",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2025-Q2",
+                  "value": 16000000.0
+                },
+                {
+                  "period": "2025-Q3",
+                  "value": 16800000.0
+                },
+                {
+                  "period": "2025-Q4",
+                  "value": 17500000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 17500000.0,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": 0.0,
+                "change_unit": "CNY",
+                "display_change": "0 万元",
+                "kind": "previous",
+                "operation": "difference",
+                "period": "2025-Q3",
+                "reason": "",
+                "status": "available",
+                "value": 0.004
+              },
+              "dataset_id": "a67a8edb3c464ed3b68153be21b67f44",
+              "dataset_version": 1,
+              "display_amount_unit": "wan",
+              "display_value": "0.0000004 万元",
+              "formula": "已保存的季度期末存量（标准化为人民币元；累计转单季不差分）",
+              "id": "assets",
+              "input_display_values": {
+                "periods/2025-Q4/assets": "0.004 元"
+              },
+              "input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+              "inputs": [
+                {
+                  "field": "assets",
+                  "path": "periods/2025-Q4/assets",
+                  "unit": "CNY",
+                  "value": 0.004
+                }
+              ],
+              "label": "总资产",
+              "period": "2025-Q4",
+              "period_basis": "quarter_end_stock",
+              "source_display_value": "0.004 元",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q2",
+                  "value": 0.004
+                },
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q3",
+                  "value": 0.004
+                },
+                {
+                  "display_value": "0.0000004 万元",
+                  "period": "2025-Q4",
+                  "value": 0.004
+                }
+              ],
+              "unit": "CNY",
+              "value": 0.004,
+              "verification": "unverified_user_input"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "question": "2025-Q4总资产和营业利润是多少",
+      "expected_topics": [],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    },
+    {
+      "question": "2025-Q4总资产及未知指标XYZ",
+      "expected_topics": [],
+      "after": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2025-Q4",
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2025-Q2",
+              "2025-Q3",
+              "2025-Q4",
+              "2026-Q1",
+              "2026-Q2",
+              "2026-Q3"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+            "period": "2025-Q4",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前直接金额问答仅支持已保存的总资产、总负债金额（季度期末存量）；不支持未明确总额的资产或负债、债务、借款及有息/流动/非流动/净额/平均/期初等细分或未登记口径，不能用总额或资产负债率替代。请单独明确提问已保存总额或已支持的比率。",
+          "facts": []
+        }
+      }
+    }
+  ],
+  "same_review_financial_input_hash": "cdce401db06c8eb7df444279cc81d1740c62293fe0b4fa12c1dda8dc224d6142",
+  "provider_calls": [],
+  "network_attempts": []
+}
