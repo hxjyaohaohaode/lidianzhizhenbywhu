@@ -308,7 +308,7 @@ def integrity_memory_historical_choice(p, *, repository_root, data_dir, expected
     p.click('#main [data-x-action="watch-from-report"]', after='form[data-service-form="watch"]')
     form = 'form[data-service-form="watch"]'
     p.fill(form + ' [name="title"]', '合成历史依据指标跟踪')
-    p.fill(form + ' [name="threshold"]', '.1')
+    p.fill(form + ' [name="threshold"]', '10')
     assert not p.visible(form + ' [name="allow_historical"]').is_checked()
     assert p.get('/api/services/tracking?identity_id=')['rules'] == []
     _error_submit(p, form, '/api/services/watches', 'SOURCE_CHANGED')

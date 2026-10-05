@@ -196,7 +196,7 @@ def _tracking_read(p, original_rule, dataset, expected_state, phase):
         if expected_state == 'unknown':
             assert reason_text == INTEGRITY_REASON and '当前值' not in reason_text
         else:
-            assert '2024-Q4' in reason_text and re.search(r'当前值\s+0\.2(?!\d)', reason_text)
+            assert '2024-Q4' in reason_text and re.search(r'当前值\s+20%(?![\d.])', reason_text)
         assert p.page.locator('#main .alert-card').count() == 0
         empty = p.page.locator('#main').get_by_text('当前没有已触发提醒', exact=True)
         assert empty.count() == 1
@@ -232,7 +232,7 @@ def _tracking_read(p, original_rule, dataset, expected_state, phase):
         'response': body, 'rendered_evaluation_text': reason_text,
         'evaluation_state': entry['state'], 'source_impact_state': rule['source_impact']['state'],
         'rendered_source_badge': source_badge.inner_text().strip(),
-        'ratio_human_unit_readability': 'L4 remains open; raw 0.1/0.2 is not a percentage-unit pass',
+        'ratio_human_unit_readability': 'Current formatted 20% observed; complete L4 input/edit/amount journey is separate',
     })
     return rule, entry, card
 
@@ -336,7 +336,7 @@ def tracking_source_recovery(p, *, repository_root, data_dir, expected_web_tree,
     p.fill(form + ' [name="title"]', WATCH_TITLE)
     p.select(form + ' [name="metric"]', 'gross_margin')
     p.select(form + ' [name="operator"]', 'lt')
-    p.fill(form + ' [name="threshold"]', '0.1')
+    p.fill(form + ' [name="threshold"]', '10')
     p.fill(form + ' [name="stale_after_days"]', str(STALE_AFTER_DAYS))
     assert p.visible(form + ' [name="expires_at"]').input_value() == ''
     assert p.visible(form + ' [name="active"]').is_checked()
@@ -411,6 +411,6 @@ def tracking_source_recovery(p, *, repository_root, data_dir, expected_web_tree,
         'post_restore_source_impact': recovered_rule['source_impact'],
         'fault_source_impact': broken_rule['source_impact'],
         'native_watch_creation_status': status,
-        'ratio_readability_L4': 'still open; raw threshold/current ratios do not prove human-unit readability',
+        'ratio_readability_L4': 'separate L4 journey required; I7 only checks formatted current value and source-integrity recovery',
     }
     p.no_external()

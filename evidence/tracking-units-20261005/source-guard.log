@@ -1,5 +1,5 @@
 {
-  "files_scanned": 107,
+  "files_scanned": 106,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -100,7 +100,6 @@
     "scripts/product_readout_oracles.py",
     "scripts/product_source_integrity.py",
     "scripts/product_tracking_integrity.py",
-    "scripts/product_tracking_units.py",
     "scripts/publish.py",
     "scripts/pytest_diagnostics.py",
     "scripts/restart_replay_probe.py",

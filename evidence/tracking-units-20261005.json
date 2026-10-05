@@ -1,0 +1,73 @@
+{
+  "executed_at": "2026-10-05T07:38:59.296945+00:00",
+  "base_commit": "8e3a5f19852e0e6fc60ce2a0228768b44a7ba9e7",
+  "application_status": "implemented and focused-tested; full aggregate and native integration separate",
+  "checks": [
+    {
+      "command": "../lidian-venv/bin/python -m pytest -q tests/test_watch_units_contract.py tests/test_watch_source_integrity.py tests/test_services.py tests/test_product_tracking_integrity.py",
+      "exit_code": 0,
+      "passed": 77,
+      "log": "tracking-units-20261005/focused-api.log"
+    },
+    {
+      "command": "node --test tests/*.test.mjs",
+      "exit_code": 0,
+      "passed": 445,
+      "log": "tracking-units-20261005/frontend.log"
+    },
+    {
+      "command": "node --test tests/watch-units.frontend.test.mjs",
+      "exit_code": 0,
+      "passed": 20,
+      "log": "tracking-units-20261005/focused-frontend.log"
+    },
+    {
+      "command": "npm run typecheck",
+      "exit_code": 0,
+      "log": "tracking-units-20261005/typecheck.log"
+    },
+    {
+      "command": "npm run build",
+      "exit_code": 0,
+      "log": "tracking-units-20261005/build.log"
+    },
+    {
+      "command": "../lidian-venv/bin/python scripts/source_guard.py",
+      "exit_code": 0,
+      "log": "tracking-units-20261005/source-guard.log"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "source_sha256": {
+    "web/watch-units.ts": "645d7ca40818c5bd5c642bbd64140a9a0a6fba254b8e8040a1b36f9573efa952",
+    "web/views-services.ts": "49ae1845ae996d6f836ea16bd38660435fc1d49a29d5d7b4fb157194f017f77f",
+    "web/experience.ts": "9387146ed00f1b0a8358c1c40f693d256fc09b5a6a5aada0ef0c85061a37514c",
+    "web/copilot-ui.ts": "740e8cae68f489bdaa485abe7dfd1c22fe66de897d9b0092f43498cd3b237356",
+    "web/dist/watch-units.js": "df785100bea4741b925894d53a7bef789111232fe9a6e7d11c4e966fc0c046dd",
+    "web/dist/views-services.js": "0d82aa66c13eeee2105c8e694bdb212d1ebc5c2099bedc1086de33f5fa1e07ba",
+    "web/dist/experience.js": "3f1b7a91e6045480783afc11cd142d634795e1806c6141088368fdde38535634",
+    "web/dist/copilot-ui.js": "f46d5d22a67031de0ea747028b04852f5fe30358b87af6de909c4d6132f837ac",
+    "tests/watch-units.frontend.test.mjs": "9a2b126a0b4839b42842cb2cfe1f9666688dfff8bd581df924398ba59a0d1a0a",
+    "tests/test_watch_units_contract.py": "0d09a14ab2286c754fbac84e5fbef0c429a40c1b645a3ce6e1955cc957543e55",
+    "tests/dataset-source.frontend.test.mjs": "56410ddd03226a8b2d2c8425ae0628c6e8ac2ec443c46c8c266383d4bf40c63c",
+    "tests/services.frontend.test.mjs": "0683a0b979a053671e6b407535644cb64215ae52e55042bf2097b97660d92218",
+    "tests/service-completion.frontend.test.mjs": "2c8e6ca28b0f5890ef189f2f50aafa2ff521d89bf8f9ab069d7824d651a58d00",
+    "scripts/service_browser_check.py": "7e9796ccd6ea39e7f876627d84c22d4cad7c3da5916402f974c1c5b1400b2563",
+    "scripts/product_tracking_integrity.py": "5795e40d2494439105693277aa92da4bc8b38616b33037628c403a663c6a721f",
+    "scripts/product_comparison_integrity.py": "f24920f2d721395f1612db4044381b19ee39d8587dbacf5b0443be9365b6056b",
+    "scripts/product_integrity_outcomes.py": "8b2a266a0c779f7f4152709a90b959bd06afd59b82d537ff53551ca43d502e2a"
+  },
+  "server_contract_changed": false,
+  "migration_performed": false,
+  "live_external_provider_calls": 0,
+  "native_browser_executed_by_this_record": false,
+  "verification_boundaries": [
+    "Frontend handler tests use DOM/API doubles, not native browser evidence",
+    "77 focused backend checks are not the full backend suite",
+    "Full aggregate HTTP/SSE/restart/backup and new native L4 runner results belong to integration evidence",
+    "Decimal conversion preserves existing finite JavaScript-number domain; no arbitrary precision claim"
+  ]
+}

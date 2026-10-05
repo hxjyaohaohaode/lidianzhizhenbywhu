@@ -25,6 +25,12 @@ AUDIT_SUITES = {
         'scenarios': (('L6-plan-history', '七份真实计划→全部历史分页→第一份原问题→返回及重新登录找回'),),
         'precondition': 'Fresh synthetic account; seven draft plans created with actual visible controls; no API mutations, fixture faults or providers; history reads leave every original plan unchanged',
     },
+    'tracking-units': {
+        'mode': 'product-tracking-units',
+        'report': 'product-tracking-units-audit.json',
+        'scenarios': (('L4-tracking-units', '明确百分比与人民币元→取消保全→真实阈值触发→历史依据→暂停重启'),),
+        'precondition': 'Fresh synthetic account; actual header-only CSV template and last closed quarter in yuan; explicit wan preference; all mutations via visible controls; one declared discard decision for the cancelled draft; no fixture faults or providers',
+    },
     'integrity': {
         'mode': 'product-integrity',
         'report': 'product-integrity-audit.json',

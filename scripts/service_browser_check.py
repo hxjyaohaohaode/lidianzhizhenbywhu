@@ -425,7 +425,7 @@ def main():
             page.locator('#active-identity').select_option(identity_id);page.wait_for_timeout(700)
             assert page.locator('.chat-turn').count()==5;record('切回身份恢复原会话与独立任务结果')
             print('STEP tracking',flush=True);go('tracking');page.locator('[data-x-action="watch-new"]').click();f='form[data-service-form="watch"]'
-            page.locator(f+' [name="title"]').fill('毛利低于40%（验收）');page.locator(f+' [name="threshold"]').fill('0.4');page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
+            page.locator(f+' [name="title"]').fill('毛利低于40%（验收）');page.locator(f+' [name="threshold"]').fill('40');page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
             print('STEP rule submitted',flush=True);page.locator('.alert-card').wait_for()
             alert_id=page.locator('[data-x-action="alert-investigate"]').first.get_attribute('data-id')
             page.locator('[data-x-action="alert-investigate"]').first.click()
@@ -478,7 +478,7 @@ def main():
             assert linked_action['payload']['provenance']['dataset_version']==selected_run['snapshot']['dataset_version']
             page.locator('[data-x-action="watch-from-report"]').click();f='form[data-service-form="watch"]'
             page.locator(f+' [name="title"]').fill('报告来源跟踪（合成验收）')
-            page.locator(f+' [name="threshold"]').fill('-1')
+            page.locator(f+' [name="threshold"]').fill('-100')
             page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
             linked_watch=next(w for w in client.get('/api/services/tracking?identity_id='+identity_id).json()['rules'] if w['payload']['title']=='报告来源跟踪（合成验收）')
             assert linked_watch['payload']['provenance']['run_id']==selected_run_id

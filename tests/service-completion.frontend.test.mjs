@@ -42,7 +42,7 @@ test('confirmed service save survives refresh failure with a visible saved notic
  }finally{globalThis.fetch=old;}
 });
 test('staged service refresh preserves an edited draft and does not publish or dismiss it',async()=>{
- const old=fetch,read=deferred();let guard;const h=setup({refresh:async valid=>{guard=valid;await read.promise;if(!valid())return false;h.published++;return true}}),f=form('watch',{title:'原规则',dataset_id:'d',metric:'gross_margin',operator:'lt',threshold:'0.2',stale_after_days:'180',active:'on'},{id:'watch-a',version:'1'});
+ const old=fetch,read=deferred();let guard;const h=setup({refresh:async valid=>{guard=valid;await read.promise;if(!valid())return false;h.published++;return true}}),f=form('watch',{title:'原规则',dataset_id:'d',metric:'gross_margin',operator:'lt',threshold:'20',stale_after_days:'180',active:'on'},{id:'watch-a',version:'1'});
  try{globalThis.fetch=async()=>response({id:'watch-a',version:2});const pending=h.submit(f);await turn();assert.equal(h.close,0);f.fields.set('title','新规则草稿');state.dirty=true;assert.equal(guard(),false);read.resolve();await pending;
   assert.equal(h.published,0);assert.equal(h.close,0);assert.equal(h.render,0);assert.equal(f.fields.get('title'),'新规则草稿');assert.equal(f.dataset.version,'2');assert.equal(state.dirty,true);assert.match(h.toasts[0].message,/已保存.*保留/);
  }finally{globalThis.fetch=old;}
@@ -115,13 +115,13 @@ test('identity switch during alert navigation never dispatches into the new iden
  }finally{globalThis.fetch=old;resetCopilot();}
 });
 for(const failRefresh of [false,true])test(`new watch draft edited during ${failRefresh?'failed':'superseded'} refresh receives a fresh create token`,async()=>{
- const old=fetch,read=deferred();const h=setup({refresh:async valid=>{await read.promise;if(failRefresh)throw new Error('read failed');return valid()}}),f=form('watch',{source_ref:JSON.stringify({kind:'dataset',dataset_version:1,dataset_hash:'a'.repeat(64)}),request_id:'original-request-key',title:'原规则',dataset_id:'d',metric:'gross_margin',operator:'lt',threshold:'0.2',stale_after_days:'180',active:'on'});
- try{globalThis.fetch=async()=>response({id:'watch-a',version:1});const pending=h.submit(f);await turn();f.fields.set('threshold','0.3');read.resolve();await pending;assert.notEqual(f.fields.get('request_id'),'original-request-key');assert.equal(f.fields.get('threshold'),'0.3');assert.equal(h.close,0);assert.equal(state.dirty,true);assert.equal(h.toasts.length,1);assert.match(h.toasts[0].message,/已保存/);
+ const old=fetch,read=deferred();const h=setup({refresh:async valid=>{await read.promise;if(failRefresh)throw new Error('read failed');return valid()}}),f=form('watch',{source_ref:JSON.stringify({kind:'dataset',dataset_version:1,dataset_hash:'a'.repeat(64)}),request_id:'original-request-key',title:'原规则',dataset_id:'d',metric:'gross_margin',operator:'lt',threshold:'20',stale_after_days:'180',active:'on'});
+ try{globalThis.fetch=async()=>response({id:'watch-a',version:1});const pending=h.submit(f);await turn();f.fields.set('threshold','30');read.resolve();await pending;assert.notEqual(f.fields.get('request_id'),'original-request-key');assert.equal(f.fields.get('threshold'),'30');assert.equal(h.close,0);assert.equal(state.dirty,true);assert.equal(h.toasts.length,1);assert.match(h.toasts[0].message,/已保存/);
  }finally{globalThis.fetch=old;}
 });
 test('unknown watch write outcome keeps original request token for explicit retry',async()=>{
- const old=fetch,write=deferred();const h=setup(),f=form('watch',{source_ref:JSON.stringify({kind:'dataset',dataset_version:1,dataset_hash:'a'.repeat(64)}),request_id:'original-request-key',title:'原规则',dataset_id:'d',metric:'gross_margin',operator:'lt',threshold:'0.2',stale_after_days:'180',active:'on'});
- try{globalThis.fetch=()=>write.promise;const pending=h.submit(f);f.fields.set('threshold','0.3');write.reject(new Error('unknown transport outcome'));await pending;assert.equal(f.fields.get('request_id'),'original-request-key');assert.equal(h.close,0);assert.equal(h.toasts.length,0);assert.match(f.error.textContent,/无法连接服务/);
+ const old=fetch,write=deferred();const h=setup(),f=form('watch',{source_ref:JSON.stringify({kind:'dataset',dataset_version:1,dataset_hash:'a'.repeat(64)}),request_id:'original-request-key',title:'原规则',dataset_id:'d',metric:'gross_margin',operator:'lt',threshold:'20',stale_after_days:'180',active:'on'});
+ try{globalThis.fetch=()=>write.promise;const pending=h.submit(f);f.fields.set('threshold','30');write.reject(new Error('unknown transport outcome'));await pending;assert.equal(f.fields.get('request_id'),'original-request-key');assert.equal(h.close,0);assert.equal(h.toasts.length,0);assert.match(f.error.textContent,/无法连接服务/);
  }finally{globalThis.fetch=old;}
 });
 test('new interaction while an alert handoff creates its thread prevents the later message dispatch',async()=>{

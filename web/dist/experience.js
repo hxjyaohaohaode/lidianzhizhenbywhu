@@ -1,3 +1,4 @@
+import { watchValue, watchRawValues, watchThresholdRequest, syncWatchMetric } from './watch-units.js';
 import { comparisonArtifactView, comparisonHistoryDeleteButton, currentComparisonRead } from './saved-comparisons.js';
 import { unchangedInputGuard } from './saved-experiments.js';
 import { formSource, sourcePanel } from './business-source.js';
@@ -5,7 +6,7 @@ import { actionForm } from './views-analysis.js';
 import { interactionGuard, invalidateInteractions, renewSavedDraft } from './interactions.js';
 import { api, contextGuard, invalidateContext } from './api.js';
 import { state, scopedDatasets } from './state.js';
-import { esc, field, input, textarea, formFooter, notice, jsonView, table, num, metricNames } from './components.js';
+import { esc, field, input, textarea, formFooter, notice, jsonView, table, metricNames } from './components.js';
 import { identityForm, connectionForm, watchForm, serviceForm } from './views-services.js';
 import { configureCopilot, chatAction, copilotSubmit, resetCopilot, handoffCopilot } from './copilot-ui.js';
 let hooks;
@@ -167,13 +168,13 @@ export function setupExperience(value) {
                         throw new Error('提醒已变化，请刷新');
                     const p = row.payload;
                     const current = state.datasets.find(d => d.id === p.dataset_id);
-                    hooks.inspect('历史提醒的判定依据', `<h3>${esc(p.title)}</h3>${table(['判定期间', '输入修订', '历史观测值', '历史阈值'], [[esc(p.period), esc(p.dataset_version), num(p.value, 4), esc(p.operator === 'lt' ? '低于' : '高于') + ' ' + num(p.threshold, 4)]])}<p class="micro wrap">当时输入校验：${esc(p.dataset_hash ?? '旧提醒未记录')}</p>${notice(current ? '当前数据为修订 ' + current.version + '。历史提醒不按新数据重算；后续助手核查将明确使用当前修订。' : '源数据已删除；这条提醒仍保留当时的判定记录。', 'warm')}${current ? `<div class="inline-actions"><button type="button" class="secondary" data-x-action="alert-current-investigate" data-id="${esc(id)}">明确用当前修订继续核查</button><button type="button" class="primary" data-x-action="alert-action" data-id="${esc(id)}">以此历史提醒创建行动</button></div>` : ''}${p.acknowledgement ? `<h4>已记录的核对说明</h4><p>${esc(p.acknowledgement)}</p>` : ''}`);
+                    hooks.inspect('历史提醒的判定依据', `<h3>${esc(p.title)}</h3>${table(['判定期间', '输入修订', '历史观测值', '历史阈值'], [[esc(p.period), esc(p.dataset_version), esc(watchValue(p.metric, p.value)), esc(p.operator === 'lt' ? '低于' : '高于') + ' ' + esc(watchValue(p.metric, p.threshold))]])}${watchRawValues(p.metric, p.threshold, p.value)}<p class="micro wrap">当时输入校验：${esc(p.dataset_hash ?? '旧提醒未记录')}</p>${notice(current ? '当前数据为修订 ' + current.version + '。历史提醒不按新数据重算；后续助手核查将明确使用当前修订。' : '源数据已删除；这条提醒仍保留当时的判定记录。', 'warm')}${current ? `<div class="inline-actions"><button type="button" class="secondary" data-x-action="alert-current-investigate" data-id="${esc(id)}">明确用当前修订继续核查</button><button type="button" class="primary" data-x-action="alert-action" data-id="${esc(id)}">以此历史提醒创建行动</button></div>` : ''}${p.acknowledgement ? `<h4>已记录的核对说明</h4><p>${esc(p.acknowledgement)}</p>` : ''}`);
                     break;
                 }
                 case 'alert-action': {
                     const row = state.cache.tracking.alerts.find((x) => x.id === id);
                     const p = row.payload;
-                    hooks.dialog('从历史提醒创建行动', actionForm({ title: '跟进：' + p.title, dataset_id: p.dataset_id, message: '历史提醒：' + p.period + '，数据修订 ' + p.dataset_version + '；当时指标 ' + p.value + '，阈值 ' + p.threshold, source_ref: { kind: 'alert', alert_id: row.id } }));
+                    hooks.dialog('从历史提醒创建行动', actionForm({ title: '跟进：' + p.title, dataset_id: p.dataset_id, message: '历史提醒：' + p.period + '，数据修订 ' + p.dataset_version + '；当时' + (metricNames[p.metric] ?? p.metric) + ' ' + watchValue(p.metric, p.value) + '，阈值 ' + (p.operator === 'lt' ? '低于' : '高于') + ' ' + watchValue(p.metric, p.threshold), source_ref: { kind: 'alert', alert_id: row.id } }));
                     break;
                 }
                 case 'alert-current-investigate': {
@@ -191,7 +192,7 @@ export function setupExperience(value) {
                     const continuation = await hooks.navigateRendered('copilot');
                     if (!continuation || !sameContext() || !continuation())
                         break;
-                    await handoffCopilot('核查当前企业的' + (metricNames[p.metric] ?? p.metric) + '指标。参考历史提醒 ' + row.id + '：' + p.period + '，数据修订 ' + p.dataset_version + '，当时值 ' + p.value + '、阈值 ' + p.threshold + '。本次明确使用当前保存的修订，不能把当前计算当成历史提醒复现。', () => sameContext() && continuation());
+                    await handoffCopilot('核查当前企业的' + (metricNames[p.metric] ?? p.metric) + '指标。参考历史提醒 ' + row.id + '：' + p.period + '，数据修订 ' + p.dataset_version + '，当时值 ' + watchValue(p.metric, p.value) + '、阈值 ' + (p.operator === 'lt' ? '低于' : '高于') + ' ' + watchValue(p.metric, p.threshold) + '。本次明确使用当前保存的修订，不能把当前计算当成历史提醒复现。', () => sameContext() && continuation());
                     break;
                 }
                 default: throw new Error('此操作未识别，没有执行写入。');
@@ -275,7 +276,7 @@ export function setupExperience(value) {
                     break;
                 }
                 case 'watch': {
-                    const saved = await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { request_id: str('request_id') || null, ...formSource(fd, id ? '' : str('dataset_id')), title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: Number(str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
+                    const saved = await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { request_id: str('request_id') || null, ...formSource(fd, id ? '' : str('dataset_id')), title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: watchThresholdRequest(form, str('metric'), str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
                     if (submittedContext() && form.isConnected && id)
                         form.dataset.version = String(saved.version);
                     savedWatchCreate = !id;
@@ -333,7 +334,11 @@ export function setupExperience(value) {
             buttons.forEach(b => b.disabled = form.dataset.completed === 'true');
         }
     }, true);
-    document.addEventListener('change', async (e) => { const el = e.target; if (el.id !== 'active-identity')
+    document.addEventListener('change', async (e) => { const el = e.target; const watch = el.closest('form[data-service-form="watch"],form[data-service-form="proposal"][data-kind="watch"]'); if (watch && el.name === 'metric') {
+        syncWatchMetric(watch, el.value);
+        state.dirty = true;
+        return;
+    } if (el.id !== 'active-identity')
         return; try {
         await selectIdentity(el.value);
         el.value = state.identity;

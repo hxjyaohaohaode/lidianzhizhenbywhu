@@ -1,0 +1,28 @@
+✔ gross_margin preserves units, signs, precision and canonical roundtrips (2.179262ms)
+✔ cash_ratio preserves units, signs, precision and canonical roundtrips (2.022356ms)
+✔ leverage preserves units, signs, precision and canonical roundtrips (0.413901ms)
+✔ revenue_growth preserves units, signs, precision and canonical roundtrips (0.150356ms)
+✔ cash_flow preserves units, signs, precision and canonical roundtrips (0.1466ms)
+✔ revenue preserves units, signs, precision and canonical roundtrips (0.211928ms)
+✔ percentage inputs keep the existing canonical range, never clamp to 0–100% (0.764217ms)
+✔ create/edit forms show percent numbers and yuan regardless of global display preference (2.958412ms)
+✔ watch metric change clears the old unit; empty submit writes nothing (2.247735ms)
+✔ proposal metric change clears the old unit; empty submit writes nothing (0.525058ms)
+✔ actual watch submit gross_margin/15 sends canonical 0.15 (3.961137ms)
+✔ actual watch submit gross_margin/-125 sends canonical -1.25 (0.530867ms)
+✔ actual watch submit cash_flow/15000.25 sends canonical 15000.25 (0.549875ms)
+✔ actual watch submit revenue/0.00000001 sends canonical 1e-8 (0.575754ms)
+✔ tracking cards, historical alerts and proposal review format frozen values without rewriting them (3.867686ms)
+✔ historical assistant transfer retains percent units and explicit current-revision boundary (3.514146ms)
+✔ actual gross_margin proposal form and submission uses same unit contract (2.574675ms)
+✔ actual cash_flow proposal form and submission uses same unit contract (0.888825ms)
+✔ changing metric during a pending create keeps the new unit draft and renews only its next-create token (7.663325ms)
+✔ unit-aware save failure keeps the editor open and never announces success (0.590557ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 136.61613

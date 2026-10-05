@@ -263,6 +263,24 @@ class Probe:
                 raise AssertionError(main.inner_text())
         self.step('真实侧栏进入 ' + route, action)
 
+    def await_registration_ready(self):
+        """Let the original timed intro finish; never race its temporary button.
+
+        Evidence screenshots can outlast the intro. Its normal completion
+        removes the dialog, but disappearance alone is not app readiness:
+        require the real, unique auth form and an actionable registration entry.
+        No click is dispatched by the trial, and no timeout is suppressed.
+        """
+        def action():
+            self.page.locator('dialog.brand-intro').wait_for(state='detached', timeout=FORM_TIMEOUT_MS)
+            self.visible('#auth-form')
+            self.visible('.auth-panel [data-action="auth-toggle"]').click(trial=True, timeout=FORM_TIMEOUT_MS)
+            self.observations['registration_readiness'] = {
+                'intro_detached': True, 'auth_form_visible': True,
+                'registration_entry_actionable': True, 'skip_click_dispatched': False,
+            }
+        self.step('等待原开场结束并核对工作区注册入口可用', action)
+
     def bootstrap(self):
         def landing():
             response = self.page.goto(self.base_url, wait_until='domcontentloaded')
@@ -272,8 +290,7 @@ class Probe:
             self.observations['landing_csp'] = csp
             self.page.locator('#auth-form').wait_for()
         self.step('原生浏览器访问隔离空服务并读取实际CSP', landing)
-        if self.page.locator('[data-intro-skip]').is_visible():
-            self.click('[data-intro-skip]', label='通过原开场的进入按钮跳过动画')
+        self.await_registration_ready()
         self.click('[data-action="auth-toggle"]', after='#auth-form [name="name"]', label='切换到注册工作区')
         self.fill('#auth-form [name="email"]', 'independent-' + uuid.uuid4().hex + '@test.example')
         self.fill('#auth-form [name="password"]', 'Synthetic-only-audit-password-2026', '填写隔离合成账号密码')
@@ -852,6 +869,10 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         from .product_plan_history import plan_history_retrieval
     except ImportError:
         from product_plan_history import plan_history_retrieval
+    try:
+        from .product_tracking_units import tracking_units_outcome
+    except ImportError:
+        from product_tracking_units import tracking_units_outcome
     bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
         expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
@@ -868,6 +889,7 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'I6-dataset-source': bind(dataset_source_recovery),
         'I7-tracking-source': bind(tracking_source_recovery),
         'L6-plan-history': bind(plan_history_retrieval),
+        'L4-tracking-units': bind(tracking_units_outcome),
     }
 
 

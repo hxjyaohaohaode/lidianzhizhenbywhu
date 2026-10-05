@@ -235,8 +235,7 @@ def register_empty_workspace(p):
         p.observations['landing_csp'] = csp
         p.page.locator('#auth-form').wait_for(state='visible', timeout=FORM_MS)
     p.step('新浏览器上下文访问原生隔离服务', landing)
-    if p.page.locator('[data-intro-skip]').is_visible():
-        p.click('[data-intro-skip]', label='通过原开场的真实进入按钮继续')
+    p.await_registration_ready()
     p.click('[data-action="auth-toggle"]', after='#auth-form [name="name"]')
     p.fill('#auth-form [name="email"]', 'l1-' + uuid.uuid4().hex + '@test.example', '填写隔离合成账号邮箱')
     p.fill('#auth-form [name="password"]', 'Synthetic-only-L1-password-2026', '填写仅此隔离测试使用的密码')

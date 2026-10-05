@@ -82,7 +82,7 @@ def _watch_fields(p):
     p.fill(form + ' [name="title"]', WATCH)
     p.select(form + ' [name="metric"]', 'gross_margin')
     p.select(form + ' [name="operator"]', 'lt')
-    p.fill(form + ' [name="threshold"]', '0.1')
+    p.fill(form + ' [name="threshold"]', '10')
     return form
 
 
@@ -190,7 +190,7 @@ def comparison_receipt_recovery(p, *, repository_root, data_dir, expected_web_tr
     _error_submit(p, form, '/api/services/watches', 'SOURCE_INTEGRITY')
     assert p.get('/api/services/tracking?identity_id=')['rules'] == []
     assert p.visible(form + ' [name="title"]').input_value() == WATCH
-    assert p.visible(form + ' [name="threshold"]').input_value() == '0.1'
+    assert p.visible(form + ' [name="threshold"]').input_value() == '10'
     assert p.visible(form + ' [name="metric"]').input_value() == 'gross_margin'
     assert p.visible(form + ' [name="allow_historical"]').is_checked()
     assert '重新建立行动' in p.visible(form).inner_text()
