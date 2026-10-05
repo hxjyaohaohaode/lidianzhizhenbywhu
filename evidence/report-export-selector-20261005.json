@@ -1,7 +1,8 @@
 {
-  "executed_at": "2026-10-05T12:37:09.702754+00:00",
-  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
-  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "executed_at": "2026-10-05T10:28:18.509885+00:00",
+  "base_remote_commit": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+  "change_scope": "I9 descendant-relative table-row locator plus eight pure locator guards; no application change",
+  "all_seven_stages_passed": true,
   "checks": [
     {
       "check": "python-compile",
@@ -14,7 +15,7 @@
         "scripts"
       ],
       "exit_code": 0,
-      "seconds": 0.048,
+      "seconds": 0.035,
       "timeout_seconds": 240
     },
     {
@@ -27,7 +28,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 1.29,
+      "seconds": 1.199,
       "timeout_seconds": 240
     },
     {
@@ -39,7 +40,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 1.624,
+      "seconds": 1.397,
       "timeout_seconds": 240
     },
     {
@@ -59,7 +60,7 @@
         "--junitxml=evidence/pytest.xml"
       ],
       "exit_code": 0,
-      "seconds": 418.214,
+      "seconds": 353.806,
       "timeout_seconds": 1200
     },
     {
@@ -78,7 +79,6 @@
         "tests/data-editor-isolation.frontend.test.mjs",
         "tests/dataset-source.frontend.test.mjs",
         "tests/evidence.frontend.test.mjs",
-        "tests/experiment-recovery.frontend.test.mjs",
         "tests/form-snapshot.frontend.test.mjs",
         "tests/frontend.test.mjs",
         "tests/import-navigation.frontend.test.mjs",
@@ -102,7 +102,7 @@
         "tests/workflow-inputs.frontend.test.mjs"
       ],
       "exit_code": 0,
-      "seconds": 1.753,
+      "seconds": 1.595,
       "timeout_seconds": 240
     },
     {
@@ -112,7 +112,7 @@
         "scripts/source_guard.py"
       ],
       "exit_code": 0,
-      "seconds": 0.403,
+      "seconds": 0.314,
       "timeout_seconds": 240
     },
     {
@@ -122,19 +122,43 @@
         "scripts/full_chain_check.py"
       ],
       "exit_code": 0,
-      "seconds": 6.096,
+      "seconds": 5.924,
       "timeout_seconds": 240
     }
   ],
-  "all_executed_checks_pass": true,
-  "not_exercised_by_this_command": [
-    "Live model API credentials",
-    "Live public sources",
-    "Public HTTPS deployment",
-    "Long-duration production load",
-    "Native browser navigation/Cookie/CSP integration",
-    "Cross-device browser compatibility",
-    "Future dependency advisories",
-    "Optional patched PDF integration"
-  ]
+  "pytest_session": {
+    "event": "session_finished",
+    "utc": "2026-10-05T10:28:02.687032+00:00",
+    "elapsed_seconds": 345.137065,
+    "process_cpu_seconds": 333.858172,
+    "exit_code": 0,
+    "collected": 2383,
+    "started": 2383,
+    "completed": 2383,
+    "complete": true,
+    "phase_outcomes": {
+      "setup_passed": 2383,
+      "call_passed": 2386,
+      "teardown_passed": 2383
+    }
+  },
+  "frontend": {
+    "tests": 485,
+    "passed": 485,
+    "failed": 0,
+    "skipped": 0
+  },
+  "real_http_checks": 18,
+  "protected_tree_ids": {
+    "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+    "server": "6586116b744db2de3384956803e50325c96f73c1"
+  },
+  "independent_focused_tests": 84,
+  "pure_selector_scope": "Real Playwright Locator composition; explicit count inputs; no rendered browser/driver evidence",
+  "native_retry_added": false,
+  "timeout_changed": false,
+  "brand_or_formulas_changed": false,
+  "real_provider_calls": 0,
+  "merge_or_deployment_performed": false,
+  "native_status": "New exact SHA execution required; original759 I9 failed after43 steps and its recovery half is not passed"
 }

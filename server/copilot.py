@@ -7,6 +7,7 @@ from __future__ import annotations
 import time
 import re
 from datetime import date, datetime, timezone
+from typing import get_args
 from . import workspace_store as ws
 from .store import uid, now, digest, encode
 from .security import fail
@@ -14,6 +15,7 @@ from .identities import resolve_identity, identity_binding, identity_context, co
 from .analytics import calculate, quality_report, forecast_baselines, lineage, period_end, closed_quarter, METRIC_LABELS
 from .intelligence import scoped_retrieve, build_insights, assistant_answer
 from .service_contracts import WatchSpec
+from .autonomy_contracts import ExecutionOptions
 from .business_provenance import resolve_source, assert_source_current, with_source_impact, report_impact
 from .metric_facts import fact_comparison, RATIO_METRICS as _RATIO_METRICS, AMOUNT_METRICS as _AMOUNT_METRICS
 
@@ -136,7 +138,34 @@ def trace_message(store,user,thread_id,message_id,identity_id,dataset_id):
         return result
 
 
-from .question_scope import resolve_followup, scoped_dataset, scoped_handoff_query
+from .question_scope import TOPICS, matches, resolve_followup, scoped_dataset, scoped_handoff_query
+
+
+_FORECAST_METRICS = frozenset(get_args(ExecutionOptions.model_fields['forecast_metric'].annotation))
+
+
+def _forecast_topics(scope, text):
+    """Select only from resolved scope, retaining unsupported/ambiguous targets.
+
+    A cash-flow fact includes a companion cash ratio by default; that does not
+    request a second forecast. An explicitly named ratio must still be refused.
+    """
+    topics = list(scope['topics'])
+    if ('cash_flow' in topics and 'cash_ratio' in topics
+            and not any(matches(text.lower(), term) for term in dict(TOPICS)['cash_ratio'])):
+        topics.remove('cash_ratio')
+    return topics
+
+
+def _forecast_with_scope(data, topics):
+    # The mathematical function is generic; registered capability enforcement
+    # belongs here, before invoking it, rather than defaulting to another field.
+    if len(topics) != 1 or topics[0] not in _FORECAST_METRICS:
+        requested = '、'.join(METRIC_LABELS.get(key, key) for key in topics)
+        raise ValueError(f'本次预测范围（{requested}）不受支持或包含多个指标。'
+                         '本地预测一次仅支持明确的单个指标：营业收入、营业成本、经营现金流或毛利率；'
+                         '请单独指定其中一项，不会用其他指标替代。')
+    return forecast_baselines(data, topics[0], 2)
 
 
 _DEFAULT_TOPICS = {
@@ -236,7 +265,8 @@ def answer_with_tools(store, user, identity, data, text, history):
         topics=question_scope['topics'];comparison=question_scope['comparison'];d=scoped_dataset(d,question_scope)
         context['question_scope']=question_scope
         depth = ip.get('depth', 'balanced'); detail_limit = 3 if depth == 'concise' else 6 if depth == 'balanced' else 8
-        topics = topics[:detail_limit]
+        # The finite resolved catalog bounds metric coverage. Depth controls
+        # supporting detail, never omissions from explicit or inherited scope.
         result = tool('financial_calculation', lambda: calculate(d, comparison), {'dataset_id': data['id'], 'version': data['version'], 'comparison': comparison})
         rows = tool('metric_lineage', lambda: lineage(d, result), {'metric_ids': topics})
         facts = _grounded_facts(d, result, topics, data, {r['id']: r for r in rows}, 4 if depth == 'concise' else 8)
@@ -264,7 +294,7 @@ def answer_with_tools(store, user, identity, data, text, history):
             elif cmp['change'] is not None:
                 sentence += f"，较{cmp['period']}{'增加' if cmp['change'] > 0 else '减少' if cmp['change'] < 0 else '变化'}{_metric_text(abs(cmp['change']), f['id'], difference=True)}"
             observations.append(sentence)
-        answer = f"{company} {result['current_period']}：" + '；'.join(observations[:detail_limit]) + '。'
+        answer = f"{company} {result['current_period']}：" + '；'.join(observations) + '。'
         answer += '这些数值来自当前已保存输入，未经独立真实性核验。'
         if question_scope['notice']:answer=question_scope['notice']
         if causal and question_scope['can_calculate']:
@@ -291,10 +321,16 @@ def answer_with_tools(store, user, identity, data, text, history):
             'stance_counts': {stance: len({c['document_id'] for c in citations if c['stance'] == stance}) for stance in ('supports', 'contradicts', 'context')},
             'causal_claims_supported': False, 'objective': ip.get('objective', '')}
         if question_scope['can_calculate'] and any(w in q for w in ('预测', '回测', 'forecast')):
-            metric = 'cash_flow' if '现金' in q else 'gross_margin' if '毛利' in q else 'cost' if '成本' in q else 'revenue'
-            forecast = tool('forecast_baselines', lambda: forecast_baselines(d, metric, 2), {'metric': metric, 'horizon': 2, 'dataset_version': data['version']})
+            forecast_topics = _forecast_topics(question_scope, text)
+            metric = forecast_topics[0] if len(forecast_topics) == 1 and forecast_topics[0] in _FORECAST_METRICS else None
+            forecast = tool('forecast_baselines', lambda: _forecast_with_scope(d, forecast_topics),
+                            {'metric': metric, 'requested_metric_ids': forecast_topics, 'horizon': 2, 'dataset_version': data['version']})
             cards.append({'kind': 'forecast', 'title': '透明基线回测', 'data': forecast})
-            warnings.append('这是本地基线和明确的两步预测，不是因果模型或投资收益承诺。需要其他步数时在建模工作区设置。')
+            if forecast.get('status') == 'blocked':
+                answer += forecast['reason']
+                warnings.append(forecast['reason'])
+            else:
+                warnings.append('这是本地基线和明确的两步预测，不是因果模型或投资收益承诺。需要其他步数时在建模工作区设置。')
         if any(w in q for w in ('记忆', '偏好', '目标', '个性')):
             from .studio import selected_memory
             memory, excluded = tool('approved_identity_memory', lambda: selected_memory(store, context_user(user, identity), company, True), {'identity_id': identity['id'] if identity else ''})

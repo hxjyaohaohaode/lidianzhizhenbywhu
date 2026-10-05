@@ -459,11 +459,26 @@ def insight_dismiss(body:DismissInsight,request:Request,user=Depends(require_use
 
 @router.post('/experiments',status_code=201)
 def experiment_add(body:ExperimentRequest,request:Request,user=Depends(require_user)):
-    from .saved_experiments import create_payload, public_record
+    from .saved_experiments import create_payload, public_record, verify_creation_receipt
     store=dbof(request)
     with store.transaction() as db:
+        key='experiment_request:'+body.request_id if body.request_id else None
+        creation=body.model_dump(mode='json',exclude={'request_id'});request_hash=digest(creation)
+        prior=ws.keyed(store,user['id'],'experiment',key) if key else None
+        if prior:verify_creation_receipt(prior)
+        removed=store.one("SELECT metadata FROM audit WHERE user_id=? AND resource='experiment' AND action='deleted' AND json_extract(metadata,'$.creation_request_id')=? ORDER BY seq DESC LIMIT 1",(user['id'],body.request_id)) if key and not prior else None
+        receipt=prior['payload'] if prior else removed['metadata'] if removed else None
+        if receipt:
+            if receipt.get('creation_request_hash')!=request_hash or (prior and prior['payload']['request']!=creation):
+                fail('IDEMPOTENCY_CONFLICT','同一提交标识不能对应不同实验内容或数据版本，请核对原记录',409)
+            if removed:
+                fail('EXPERIMENT_REMOVED','这次提交曾保存的实验已被清理，不会重新创建；请核对历史后明确新建实验',409)
+            # Recover the original owned outcome without recalculation, another
+            # audit event, or current input/capacity checks. Assets stay shared
+            # by dataset scope, not made private to a service identity.
+            return public_record(prior)
         d=owned(store,user,'datasets',body.dataset_id)
-        return public_record(ws.save(store,db,user['id'],'experiment',create_payload(d,body)))
+        return public_record(ws.save(store,db,user['id'],'experiment',create_payload(d,body),key=key))
 
 
 @router.get('/experiments')
@@ -735,7 +750,9 @@ def archive_delete(kind:str,id:str,request:Request,version:int|None=Query(None,g
             if run and run['state'] in ('running','queued','interrupted'):
                 fail('RUN_ACTIVE','任务仍在执行或可继续；请先明确取消或完成，再清理批准计划',409)
         db.execute('DELETE FROM workspace_objects WHERE id=? AND user_id=?',(id,user['id']))
-        store.audit(db,user['id'],kind,id,'deleted')
+        # Retain only the retry binding, never deleted experiment snapshots.
+        receipt={k:row['payload'].get(k) for k in ('creation_request_id','creation_request_hash')} if kind=='experiment' else None
+        store.audit(db,user['id'],kind,id,'deleted',receipt)
     return {'ok':True,'notice':'仅删除选中工作区记录；独立历史运行快照不被改写。'}
 
 

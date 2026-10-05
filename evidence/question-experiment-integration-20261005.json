@@ -1,0 +1,57 @@
+{
+  "executed_at": "2026-10-05T12:37:09.702754+00:00",
+  "scope": "Final local integration: explicit metrics/forecast cutoff, finite currency/comparison grammar, experiment save recovery and two prepared native journeys. Not full product acceptance.",
+  "base_commit": "a20a9c45a846f6a5de94432420c6bcc56fed7b9f",
+  "protected_tree_ids": {
+    "web": "b78e9e3089aedc15ab30af5d1f88efac9600b71f",
+    "server": "38c3fb61a1090d8473030991b7c1be4a904e7b50"
+  },
+  "source_files_unchanged_before_after": 295,
+  "native_files_sha256": {
+    "scripts/product_question_scope.py": "1b4caabb4de20725083a4668b79d78692d4527b04afcc8f1e355a74286dfe055",
+    "scripts/product_experiment_recovery.py": "88a6099bd6f5d88c4802edb99d0119923ec393f30271d8a5960df16c4d399126",
+    "tests/test_product_question_scope.py": "e111f6eef7a973d8126a3b78f1f2a5782e9fef3f7ccd29cbc47aaea17a907100",
+    "tests/test_product_experiment_recovery.py": "61cb89775b04726533589f428922e47faf1c8bb09395b418497b58011c99396d"
+  },
+  "checks": {
+    "all_seven_stages_passed": true,
+    "backend": {
+      "collected": 2821,
+      "started": 2821,
+      "completed": 2821,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "warnings": 3,
+      "separate_intra_case_subassertions": 3
+    },
+    "frontend": {
+      "tests": 505,
+      "passed": 505,
+      "failed": 0,
+      "skipped": 0
+    },
+    "actual_http_sse_restart_backup_checks": 18,
+    "real_external_supplier_calls": 0
+  },
+  "native": {
+    "question_scope": "not executed",
+    "experiment_recovery": "not executed",
+    "report_export_recovery_after_old_failure": "not executed",
+    "suite_count": 12,
+    "jobs_per_workflow": 27,
+    "native_limit_seconds": 300,
+    "product_job_limit_minutes": 15,
+    "pytest_limit_seconds": 1200,
+    "individual_test_limit_seconds": 120,
+    "aggregate_job_limit_minutes": 30
+  },
+  "boundaries": [
+    "Synthetic isolated data only; no real-provider success or forecasting-quality claim.",
+    "Prior I9 red remains red; only its already-executed healthy MD/JSON download portion has independent media and byte review.",
+    "Old parser-created USD/QoQ plans retain their saved interpretation and can still execute; separate compatibility guard is not implemented in this candidate.",
+    "No native 20-receipt capacity or orphan-manager acceptance.",
+    "No merge, manual deployment, final copyright filing or whole-product acceptance."
+  ]
+}

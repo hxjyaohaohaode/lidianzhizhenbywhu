@@ -1,7 +1,9 @@
 {
-  "executed_at": "2026-10-05T12:37:09.702754+00:00",
-  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
-  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "executed_at": "2026-10-05T11:04:20.932814+00:00",
+  "published_base": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+  "local_parent": "a90862e54fbfc7501b37b2f3ec0e8eb6ea50aecb",
+  "scope": "Integrates I9 row selector correction with resolved forecast metric and complete explicit-topic coverage in both assistant APIs",
+  "all_seven_stages_passed": true,
   "checks": [
     {
       "check": "python-compile",
@@ -14,7 +16,7 @@
         "scripts"
       ],
       "exit_code": 0,
-      "seconds": 0.048,
+      "seconds": 0.047,
       "timeout_seconds": 240
     },
     {
@@ -27,7 +29,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 1.29,
+      "seconds": 1.23,
       "timeout_seconds": 240
     },
     {
@@ -39,7 +41,7 @@
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 1.624,
+      "seconds": 1.495,
       "timeout_seconds": 240
     },
     {
@@ -59,7 +61,7 @@
         "--junitxml=evidence/pytest.xml"
       ],
       "exit_code": 0,
-      "seconds": 418.214,
+      "seconds": 400.233,
       "timeout_seconds": 1200
     },
     {
@@ -78,7 +80,6 @@
         "tests/data-editor-isolation.frontend.test.mjs",
         "tests/dataset-source.frontend.test.mjs",
         "tests/evidence.frontend.test.mjs",
-        "tests/experiment-recovery.frontend.test.mjs",
         "tests/form-snapshot.frontend.test.mjs",
         "tests/frontend.test.mjs",
         "tests/import-navigation.frontend.test.mjs",
@@ -102,7 +103,7 @@
         "tests/workflow-inputs.frontend.test.mjs"
       ],
       "exit_code": 0,
-      "seconds": 1.753,
+      "seconds": 2.081,
       "timeout_seconds": 240
     },
     {
@@ -112,7 +113,7 @@
         "scripts/source_guard.py"
       ],
       "exit_code": 0,
-      "seconds": 0.403,
+      "seconds": 0.468,
       "timeout_seconds": 240
     },
     {
@@ -122,19 +123,60 @@
         "scripts/full_chain_check.py"
       ],
       "exit_code": 0,
-      "seconds": 6.096,
+      "seconds": 6.853,
       "timeout_seconds": 240
     }
   ],
-  "all_executed_checks_pass": true,
-  "not_exercised_by_this_command": [
-    "Live model API credentials",
-    "Live public sources",
-    "Public HTTPS deployment",
-    "Long-duration production load",
-    "Native browser navigation/Cookie/CSP integration",
-    "Cross-device browser compatibility",
-    "Future dependency advisories",
-    "Optional patched PDF integration"
-  ]
+  "pytest_session": {
+    "event": "session_finished",
+    "utc": "2026-10-05T11:04:00.181151+00:00",
+    "elapsed_seconds": 388.166876,
+    "process_cpu_seconds": 371.013864,
+    "exit_code": 0,
+    "collected": 2443,
+    "started": 2443,
+    "completed": 2443,
+    "complete": true,
+    "phase_outcomes": {
+      "setup_passed": 2443,
+      "call_passed": 2446,
+      "teardown_passed": 2443
+    }
+  },
+  "frontend": {
+    "tests": 485,
+    "passed": 485,
+    "failed": 0,
+    "skipped": 0
+  },
+  "real_http_checks": 18,
+  "protected_tree_ids": {
+    "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+    "server": "5cf3f36d073dfd4c48159bbb3d1920b879f21848"
+  },
+  "source_sha256": {
+    "server/copilot.py": "705eedacba323bb699a748019c8bcdd4e6b437ed143ac1807b000b7951381122",
+    "server/intelligence.py": "7c147e9c18b203b6cfe74b2e7432be00c54cd77fc42144d2e7998056ca29da44",
+    "tests/test_copilot_metric_coverage.py": "2089e5a8c2135a7479856f71c4dc0c1915d284c607cccd06d6cf8380353d842b",
+    ".github/workflows/ci.yml": "dcba762c27d516fb66be402e3e5be6d2ecd34926e759c3b82dd3f54d4a3ab200"
+  },
+  "independent_matrix": {
+    "candidate_passed": 62,
+    "candidate_total": 62,
+    "published_baseline_passed": 29,
+    "published_baseline_total": 62,
+    "corrected_cases": 33,
+    "source_digest": "79e6d5c45e3cc99bc4719990cee2f2e198cc76282c5727b423887987bcbccdbb",
+    "transport": "Authenticated in-process TestClient with isolated synthetic inputs",
+    "probe_correction": "Initial candidate61/62 was a wording-only oracle mismatch for correctly blocked gapped history; original log retained, no production edit or business assertion weakened"
+  },
+  "existing_controls_preserved": true,
+  "default_overview_topics_changed": false,
+  "financial_formulas_changed": false,
+  "brand_changed": false,
+  "real_provider_calls": 0,
+  "native_browser_executed_locally": false,
+  "new_source_native_status": "Not yet executed; requires exact final source pins and hosted CI, then independent original media review",
+  "publication_status": "Local candidate only; publication paused after cancelled tool call, no later remote writes",
+  "complete_product_accepted": false
 }

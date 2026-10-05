@@ -6657,6 +6657,18 @@
       },
       "ExperimentRequest": {
         "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{8,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
           "dataset_id": {
             "type": "string",
             "maxLength": 80,

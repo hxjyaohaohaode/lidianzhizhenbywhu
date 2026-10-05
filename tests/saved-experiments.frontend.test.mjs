@@ -49,7 +49,7 @@ test('unchanged approved response applies once and form writes remain double-sub
  assert(code.includes("if(form.dataset.submitting==='true')return"));
  for(const name of ['plan-form','experiment-form','execute-plan-form']){
   const segment=code.split("case '"+name+"':")[1].split("case '")[0];
-  assert(segment.includes('unchangedInputGuard'));assert(segment.includes('if(sameContext())'));assert(segment.includes('if(current())navigate'));
+  assert(segment.includes('unchangedInputGuard'));assert(segment.includes('if(sameContext())'));assert.match(segment,/if\(current\(\)\)(?:navigate|\{form.dataset.saved='true';navigate)/);
  }
  assert(code.includes("if(el.id==='plan-experiment')syncExperimentControls"));
  assert(code.includes('syncExperimentControls(main,state.cache.planExperiments??[],scopedDatasets())'));

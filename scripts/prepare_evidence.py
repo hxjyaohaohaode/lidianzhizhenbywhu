@@ -18,6 +18,8 @@ REPORTS=('verification.json','full-chain-http.json','native-service-browser.json
     'product-tracking-units-audit.json','product-tracking-units-service-command.json','product-tracking-units-transfer-status.json',
     'product-memory-eligibility-audit.json','product-memory-eligibility-service-command.json','product-memory-eligibility-transfer-status.json',
     'product-report-export-audit.json','product-report-export-service-command.json','product-report-export-transfer-status.json',
+    'product-question-scope-audit.json','product-question-scope-service-command.json','product-question-scope-transfer-status.json',
+    'product-experiment-recovery-audit.json','product-experiment-recovery-service-command.json','product-experiment-recovery-transfer-status.json',
     'source-guard.json','pytest.xml','pytest-progress.jsonl')
 
 

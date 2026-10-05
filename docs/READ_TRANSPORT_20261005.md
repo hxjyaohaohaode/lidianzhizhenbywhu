@@ -13,3 +13,29 @@
 使用实际固定Playwright HTTP agent加内存Duplex、实际Uvicorn h11加内存transport进行了无网络协议检查：默认对照会复用；Uvicorn遵守close请求、关闭transport且不安排空闲timer，后续本helper请求不留下空闲连接。逆向控制也证明header不是强制新socket选项：其它调用者先放入池中的连接仍可能被借用。I7没有这种其它helper；已有两个contract竞态任务使用`route.fetch`，所以不宣称混合路径全局绝不复用。没有启动本地浏览器、监听器或应用服务。
 
 `tests/test_product_read_transport.py` 有21项协议检查；相关聚焦检查122项通过，另3个同一用例内subtests不相加。新的46项CI矩阵和原生Windows结果仍待本轮提交后执行，协议测试不是恢复成功或产品通过的替代证据。
+
+
+## Exact native recovery result (11:05 UTC)
+
+I7 on published `759e041f2e9f749dfe793e87e92fa0dda3cb3b57`, Push run
+`37294732857` attempt1, Windows Chromium143.0.7499.4 at1520×1080, obtained
+independent scoped acceptance after original PNG, video, trace and entity review.
+The three tracking responses are clear→unknown→clear, with empty alert arrays;
+the corrupt state has no current value, period or metric. The restored current
+dataset is v2 and equals the trusted original payload. Original rule records,
+revision history and the v1 report remain unchanged. All109 protected source
+hashes independently match the pinned Git objects before and after execution.
+
+The trace contains35 supplemental GET calls with Connection: close and a30-second
+timeout; all35 recorded matching responses are200 with Connection: close. The
+post-corruption auth read succeeds and the user recovery completes. This records
+one-call helper boundaries and a successful journey; it does not prove globally
+fresh TCP sockets or absolute absence of duplicate server delivery. Startup
+health polling is separate. Three empty ledger observations are recorded
+read-only database evidence, not independent live database or browser reads.
+The video decodes, while viewport PNGs supply readable text because some capture
+frames scale. The old a9 failure remains a failure.
+
+This acceptance does not include later question-scope changes, live suppliers,
+other platforms or the whole product. Full verified identity and outcome fields
+are in `evidence/source-export-native-20261005.json`.

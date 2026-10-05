@@ -157,6 +157,7 @@ class ActionTransition(StrictModel):
 
 
 class ExperimentRequest(StrictModel):
+    request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
     dataset_id: str = Field(min_length=1, max_length=80)
     dataset_version: StorageInteger = Field(strict=True, ge=1)
     dataset_hash: str = Field(pattern='^[a-f0-9]{64}$')

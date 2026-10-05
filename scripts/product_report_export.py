@@ -226,7 +226,9 @@ def _revisit_bad_report(p, old, dataset, expected_audit, expected_run_ids):
     assert listed['source_impact'] == expected_audit['source_impact']
     target = p.page.locator('#main .title-button').filter(has=p.page.get_by_text(QUERY, exact=True))
     assert target.count() == 1 and target.get_attribute('data-route') == 'agents:run-' + old['id']
-    row = p.page.locator('#main tbody tr').filter(has=target)
+    # A has locator is evaluated inside each row; #main is an ancestor there.
+    row = p.page.locator('#main tbody tr').filter(has=p.page.locator('.title-button').filter(
+        has=p.page.get_by_text(QUERY, exact=True)))
     assert row.count() == 1
     list_reason = _observe_unavailable(p, row, '按原问题找回坏报告：列表导出停用原因')
     status, audit = _capture_response(p, 'GET', '/api/workspace/runs/' + old['id'] + '/audit',

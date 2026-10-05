@@ -132,7 +132,7 @@ def assistant_answer(store,user,query,dataset_id='',*,resolved_scope=None):
     # this scope. The public free-text endpoint never accepts client overrides.
     question_scope=resolved_scope if resolved_scope is not None else resolve_question(query,d['payload'],['gross_margin','cash_ratio'])
     data=scoped_dataset(d['payload'],question_scope);analysis=calculate(data,question_scope['comparison']);q=query.lower()
-    selected=question_scope['topics'] if resolved_scope is not None else question_scope['topics'][:5];latest=analysis['series'][-1];links={x['id']:x for x in lineage(data,analysis)}
+    selected=question_scope['topics'];latest=analysis['series'][-1];links={x['id']:x for x in lineage(data,analysis)}
     baseline=next((p for p in data['periods'] if p['period']==analysis['baseline_period']),None)
     facts=[]
     for f in selected:

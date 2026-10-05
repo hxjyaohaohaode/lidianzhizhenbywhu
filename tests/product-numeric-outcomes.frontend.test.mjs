@@ -34,10 +34,28 @@ test('legacy missing forecast metric discloses missing unit instead of assuming 
  const html=forecast(undefined,.2).split('<details>')[0];
  assert(html.includes('指标未记录'));assert(!html.includes('<td>0.2</td>'));
 });
+test('forecast visibly labels its recorded input cutoff separately from future estimates',()=>{
+ state.user={preferences:{amount_unit:'wan'}};
+ const data={status:'completed',metric:'cost',train_end:'2024-Q2',forecast:[{period:'2024-Q3',value:80000},{period:'2024-Q4',value:80000}]};
+ const frozen=structuredClone(data);
+ const html=messageView({id:'cutoff',payload:{question:'2025-Q4 forecast cost',response:{cards:[{kind:'forecast',title:'透明基线回测',data}]}}}).split('<details>')[0];
+ assert(html.includes('<p data-forecast-input-period>历史输入截至：2024-Q2</p>'));
+ assert(html.includes('营业成本'));assert(html.includes('万元'));assert(html.includes('基线点估计'));
+ assert(html.includes('<td>2024-Q3</td><td>8</td>'));assert(html.includes('<td>2024-Q4</td><td>8</td>'));
+ assert.deepEqual(data,frozen);
+});
+test('missing or malformed historical cutoff is disclosed without inferring it from the question or predictions',()=>{
+ for(const train_end of [undefined,null,'','2024-Q5','<img src=x onerror=alert(1)>']){
+  const data={status:'completed',metric:'cost',train_end,forecast:[{period:'2025-Q1',value:80000}]};
+  const html=messageView({id:'legacy-cutoff',payload:{question:'2024-Q4 forecast cost',response:{cards:[{kind:'forecast',title:'透明基线回测',data}]}}}).split('<details>')[0];
+  assert(html.includes('<p data-forecast-input-period>历史输入截至：未记录</p>'));
+  assert(!html.includes('历史输入截至：2024-Q4'));assert(!html.includes('<img'));
+ }
+});
 test('blocked forecast shows its actual missing-input reason and cannot surface leftover values',()=>{
- const data={status:'blocked',reason:'至少需要6个连续且已结束季度',metric:'gross_margin',forecast:[{period:'2025-Q1',value:.2}]};
+ const data={status:'blocked',reason:'至少需要6个连续且已结束季度',metric:'gross_margin',train_end:'2020-Q1',forecast:[{period:'2025-Q1',value:.2}]};
  const html=messageView({id:'blocked',payload:{question:'预测毛利率',response:{cards:[{kind:'forecast',title:'透明基线回测',data}]}}}).split('<details>')[0];
- assert(html.includes(data.reason));assert(!html.includes('2025-Q1'));assert(!html.includes('<td>20%</td>'));
+ assert(html.includes(data.reason));assert(!html.includes('data-forecast-input-period'));assert(!html.includes('2020-Q1'));assert(!html.includes('2025-Q1'));assert(!html.includes('<td>20%</td>'));
 });
 test('same-minute reports remain identifiable by original data revision and saved question',()=>{
  state.cache={reports:[{id:'new-report-222',title:'相同报告标题',query:'同一季度核查',current_period:'2024-Q4',dataset_version:2,created_at:'2026-10-04T18:39:10Z'},{id:'old-report-111',title:'相同报告标题',query:'同一季度核查',current_period:'2024-Q4',dataset_version:1,created_at:'2026-10-04T18:39:08Z'}]};

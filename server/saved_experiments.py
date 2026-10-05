@@ -39,12 +39,34 @@ def create_payload(dataset, request):
     target = request.target_period or max(p['period'] for p in dataset['payload']['periods'])
     if target not in {p['period'] for p in dataset['payload']['periods']}:
         fail('EXPERIMENT_PERIOD', '所选目标季度不在当前数据中', 409)
-    p = {'request': request.model_dump(mode='json'), 'dataset_id': dataset['id'],
+    p = {'request': request.model_dump(mode='json', exclude={'request_id'}), 'dataset_id': dataset['id'],
          'company': dataset['payload']['company'], 'dataset_version': dataset['version'],
          'dataset_hash': dataset['content_hash'], 'snapshot': dataset['payload'],
-         'target_period': target, 'analysis_as_of': utc_today().isoformat(), 'created_at': now()}
+         'target_period': target, 'analysis_as_of': utc_today().isoformat(), 'created_at': now(),
+         'creation_request_id': request.request_id,
+         'creation_request_hash': digest(request.model_dump(mode='json', exclude={'request_id'}))}
     p['result'] = calculate_experiment(p)
+    # This receipt seals the complete original calculation and its input scope.
+    # A retry verifies bytes/structure, never reruns financial calculations.
+    p['creation_payload_hash'] = digest(p)
     return p
+
+
+def verify_creation_receipt(row):
+    p = row['payload']; request = p.get('request') if isinstance(p, dict) else None
+    try:
+        valid = (row['version'] == 1 and isinstance(request, dict)
+                 and p.get('creation_request_id')
+                 and row['natural_key'] == 'experiment_request:' + p['creation_request_id']
+                 and p.get('creation_request_hash') == digest(request)
+                 and p.get('creation_payload_hash') == digest({k: v for k, v in p.items() if k != 'creation_payload_hash'})
+                 and p['dataset_id'] == request['dataset_id']
+                 and p['dataset_version'] == request['dataset_version']
+                 and p['dataset_hash'] == request['dataset_hash'] == digest(p['snapshot']))
+    except (KeyError, TypeError, ValueError):
+        valid = False
+    if not valid:
+        fail('EXPERIMENT_INTEGRITY', '原实验的创建凭据、冻结输入或结果无法核验；未确认保存成功，也不会重新计算或创建，请核对原记录', 409)
 
 
 def public_record(row, *, summary=False):

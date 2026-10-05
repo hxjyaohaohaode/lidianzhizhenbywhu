@@ -12,7 +12,7 @@ from scripts.product_audit_config import audit_suite
 from scripts.product_first_use_audit import REVIEWED_WEB, REVIEWED_SERVER
 
 
-@pytest.mark.parametrize('flag,suite', [('--product-audit', 'contract'), ('--product-first-use', 'first-use'), ('--product-integrity','integrity'),('--product-comparison-integrity','comparison-integrity'),('--product-source-integrity','source-integrity'),('--product-tracking-integrity','tracking-integrity'),('--product-plan-history','plan-history'),('--product-tracking-units','tracking-units'),('--product-memory-eligibility','memory-eligibility'),('--product-report-export','report-export')])
+@pytest.mark.parametrize('flag,suite', [('--product-audit', 'contract'), ('--product-first-use', 'first-use'), ('--product-integrity','integrity'),('--product-comparison-integrity','comparison-integrity'),('--product-source-integrity','source-integrity'),('--product-tracking-integrity','tracking-integrity'),('--product-plan-history','plan-history'),('--product-tracking-units','tracking-units'),('--product-memory-eligibility','memory-eligibility'),('--product-report-export','report-export'),('--product-question-scope','question-scope'),('--product-experiment-recovery','experiment-recovery')])
 def test_local_native_modes_stop_before_socket_process_or_browser(tmp_path, monkeypatch, flag, suite):
     monkeypatch.setattr(native_acceptance, 'ROOT', tmp_path)
     monkeypatch.setattr(sys, 'argv', ['native_acceptance.py', flag])
@@ -28,24 +28,24 @@ def test_local_native_modes_stop_before_socket_process_or_browser(tmp_path, monk
     assert report['suite'] == suite and report['all_checks_passed'] is False
 
 
-@pytest.mark.parametrize('suite',['contract','first-use','integrity','comparison-integrity','source-integrity','tracking-integrity','plan-history','tracking-units','memory-eligibility','report-export'])
+@pytest.mark.parametrize('suite',['contract','first-use','integrity','comparison-integrity','source-integrity','tracking-integrity','plan-history','tracking-units','memory-eligibility','report-export','question-scope','experiment-recovery'])
 def test_native_subprocess_receives_selected_suite_and_both_protected_tree_ids(suite):
     assert native_acceptance.product_browser_options(suite,'a'*40,'b'*40)==[
         '--suite',suite,'--expected-web-tree','a'*40,'--expected-server-tree','b'*40]
     with pytest.raises(ValueError):native_acceptance.product_browser_options('not-a-suite','a'*40,'b'*40)
 
 
-def test_suite_destinations_and_registry_are_disjoint_with_l6_history():
-    contract, first_use, integrity, comparison_integrity, source_integrity, tracking_integrity, plan_history, tracking_units, memory_eligibility, report_export = [audit_suite(name) for name in ('contract', 'first-use', 'integrity','comparison-integrity','source-integrity','tracking-integrity','plan-history','tracking-units','memory-eligibility','report-export')]
-    assert len({x['mode'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export)})==10
-    assert len({x['report'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export)})==10
+def test_suite_destinations_and_registry_are_disjoint_with_l6_l7_l8():
+    contract, first_use, integrity, comparison_integrity, source_integrity, tracking_integrity, plan_history, tracking_units, memory_eligibility, report_export, question_scope, experiment_recovery = [audit_suite(name) for name in ('contract', 'first-use', 'integrity','comparison-integrity','source-integrity','tracking-integrity','plan-history','tracking-units','memory-eligibility','report-export','question-scope','experiment-recovery')]
+    assert len({x['mode'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery)})==12
+    assert len({x['report'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery)})==12
     assert contract['mode'] != first_use['mode'] and contract['report'] != first_use['report']
     assert contract['mode'] == 'product-audit' and contract['report'] == 'product-browser-audit.json'
     assert contract['scenarios'] == runner.SCENARIOS
     registry = runner.scenario_registry(repository_root='unused', data_dir='unused',
         expected_web_tree=REVIEWED_WEB, expected_server_tree=REVIEWED_SERVER)
     assert tuple(registry) == ('F1-trace-handoff', 'F2-forecast-units', 'F3-report-points', 'L1-first-use-report',
-        'I1-import-integrity','I2-report-integrity','I3-memory-integrity','I4-comparison-integrity','I5-review-scope','I6-dataset-source','I7-tracking-source','L6-plan-history','L4-tracking-units','I8-memory-preference','I9-report-export')
+        'I1-import-integrity','I2-report-integrity','I3-memory-integrity','I4-comparison-integrity','I5-review-scope','I6-dataset-source','I7-tracking-source','L6-plan-history','L4-tracking-units','I8-memory-preference','I9-report-export','L7-question-scope','L8-experiment-recovery')
     assert registry['L1-first-use-report'].keywords['expected_web_tree'] == REVIEWED_WEB
     assert tuple(code for code, _ in first_use['scenarios']) == ('L1-first-use-report',)
     assert integrity['database_fault_injection'] is True and comparison_integrity['database_fault_injection'] is True
@@ -70,17 +70,31 @@ def test_suite_destinations_and_registry_are_disjoint_with_l6_history():
     assert tuple(code for code,_ in report_export['scenarios'])==('I9-report-export',)
     assert report_export['database_fault_injection'] is True
     assert registry['I9-report-export'].keywords['expected_server_tree']==REVIEWED_SERVER
+    for configuration, scenario, module, function in (
+        (question_scope, 'L7-question-scope', 'scripts.product_question_scope', 'question_scope_journey'),
+        (experiment_recovery, 'L8-experiment-recovery', 'scripts.product_experiment_recovery', 'experiment_recovery_outcome'),
+    ):
+        assert tuple(code for code, _ in configuration['scenarios']) == (scenario,)
+        assert not configuration.get('database_fault_injection')
+        assert registry[scenario].func.__module__ == module
+        assert registry[scenario].func.__name__ == function
+        assert registry[scenario].keywords == {'repository_root': 'unused', 'data_dir': 'unused',
+            'expected_web_tree': REVIEWED_WEB, 'expected_server_tree': REVIEWED_SERVER}
+    assert question_scope['mode'] == 'product-question-scope'
+    assert question_scope['report'] == 'product-question-scope-audit.json'
+    assert experiment_recovery['mode'] == 'product-experiment-recovery'
+    assert experiment_recovery['report'] == 'product-experiment-recovery-audit.json'
     with pytest.raises(ValueError, match='Unknown'):
         audit_suite('L6')
 
 
-def test_preparation_clears_only_known_first_use_root_outputs(tmp_path):
+@pytest.mark.parametrize('mode', ['product-first-use', 'product-question-scope', 'product-experiment-recovery'])
+def test_preparation_clears_only_known_suite_root_outputs(tmp_path, mode):
     from scripts.prepare_evidence import prepare
     evidence = tmp_path / 'evidence'
     evidence.mkdir()
-    names = ('product-first-use-audit.json', 'product-first-use-service-command.json',
-        'product-first-use-transfer-status.json', 'product-first-use-server.log',
-        'product-first-use-service-browser.log', 'product-first-use-process-events.jsonl')
+    names = tuple(mode + suffix for suffix in ('-audit.json', '-service-command.json',
+        '-transfer-status.json', '-server.log', '-service-browser.log', '-process-events.jsonl'))
     for name in names:
         (evidence / name).write_text('stale output')
     archive = evidence / 'unrelated-historical-audit'
@@ -127,11 +141,13 @@ class FakeContext:
         self.video_file.write_bytes(b'contract-only fake video')
 
 
+@pytest.mark.parametrize('suite,scenario_id', [('first-use', 'L1-first-use-report'),
+    ('question-scope', 'L7-question-scope'), ('experiment-recovery', 'L8-experiment-recovery')])
 @pytest.mark.parametrize('failure,broken_trace,expected', [(None, False, 'passed'),
     (AssertionError('outcome missing'), False, 'failed'),
     (RuntimeError('adapter incomplete'), False, 'blocked_or_error'),
     (None, True, 'evidence_incomplete')])
-def test_first_use_reuses_capture_finalize_and_failure_contract(tmp_path, monkeypatch, failure, broken_trace, expected):
+def test_selected_suite_reuses_capture_finalize_and_failure_contract(tmp_path, monkeypatch, failure, broken_trace, expected, suite, scenario_id):
     monkeypatch.syspath_prepend(str(Path(runner.__file__).parent))
     monkeypatch.setattr(runner, 'require_isolated_runner', lambda *args: None)
     identity = {'head': 'fixture', 'protected_tree_ids': {'web': REVIEWED_WEB, 'server': REVIEWED_SERVER},
@@ -150,14 +166,15 @@ def test_first_use_reuses_capture_finalize_and_failure_contract(tmp_path, monkey
             if failure:
                 raise failure
         probe.step('isolated runner contract, not product acceptance', action)
-    monkeypatch.setattr(runner, 'scenario_registry', lambda **kwargs: {'L1-first-use-report': scenario})
+    monkeypatch.setattr(runner, 'scenario_registry', lambda **kwargs: {scenario_id: scenario})
     report = runner.run_contract_audit(SimpleNamespace(version='fake-contract-only', new_context=new_context),
-        base_url='unused-no-network', data_dir='unused', output_dir=tmp_path / 'evidence/product-first-use',
+        base_url='unused-no-network', data_dir='unused', output_dir=tmp_path / 'evidence' / audit_suite(suite)['mode'],
         repository_root=tmp_path, expected_web_tree=REVIEWED_WEB, expected_server_tree=REVIEWED_SERVER,
-        suite='first-use', submit_form=lambda *args: None)
+        suite=suite, submit_form=lambda *args: None)
     assert len(contexts) == 1 and contexts[0].closed and contexts[0].trace_started
     assert contexts[0].configuration['timezone_id'] == 'UTC'
-    assert report['suite'] == 'first-use' and len(report['scenarios']) == 1
+    assert report['suite'] == suite and len(report['scenarios']) == 1
+    assert report['scenarios'][0]['id'] == scenario_id
     result = report['scenarios'][0]
     assert result['status'] == expected and report['all_checks_passed'] == (expected == 'passed')
     assert {s['kind'] for s in result['screenshots']} == {'viewport', 'full-page'}
@@ -187,7 +204,8 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
     root = Path(__file__).resolve().parents[1]
     after = (root / '.github/workflows/ci.yml').read_text()
     def section(name):return re.search(r'^  '+re.escape(name)+r':\n(.*?)(?=^  [a-z][a-z-]*:|\Z)',after,re.M|re.S).group(1)
-    legacy_job,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export=[section(name) for name in ('product-audit','product-first-use','product-integrity','product-comparison-integrity','product-source-integrity','product-tracking-integrity','product-plan-history','product-tracking-units','product-memory-eligibility','product-report-export')]
+    legacy_job,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery=[section(name) for name in ('product-audit','product-first-use','product-integrity','product-comparison-integrity','product-source-integrity','product-tracking-integrity','product-plan-history','product-tracking-units','product-memory-eligibility','product-report-export','product-question-scope','product-experiment-recovery')]
+    protected_pins = set()
     for job, mode, report_name, pack_options in (
         (legacy_job, 'product-audit', 'product-browser-audit.json', ''),
         (first_use, 'product-first-use', 'product-first-use-audit.json', ' --suite first-use'),
@@ -199,15 +217,34 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
         (tracking_units, 'product-tracking-units', 'product-tracking-units-audit.json', ' --suite tracking-units'),
         (memory_eligibility, 'product-memory-eligibility', 'product-memory-eligibility-audit.json', ' --suite memory-eligibility'),
         (report_export, 'product-report-export', 'product-report-export-audit.json', ' --suite report-export'),
+        (question_scope, 'product-question-scope', 'product-question-scope-audit.json', ' --suite question-scope'),
+        (experiment_recovery, 'product-experiment-recovery', 'product-experiment-recovery-audit.json', ' --suite experiment-recovery'),
     ):
         assert 'timeout-minutes: 15' in job
         assert 'os: [ubuntu-latest, windows-latest]' in job
         command = re.search(r'python scripts/native_acceptance\.py ([^\n]+)', job)
         assert command and re.fullmatch(r'--' + mode +
             r' --expected-web-tree [0-9a-f]{40} --expected-server-tree [0-9a-f]{40}', command.group(1))
+        protected_pins.add(tuple(re.findall(r'--expected-(?:web|server)-tree ([0-9a-f]{40})', command.group(1))))
         assert 'python scripts/pack_product_audit.py' + pack_options + '\n' in job
         assert 'evidence/' + report_name + '\n' in job
         assert 'evidence/' + mode + '-transfer/manifest.json' in job
         assert job.count('path: evidence/' + mode + '-transfer/part-') == 16
+        assert job.count('uses: actions/upload-artifact@v4') == 17
+        assert job.count('if: always()') == 18
+        assert job.count('retention-days: 14') == 17
+        assert job.count('if-no-files-found: ignore') == 16
+        for part in range(1, 17):
+            assert f'name: {mode}-${{{{ matrix.os }}}}-part-{part:02d}\n' in job
+            assert f'path: evidence/{mode}-transfer/part-{part:02d}/\n' in job
+    assert protected_pins == {('b78e9e3089aedc15ab30af5d1f88efac9600b71f',
+        '38c3fb61a1090d8473030991b7c1be4a904e7b50')}
+    assert len(re.findall(r'^  product-[a-z-]+:', after, re.M)) == 12
+    jobs = re.findall(r'^  ([a-z][a-z-]*):\n', after, re.M)
+    assert len(jobs) == 14 and {'regression', 'dependency-audit'} <= set(jobs)
+    assert sum(2 if 'os: [ubuntu-latest, windows-latest]' in section(name) else 1 for name in jobs) == 27
+    assert 'timeout-minutes: 30' in section('regression')
+    from scripts.pack_product_audit import PART_BYTES, MAX_PARTS
+    assert PART_BYTES == 24 * 1024 * 1024 and MAX_PARTS == 16
     assert 'product-first-use' not in legacy_job
     assert 'product-browser-audit.json' not in first_use

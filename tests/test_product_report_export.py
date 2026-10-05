@@ -8,6 +8,8 @@ import subprocess
 from types import SimpleNamespace
 
 import pytest
+from playwright._impl._locator import Locator as ImplLocator, get_by_text_selector
+from playwright.sync_api import Locator
 
 from scripts import product_report_export as scenario
 from scripts.product_first_use_audit import HarnessContractError, canonical_hash
@@ -151,3 +153,88 @@ def test_record_lookup_rejects_missing_and_ambiguous_history():
     for rows in ([], [row, row]):
         with pytest.raises(AssertionError):
             scenario.one(rows, 'old')
+
+
+class ReachedListReason(Exception):
+    """Stop this pure selector contract before any UI observation or click."""
+
+
+def revisit_selector_probe(monkeypatch, *, target_count=1, row_count=1,
+                           route='agents:run-run', query=scenario.QUERY,
+                           title='Saved original title'):
+    """Use real Playwright locator construction, with no driver or browser.
+
+    Counts are explicit test inputs, not DOM/rendering evidence. This contract
+    checks the actual composed has selector and the existing identity guards.
+    The original native failure's row count was 0 despite its unique button,
+    because has inherited #main, which is outside every candidate row.
+    """
+    def forbidden(*args, **kwargs):
+        raise AssertionError('This selector contract must not start a runtime.')
+    monkeypatch.setattr(socket, 'socket', forbidden)
+    monkeypatch.setattr(subprocess, 'Popen', forbidden)
+    frame = SimpleNamespace(_loop=None, _connection=SimpleNamespace(_dispatcher_fiber=None))
+
+    def locator(selector):
+        return Locator(ImplLocator(frame, selector))
+
+    def by_text(text, exact=False):
+        return locator(get_by_text_selector(text, exact=exact))
+
+    page = SimpleNamespace(locator=locator, get_by_text=by_text)
+    exact_question = by_text(scenario.QUERY, exact=True)._impl_obj._selector
+    seen = []
+
+    def count(value):
+        selector = value._impl_obj._selector
+        outer, separator, inner = selector.partition(' >> internal:has=')
+        assert separator, 'Both the button and its row must preserve the exact-question filter.'
+        if outer == '#main .title-button':
+            assert json.loads(inner) == exact_question
+            seen.append('target')
+            return target_count
+        assert outer == '#main tbody tr'
+        descendant = json.loads(inner)
+        button, separator, question = descendant.partition(' >> internal:has=')
+        assert button == '.title-button', 'Row has selector must be descendant-relative, without #main.'
+        assert separator and json.loads(question) == exact_question
+        seen.append('row')
+        return row_count
+
+    def attribute(value, name, **kwargs):
+        assert name == 'data-route'
+        assert value._impl_obj._selector.startswith('#main .title-button >> internal:has=')
+        seen.append('route')
+        return route
+
+    def list_reason(probe, scope, label):
+        assert scope._impl_obj._selector.startswith('#main tbody tr >> internal:has=')
+        assert seen == ['target', 'route', 'row']
+        raise ReachedListReason
+
+    monkeypatch.setattr(Locator, 'count', count)
+    monkeypatch.setattr(Locator, 'get_attribute', attribute)
+    monkeypatch.setattr(scenario, '_observe_unavailable', list_reason)
+    impact = {'state': 'unavailable', 'reasons': []}
+    listing = {'has_more': False, 'items': [
+        {'id': 'run', 'query': query, 'title': title, 'source_impact': impact}]}
+    monkeypatch.setattr(scenario, '_capture_response', lambda *args: (200, listing))
+    old = {'id': 'run', 'result': {'title': 'Saved original title'}}
+    scenario._revisit_bad_report(SimpleNamespace(page=page), old, {},
+                                 {'source_impact': impact}, {'run'})
+
+
+def test_bad_report_row_has_is_relative_with_real_playwright_locator_construction(monkeypatch):
+    with pytest.raises(ReachedListReason):
+        revisit_selector_probe(monkeypatch)
+
+
+@pytest.mark.parametrize('changes', [
+    {'target_count': 0}, {'target_count': 2},
+    {'row_count': 0}, {'row_count': 2},
+    {'route': 'agents:run-another-run'},
+    {'query': scenario.FRESH_QUERY}, {'title': 'Replacement title'},
+])
+def test_bad_report_selector_still_rejects_wrong_or_ambiguous_history(monkeypatch, changes):
+    with pytest.raises(AssertionError):
+        revisit_selector_probe(monkeypatch, **changes)

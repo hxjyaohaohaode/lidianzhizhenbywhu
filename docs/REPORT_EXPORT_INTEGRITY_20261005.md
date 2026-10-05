@@ -66,3 +66,38 @@ old damaged report is left untouched and remains invalid; no fixture restore
 is presented as user recovery. In-process contract checks independently matched
 both actual query results and actual exported bytes. Hosted native execution
 and independent screenshot/trace review are still pending for the next commit.
+
+## First native execution and selector correction (10:21 UTC)
+
+At exact commit `759e041f2e9f749dfe793e87e92fa0dda3cb3b57`, both Linux and
+Windows Push jobs completed the real original-report Markdown and JSON downloads,
+then failed after step 43 at the damaged-report list. These failures remain
+failures; damaged-detail inspection, fresh-report creation and the second pair of
+downloads were not reached.
+
+Independent inspection of the original Linux trace found one exact original-query
+button and its correct old-run route. The subsequent row count was zero because
+the nested `has` locator included `#main`, an ancestor outside each candidate row.
+The original screenshot visibly contained the report row and disabled-export
+explanation; the actual reports response preserved the original identity,
+title/query and `artifact_hash` integrity failure. This failure does not show a
+missing report or a bypass of the export gate.
+
+The correction changes only the row filter to a descendant-relative title button
+with the exact question. Original API identity, title, query, source-impact,
+unique-button, exact-route and unique-row assertions remain. Eight pure tests use
+the installed Playwright locator construction without a browser or driver; their
+counts are explicit test inputs, not rendered UI evidence. The original locator
+fails that regression, and the corrected locator reaches the original observation
+boundary. Independent focused tests passed without application changes, retries
+or increased timeouts. A new exact-SHA hosted native execution is required.
+
+The current journey does not expand the unverified raw-JSON disclosure; a visible
+closed label does not establish that expanded raw-content inspection is usable.
+
+The original Push and PR workflows each ended with 21 successful jobs and two I9
+failures. Both PR I9 summaries likewise stop after step 43; the PR merge-ref tree
+is identical to the published head. The correction passed a fresh complete local
+seven-stage run: 2383 backend cases collected/started/completed, 485 frontend
+tests and 18 real HTTP checks. That does not supply the still-missing native
+recovery result. See `evidence/report-export-selector-20261005.json`.

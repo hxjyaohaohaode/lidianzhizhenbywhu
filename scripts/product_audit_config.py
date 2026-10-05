@@ -44,6 +44,18 @@ AUDIT_SUITES = {
         'precondition': 'Fresh synthetic account; visible CSV/plan/report and four real MD/JSON downloads; one declared owner-bound temporary report-artifact fault; no fixture restore; fresh report does not repair or rewrite damaged history; no providers',
         'database_fault_injection': True,
     },
+    'question-scope': {
+        'mode': 'product-question-scope',
+        'report': 'product-question-scope-audit.json',
+        'scenarios': (('L7-question-scope', '四个真实问题→准确指标与比较单位→真实身份→刷新及重新登录保留'),),
+        'precondition': 'Fresh synthetic account; four questions and a real service identity created through visible controls; actual reload and re-login preserve original messages; no database faults or providers',
+    },
+    'experiment-recovery': {
+        'mode': 'product-experiment-recovery',
+        'report': 'product-experiment-recovery-audit.json',
+        'scenarios': (('L8-experiment-recovery', '三次真实保存已提交后响应丢失→三次明确找回→保留原来源及新草稿'),),
+        'precondition': 'Fresh synthetic account; actual UI saves with three committed POST response-loss injections and three explicit recoveries; six POSTs yield three experiments and three audit events; source v1 to v2 transition and newer draft preserved; no database faults or providers; orphan-manager continuation is outside this suite',
+    },
     'integrity': {
         'mode': 'product-integrity',
         'report': 'product-integrity-audit.json',

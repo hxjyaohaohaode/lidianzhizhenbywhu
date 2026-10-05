@@ -1,3 +1,4 @@
+import { saveExperiment, forgetExperimentAttempt, experimentAttemptManager } from './experiment-recovery.js';
 import { formSnapshot } from './form-snapshot.js';
 import { displayedComparisonMembers, comparisonPreviewDraft, comparisonSaveForm, comparisonCreateRequest, selectedComparisonRequest, syncComparisonControls, comparisonRemovalTarget, comparisonDeleteForm, removeSavedComparison, refreshComparisonReferences } from './saved-comparisons.js';
 import { syncExperimentControls, selectedExperimentRequest, unchangedInputGuard } from './saved-experiments.js';
@@ -139,7 +140,7 @@ document.addEventListener('submit', async (event) => {
     try {
         const { f, str, val, check, list } = read(form);
         let changed = false, savedDraftMessage = '';
-        switch (form.id) {
+        switch (form.dataset.experimentRetry === 'true' ? 'experiment-retry-form' : form.id) {
             case 'strategy-form':
                 await workspace('/strategies', 'POST', { name: str('name'), depth: str('depth'), require_counterevidence: check('require_counterevidence'), require_gap_analysis: check('require_gap_analysis'), note: str('note') });
                 changed = true;
@@ -332,12 +333,22 @@ document.addEventListener('submit', async (event) => {
                     Object.assign(payload, { price_change: val('price_change') / 100, cost_change: val('cost_change') / 100, volume_change: val('volume_change') / 100, fixed_cost_share: val('fixed_cost_share') / 100 });
                 else
                     Object.assign(payload, { metric: str('metric'), horizon: val('horizon') });
-                const r = await workspace('/experiments', 'POST', payload);
+                const r = await saveExperiment(form, payload);
                 if (sameContext()) {
-                    if (current())
+                    if (current()) {
+                        form.dataset.saved = 'true';
                         navigate('lab:' + r.id, true);
+                    }
                     else
                         toast('实验已保存；保留你当前的页面和输入，可从实验列表查看。');
+                }
+                break;
+            }
+            case 'experiment-retry-form': {
+                const r = await saveExperiment(form);
+                if (submittedContext() && submittedCurrent()) {
+                    form.dataset.saved = 'true';
+                    form.innerHTML = notice('原提交已确认保存；你当前的新实验输入保持原样。') + routeButton('查看这份实验', 'lab:' + r.id);
                 }
                 break;
             }
@@ -526,6 +537,8 @@ document.addEventListener('submit', async (event) => {
         }
     }
     catch (e) {
+        if ((form.id === 'experiment-form' || form.dataset.experimentRetry === 'true') && !submittedContext())
+            return;
         if (['comparison-delete-form', 'claim-review-form'].includes(form.id) && (!submittedContext() || !submittedCurrent()))
             return;
         const msg = e instanceof Error ? e.message : '操作失败';
@@ -594,6 +607,20 @@ document.addEventListener('click', async (event) => {
             case 'archive-dialog':
                 await showArchive();
                 break;
+            case 'manage-experiment-requests':
+                dialog('管理本账户的实验提交', experimentAttemptManager(), true);
+                break;
+            case 'forget-experiment-request': {
+                const holder = el.closest('[data-experiment-receipt],form');
+                if (holder?.dataset.submitting === 'true')
+                    return;
+                if (!confirm('上次提交可能已经保存。结束这次重试后，相同内容也会创建新实验。请先核对已保存记录，是否继续？'))
+                    return;
+                forgetExperimentAttempt(id, holder?.dataset.experimentManagement === 'true' ? holder.dataset.owner : undefined);
+                holder?.remove();
+                toast('已结束这次重试，已保存实验保持不变。');
+                break;
+            }
             case 'archive-delete':
                 if (confirm('删除该条记录？独立保存的报告、计划或实验快照不会被连带删除。')) {
                     await workspace('/archive/' + el.dataset.kind + '/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');

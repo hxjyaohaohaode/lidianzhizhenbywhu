@@ -31,12 +31,31 @@ MONEY_QUESTION = r'(?:是|为|有)?\s*多少\s*(?:钱|(?:万|亿)?元)'
 RD_RATIO_PATTERN = (r'研发\s*(?:的\s*)?(?:总?(?:费用|费|支出|开支|成本|投入|金额)\s*(?:的\s*)?)?'
     r'(?:费率|比率|比例|占比|强度|率|(?:(?:占|与|和|对)\s*)?(?:营业)?收入\s*(?:(?:的|之)\s*)?(?:占比|比率|比例|比|率))'
     r'|(?<![a-z0-9])r&d\s+(?:(?:expenses?|expenditure|spending|amount|costs?)\s+)?ratio(?![a-z0-9])')
+# This finite comparison vocabulary is shared by baseline selection, explicit
+# revenue-growth compounds, and scope-only continuations. ASCII aliases are
+# whole tokens (including underscore boundaries), case-insensitive after lower().
+QUARTER_COMPARISON = r'(?:qoq|quarter(?:\s+over\s+|-over-)quarter)'
+YEAR_COMPARISON = r'(?:yoy|year(?:\s+over\s+|-over-)year)'
+GROWTH_COMPARISON = '(?:' + QUARTER_COMPARISON + '|' + YEAR_COMPARISON + ')'
+COMPARISON_PATTERNS = {
+    'previous': r'环比|上一季度|上季|(?<![a-z0-9_])(?:previous\s+quarter|' + QUARTER_COMPARISON + r')(?![a-z0-9_])',
+    'year_over_year': r'同比|上年同季|去年同季|(?<![a-z0-9_])' + YEAR_COMPARISON + r'(?![a-z0-9_])',
+}
 REVENUE_GROWTH_PATTERN = (r'(?:营业收入|收入|营收|销售额)\s*(?:的\s*)?'
     r'(?:(?:同比|环比)\s*(?:增长率?|增速)?|增长率?|增速)'
-    r'|(?<![a-z0-9])(?:revenue\s+(?:growth(?:\s+rate)?|year over year|quarter over quarter)'
-    r'|growth(?:\s+rate)?\s+(?:in\s+)?revenue)(?![a-z0-9])')
+    r'|(?<![a-z0-9_])(?:revenue\s+(?:growth(?:\s+rate)?|' + GROWTH_COMPARISON + r'(?:\s+growth(?:\s+rate)?)?)'
+    r'|' + GROWTH_COMPARISON + r'\s+revenue(?:\s+growth(?:\s+rate)?)?'
+    r'|growth(?:\s+rate)?\s+(?:in\s+)?revenue)(?![a-z0-9_])')
 AMOUNT_TOPICS = {'revenue', 'cost', 'net_profit', 'cash_flow'}
 RATIO_TOPICS = {key for key, _ in TOPICS} - AMOUNT_TOPICS
+# Refusal vocabulary, not currency conversion support or arbitrary ISO/NLP
+# recognition. CNY/RMB/人民币/元/yuan and the ambiguous yen/yuan sign are not
+# foreign-currency tokens. Bare pound/sterling are omitted to avoid other senses.
+FOREIGN_CURRENCY_PATTERN = (
+    r'美元|美金|欧元|英镑|日元|日圆|港元|港币|加元|加币|澳元|澳币|瑞士法郎|瑞郎|新加坡元|新元|韩元'
+    r'|[$€£]|(?<![a-z0-9_])(?:usd|eur|gbp|jpy|hkd|cad|aud|chf|sgd|krw'
+    r'|dollars?|euros?|yen|british\s+pounds?|swiss\s+francs?|korean\s+won)(?![a-z0-9_])')
+WORKSPACE_TERMS = ('证据','资料','记忆','偏好','任务','执行','断点','行动','待办','跟进','截止','情景','敏感','假设','涨价','跌价')
 
 
 def _term_pattern(term):
@@ -145,6 +164,11 @@ def resolve_question(text, data, defaults):
     unsupported_margin=matches(margin_text,'margin') or bool(re.search(r'利润(?:率|比率|比例)',margin_text))
     overview=any(w in q for w in ('经营','诊断','概览','全景','整体','数据质量','数据缺口','核查指标','overview','summary'))
     if not topics and overview:topics=list(defaults)
+    workspace_query=not topics and any(w in q for w in WORKSPACE_TERMS)
+    # A metric-free evidence search may mention a currency without requesting
+    # financial output in it. An explicit financial overview still requests
+    # output, even when a plan caller supplies no default metric topics.
+    unsupported_currency=bool(re.search(FOREIGN_CURRENCY_PATTERN,q)) and (overview or not workspace_query)
     # Remove only named supported turnover phrases. Any remaining turnover
     # request is unsupported, even alongside another recognized metric.
     turnover_remainder=re.sub(r'(?:库存|存货|资产)\s*(?:的\s*)?周转'
@@ -157,8 +181,8 @@ def resolve_question(text, data, defaults):
     unsupported_turnover=bool(turnover_subtype) or '周转' in turnover_remainder or matches(turnover_remainder,'turnover')
     gross_profit_amount=bool(re.search(r'毛利(?:润)?\s*(?:的\s*)?(?:总?金额|总额|数额|额|'+MONEY_QUESTION+r')|毛利润(?!\s*(?:率|比率))'
         r'|(?<![a-z0-9])gross[\s-]+profit(?![\s-]+margin\b)(?![a-z0-9])',q))
-    previous=any(w in q for w in ('环比','上一季度','上季','previous quarter'))
-    yearly=any(w in q for w in ('同比','上年同季','去年同季','year over year'))
+    previous=bool(re.search(COMPARISON_PATTERNS['previous'],q))
+    yearly=bool(re.search(COMPARISON_PATTERNS['year_over_year'],q))
     comparison='previous' if previous else 'year_over_year'
     quarters=[]; spans=[]
     for pattern in PERIOD_PATTERNS:
@@ -187,6 +211,8 @@ def resolve_question(text, data, defaults):
         status='needs_clarification';notice='当前数据按单季度保存；年度、月份、无效季度或额外年份不会擅自当作最近一季或自动汇总，请明确单个目标季度。'
     elif quarters and period not in available:
         status='period_unavailable';notice=f'已保存输入没有{period}，不能用最近一季代替；请先补充该季度原始数据。'
+    elif unsupported_currency:
+        status='unsupported_topic';notice='当前财务输入和金额计算仅支持人民币（CNY，元）；不支持外币金额或汇率换算，不能用人民币数值替代所问币种。请单独提问人民币口径的已支持指标。'
     elif unsupported_cash_balance:
         status='unsupported_topic';notice='当前不支持现金余额、货币资金或现金及现金等价物余额：当前现金相关原始字段只有经营现金流，不能用期间流量或经营现金收入比代替时点余额。请核对资产负债表等原始来源；如需核查已支持的现金流或其他指标，请单独提问。'
     elif unsupported_liability:
@@ -205,14 +231,15 @@ def resolve_question(text, data, defaults):
         status='unsupported_topic';notice='当前不支持该周转指标或未明确对象的周转问题；本地仅可核查存货/库存周转率与总资产周转率，不支持应收账款、固定/流动资产周转或周转天数。请将受支持指标单独提问，不用另一指标或单位代替。'
     elif modifier_notice:
         status='unsupported_topic';notice=modifier_notice
-    elif not topics and any(w in q for w in ('证据','资料','记忆','偏好','任务','执行','断点','行动','待办','跟进','截止','情景','敏感','假设','涨价','跌价')):
+    elif workspace_query:
         status='workspace_query';notice='已按当前企业与工作身份查询相关资料或工作记录；本问题没有指定财务指标，因此不附加无关指标结论。'
     elif not topics:
         status='unsupported_topic';notice='当前问题未匹配可计算的财务指标。本地助手可核查收入、成本、利润、现金流、比率及其同/环比；请明确指标。资料匹配仅作为待审阅候选。'
     if status!='supported':topics=[]
     return {'status':status,'notice':notice,'topics':topics,'comparison':comparison,'period':period,
             'available_periods':available,'period_explicit':bool(quarters),'default_overview':overview,
-            'comparison_explicit':previous or yearly,'period_basis':'single_quarter','can_calculate':status=='supported'}
+            'comparison_explicit':previous or yearly,'period_basis':'single_quarter','can_calculate':status=='supported',
+            'unsupported_currency':unsupported_currency}
 
 
 def scoped_dataset(data, scope):
@@ -235,8 +262,7 @@ def resolve_followup(text, data, defaults, previous=None):
     cue = any(word in q for word in ('继续', '刚才', '接着', '那么', '那', '还有'))
     frame=q
     for pattern in PERIOD_PATTERNS:frame=re.sub(pattern,'',frame)
-    for term in ('previous quarter','year over year','上一季度','上年同季','去年同季','同比','环比','上季'):
-        frame=frame.replace(term,'')
+    for pattern in COMPARISON_PATTERNS.values():frame=re.sub(pattern,'',frame)
     bare = re.fullmatch(r'(?:请|继续|再|接着|展开|分析|解释|核查|看|说说|刚才|上述|这些|之前|那么|那|还有|的|为什么|原因|依据|内容|结果|问题|吧|呢|一下|与|比较|[？?。！!，、\s])*', frame)
     if not ((cue and scope['topics']) or (bare and q and (cue or any(w in q for w in ('为什么', '展开', '这些'))))):
         return scope
@@ -278,7 +304,7 @@ def analysis_dataset(snapshot):
 
 def plan_scope(query, data):
     resolved=resolve_question(query,data,[])
-    blocked=resolved['status'] in ('needs_clarification','period_unavailable')
+    blocked=resolved['status'] in ('needs_clarification','period_unavailable') or resolved['unsupported_currency']
     return {'status':'blocked' if blocked else 'selected','period':resolved['period'],
             'topics':list(resolved['topics']),'question_status':resolved['status'],
             'explicit':resolved['period_explicit'],'requested_comparison':resolved['comparison'] if resolved['comparison_explicit'] else None,'available_periods':resolved['available_periods'],
