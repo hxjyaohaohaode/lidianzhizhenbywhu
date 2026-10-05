@@ -246,8 +246,8 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
         for part in range(1, 17):
             assert f'name: {mode}-${{{{ matrix.os }}}}-part-{part:02d}\n' in job
             assert f'path: evidence/{mode}-transfer/part-{part:02d}/\n' in job
-    assert protected_pins == {('804a8fa701e8481250346324947d7455e1271a06',
-        'e889fd6a8a4e8fd02f475ed8c55f505b2a6a9dc1')}
+    assert protected_pins == {('fc2d662decb35ad551cae0e39766d07f6b90ee92',
+        'f6dbb3a3f3649574237cea12aecb43fd96d14283')}
     assert len(re.findall(r'^  product-[a-z-]+:', after, re.M)) == 15
     jobs = re.findall(r'^  ([a-z][a-z-]*):\n', after, re.M)
     assert len(jobs) == 17 and {'regression', 'dependency-audit'} <= set(jobs)

@@ -16,8 +16,10 @@ from .analytics import calculate, quality_report, forecast_baselines, lineage, p
 from .intelligence import scoped_retrieve, build_insights, assistant_answer
 from .service_contracts import WatchSpec
 from .autonomy_contracts import ExecutionOptions
-from .business_provenance import resolve_source, assert_source_current, with_source_impact, report_impact
+from .business_provenance import resolve_source, assert_source_current, with_source_impact
 from .source_bindings import require_dataset_content
+from .historical_question_scope import saved_message_warning
+from .copilot_reports import read_proposal_run
 from .metric_facts import fact_comparison, RATIO_METRICS as _RATIO_METRICS, AMOUNT_METRICS as _AMOUNT_METRICS
 
 
@@ -75,18 +77,12 @@ def read_thread(store,user,id):
     except HTTPException as exc:
         writable=False;reason=exc.detail.get('message','当前范围已失效')
     messages=store.all('SELECT id,payload,created_at FROM copilot_messages WHERE user_id=? AND thread_id=? ORDER BY created_at,id',(user['id'],id))
-    proposals=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.thread_id')=? ORDER BY created_at,id",(user['id'],id))
+    messages=[{**m,'question_compatibility':warning} if (warning:=saved_message_warning(m)) else m for m in messages]
+    proposals=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND CASE WHEN json_valid(payload) THEN json_extract(payload,'$.thread_id') END=? ORDER BY created_at,id",(user['id'],id))
     runs=[]
-    for p in proposals:
-        r=p['payload'].get('result') or {}
-        if r.get('run_id'):
-            run=store.owned('runs',user['id'],r['run_id'])
-            if run:
-                runs.append({'id':run['id'],'state':run['state'],'error':run['error'],'result':run['result'],
-                    'updated_at':run['updated_at'],'proposal_id':p['id'],
-                    'dataset_version':run['snapshot']['dataset_version'],
-                    'source_impact':report_impact(store,user['id'],run),
-                    'current_dataset_version':data['version'] if data else None})
+    for proposal in proposals:
+        run=read_proposal_run(store,user['id'],proposal,data['version'] if data else None)
+        if run:runs.append(run)
     return {'thread':t,'identity':identity_context(identity) if identity else t['payload'].get('identity_snapshot'),
             'messages':messages,'proposals':[with_source_impact(store,user['id'],p) for p in proposals],'runs':runs,
             'archived_mode':not writable,'read_only':not writable,
@@ -132,6 +128,9 @@ def trace_message(store,user,thread_id,message_id,identity_id,dataset_id):
         periods=[p['period'] for p in data['payload']['periods']]
         if saved['period'] not in periods:
             fail('TRACE_PERIOD_UNAVAILABLE','原问题的目标季度已不在当前数据中，请补充原始输入或明确新的季度；不会改用最新季度',409)
+        warning=saved_message_warning(source)
+        if warning:
+            fail('TRACE_QUESTION_UNSUPPORTED','原问题：'+warning['question']+'。'+warning['notice']+warning['history_notice'],409)
         scope={**saved,'topics':list(topics),'available_periods':periods,'period_explicit':True,'comparison_explicit':True}
         query=scoped_handoff_query(source['payload']['question'],scope)
         result=assistant_answer(store,context_user(user,identity),query,dataset_id,resolved_scope=scope)

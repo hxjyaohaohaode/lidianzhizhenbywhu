@@ -77,6 +77,37 @@ def read_group(p,locator,required,label):
     observe_text_by_normal_scroll(p,locator,text,label)
 
 
+def read_selection_source(p,box,title,number,run_id):
+    """Read actual headings and complete field/value rows inside their own clip.
+
+    A range spanning the outer section includes the entire nested table box,
+    not just its text, and does not check that table's inner scroll-container clip.
+    Keep the full source oracle and associate every row with its card and columns.
+    """
+    assert box.count()==1 and box.is_visible()
+    assert box.locator('svg,pre,details:not([open]),[hidden]').count()==0
+    heading=box.locator(':scope > h3');assert heading.count()==1 and heading.inner_text().strip()==title
+    table=box.locator('table');assert table.count()==1
+    header=table.locator('thead tr');assert header.count()==1
+    headers=header.locator('th').all()
+    columns=[cell.inner_text().strip() for cell in headers]
+    assert columns==['保存范围','原始内容'] and all(cell.get_attribute('scope')=='col' for cell in headers)
+    row_locators=table.locator('tbody tr').all()
+    rows=[[cell.inner_text().strip() for cell in row.locator('td').all()] for row in row_locators]
+    expect_selection_rows(rows,number,run_id)
+    label='核对所选第'+str(number)+'份报告来源、修订和完整标识：'+title
+    read_group(p,heading,[title],label+'标题')
+    read_group(p,header,columns,label+'表头')
+    readings=[]
+    for index,(row,cells) in enumerate(zip(row_locators,rows),1):
+        row_label=label+'，保存范围 / 原始内容，第'+str(index)+'行：'+cells[0]
+        read_group(p,row,cells,row_label)
+        readings.append({'row':index,'field':cells[0],'value':cells[1],'reading_label':row_label})
+    p.observations.setdefault('report_selection_sources',[]).append({
+        'title':title,'report_id':run_id,'columns':columns,'heading_label':label+'标题',
+        'header_label':label+'表头','rows':readings,'manual_pixel_review':'pending'})
+
+
 def read_answer(p,number):
     section=p.visible('#run-tab-summary [data-report-readout]')
     read_group(p,section.locator(':scope > p.preserve-lines'),[query(number)],'阅读第'+str(number)+'份原问题')
@@ -151,10 +182,8 @@ def report_history_journey(p,*,repository_root,data_dir,expected_web_tree,expect
         assert form.locator('[name="left"] option').count()==COUNT
         p.step('明确选择最早与最新两份保存报告',lambda:(form.locator('[name="left"]').select_option(originals[0]['run']['id']),form.locator('[name="right"]').select_option(originals[-1]['run']['id'])))
         boxes=form.locator('#report-selection-details > .two-columns > section');assert boxes.count()==2
-        for box,number in zip(boxes.all(),(1,COUNT)):
-            rows=[[cell.inner_text().strip() for cell in row.locator('td').all()] for row in box.locator('tbody tr').all()]
-            expect_selection_rows(rows,number,originals[number-1]['run']['id'])
-            read_group(p,box,[query(number),PERIOD,'数据修订',originals[number-1]['run']['id']],'核对所选第'+str(number)+'份报告来源、修订和完整标识')
+        for box,title,number in zip(boxes.all(),('基准报告','对照报告'),(1,COUNT)):
+            read_selection_source(p,box,title,number,originals[number-1]['run']['id'])
         status,comparison=_capture_response(p,'GET','/api/workspace/reports/compare',lambda:p.submit('#report-compare-form',after='#report-comparison table'))
         assert status==200 and comparison['left']==originals[0]['run']['id'] and comparison['right']==originals[-1]['run']['id']
         assert comparison['same_period'] and comparison['left_period']==comparison['right_period']==PERIOD

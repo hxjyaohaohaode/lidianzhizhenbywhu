@@ -102,3 +102,18 @@ test('preference success names the saved settings and cannot look like a later p
  const f=fixture();f.form.id='preferences-form';const p=f.run();await f.entered.promise;f.wait.resolve(['saved']);await p;
  assert.deepEqual(f.calls.toasts,[['个人偏好已保存。']]);
 });
+
+for(const [id,subject] of [['evidence-form','证据资料'],['document-form','证据资料'],['search-evidence-form','证据资料'],['fetch-evidence-form','证据资料'],['evidence-review-form','资料审阅'],['evidence-metadata-form','资料信息']]){
+ test(id+' success remains scoped to its saved object after a later page opens',async()=>{
+  const f=fixture();f.form.id=id;const p=f.run();await f.entered.promise;f.wait.resolve(['saved']);await p;
+  f.state.route='data';f.state.dirty=true;
+  assert.deepEqual(f.calls.toasts,[[subject+'已保存。']]);
+  assert.equal(f.state.dirty,true);
+ });
+}
+test('late evidence save names the old object and retains the newer draft',async()=>{
+ const f=fixture();f.form.id='evidence-form';const p=f.run();await f.entered.promise;
+ invalidateInteractions();f.state.route='data';f.wait.resolve(['saved']);await p;
+ assert.equal(f.state.dirty,true);assert.equal(f.calls.renders,0);
+ assert.match(f.calls.toasts[0][0],/^证据资料已保存；保留你当前的页面和输入/);
+});

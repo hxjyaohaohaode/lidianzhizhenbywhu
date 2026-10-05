@@ -26,7 +26,7 @@ function reset(reviews={items:[],unavailable:[structuredClone(unavailable)]}){
 }
 function withFetch(fn){const old=globalThis.fetch;globalThis.fetch=fn;return ()=>globalThis.fetch=old;}
 async function render(run,audit,reviews){
- const restore=withFetch(async url=>{assert(['/api/runs/'+run.id,'/api/workspace/runs/'+run.id+'/audit','/api/workspace/runs/'+run.id+'/reviews'].includes(url));return json(url.endsWith('/audit')?audit:url.endsWith('/reviews')?reviews:run);});
+ const restore=withFetch(async url=>{if(url==='/api/workspace/orchestration/catalog')return json({capabilities:[]});assert(['/api/workspace/runs/'+run.id+'/audit','/api/workspace/runs/'+run.id+'/reviews'].includes(url));return json(url.endsWith('/audit')?{...audit,run}:reviews);});
  try{return await runPage(run.id);}finally{restore();}
 }
 

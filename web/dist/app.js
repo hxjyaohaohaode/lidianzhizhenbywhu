@@ -500,6 +500,7 @@ document.addEventListener('submit', async (event) => {
             default: throw new Error('未识别的表单，未执行任何写入。');
         }
         if (changed && submittedContext()) {
+            const savedSummary = form.id === 'preferences-form' ? '个人偏好已保存' : ['evidence-form', 'document-form', 'fetch-evidence-form', 'search-evidence-form'].includes(form.id) ? '证据资料已保存' : form.id === 'evidence-review-form' ? '资料审阅已保存' : form.id === 'evidence-metadata-form' ? '资料信息已保存' : '已保存';
             try {
                 const applied = await finishMutation(() => submittedContext() && submittedCurrent(), refreshData, () => { state.dirty = false; if (modal.open)
                     modal.close(); if (inspector.open)
@@ -508,12 +509,12 @@ document.addEventListener('submit', async (event) => {
                     return;
                 if (applied) {
                     await render();
-                    toast(form.id === 'preferences-form' ? '个人偏好已保存。' : '已保存。');
+                    toast(savedSummary + '。');
                 }
                 else {
                     syncPending = true;
                     showSyncNotice();
-                    toast(savedDraftMessage || '已保存；保留你当前的页面和输入，稍后可刷新核对。');
+                    toast(savedDraftMessage || savedSummary + '；保留你当前的页面和输入，稍后可刷新核对。');
                 }
             }
             catch (e) {
@@ -521,7 +522,7 @@ document.addEventListener('submit', async (event) => {
                     return;
                 if (e instanceof ApiError && e.status === 401) {
                     resetAuth();
-                    toast('内容已保存，但登录已失效；请重新登录后核对。', true);
+                    toast(savedSummary + '，但登录已失效；请重新登录后核对。', true);
                     return;
                 }
                 if (submittedCurrent()) {
@@ -534,7 +535,7 @@ document.addEventListener('submit', async (event) => {
                 }
                 syncPending = true;
                 showSyncNotice();
-                toast('内容已保存，但同步读取未完成；请核对并刷新，无需重复提交。', true);
+                toast(savedSummary + '，但同步读取未完成；请核对并刷新，无需重复提交。', true);
             }
         }
     }
@@ -1340,7 +1341,7 @@ function setupLive() {
             return;
         state.cache.runtime = runtime;
         state.cache.nodes = runtime.graph.payload.nodes;
-        state.cache.audit.trace = trace;
+        // Live graph events are newer observations, not part of the frozen audit.
         const focused = document.activeElement?.dataset?.node;
         const scrolls = [...document.querySelectorAll('[data-live-graph]')].map(e => e.querySelector('.graph-scroll')?.scrollTop ?? 0);
         document.querySelectorAll('[data-live-graph]').forEach((e, i) => { e.innerHTML = graphCanvas(runtime.graph.payload.nodes, trace, runtime.state); const sc = e.querySelector('.graph-scroll'); if (sc)

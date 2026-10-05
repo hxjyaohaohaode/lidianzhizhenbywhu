@@ -1,3 +1,7 @@
+# 当前同快照报告与可读来源（2026-10-05）
+
+本轮 [同快照报告与可读来源](COHERENT_REPORT_READERS_20261005.md) 区分真实原生失败、代码/API修正与尚未执行的新界面旅程；完整本地记录见 `evidence/coherent-readers-integration-20261005.json`。完整产品验收继续进行，暂不建议合并。
+
 # 当前历史找回、延迟响应与审阅恢复（2026-10-05）
 
 当前候选以 [可靠性与真实旅程记录](RELIABILITY_USER_JOURNEYS_20261005.md) 和 `evidence/reliability-integration-20261005.json` 为本地执行依据；新精确提交的原生CI必须另验，完整产品仍不建议合并。下方各日期结果保留其原提交边界。

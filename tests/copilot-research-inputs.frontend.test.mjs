@@ -164,7 +164,7 @@ for(const cause of ['new selection','dismiss'])test(`late approval-plan read can
 test('same-thread persisted cards expose changed peer scope without recalculating or hiding saved results',async()=>{
  const h=await harness();try{
   const host={innerHTML:'',scrollTop:0,scrollHeight:0,clientHeight:0,querySelectorAll(){return []}};document.querySelector=selector=>selector==='#assistant-answer'?host:null;
-  globalThis.fetch=async()=>response({...thread(2),proposals:[{...proposal(),payload:{...proposal().payload,status:'executed'}}],runs:[{id:'run-a',proposal_id:'proposal-a',state:'succeeded',dataset_version:3,current_dataset_version:3,source_impact:{state:'changed',reasons:[{code:'comparison_member_changed',message:'对照企业的财务输入已修订'}]},result:{findings:['原始冻结发现'],llm:{state:'not_requested',review:{claims:[]}},adaptive:{mathematical_outputs:{forecast:{status:'blocked',reason:'原始样本不足'}}},comparison_artifact:frozenComparison}}]});
+  globalThis.fetch=async()=>response({...thread(2),proposals:[{...proposal(),payload:{...proposal().payload,status:'executed'}}],runs:[{id:'run-a',proposal_id:'proposal-a',state:'succeeded',report_integrity:{valid:true},report_availability:{status:'available'},dataset_version:3,current_dataset_version:3,source_impact:{state:'changed',reasons:[{code:'comparison_member_changed',message:'对照企业的财务输入已修订'}]},result:{findings:['原始冻结发现'],llm:{state:'not_requested',review:{claims:[]}},adaptive:{mathematical_outputs:{forecast:{status:'blocked',reason:'原始样本不足'}}},comparison_artifact:frozenComparison}}]});
   await chat.reloadThread();assert(host.innerHTML.includes('对照企业的财务输入已修订'));assert(host.innerHTML.includes('原始冻结发现'));assert(host.innerHTML.includes('原始样本不足'));assert(host.innerHTML.includes('data-route="agents:run-run-a"'));assert(!host.innerHTML.includes('未来基线'));
  }finally{h.restore();}
 });
@@ -193,7 +193,7 @@ test('legacy scenario without recorded target discloses missing provenance rathe
 test('remount rechecks same-version peer source impact instead of treating a completed thread cache as current',async()=>{
  const h=await harness();let resolve;try{
   const archived={findings:['冻结研究结果'],llm:{state:'not_requested',review:{claims:[]}},comparison_artifact:frozenComparison};
-  const initial={...thread(),proposals:[{...proposal(),payload:{...proposal().payload,status:'executed'}}],runs:[{id:'run-a',proposal_id:'proposal-a',state:'succeeded',dataset_version:3,current_dataset_version:3,source_impact:{state:'current',reasons:[]},result:archived}]};
+  const initial={...thread(),proposals:[{...proposal(),payload:{...proposal().payload,status:'executed'}}],runs:[{id:'run-a',proposal_id:'proposal-a',state:'succeeded',report_integrity:{valid:true},report_availability:{status:'available'},dataset_version:3,current_dataset_version:3,source_impact:{state:'current',reasons:[]},result:archived}]};
   globalThis.fetch=async()=>response(initial);await chat.reloadThread();
   const host={innerHTML:'',scrollTop:0,scrollHeight:0,clientHeight:0,querySelectorAll(){return []}},composer={value:''},label={textContent:''};
   document.querySelector=selector=>({'#assistant-answer':host,'#assistant-query':composer,'#copilot-composer-status':label}[selector]??null);

@@ -202,16 +202,38 @@ def _read_groups(p, groups, label):
             if not geometry.get('visible'):
                 capture()
                 locator.scroll_into_view_if_needed()
-            for _ in range(12):
+            attempts = []
+            for attempt in range(12):
                 geometry = locator.evaluate(_TEXT_GEOMETRY, text)
                 assert geometry.get('found'), 'Entire visible reading group is missing.'
                 if geometry['visible']:
                     break
                 box = geometry['root']
                 assert box['right'] > box['left'] and box['bottom'] > box['top']
-                p.page.mouse.move((box['left'] + box['right']) / 2, (box['top'] + box['bottom']) / 2)
-                p.page.mouse.wheel(0, -280 if geometry['top'] < geometry['clip']['top'] else 280)
+                clip = geometry['clip']
+                # A nearly full-width row needs only its measured overflow:
+                # a full horizontal page would overshoot to the opposite edge.
+                dx = (max(-280, geometry['left'] - clip['left']) if geometry['left'] < clip['left']
+                      else min(280, max(0, geometry['right'] - clip['right'])))
+                dy = (-280 if geometry['top'] < clip['top']
+                      else 280 if geometry['bottom'] > clip['bottom'] else 0)
+                pointer = {'x': (box['left'] + box['right']) / 2, 'y': (box['top'] + box['bottom']) / 2}
+                if not attempts:
+                    p.observations.setdefault('reading_group_scrolls', []).append({
+                        'label': label, 'text': text, 'required': required, 'attempts': attempts})
+                movement = {'attempt': attempt + 1, 'before': geometry,
+                    'pointer': pointer, 'wheel': {'delta_x': dx, 'delta_y': dy}}
+                attempts.append(movement)
+                p.page.mouse.move(pointer['x'], pointer['y'])
+                p.page.mouse.wheel(dx, dy)
                 p.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+                geometry = locator.evaluate(_TEXT_GEOMETRY, text)
+                movement['after'] = geometry
+                assert geometry.get('found'), 'Entire visible reading group is missing after scrolling.'
+                movement['range_movement'] = {'x': geometry['left'] - movement['before']['left'],
+                    'y': geometry['top'] - movement['before']['top']}
+                if geometry['visible']:
+                    break
             else:
                 raise AssertionError('Complete reading group cannot fit through normal scrolling: ' + label)
             pending.append({'label': label, 'text': text, 'required': required,

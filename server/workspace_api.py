@@ -593,12 +593,18 @@ def reports(request:Request,identity_id:str|None=Query(None,max_length=80),datas
 
 @router.get('/runs/{id}/audit')
 def run_audit(id:str,request:Request,user=Depends(require_user)):
-    store=dbof(request);run=owned(store,user,'runs',id)
+    store=dbof(request)
     from .business_provenance import report_impact
     from .report_integrity import inspect_report_integrity
-    audit=inspect_report_integrity(store,run)
-    return {**audit,'source_impact':report_impact(store,user['id'],run,integrity=audit['report_integrity'])
-        if run['result'] or run['state'] in {'succeeded','degraded'} else None}
+    from .historical_question_scope import report_question_warning
+    # Publication can advance between any two SELECTs. Bind the shown run and
+    # every integrity input to the same read transaction, including ownership.
+    with store.read_snapshot():
+        run=owned(store,user,'runs',id)
+        audit=inspect_report_integrity(store,run)
+        return {**audit,'run':run,'question_compatibility':report_question_warning(store,run,audit['report_integrity']),
+            'source_impact':report_impact(store,user['id'],run,integrity=audit['report_integrity'])
+            if run['result'] or run['state'] in {'succeeded','degraded'} else None}
 
 
 

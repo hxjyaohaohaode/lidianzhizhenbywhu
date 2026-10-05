@@ -1,5 +1,5 @@
 {
-  "files_scanned": 119,
+  "files_scanned": 122,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -14,10 +14,12 @@
     "server/connections.py",
     "server/contracts.py",
     "server/copilot.py",
+    "server/copilot_reports.py",
     "server/evolution.py",
     "server/execution_scope.py",
     "server/exports.py",
     "server/financial_import.py",
+    "server/historical_question_scope.py",
     "server/identities.py",
     "server/imports.py",
     "server/intelligence.py",
@@ -47,6 +49,7 @@
     "server/workflows.py",
     "server/workspace_api.py",
     "server/workspace_store.py",
+    "web/action-evidence.ts",
     "web/adaptive.css",
     "web/api-docs.html",
     "web/api.ts",

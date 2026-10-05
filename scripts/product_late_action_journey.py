@@ -276,6 +276,8 @@ def _save_evidence(p):
         p.visible('#evidence-form [name="text"]').fill(EVIDENCE_TEXT)
         p.visible('#evidence-form [name="company"]').fill(COMPANY)
         p.submit_form(p.page, '#evidence-form')
+        p.page.locator('#notifications .toast').filter(has_text='证据资料已保存。').wait_for(state='visible')
+        assert '已保存。' not in p.page.locator('#notifications .toast').all_text_contents()
         p.page.locator('#modal').wait_for(state='hidden', timeout=FORM_MS)
     p.step('通过真实表单保存仅用于删除回执验收的合成资料', fill)
     rows = _get(p, '/api/evidence', '删除前读取独立保存的合成资料')['items']
@@ -306,6 +308,7 @@ def _delete_then_navigate(p, saved, evidence, mutations):
         def release():
             delay.release()
             feedback = p.page.locator('#notifications .toast').filter(has_text=DELETE_FEEDBACK)
+            assert '已保存。' not in p.page.locator('#notifications .toast').all_text_contents()
             feedback.wait_for(state='visible', timeout=FORM_MS)
             assert feedback.inner_text() == DELETE_FEEDBACK
             _preserved_editor(p, original, DRAFT_A)

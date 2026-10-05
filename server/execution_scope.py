@@ -9,7 +9,7 @@ from .question_scope import COMPARISON_PATTERNS, resolve_question, unsupported_a
 from .store import digest, now
 
 
-def _target(store, plan):
+def plan_scope_target(store, plan):
     p = plan['payload']
     # New previews bind exactly the text used to select scope, before copilot
     # history is appended. It remains usable if its old conversation is removed.
@@ -61,7 +61,7 @@ def plan_scope_issue(store, plan):
     def issue(reason, message):
         return {'code': 'PLAN_SCOPE_REPREVIEW', 'reason': reason, 'message': message}
     try:
-        target = _target(store, plan)
+        target = plan_scope_target(store, plan)
         if not isinstance(target, str) or not target.strip():
             raise ValueError('unavailable target')
         p = plan['payload']; q = target.lower()

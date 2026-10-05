@@ -143,6 +143,21 @@ class Store:
                 elif self.db.in_transaction:self.db.execute('ROLLBACK')
                 raise
 
+    @contextlib.contextmanager
+    def read_snapshot(self):
+        """Keep a multi-query read on one SQLite snapshot without a writer lock.
+
+        The lock protects this shared connection; BEGIN excludes later commits
+        on other connections. Nested callers reuse their enclosing transaction.
+        """
+        with self._lock:
+            nested = self.db.in_transaction
+            if not nested:self.db.execute('BEGIN')
+            try:
+                yield
+            finally:
+                if not nested and self.db.in_transaction:self.db.execute('ROLLBACK')
+
     def one(self,sql: str,params: tuple=()):
         with self._lock:return unpack(self.db.execute(sql,params).fetchone())
 

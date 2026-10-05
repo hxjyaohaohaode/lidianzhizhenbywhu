@@ -79,3 +79,14 @@ body{background:var(--bg)}h1{font-size:clamp(23px,2.1vw,31px);line-height:1.3}h2
 
 .report-readout{overflow-wrap:anywhere}.report-readout>h3{margin-top:22px;margin-bottom:12px}.report-readout td p{margin:5px 0}.report-readout td{vertical-align:top}.report-readout .compact-list li{margin:8px 0}
 .import-readable{min-width:0}.preview-quarter>summary{overflow-wrap:anywhere}.preview-quarter>summary strong{margin-right:12px}.preview-quarter>summary span{font-weight:400;line-height:1.7}.preview-values table{min-width:0;table-layout:fixed}.preview-values th,.preview-values td{white-space:normal;overflow-wrap:anywhere}.preview-values th:first-child{width:42%}.preview-values th:last-child{width:23%}.preview-supplement{margin:12px 0 0}
+
+/* Readable current action evidence: long material stays inside its own card. */
+.action-evidence-list{display:grid;gap:14px;margin-top:12px;min-width:0}
+.action-evidence-choice{min-width:0;max-width:100%;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--paper);display:grid;gap:9px}
+.action-evidence-select{display:flex;align-items:flex-start;gap:10px;cursor:pointer;min-width:0}
+.action-evidence-select>span{min-width:0;overflow-wrap:anywhere}
+.action-evidence-choice h4{font-size:13px;margin-bottom:5px}
+.action-evidence-note,.action-evidence-text{max-height:12rem;overflow:auto;overscroll-behavior:contain;padding:10px;background:var(--panel-soft);border-radius:7px;line-height:1.8;scrollbar-gutter:stable}
+.action-evidence-text{max-height:22rem;font-size:13px}
+.action-evidence-source{margin:0}.action-evidence-source>p{font-size:12px}
+.action-evidence-choice .micro{overflow-wrap:anywhere}

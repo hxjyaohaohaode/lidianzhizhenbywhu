@@ -83,6 +83,154 @@ def test_reading_group_keeps_rendered_block_breaks_separate_from_full_range(dama
         assert row['text'] == original and row['required'] == required
 
 
+def scroll_reader(bounds, *, clip=None, position=(0, 0), limits=(30, 2000), max_motion=None):
+    """Stateful scroll physics only: no browser, server, DOM writes or UI claim."""
+    clip = clip or {'left': 970, 'right': 1470, 'top': 100, 'bottom': 900}
+    current = dict(bounds)
+    position = list(position)
+    wheels, pointers, frames, geometry_calls = [], [], [], []
+    original = '数据核验已计划已执行 · 完成满足已标注要求'
+    rendered = '数据核验\n已计划\n已执行 · 完成\n满足已标注要求'
+    required = rendered.splitlines()
+
+    class Locator:
+        scroll_into_view_calls = 0
+        def count(self): return 1
+        def is_visible(self): return True
+        def locator(self, selector):
+            assert selector == 'svg, pre, details:not([open]), [hidden]'
+            return SimpleNamespace(count=lambda: 0)
+        def inner_text(self): return rendered
+        def text_content(self): return original
+        def scroll_into_view_if_needed(self):
+            # Like the real table row: its element is in view, but text clips.
+            self.scroll_into_view_calls += 1
+        def evaluate(self, script, text):
+            assert script == journey._TEXT_GEOMETRY and text == original
+            geometry_calls.append(text)
+            return {'found': True, **current, 'clip': dict(clip), 'root': {
+                key: (max if key in ('left', 'top') else min)(current[key], clip[key])
+                for key in current},
+                'visible': current['right'] > current['left'] and current['bottom'] > current['top']
+                    and all(current[k] >= clip[k] - 1 for k in ('left', 'top'))
+                    and all(current[k] <= clip[k] + 1 for k in ('right', 'bottom'))}
+
+    def wheel(dx, dy):
+        wheels.append((dx, dy))
+        for axis, delta, edges in ((0, dx, ('left', 'right')), (1, dy, ('top', 'bottom'))):
+            if max_motion is not None:
+                delta = min(max_motion, max(-max_motion, delta))
+            target = min(limits[axis], max(0, position[axis] + delta))
+            for edge in edges:
+                current[edge] -= target - position[axis]
+            position[axis] = target
+
+    def settle(script):
+        assert script == '() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+        frames.append(script)
+
+    screenshots = []
+    p = SimpleNamespace(observations={}, step=lambda label, work: work(),
+        screenshot=lambda name: screenshots.append(name) or name,
+        page=SimpleNamespace(mouse=SimpleNamespace(move=lambda x, y: pointers.append((x, y)), wheel=wheel),
+            evaluate=settle), wheels=wheels, pointers=pointers, frames=frames,
+        screenshots=screenshots, geometry_calls=geometry_calls)
+    return p, Locator(), required
+
+
+@pytest.mark.parametrize('bounds,position,expected', [
+    ({'left': 986, 'right': 1484, 'top': 300, 'bottom': 439}, (0, 0), (14, 0)),
+    ({'left': 956, 'right': 1454, 'top': 300, 'bottom': 439}, (30, 0), (-14, 0)),
+    ({'left': 986, 'right': 1400, 'top': 850, 'bottom': 920}, (0, 0), (0, 280)),
+    ({'left': 986, 'right': 1400, 'top': 80, 'bottom': 150}, (0, 300), (0, -280)),
+    ({'left': 986, 'right': 1484, 'top': 850, 'bottom': 920}, (0, 0), (14, 280)),
+    ({'left': 956, 'right': 1454, 'top': 80, 'bottom': 150}, (30, 300), (-14, -280)),
+])
+def test_reader_scrolls_only_clipped_axes_and_records_actual_movement(bounds, position, expected):
+    p, locator, required = scroll_reader(bounds, position=position)
+    journey._read_groups(p, [(locator, required)], '完整能力行')
+    assert locator.scroll_into_view_calls == 1
+    assert p.wheels == [expected] and len(p.frames) == 1
+    assert p.screenshots == ['reader-1']
+    record = p.observations['reading_group_scrolls'][0]
+    assert len(record['attempts']) == 1
+    attempt = record['attempts'][0]
+    assert attempt['attempt'] == 1 and attempt['before']['visible'] is False
+    assert attempt['wheel'] == dict(zip(('delta_x', 'delta_y'), expected))
+    assert attempt['range_movement'] == dict(zip(('x', 'y'), (-expected[0], -expected[1])))
+    assert attempt['after']['visible'] is True
+    assert attempt['after']['clip'] == attempt['before']['clip']
+    assert p.pointers == [(attempt['pointer']['x'], attempt['pointer']['y'])]
+    for axis, first, last in [('x', 'left', 'right'), ('y', 'top', 'bottom')]:
+        assert attempt['before']['root'][first] < attempt['pointer'][axis] < attempt['before']['root'][last]
+    completed = p.observations['complete_text_groups'][0]
+    assert completed['geometry'] == attempt['after'] and completed['required'] == required
+    assert completed['text'] == record['text'] == locator.text_content()
+    assert completed['manual_pixel_review'] == 'pending'
+
+
+def test_reader_exact_l9_trace_range_needs_fourteen_pixel_native_horizontal_move():
+    # Hosted 7e7ebe step 61, call@3539: the 498px range fits the unchanged 500px clip.
+    p, locator, required = scroll_reader(
+        {'left': 986, 'right': 1484, 'top': 870.390625, 'bottom': 1009.359375},
+        clip={'left': 970, 'right': 1470, 'top': 824.09375, 'bottom': 1080})
+    journey._read_groups(p, [(locator, required)], '完整能力行')
+    assert p.wheels == [(14, 0)]
+    final = p.observations['complete_text_groups'][0]['geometry']
+    assert (final['left'], final['right']) == (972, 1470)
+    assert (final['top'], final['bottom']) == (870.390625, 1009.359375)
+
+
+@pytest.mark.parametrize('left,right,position,expected', [
+    (986, 1884, (0, 0), 280), (556, 1054, (500, 0), -280),
+])
+def test_reader_caps_each_horizontal_wheel_at_280(left, right, position, expected):
+    p, locator, required = scroll_reader(
+        {'left': left, 'right': right, 'top': 300, 'bottom': 439},
+        position=position, limits=(2000, 2000))
+    if right - left > 502:
+        with pytest.raises(AssertionError, match='cannot fit through normal scrolling'):
+            journey._read_groups(p, [(locator, required)], '完整能力行')
+    else:
+        journey._read_groups(p, [(locator, required)], '完整能力行')
+    assert p.wheels[0] == (expected, 0)
+    assert all(abs(dx) <= 280 and dy == 0 for dx, dy in p.wheels)
+
+
+@pytest.mark.parametrize('right,limits', [(1484, (0, 0)), (1534, (30, 2000))])
+def test_reader_stalled_or_truly_wider_group_fails_after_twelve_native_attempts(right, limits):
+    p, locator, required = scroll_reader(
+        {'left': 986, 'right': right, 'top': 300, 'bottom': 439}, limits=limits)
+    with pytest.raises(AssertionError, match='cannot fit through normal scrolling'):
+        journey._read_groups(p, [(locator, required)], '完整能力行')
+    assert len(p.wheels) == len(p.frames) == 12
+    assert not p.screenshots and 'complete_text_groups' not in p.observations
+    attempts = p.observations['reading_group_scrolls'][0]['attempts']
+    assert [item['attempt'] for item in attempts] == list(range(1, 13))
+    for attempt in attempts:
+        before, after = attempt['before'], attempt['after']
+        assert before['visible'] is after['visible'] is False
+        assert after['clip'] == before['clip']
+        assert after['right'] - after['left'] == right - 986
+        assert attempt['range_movement'] == {'x': after['left'] - before['left'], 'y': 0}
+    if limits == (0, 0):
+        assert all(item['range_movement'] == {'x': 0, 'y': 0} for item in attempts)
+    else:
+        assert attempts[0]['wheel']['delta_x'] == 64
+        assert attempts[0]['range_movement']['x'] == -30  # Real movement can be less than requested.
+
+
+def test_reader_records_and_accepts_visibility_reached_on_last_bounded_attempt():
+    p, locator, required = scroll_reader(
+        {'left': 985, 'right': 1483, 'top': 300, 'bottom': 439}, max_motion=1)
+    journey._read_groups(p, [(locator, required)], '完整能力行')
+    assert len(p.wheels) == 12
+    attempts = p.observations['reading_group_scrolls'][0]['attempts']
+    assert not any(item['after']['visible'] for item in attempts[:-1])
+    assert attempts[-1]['after']['visible']
+    assert p.observations['complete_text_groups'][0]['geometry'] == attempts[-1]['after']
+
+
 @pytest.mark.parametrize('damage', ['question', 'company', 'quarter', 'revision', 'partition',
     'missing_row', 'planned_as_completed', 'false_coverage', 'false_reverse_count',
     'baseline_invented_count', 'changed_math', 'unknown_math', 'invented_comparison'])

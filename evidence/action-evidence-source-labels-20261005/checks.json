@@ -1,0 +1,126 @@
+{
+  "executed_at": "2026-10-05T18:19:14.774769+00:00",
+  "base_commit": "8b388c9f2505fd8b7ba17cdfd3b19eb3c8ab5e50",
+  "checks": [
+    {
+      "check": "build",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "typecheck",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "python-compile",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "frontend",
+      "command": [
+        "node",
+        "--test",
+        "tests/action-evidence-reader.frontend.test.mjs",
+        "tests/action-review-binding.frontend.test.mjs",
+        "tests/actions.frontend.test.mjs",
+        "tests/assistant-handoff.frontend.test.mjs",
+        "tests/business-source.frontend.test.mjs",
+        "tests/claim-review-readout.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
+        "tests/copilot-message-trace.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
+        "tests/counterevidence-coverage.frontend.test.mjs",
+        "tests/data-draft-continuation.frontend.test.mjs",
+        "tests/data-editor-isolation.frontend.test.mjs",
+        "tests/dataset-source.frontend.test.mjs",
+        "tests/evaluation-detail.frontend.test.mjs",
+        "tests/evidence.frontend.test.mjs",
+        "tests/experiment-recovery.frontend.test.mjs",
+        "tests/form-snapshot.frontend.test.mjs",
+        "tests/frontend.test.mjs",
+        "tests/import-navigation.frontend.test.mjs",
+        "tests/import-readability.frontend.test.mjs",
+        "tests/import.frontend.test.mjs",
+        "tests/math-results.frontend.test.mjs",
+        "tests/metric-comparison.frontend.test.mjs",
+        "tests/plan-history.frontend.test.mjs",
+        "tests/preferences-completion.frontend.test.mjs",
+        "tests/product-numeric-outcomes.frontend.test.mjs",
+        "tests/proposal-preview.frontend.test.mjs",
+        "tests/recovery.frontend.test.mjs",
+        "tests/report-integrity.frontend.test.mjs",
+        "tests/report-readout.frontend.test.mjs",
+        "tests/saved-comparisons.frontend.test.mjs",
+        "tests/saved-experiments.frontend.test.mjs",
+        "tests/saved-mutation.frontend.test.mjs",
+        "tests/service-completion.frontend.test.mjs",
+        "tests/services.frontend.test.mjs",
+        "tests/strategy-actions.frontend.test.mjs",
+        "tests/watch-units.frontend.test.mjs",
+        "tests/workflow-inputs.frontend.test.mjs"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "focused-api-contract",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_action_evidence_reader.py",
+        "tests/test_current_viewed_bindings.py",
+        "tests/test_action_evidence_binding.py",
+        "tests/test_action_lifecycle.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "source-guard",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/source_guard.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "native_browser": "not run; parent owns hosted reader checks",
+  "not_run": [
+    "Full backend suite",
+    "Real HTTP/SSE/restart chain",
+    "External supplier calls",
+    "Remote CI"
+  ],
+  "brand_integrity": [
+    {
+      "path": "web/brand/logo.png",
+      "sha256": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+      "unchanged": true
+    },
+    {
+      "path": "web/brand/loading-video.mp4",
+      "sha256": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd",
+      "unchanged": true
+    }
+  ]
+}

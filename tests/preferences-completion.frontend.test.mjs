@@ -107,7 +107,7 @@ test('known saved preference with failed refresh is completed recovery, not fabr
  await operation;assert.deepEqual(await completion,['']);
  assert.equal(f.document.documentElement.dataset.theme,'light');assert.equal(f.form.dataset.saved,'true');
  assert.equal(f.form.button.disabled,true);assert.equal(f.calls.writes,1);assert.equal(f.calls.renders,0);
- assert.match(f.calls.toasts[0][0],/内容已保存.*同步读取未完成.*无需重复提交/);
+ assert.match(f.calls.toasts[0][0],/个人偏好已保存.*同步读取未完成.*无需重复提交/);
 });
 
 test('navigation and an idle replacement cannot complete the original pending preference save',async()=>{

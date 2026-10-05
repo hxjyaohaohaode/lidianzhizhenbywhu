@@ -95,16 +95,17 @@ document.addEventListener('submit',async(event)=>{const form=event.target as HTM
  default:throw new Error('未识别的表单，未执行任何写入。');
  }
  if(changed&&submittedContext()){
+  const savedSummary=form.id==='preferences-form'?'个人偏好已保存':['evidence-form','document-form','fetch-evidence-form','search-evidence-form'].includes(form.id)?'证据资料已保存':form.id==='evidence-review-form'?'资料审阅已保存':form.id==='evidence-metadata-form'?'资料信息已保存':'已保存';
   try{
    const applied=await finishMutation(()=>submittedContext()&&submittedCurrent(),refreshData,()=>{state.dirty=false;if(modal.open)modal.close();if(inspector.open)inspector.close();});
    if(!submittedContext())return;
-   if(applied){await render();toast(form.id==='preferences-form'?'个人偏好已保存。':'已保存。');}
-   else{syncPending=true;showSyncNotice();toast(savedDraftMessage||'已保存；保留你当前的页面和输入，稍后可刷新核对。');}
+   if(applied){await render();toast(savedSummary+'。');}
+   else{syncPending=true;showSyncNotice();toast(savedDraftMessage||savedSummary+'；保留你当前的页面和输入，稍后可刷新核对。');}
   }catch(e){
    if(!submittedContext())return;
-   if(e instanceof ApiError&&e.status===401){resetAuth();toast('内容已保存，但登录已失效；请重新登录后核对。',true);return;}
+   if(e instanceof ApiError&&e.status===401){resetAuth();toast(savedSummary+'，但登录已失效；请重新登录后核对。',true);return;}
    if(submittedCurrent()){form.dataset.saved='true';state.dirty=false;if(modal.open)modal.close();if(inspector.open)inspector.close();}
-   syncPending=true;showSyncNotice();toast('内容已保存，但同步读取未完成；请核对并刷新，无需重复提交。',true);
+   syncPending=true;showSyncNotice();toast(savedSummary+'，但同步读取未完成；请核对并刷新，无需重复提交。',true);
   }
  }
  }catch(e){if((form.id==='experiment-form'||form.dataset.experimentRetry==='true')&&!submittedContext())return;if(['comparison-delete-form','claim-review-form'].includes(form.id)&&(!submittedContext()||!submittedCurrent()))return;const msg=e instanceof Error?e.message:'操作失败';if(error&&error.isConnected)error.textContent=msg;else toast(msg,true);if(e instanceof ApiError&&e.status===401&&form.id!=='auth-form'&&form.id!=='password-form')toast('会话已失效。当前输入未自动丢弃，请保存内容后重新登录。',true);}
@@ -298,7 +299,8 @@ function setupLive(){
  const runId=run.id,owner=state.user.id;
  live=new RunLive(runId,(runtime,trace)=>{
    if(state.user?.id!==owner||state.id!=='run-'+runId)return;
-   state.cache.runtime=runtime;state.cache.nodes=runtime.graph.payload.nodes;state.cache.audit.trace=trace;
+   state.cache.runtime=runtime;state.cache.nodes=runtime.graph.payload.nodes;
+   // Live graph events are newer observations, not part of the frozen audit.
    const focused=(document.activeElement as HTMLElement)?.dataset?.node;
    const scrolls=[...document.querySelectorAll<HTMLElement>('[data-live-graph]')].map(e=>e.querySelector('.graph-scroll')?.scrollTop??0);
    document.querySelectorAll<HTMLElement>('[data-live-graph]').forEach((e,i)=>{e.innerHTML=graphCanvas(runtime.graph.payload.nodes,trace,runtime.state);const sc=e.querySelector('.graph-scroll');if(sc)sc.scrollTop=scrolls[i];});
