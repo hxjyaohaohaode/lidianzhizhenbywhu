@@ -77,7 +77,8 @@ def math_markdown(kind, output):
                        for key in ('gross_margin','cash_ratio','leverage','revenue_growth','net_margin')]]
                      for item in output.get('items',[])])]
     elif kind == 'counterevidence':
-        parts += [text(output.get('limitation', '标签对照不是语义矛盾认证')),
+        parts += [text(output.get('reason')) if output.get('reason') else '',
+                  text(output.get('limitation', '标签对照不是语义矛盾认证')),
                   table(['立场', '原始引用 ID'], [[label, '、'.join(output.get('groups', {}).get(key, [])) or '未提供']
                     for key, label in [('supports', '支持'), ('contradicts', '反向'), ('context', '背景')]])]
     elif kind == 'gaps':

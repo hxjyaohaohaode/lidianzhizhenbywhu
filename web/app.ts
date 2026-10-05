@@ -1,4 +1,5 @@
 import {saveExperiment,forgetExperimentAttempt,experimentAttemptManager} from './experiment-recovery.js';
+import {evaluationDetail} from './evaluation-detail.js';
 import {formSnapshot} from './form-snapshot.js';
 import {displayedComparisonMembers,comparisonPreviewDraft,comparisonSaveForm,comparisonCreateRequest,selectedComparisonRequest,syncComparisonControls,comparisonRemovalTarget,comparisonDeleteForm,removeSavedComparison,refreshComparisonReferences} from './saved-comparisons.js';
 import {syncExperimentControls,selectedExperimentRequest,unchangedInputGuard} from './saved-experiments.js';
@@ -210,12 +211,27 @@ document.addEventListener('click',async(event)=>{const el=(event.target as Eleme
  case 'pause-run':case 'resume-run':{const rt=await workspace('/runs/'+id+'/runtime');await workspace('/runs/'+id+'/control','POST',{version:rt.control.version,action:act==='pause-run'?'pause':'resume'});await render();break;}
  case 'assessment-dialog':{const r=await workspace('/runs/'+state.cache.run.id+'/assessment');if(!valid())break;dialog('报告验收与回放授权',assessmentForm(r.item,r.review_context));break;}
  case 'delete-strategy':case 'delete-evaluation':{if(!confirm('清理此候选或回放记录？清理后不可恢复，历史报告保持不变；当前策略和回滚链不能清理。'))return;await workspace((act==='delete-strategy'?'/strategies/':'/strategy-evaluations/')+id+'?version='+el.dataset.version,'DELETE');await render();break;}
- case 'strategy-propose':await workspace('/evolution/propose','POST',{});await render();break;
+ case 'strategy-propose':case 'strategy-evaluate':case 'strategy-activate':case 'strategy-rollback':{
+  const sameContext=contextGuard();
+  const label=({'strategy-propose':'策略候选提议','strategy-evaluate':'策略回放','strategy-activate':'策略激活','strategy-rollback':'策略回滚'} as Record<string,string>)[act];
+  try{
+   if(act==='strategy-activate'){
+    if(!confirm('仅对未来计划激活该策略？既有报告保持不变，未执行旧计划需要重新生成。'))break;
+    const evaluationId=el.dataset.evaluation,latest=await workspace('/evolution');
+    if(!sameContext()||!valid())break;
+    await workspace('/strategies/'+id+'/activate','POST',{evaluation_id:evaluationId,expected_active_version:latest.active?.version??0});
+   }else if(act==='strategy-rollback'){
+    if(!confirm('回滚到上一策略？旧报告不变，未执行计划需要重新核对。'))break;
+    await workspace('/strategies/rollback','POST',{expected_active_version:state.cache.evolution.active.version});
+   }else await workspace(act==='strategy-propose'?'/evolution/propose':'/strategies/'+id+'/evaluate','POST',{});
+   if(!sameContext())break;
+   if(valid())await render();
+   else{syncPending=true;showSyncNotice();toast(label+'已完成；保留当前页面和输入，返回策略实验室可核对已保存结果。');}
+  }catch(e){if(sameContext())toast((valid()?'':'先前的')+label+'未确认完成：'+(e instanceof Error?e.message:'操作失败')+'；请返回策略实验室核对，不会自动重复提交。',true);}
+  break;
+ }
  case 'strategy-dialog':dialog('建立编排策略候选',strategyForm());break;
- case 'strategy-evaluate':await workspace('/strategies/'+id+'/evaluate','POST',{});await render();break;
- case 'evaluation-detail':{const r=state.cache.evolution.evaluations.find((x:Json)=>x.id===id);inspect('逐例回放与门槛依据',jsonView(r.payload));break;}
- case 'strategy-activate':{if(!confirm('仅对未来计划激活该策略？既有报告保持不变，未执行旧计划需要重新生成。'))return;const latest=await workspace('/evolution');await workspace('/strategies/'+id+'/activate','POST',{evaluation_id:el.dataset.evaluation,expected_active_version:latest.active?.version??0});await render();break;}
- case 'strategy-rollback':{if(!confirm('回滚到上一策略？旧报告不变，未执行计划需要重新核对。'))return;await workspace('/strategies/rollback','POST',{expected_active_version:state.cache.evolution.active.version});await render();break;}
+ case 'evaluation-detail':{const e=state.cache.evolution;const r=e?.evaluations?.find((x:Json)=>x.id===id);inspect('逐例回放与门槛依据',evaluationDetail(r,e));break;}
  case 'cancel-plan':await workspace('/plans/'+id+'/cancel?version='+encodeURIComponent(el.dataset.version??''),'POST',{});await render();break;
  case 'cancel-run':await api('/runs/'+id+'/cancel','POST',{});await render();break;
  case 'node-details':{if(state.route==='agents'&&state.id.startsWith('run-')){const audit=await workspace('/runs/'+state.id.slice(4)+'/audit');if(!valid())break;state.cache.audit=audit;}const n=state.cache.nodes?.find((x:Json)=>x.id===id);if(!n)throw new Error('节点不在当前执行计划中');const artifacts=state.cache.audit?.artifacts?.filter((a:Json)=>a.node===id)??[];inspect(n.label??n.name,`<p>${esc(n.purpose)}</p>${badge(n.engine==='optional_llm'?'模型专家':'确定性工具')}<h3>依赖与工具边界</h3>${jsonView({capability:n.capability,depends_on:n.depends_on,tools:n.tools,enabled:n.enabled,reason:n.skip_reason??n.reason})}<h3>实际执行产物</h3>${artifacts.length?artifacts.map((a:Json)=>`<details open><summary>可核验产物 · ${timeText(a.created_at)}</summary>${jsonView(a.payload)}<small class="micro">${esc(a.content_hash)}</small></details>`).join(''):notice('当前没有已保存的节点产物。不会显示模型隐藏思考过程或虚构执行日志。')}`);break;}

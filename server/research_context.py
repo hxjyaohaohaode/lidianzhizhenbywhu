@@ -15,7 +15,7 @@ TOOL_KEYS = {
                  'forecast', 'train_end', 'excluded_periods', 'limitations', 'locked_holdout', 'selection', 'approved_assumptions', 'experiment'),
     'sensitivity': ('status', 'reason', 'period', 'baseline', 'result', 'delta_gross_profit',
                     'break_even_volume_multiplier', 'assumptions', 'approved_assumptions', 'formula', 'limitations', 'experiment'),
-    'counterevidence': ('status', 'groups', 'conflicting_labels', 'limitation'),
+    'counterevidence': ('status', 'reason', 'groups', 'conflicting_labels', 'limitation'),
     'gaps': ('status', 'items', 'findings', 'baseline_requirement', 'unavailable_rule_components', 'limitation'),
 }
 

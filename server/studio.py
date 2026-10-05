@@ -151,6 +151,7 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
     if experiment:bindings['experiment']={k:experiment[k] for k in ('id','version','hash')}
     if comparison_artifact:bindings['comparison_artifact']={k:comparison_artifact[k] for k in ('id','version','hash')}
     payload={'status':'draft','request':body.model_dump(mode='json'),'snapshot':snapshot,'context':context,
+        'scope_query':scope_query if scope_query is not None else body.query,
         'packing':packing,'bindings':bindings,'nodes':nodes,'call_ids':call_ids,
         'max_calls':len(call_ids),'requested_max_calls':body.max_calls if body.use_llm else 0,
         'excluded_memory':excluded,'blockers':blockers,'quality':quality_report(analysis_dataset(snapshot),today=date.fromisoformat(snapshot['analysis_as_of'])),
@@ -261,6 +262,8 @@ def dispatch_plan(store,user,id,body,settings,providers, *, proposal_id=None):
         if p['blockers']:fail('PLAN_BLOCKED','请先处理计划中的阻塞项',409)
         if p['request']['use_llm'] and not body.external_consent:fail('EXTERNAL_CONSENT','必须明确同意该计划的数据外发范围',403)
         check_bindings(store,user,plan,providers)
+        from .execution_scope import require_plan_scope
+        require_plan_scope(store,plan)
         pending=store.one("SELECT count(*) AS n FROM runs WHERE user_id=? AND state IN ('queued','running')",(user['id'],))['n']
         if pending>=settings.max_queued_per_user:fail('QUEUE_FULL','未完成任务过多，请等待或取消',429)
         total=store.one('SELECT count(*) AS n FROM runs WHERE user_id=?',(user['id'],))['n']
@@ -299,6 +302,8 @@ async def perform_studio(worker,id):
     store=worker.store;row=store.one('SELECT * FROM runs WHERE id=?',(id,));s=row['snapshot'];st=s['studio'];r=row['payload']
     if not approved_run_valid(store, row) or not ws.verify_ledger(store, id)['valid']:
         raise RuntimeError('APPROVED_SNAPSHOT_INTEGRITY_FAILED')
+    from .execution_scope import stop_for_scope
+    if stop_for_scope(worker,row):return
     if store.one("SELECT seq FROM run_events WHERE run_id=? AND type IN ('external_call_reserved','external_dispatch') LIMIT 1",(id,)):
         # There is no legacy checkpoint/resume protocol. Restored or manually
         # requeued rows must never repeat an already reserved external call.
@@ -351,6 +356,7 @@ async def perform_studio(worker,id):
                         current=store.one('SELECT * FROM users WHERE id=?',(row['user_id'],))
                         bindings=st['bindings']
                         changed=not current or current['version']!=bindings['user_version'] or not approved_run_valid(store, row)
+                        if not changed and stop_for_scope(worker,row):return False
                         if (datetime.now(timezone.utc)-datetime.fromisoformat(row['created_at'])).total_seconds()>86400:changed=True
                         from .identities import execution_service_valid
                         if not execution_service_valid(store,row['user_id'],bindings,r,worker.providers,bindings['provider']):changed=True
@@ -430,7 +436,12 @@ async def perform_studio(worker,id):
                         dispatched=getattr(exc,'dispatched',False if not_sent and not boundary_recorded else True if boundary_recorded else None)
                         status='unknown' if dispatched is not False and not isinstance(exc,ValueError) else 'failed'
                         if dispatched is None:status='unknown'
-                        return {**close_call(status,dispatched,code),'output':{'claims':[],'missing':[]}}
+                        closed=close_call(status,dispatched,code)
+                        # A first-send rejection rolls back its dispatch transaction.
+                        # Persist the scope suspension after that rollback and closure.
+                        if code=='MODEL_AUTHORIZATION_CHANGED' and approved_run_valid(store,row):
+                            stop_for_scope(worker,row)
+                        return {**closed,'output':{'claims':[],'missing':[]}}
                 res=await node(name,call,'按已批准的任务分工调用；不自动重试付费请求或切换供应商')
                 calls.append({k:v for k,v in res.items() if k!='output'});outputs.append(res['output'])
                 for claim in res['output'].get('claims',[]):claims.append({**claim,'agent':name})

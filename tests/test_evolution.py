@@ -15,10 +15,17 @@ def candidate(a,**kw):
     res=a.post('/workspace/strategies',json={'name':'反证覆盖策略','depth':'balanced','require_counterevidence':True,'note':'提升人工标注的反证能力覆盖，不修改公式或历史输出',**kw});assert res.status_code==201,res.text;return res.json()
 
 
-def three_cases(a,example):
+def three_cases(a,example,stances=('contradicts',)):
     runs=[]
-    source=a.post('/evidence',json={'global_scope':True,'title':'合成验收证据','text':'核验企业经营变化及现金情况；合成验收数据仅供测试，核查支持资料和反向资料。'*15})
-    assert source.status_code==201,source.text
+    for stance in stances:
+        source=a.post('/evidence',json={'global_scope':True,'title':'合成验收证据','text':'合成来源标识'+stance+'。'+'核验企业经营变化及现金情况；合成验收数据仅供测试，核查支持资料和反向资料。'*15})
+        assert source.status_code==201,source.text
+        # A title that says "counterevidence" does not establish the human label.
+        # Successful policy fixtures explicitly use the same review API as users.
+        review=a.put('/workspace/evidence/'+source.json()['id']+'/review',json={
+            'version':1,'global_scope':True,'status':'accepted','stance':stance,
+            'note':'人工标注合成验收资料立场，仅供隔离回归，不代表事实认证'})
+        assert review.status_code==200,review.text
     for i in range(3):
         d=copy.deepcopy(example);d['source_kind']='user_provided';d['name']='验收合成输入'+str(i);d['periods'][-1]['revenue']+=i*1e6
         res=a.post('/datasets',json=d);assert res.status_code==201,res.text

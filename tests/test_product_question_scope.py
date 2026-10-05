@@ -214,38 +214,27 @@ def test_comparison_readout_rejects_missing_or_substituted_comparison(metric, te
         expect_comparison_readout(text, metric)
 
 
-def test_oracles_match_actual_staged_csv_messages_and_trace_in_process(factory, monkeypatch):
+@pytest.fixture
+def offline_oracle(tmp_path):
+    from in_process_oracle import offline_test_client
+    from server.app import make_app
+    from server.config import Settings
+
+    def build_app(providers):
+        return make_app(Settings(data_dir=tmp_path, origin='http://testserver'),
+                        providers=providers, worker_enabled=False)
+
+    with offline_test_client(build_app) as oracle:
+        yield oracle
+
+
+def test_oracles_match_actual_staged_csv_messages_and_trace_in_process(offline_oracle):
     """Schema compatibility only: API setup here is never native UI evidence."""
-    import socket
     from conftest import Actor
-    from server.providers import ProviderService
     from test_services import ok
 
-    network_attempts = []
-    def forbidden_network(*args, **kwargs):
-        network_attempts.append('network-or-listener')
-        raise AssertionError('The in-process oracle contract cannot open network connections or listeners.')
-    for method in ('connect', 'connect_ex', 'bind', 'listen'):
-        monkeypatch.setattr(socket.socket, method, forbidden_network)
-    monkeypatch.setattr(socket, 'create_connection', forbidden_network)
-    monkeypatch.setattr(socket, 'getaddrinfo', forbidden_network)
-
-    class NoSupplierCalls(ProviderService):
-        def __init__(self):
-            super().__init__()
-            self.providers = {}
-            self.calls = []
-
-        async def complete(self, *args, **kwargs):
-            self.calls.append('complete')
-            raise AssertionError('The local oracle contract cannot call a supplier.')
-
-        async def propose(self, *args, **kwargs):
-            self.calls.append('propose')
-            raise AssertionError('The local oracle contract cannot call a planner.')
-
-    providers = NoSupplierCalls()
-    actor = Actor(factory(providers=providers))
+    client, providers, network_attempts = offline_oracle
+    actor = Actor(client)
     assert ok(actor.get('/datasets'))['items'] == []
     # Same twelve-quarter CSV, column order, units and values as Probe.bootstrap.
     csv = '季度,营业收入,营业成本,经营现金流,净利润,总资产,总负债,期末净资产,期初净资产,库存金额,研发费用\n'

@@ -15,7 +15,7 @@ from .models import MODEL_VERSION
 from .report_integrity import inspect_report_integrity
 from . import workspace_store as ws
 
-REPLAY_VERSION = 'local-capability-replay-v4'
+REPLAY_VERSION = 'local-capability-replay-v5'
 COMPLETED_STATES = {'succeeded', 'degraded'}
 
 
@@ -103,6 +103,22 @@ def binding(a, run):
             'request_hash': digest(run['payload']), 'assessment_hash': digest(a['payload'])}
 
 
+def implementation_current(report):
+    return report.get('replay_version') == REPLAY_VERSION and report.get('model_version') == MODEL_VERSION
+
+
+def evaluation_context(row):
+    current = implementation_current(row['payload'])
+    return {**row, 'implementation_context': {'current': current,
+            'message': '' if current else '旧规则下的历史结果，本地回放或数学实现版本已变化；须重新回放后再决定是否激活'}}
+
+
+def policy_implementation_changed(store, user_id, payload):
+    evaluation = store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='strategy_evaluation' AND id=?",
+                           (user_id, payload.get('evaluation_id')))
+    return bool(evaluation and isinstance(evaluation['payload'], dict) and not implementation_current(evaluation['payload']))
+
+
 def policy_context(store, user_id, payload):
     """Resolve only this policy's still-consenting, unchanged replay sources.
 
@@ -123,7 +139,7 @@ def policy_context(store, user_id, payload):
                 report['candidate_hash'] != digest(candidate['payload']) or
                 payload['spec'] != candidate['payload'] or
                 report['baseline_hash'] != digest(report['baseline']) or
-                report['replay_version'] != REPLAY_VERSION or report['model_version'] != MODEL_VERSION):
+                not implementation_current(report)):
             return None
         saved = report['case_bindings']
         if not saved or len({b['assessment_id'] for b in saved}) != len(saved): return None
@@ -160,6 +176,10 @@ def current_active(store, user_id):
         old = raw if isinstance(raw,dict) else {}
         if policy_context(store, user_id, old) is not None:
             return active
+        implementation_changed = policy_implementation_changed(store, user_id, old)
+        reason_code = 'implementation_changed' if implementation_changed else 'source_or_consent_changed'
+        reason = ('本地回放或数学实现版本已变化，旧评估不再适用；当前使用内置规划规则，恢复策略须重新评估并明确激活'
+                  if implementation_changed else '回放来源、人工验收或授权已变化，或策略依据未通过完整性校验；当前使用内置规划规则，恢复策略须重新通过验证')
         invalidated_at = now()
         # Corrupt optional history must never roll back a user's consent
         # withdrawal or source deletion. Only structured entries can be reused.
@@ -168,11 +188,11 @@ def current_active(store, user_id):
         payload = {'spec': None, 'candidate_id': None, 'evaluation_id': None,
                    'history': [*history, policy_history_entry(old)][-20:],
                    'invalidated_at': invalidated_at,
-                   'invalidation_reason': '回放来源、人工验收或授权已变化，当前使用内置规划规则；恢复策略须重新通过验证',
+                   'invalidation_code': reason_code, 'invalidation_reason': reason,
                    'scope': '仅撤销之后计划的策略依据，不修改历史报告或回放证据'}
         row = ws.save(store, db, user_id, 'strategy_active', payload, key='active', expected=active['version'])
         store.audit(db, user_id, 'strategy', old.get('candidate_id') or active['id'], 'invalidated',
-                    {'evaluation_id': old.get('evaluation_id'), 'reason': 'source_or_consent_changed',
+                    {'evaluation_id': old.get('evaluation_id'), 'reason': reason_code,
                      'active_version': row['version']})
         return row
 
@@ -206,7 +226,8 @@ def replay(run, rubric, spec):
     math_hash = digest(computations['quant'])
     # A declared node with unavailable data is not a completed capability. Gap
     # planning is useful precisely when it returns concrete needs_input actions.
-    caps = {cap for cap, output in computations.items() if output.get('status', 'completed') in ('completed', 'needs_input')}
+    caps = {cap for cap, output in computations.items() if output.get('status', 'completed') == 'completed'
+            or (cap == 'gaps' and output.get('status') == 'needs_input')}
     return {'covered': sorted(caps & expected), 'missing': sorted(expected - caps),
             'recall': len(caps & expected) / len(expected) if expected else 0,
             'node_count': len(graph['nodes']), 'math_hash': math_hash,
@@ -215,7 +236,11 @@ def replay(run, rubric, spec):
             'experiment': provenance(s.get('experiment')),
             'comparison_provenance': comparison_provenance(s.get('comparison_artifact')),
             'comparison_hash': digest(computations['comparison']) if 'comparison' in computations else None,
-            'computations': {cap: {'status': out.get('status', 'completed'), 'output_hash': digest(out)} for cap, out in computations.items()},
+            'computations': {cap: {'status': out.get('status', 'completed'), 'output_hash': digest(out),
+                                   **({'reason': out.get('reason'), 'limitation': out.get('limitation'),
+                                       'group_counts': {key: len(out['groups'][key]) for key in ('supports', 'contradicts', 'context')}}
+                                      if cap == 'counterevidence' else {})}
+                             for cap, out in computations.items()},
             'scope': '共享生产实现的本地执行与人工需求覆盖；资料不足节点不计为已完成'}
 
 
@@ -243,6 +268,9 @@ def replay_cohort(grouped, baseline, candidate):
             rubric = a['payload']['expected_capabilities']
             b = replay(run, rubric, baseline); c = replay(run, rubric, candidate)
             results.append({'run_id': run['id'], 'dataset_hash': key, 'partition': 'holdout' if key in holdout else 'development',
+                            'source': {'query': run['payload']['query'], 'company': run['snapshot']['dataset']['company'],
+                                       'target_period': run['result']['analysis'].get('current_period'),
+                                       'dataset_version': run['snapshot']['dataset_version'], 'dataset_hash': run['snapshot']['dataset_hash']},
                             'expected': rubric, 'baseline': b, 'candidate': c, 'reference_math_hash': digest(run['result']['analysis']),
                             'reference_comparison_hash': digest(run['result']['adaptive']['mathematical_outputs']['comparison']) if run['snapshot'].get('comparison_artifact') else None})
             bindings.append(binding(a, run))
@@ -285,7 +313,7 @@ def activate(store, user, candidate_id, body):
         if version != body.expected_active_version or report['active_version'] != version:
             fail('VERSION_CONFLICT', '当前策略或评估基线已变化，请重新回放', 409)
         baseline = current['payload'].get('spec') if current else None
-        if report.get('baseline_hash') != digest(baseline) or report.get('replay_version') != REPLAY_VERSION or report.get('model_version') != MODEL_VERSION:
+        if report.get('baseline_hash') != digest(baseline) or not implementation_current(report):
             fail('EVALUATION_STALE', '基线内容或本地回放实现已变化，请重新评估', 409)
         if report['candidate_id'] != candidate_id or report['candidate_version'] != candidate['version'] or report['candidate_hash'] != digest(candidate['payload']):
             fail('EVALUATION_STALE', '候选与评估不一致', 409)
@@ -320,6 +348,8 @@ def rollback(store, user, body):
         if previous.get('spec') is not None:
             context = policy_context(store, user['id'], previous)
             if context is None:
+                if policy_implementation_changed(store, user['id'], previous):
+                    fail('EVALUATION_STALE', '本地回放或数学实现版本已变化，不能用旧评估回滚；请重新评估并明确激活', 409)
                 fail('EVALUATION_STALE', '此前策略的验收记录、授权或来源已经变化，不能回滚；请重新评估', 409)
             report, grouped = context
             verified = replay_cohort(grouped, report['baseline'], previous['spec'])
@@ -337,7 +367,8 @@ def overview(store, user_id):
     for r in rows:counts[r['state']] = counts.get(r['state'], 0) + 1
     rejects = sum((r['result'] or {}).get('llm',{}).get('review',{}).get('rejected_claims',0) for r in rows)
     active=current_active(store,user_id)
-    return {'active':active,'candidates':ws.objects(store,user_id,'strategy'),'evaluations':ws.objects(store,user_id,'strategy_evaluation',200),
+    return {'active':active,'candidates':ws.objects(store,user_id,'strategy'),
+        'evaluations':[evaluation_context(row) for row in ws.objects(store,user_id,'strategy_evaluation',200)],
         'assessments':[assessment_context(store,user_id,a) for a in ws.objects(store,user_id,'assessment',200)],
         'observations':{'observed_runs':len(rows),'states':counts,'structural_rejections':rejects,
                         'consented_cases':len(cases(store,user_id)),'automatic_model_updates':0},

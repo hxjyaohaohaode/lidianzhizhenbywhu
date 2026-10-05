@@ -92,8 +92,23 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS, suite='cont
                 raise ValueError('Artifact byte length mismatch')
         # The current root report already embeds each scenario and its steps.
         # Do not sweep auxiliary JSON that may belong to an earlier attempt.
-        fixture_hash = row.get('observations', {}).get('fixture', {}).get('csv_sha256')
-        if fixture_hash:
+        fixture = row.get('observations', {}).get('fixture')
+        fixture_hash = (fixture or {}).get('csv_sha256')
+        fixture_file = configuration.get('fixture_file')
+        if fixture_file:
+            declared = [item for item in row.get('artifacts', [])
+                        if item.get('file') == fixture_file]
+            if declared and (len(declared) != 1 or declared[0].get('kind') != 'synthetic-input'):
+                raise ValueError('Configured fixture CSV requires its exact current synthetic-input artifact and hash')
+            # Early failed steps may precede fixture creation or its observation.
+            # Preserve their current screenshots/trace instead of demanding a
+            # CSV they never claimed. Every declared artifact is still checked.
+            if fixture is not None or row.get('status') == 'passed':
+                if (not isinstance(fixture_hash, str) or not re.fullmatch(r'[0-9a-f]{64}', fixture_hash)
+                        or len(declared) != 1 or declared[0].get('sha256') != fixture_hash):
+                    raise ValueError('Configured fixture CSV requires its exact current synthetic-input artifact and hash')
+                include(directory / fixture_file, fixture_hash)
+        elif fixture_hash:
             include(directory / 'synthetic-financial-input.csv', fixture_hash)
 
     if not 1 <= part_bytes <= PART_BYTES or not 1 <= max_parts <= MAX_PARTS:

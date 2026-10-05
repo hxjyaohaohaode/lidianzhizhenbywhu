@@ -1,8 +1,47 @@
 {
   "executed_at": "2026-10-05T15:18:47.424107+00:00",
-  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
-  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
-  "checks": [
+  "baseline_local_commit": "f75ea02d80e9f49c83e3a23f423733a7fd087b13",
+  "protected_tree_ids": {
+    "server": "8621e57f92c821eccaf15fceed5a7bb0265bd31f",
+    "web": "94534eed3a56136f83d837d3f4169f8a9d33db22"
+  },
+  "frozen_source_file_count": 310,
+  "source_unchanged_before_after": true,
+  "critical_source_sha256": {
+    "server/execution_scope.py": "1b4e418a31944b3d7d5e31de260acec83b377614a0c2a840d718a5759c7a4e0f",
+    "server/autonomy.py": "1e6939c369d93d80deafd525daf1e1cd0ecdefb2dfb69f1d34e6edd8770444f2",
+    "server/evolution.py": "21f21c9ae62492e5053e237af2d8705daf5f056fb3804ea7f1b453cbecedd045",
+    "server/studio.py": "5e4d6f959472dbbd199d9646b30b0542242bd8aff99ce0828d4d344750828239",
+    "web/app.ts": "3df5f49cc6983847d8184fe0d948ce506acbee83e8ceb96a4729b988f37c3a19",
+    "web/evaluation-detail.ts": "7e29786cefb6a403dbf68c93b3c0412a2cfc946191d2955ba4cef7894d068cea",
+    "scripts/product_strategy_journey.py": "83b7d14086c364ab053a1da480b47e6e19023f63aa251c3e4bde1cdf893726c5",
+    "tests/in_process_oracle.py": "eac688fbe69c53e308aca91a720b9a8beeec2bcbabd1b8dabf4fac493a30c49f",
+    "tests/fixtures/legacy-execution-scope-a20a9c4.json": "e635303e4b9fa7ad090f2df6a715eb873292165c181fed54bf89507536402f32",
+    ".github/workflows/ci.yml": "c57911cfb3102d20d63d398ca8f93bed7181111d28bdcf23e50a0445fd0aefc7",
+    "scripts/verify.py": "4129d07e31a7289fe8ba30b1b8c8410aec461991a04036127f91f12fb7895f13"
+  },
+  "all_seven_local_stages_pass": true,
+  "backend": {
+    "collected": 2979,
+    "started": 2979,
+    "completed": 2979,
+    "exit_code": 0,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "warnings": 3,
+    "separate_intra_case_subassertions": 3
+  },
+  "frontend": {
+    "tests": 558,
+    "passed": 558,
+    "failed": 0,
+    "skipped": 0,
+    "kind": "compiled production modules/listeners and declared DOM/transport doubles"
+  },
+  "real_http_sse_restart_backup_checks": 18,
+  "real_external_supplier_calls": 0,
+  "check_records": [
     {
       "check": "python-compile",
       "command": [
@@ -129,15 +168,24 @@
       "timeout_seconds": 240
     }
   ],
-  "all_executed_checks_pass": true,
-  "not_exercised_by_this_command": [
-    "Live model API credentials",
-    "Live public sources",
-    "Public HTTPS deployment",
-    "Long-duration production load",
-    "Native browser navigation/Cookie/CSP integration",
-    "Cross-device browser compatibility",
-    "Future dependency advisories",
-    "Optional patched PDF integration"
+  "native": {
+    "suite_count": 13,
+    "jobs_per_event": 29,
+    "new_strategy_journey": "not executed",
+    "next_application_tree_evidence": "not executed",
+    "prior_937_success_not_inherited": true
+  },
+  "budget": {
+    "pytest_seconds": 1500,
+    "individual_test_seconds": 120,
+    "other_check_seconds": 240,
+    "native_seconds": 300,
+    "product_job_minutes": 15,
+    "regression_job_minutes": 35
+  },
+  "limits": [
+    "Full local Linux checks do not substitute for new Windows or native evidence.",
+    "Oracle hooks instrument current application I/O paths and provider calls, not arbitrary native/Proactor network APIs.",
+    "No generic security certification, real financial-data verification, forecasting quality, production load, merge, deployment or copyright filing claim."
   ]
 }

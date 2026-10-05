@@ -27,7 +27,7 @@ def execute_check(cmd,timeout):
 
 def check_timeout(name):
     # Full-suite wall budget is separate from the 120s whole-test watchdog.
-    return 1200 if name=='pytest' else 240
+    return 1500 if name=='pytest' else 240
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--tsc',help='Path to TypeScript tsc.js');p.add_argument('--full-chain',action='store_true',help='Run isolated real HTTP/SSE/restart/backup chain (no external suppliers)');a=p.parse_args();os.chdir(ROOT)
@@ -38,10 +38,10 @@ def main():
     if a.full_chain:commands.append(('full-chain-http',[sys.executable,'scripts/full_chain_check.py']))
     for name,cmd in commands:
         t=time.monotonic()
-        # f70a20d Windows: 2060/2169 finished before the 900s cap; its
-        # independent PR run finished the complete suite in 897.423s. The
-        # measured bound is now 1200s; per-test setup/call/teardown stays 120s.
-        # See docs/CI_EXECUTION_BOUNDS_20261002.md; no tests or assertions skip.
+        # 9376956 Windows completed all 2821 tests in 1196.572s under the
+        # 1200s cap; its failure was the test-host socket guard, not a timeout.
+        # Keep bounded headroom at 1500s; per-test setup/call/teardown stays 120s.
+        # See docs/CI_BUDGET_HEADROOM_20261005.md; no tests or assertions skip.
         timeout=check_timeout(name)
         try:
             if name=='pytest':clear_pytest_outputs(out)

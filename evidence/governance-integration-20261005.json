@@ -1,0 +1,131 @@
+{
+  "recorded_at": "2026-10-05T14:24:41.115648+00:00",
+  "baseline_commit": "f75ea02d80e9f49c83e3a23f423733a7fd087b13",
+  "protected_tree_ids": {
+    "server": "8621e57f92c821eccaf15fceed5a7bb0265bd31f",
+    "web": "94534eed3a56136f83d837d3f4169f8a9d33db22"
+  },
+  "scope": "Local integration of three frozen candidates; no commit, publication, native browser or full-chain execution",
+  "candidate_source_sha256": {
+    "legacy_scope_patch": "be16c7b9f19af61ec35d5015d63a8ae92f879fdbf62562d58eba2fffee91d71b",
+    "counterevidence_v5_patch": "1a4aa050ad248fd3b3157ec5079d0b5987bd735a325da54ff63730ce5f93275c",
+    "evaluation_reader_manifest": "a37b1bc84c3982c46773794f358516ba508b403cb1bbc4ff0bb9767db9876b5f"
+  },
+  "frozen_candidate_unique_files": 26,
+  "unchanged_candidate_files_verified": 25,
+  "merged_file": "server/autonomy.py",
+  "compile_typecheck_build": {
+    "commands": [
+      "python -m compileall -q server scripts tests",
+      "npm run typecheck",
+      "npm run build"
+    ],
+    "passed": true,
+    "typescript": "5.8.3"
+  },
+  "focused_backend": {
+    "entrypoint": "pytest.main in an isolated Python process",
+    "pytest_arguments": [
+      "-q",
+      "-p",
+      "no:faulthandler",
+      "-p",
+      "scripts.pytest_diagnostics",
+      "--diagnostics-output=<audit-directory>/pytest-progress.jsonl",
+      "--diagnostics-test-timeout=120",
+      "--junitxml=<audit-directory>/pytest.xml",
+      "tests/test_legacy_execution_scope.py",
+      "tests/test_counterevidence_coverage.py",
+      "tests/test_currency_comparison_scope.py",
+      "tests/test_evolution.py",
+      "tests/test_strategy_source_lifecycle.py",
+      "tests/test_research_context.py",
+      "tests/test_report_export_integrity.py",
+      "tests/test_holdout_and_brand.py",
+      "tests/test_product_audit_runner.py"
+    ],
+    "socket_audit_hook": "Deny socket.bind and socket.connect; no real listener or network connections",
+    "modules_passed": {
+      "tests/test_legacy_execution_scope.py": 63,
+      "tests/test_counterevidence_coverage.py": 10,
+      "tests/test_currency_comparison_scope.py": 146,
+      "tests/test_evolution.py": 30,
+      "tests/test_strategy_source_lifecycle.py": 27,
+      "tests/test_research_context.py": 10,
+      "tests/test_report_export_integrity.py": 33,
+      "tests/test_holdout_and_brand.py": 5,
+      "tests/test_product_audit_runner.py": 42
+    },
+    "session": {
+      "event": "session_finished",
+      "utc": "2026-10-05T14:22:35.929634+00:00",
+      "elapsed_seconds": 53.001571,
+      "process_cpu_seconds": 53.25586,
+      "exit_code": 0,
+      "collected": 366,
+      "started": 366,
+      "completed": 366,
+      "complete": true,
+      "phase_outcomes": {
+        "setup_passed": 366,
+        "call_passed": 366,
+        "teardown_passed": 366
+      }
+    },
+    "warnings": [
+      "Existing StarletteDeprecationWarning: httpx with starlette.testclient is deprecated"
+    ],
+    "skipped": 0
+  },
+  "focused_frontend": {
+    "command": "node --test tests/counterevidence-coverage.frontend.test.mjs tests/evaluation-detail.frontend.test.mjs tests/strategy-actions.frontend.test.mjs",
+    "passed": 53,
+    "failed": 0,
+    "skipped": 0,
+    "evidence_type": "Production compiled templates/listeners with explicit DOM and transport doubles"
+  },
+  "unchanged_brand_sha256": {
+    "web/brand/loading-video.mp4": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd",
+    "web/brand/logo.png": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25"
+  },
+  "unchanged_math_files": [
+    "server/analytics.py",
+    "server/metric_facts.py",
+    "server/research.py",
+    "server/models.py",
+    "server/saved_experiments.py",
+    "server/saved_comparisons.py",
+    "docs/METHODS.md"
+  ],
+  "ci_contract": {
+    "suite_count": 12,
+    "changed_only_protected_pins": true,
+    "test_timeout_seconds": 120,
+    "backend_suite_timeout_seconds": 1200,
+    "product_browser_timeout_seconds": 300,
+    "product_job_timeout_minutes": 15,
+    "regression_job_timeout_minutes": 30,
+    "max_evidence_parts": 16,
+    "evidence_part_bytes": 25165824
+  },
+  "diff_checks": {
+    "worktree": true,
+    "staged_application": true
+  },
+  "real_external_supplier_calls": 0,
+  "real_service_listeners": 0,
+  "not_run": [
+    "Complete seven-stage verification",
+    "Full backend suite",
+    "Full frontend suite",
+    "Source guard",
+    "Real Uvicorn HTTP/SSE/restart/backup chain",
+    "Rendered or native browser",
+    "Live external suppliers",
+    "Fresh independent legacy API fixture capture",
+    "Independent true f75/v4-to-v5 same-database upgrade probe",
+    "New exact-commit remote CI",
+    "Commit/push/PR/deployment"
+  ],
+  "prior_remote_ci_is_not_current_evidence": "9376956 references the pre-integration application tree; its results do not validate these protected trees"
+}

@@ -40,7 +40,7 @@ export function mathResult(kind, r, unit = 'wan') {
         content = comparisonResultView(r) + comparisonArtifactView(r.comparison_provenance, '实际计算引用的多企业范围', false);
     }
     else if (kind === 'counterevidence') {
-        content = notice(r.limitation ?? '标签对照不是语义矛盾认证。') + table(['人工标注立场', '引用 ID'], [['supports', '支持'], ['contradicts', '反向'], ['context', '背景']].map(([key, label]) => [label, (r.groups?.[key] ?? []).map(esc).join('<br>') || '没有对应资料']));
+        content = (r.reason ? notice(r.reason, 'warm') : '') + notice(r.limitation ?? '标签对照不是语义矛盾认证。') + table(['人工标注立场', '引用 ID'], [['supports', '支持'], ['contradicts', '反向'], ['context', '背景']].map(([key, label]) => [label, (r.groups?.[key] ?? []).map(esc).join('<br>') || '没有对应资料']));
     }
     else if (kind === 'gaps') {
         content = r.items?.length ? table(['缺失字段', '待补充工作'], r.items.map((p) => [esc(metricNames[p.field] ?? p.field), esc(p.action)])) : notice('本节点没有列出缺失字段，不代表全部业务事实已核验。');

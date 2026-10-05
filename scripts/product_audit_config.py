@@ -56,6 +56,13 @@ AUDIT_SUITES = {
         'scenarios': (('L8-experiment-recovery', '三次真实保存已提交后响应丢失→三次明确找回→保留原来源及新草稿'),),
         'precondition': 'Fresh synthetic account; actual UI saves with three committed POST response-loss injections and three explicit recoveries; six POSTs yield three experiments and three audit events; source v1 to v2 transition and newer draft preserved; no database faults or providers; orphan-manager continuation is outside this suite',
     },
+    'strategy-consent': {
+        'mode': 'product-strategy-consent',
+        'report': 'product-strategy-consent-audit.json',
+        'fixture_file': 'strategy-single-synthetic-input.csv',
+        'scenarios': (('L9-strategy-consent', '一份输入一份报告→人工同意0→1→0→诚实阻塞激活→中文逐例与冻结历史'),),
+        'precondition': 'Fresh synthetic account; one two-quarter financial input and one report with background-only evidence; all mutations through visible controls; explicit consent 0 to 1 to 0; blocked activation with no fabricated UI activation request; readable saved case, browser Back/reload and zero-case replay preserve history; no successful activation, rollback, three-input quality, database faults or providers',
+    },
     'integrity': {
         'mode': 'product-integrity',
         'report': 'product-integrity-audit.json',

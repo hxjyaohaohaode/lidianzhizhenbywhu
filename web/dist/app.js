@@ -1,4 +1,5 @@
 import { saveExperiment, forgetExperimentAttempt, experimentAttemptManager } from './experiment-recovery.js';
+import { evaluationDetail } from './evaluation-detail.js';
 import { formSnapshot } from './form-snapshot.js';
 import { displayedComparisonMembers, comparisonPreviewDraft, comparisonSaveForm, comparisonCreateRequest, selectedComparisonRequest, syncComparisonControls, comparisonRemovalTarget, comparisonDeleteForm, removeSavedComparison, refreshComparisonReferences } from './saved-comparisons.js';
 import { syncExperimentControls, selectedExperimentRequest, unchangedInputGuard } from './saved-experiments.js';
@@ -935,34 +936,50 @@ document.addEventListener('click', async (event) => {
                 break;
             }
             case 'strategy-propose':
-                await workspace('/evolution/propose', 'POST', {});
-                await render();
+            case 'strategy-evaluate':
+            case 'strategy-activate':
+            case 'strategy-rollback': {
+                const sameContext = contextGuard();
+                const label = { 'strategy-propose': '策略候选提议', 'strategy-evaluate': '策略回放', 'strategy-activate': '策略激活', 'strategy-rollback': '策略回滚' }[act];
+                try {
+                    if (act === 'strategy-activate') {
+                        if (!confirm('仅对未来计划激活该策略？既有报告保持不变，未执行旧计划需要重新生成。'))
+                            break;
+                        const evaluationId = el.dataset.evaluation, latest = await workspace('/evolution');
+                        if (!sameContext() || !valid())
+                            break;
+                        await workspace('/strategies/' + id + '/activate', 'POST', { evaluation_id: evaluationId, expected_active_version: latest.active?.version ?? 0 });
+                    }
+                    else if (act === 'strategy-rollback') {
+                        if (!confirm('回滚到上一策略？旧报告不变，未执行计划需要重新核对。'))
+                            break;
+                        await workspace('/strategies/rollback', 'POST', { expected_active_version: state.cache.evolution.active.version });
+                    }
+                    else
+                        await workspace(act === 'strategy-propose' ? '/evolution/propose' : '/strategies/' + id + '/evaluate', 'POST', {});
+                    if (!sameContext())
+                        break;
+                    if (valid())
+                        await render();
+                    else {
+                        syncPending = true;
+                        showSyncNotice();
+                        toast(label + '已完成；保留当前页面和输入，返回策略实验室可核对已保存结果。');
+                    }
+                }
+                catch (e) {
+                    if (sameContext())
+                        toast((valid() ? '' : '先前的') + label + '未确认完成：' + (e instanceof Error ? e.message : '操作失败') + '；请返回策略实验室核对，不会自动重复提交。', true);
+                }
                 break;
+            }
             case 'strategy-dialog':
                 dialog('建立编排策略候选', strategyForm());
                 break;
-            case 'strategy-evaluate':
-                await workspace('/strategies/' + id + '/evaluate', 'POST', {});
-                await render();
-                break;
             case 'evaluation-detail': {
-                const r = state.cache.evolution.evaluations.find((x) => x.id === id);
-                inspect('逐例回放与门槛依据', jsonView(r.payload));
-                break;
-            }
-            case 'strategy-activate': {
-                if (!confirm('仅对未来计划激活该策略？既有报告保持不变，未执行旧计划需要重新生成。'))
-                    return;
-                const latest = await workspace('/evolution');
-                await workspace('/strategies/' + id + '/activate', 'POST', { evaluation_id: el.dataset.evaluation, expected_active_version: latest.active?.version ?? 0 });
-                await render();
-                break;
-            }
-            case 'strategy-rollback': {
-                if (!confirm('回滚到上一策略？旧报告不变，未执行计划需要重新核对。'))
-                    return;
-                await workspace('/strategies/rollback', 'POST', { expected_active_version: state.cache.evolution.active.version });
-                await render();
+                const e = state.cache.evolution;
+                const r = e?.evaluations?.find((x) => x.id === id);
+                inspect('逐例回放与门槛依据', evaluationDetail(r, e));
                 break;
             }
             case 'cancel-plan':

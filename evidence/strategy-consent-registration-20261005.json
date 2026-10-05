@@ -1,0 +1,130 @@
+{
+  "recorded_at": "2026-10-05T15:06:50.258261+00:00",
+  "baseline_commit": "f75ea02d80e9f49c83e3a23f423733a7fd087b13",
+  "prior_integration_tree": "001efcb090a1224374f9177634728c4013510c4c",
+  "protected_tree_ids": {
+    "server": "8621e57f92c821eccaf15fceed5a7bb0265bd31f",
+    "web": "94534eed3a56136f83d837d3f4169f8a9d33db22"
+  },
+  "application_unchanged_since_prior_integration": true,
+  "frozen_input_sha256": {
+    "strategy_script": "83b7d14086c364ab053a1da480b47e6e19023f63aa251c3e4bde1cdf893726c5",
+    "strategy_tests": "8921257b203848ce22add0adb6d2b1be318e5f6c2cedacdc61c1bb5e584706c8",
+    "oracle_patch": "412f6314b87a2afb3e0ea68accc9974710d458762bdae77b2fb45a71a24180bb",
+    "oracle_helper": "eac688fbe69c53e308aca91a720b9a8beeec2bcbabd1b8dabf4fac493a30c49f",
+    "budget_review_v2_patch": "79978bfd756bb30f840c776b6882b800373cf9df733df82b585c69d52ff7b937"
+  },
+  "oracle_upstream_commit": "c004eac8f75c3817071b329676ae6dc4f743c780",
+  "oracle_scope": "Test-only host lifecycle and specified application HTTPS/socket entry-point guards; not a sandbox for arbitrary native/Proactor I/O. Windows execution awaits exact-commit CI.",
+  "focused_validation": {
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_product_question_scope.py",
+      "tests/test_product_strategy_journey.py",
+      "tests/test_in_process_oracle.py",
+      "tests/test_product_audit_runner.py",
+      "tests/test_product_audit_transfer.py",
+      "tests/test_ci_evidence.py",
+      "tests/test_ci_suite_budget.py",
+      "-p",
+      "no:faulthandler",
+      "-p",
+      "scripts.pytest_diagnostics",
+      "--diagnostics-output=<audit-directory>/increment-progress.jsonl",
+      "--diagnostics-test-timeout=120",
+      "--junitxml=<audit-directory>/increment-pytest.xml"
+    ],
+    "modules_passed": {
+      "tests/test_product_question_scope.py": 88,
+      "tests/test_product_strategy_journey.py": 18,
+      "tests/test_in_process_oracle.py": 48,
+      "tests/test_product_audit_runner.py": 49,
+      "tests/test_product_audit_transfer.py": 28,
+      "tests/test_ci_evidence.py": 7,
+      "tests/test_ci_suite_budget.py": 8
+    },
+    "session": {
+      "event": "session_finished",
+      "utc": "2026-10-05T15:04:51.960433+00:00",
+      "elapsed_seconds": 1.333241,
+      "process_cpu_seconds": 2.072085,
+      "exit_code": 0,
+      "collected": 246,
+      "started": 246,
+      "completed": 246,
+      "complete": true,
+      "phase_outcomes": {
+        "setup_passed": 246,
+        "call_passed": 246,
+        "teardown_passed": 246
+      }
+    },
+    "passed": 246,
+    "failed": 0,
+    "skipped": 0,
+    "warnings": [
+      "Existing StarletteDeprecationWarning: httpx with starlette.testclient is deprecated"
+    ],
+    "earlier_registration_84_and_budget_8_are_included": true
+  },
+  "python_compile": {
+    "command": "python -m compileall -q scripts tests",
+    "passed": true
+  },
+  "new_native_suite": {
+    "suite": "strategy-consent",
+    "mode": "product-strategy-consent",
+    "scenario": "L9-strategy-consent",
+    "financial_inputs": 1,
+    "reports": 1,
+    "consent_counts": [
+      0,
+      1,
+      0
+    ],
+    "expected_activation": "blocked; native UI offers no activation action",
+    "successful_activation_tested": false,
+    "rollback_tested": false,
+    "native_executed": false
+  },
+  "ci_contract": {
+    "product_suites": 13,
+    "job_definitions": 15,
+    "expanded_jobs_per_event": 29,
+    "expanded_jobs_push_plus_pr": 58,
+    "old_product_jobs_and_dependency_unchanged": true,
+    "all_product_protected_pins_match": true,
+    "test_timeout_seconds": 120,
+    "backend_suite_timeout_seconds": 1500,
+    "other_verify_timeout_seconds": 240,
+    "native_command_timeout_seconds": 300,
+    "product_job_timeout_minutes": 15,
+    "regression_job_timeout_minutes": 35,
+    "evidence_max_parts": 16,
+    "evidence_part_bytes": 25165824
+  },
+  "transfer_contract": {
+    "configured_fixture_file": "strategy-single-synthetic-input.csv",
+    "required_kind": "synthetic-input",
+    "binds_exact_current_scenario_name_bytes_hash_and_report_hash": true,
+    "same_hash_different_filename_rejected": true,
+    "early_failure_before_fixture_capture_preserved": true,
+    "existing_suite_fixed_filename_fallback_preserved": true
+  },
+  "real_application_service_listeners": 0,
+  "real_external_supplier_calls": 0,
+  "browser_execution": false,
+  "remote_writes": false,
+  "not_run": [
+    "Complete seven-stage verification",
+    "New exact-commit remote CI",
+    "Windows Proactor runtime verification",
+    "Native L9 browser journey",
+    "Manual screenshot/trace review",
+    "Successful strategy activation/rollback or three-input quality"
+  ],
+  "preserved_history": "9376956 Push/PR Windows regression failures and PR source-journey cancellation remain their original outcomes; no prior CI substituted for current checks"
+}

@@ -1,5 +1,5 @@
 {
-  "files_scanned": 112,
+  "files_scanned": 116,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -15,6 +15,7 @@
     "server/contracts.py",
     "server/copilot.py",
     "server/evolution.py",
+    "server/execution_scope.py",
     "server/exports.py",
     "server/financial_import.py",
     "server/identities.py",
@@ -57,6 +58,7 @@
     "web/copilot-research-inputs.ts",
     "web/copilot-ui.ts",
     "web/docs.ts",
+    "web/evaluation-detail.ts",
     "web/experience.ts",
     "web/experiment-recovery.ts",
     "web/form-snapshot.ts",
@@ -84,6 +86,7 @@
     "scripts/backup.py",
     "scripts/bootstrap.py",
     "scripts/browser_check.py",
+    "scripts/capture_legacy_scope_fixture.py",
     "scripts/dataset_source_probe.py",
     "scripts/dom_check.py",
     "scripts/full_chain_check.py",
@@ -104,6 +107,7 @@
     "scripts/product_readout_oracles.py",
     "scripts/product_report_export.py",
     "scripts/product_source_integrity.py",
+    "scripts/product_strategy_journey.py",
     "scripts/product_tracking_integrity.py",
     "scripts/product_tracking_units.py",
     "scripts/publish.py",

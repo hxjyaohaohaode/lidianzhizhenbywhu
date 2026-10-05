@@ -56,8 +56,9 @@ def execute_local_capability(capability, snapshot, request, execution, outputs, 
         for citation in snapshot['citations']:
             groups.get(citation.get('stance', 'context'), groups['context']).append(citation['id'])
         return {'groups': groups, 'conflicting_labels': bool(groups['supports'] and groups['contradicts']),
-                'status': 'completed' if snapshot['citations'] else 'missing',
-                'limitation': '标签对照不是自动语义矛盾检测'}
+                'status': 'completed' if groups['contradicts'] else 'missing',
+                'reason': None if groups['contradicts'] else '没有人工标注为反向的资料，反向证据要求尚未满足；已有标签分组仍保留供核对',
+                'limitation': '人工反向标签仅证明存在此类资料；标签对照不是自动语义矛盾检测，不证明有效反证、逻辑矛盾或事实正确性'}
     if capability == 'gaps':
         from .research_gaps import research_gaps
         quant=outputs.get('quant') or calculate(data,request.get('comparison','year_over_year'),today=today)
@@ -321,6 +322,11 @@ def control_run(store, user, run_id, body, queue_limit=6):
         else:
             if r['state'] != 'interrupted':
                 fail('NOT_PAUSED', '等待当前步骤到达安全边界后再继续', 409)
+            from .studio import approved_run_valid
+            from .execution_scope import run_scope_issue
+            if approved_run_valid(store,r):
+                issue=run_scope_issue(store,r)
+                if issue:fail(issue['code'],issue['message'],409)
             pending = db.execute("SELECT count(*) FROM runs WHERE user_id=? AND state IN ('queued','running')", (user['id'],)).fetchone()[0]
             if pending >= queue_limit:
                 fail('QUEUE_FULL', '队列已满，请先整理正在运行的任务', 429)

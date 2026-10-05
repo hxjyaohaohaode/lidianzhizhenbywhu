@@ -20,6 +20,7 @@ REPORTS=('verification.json','full-chain-http.json','native-service-browser.json
     'product-report-export-audit.json','product-report-export-service-command.json','product-report-export-transfer-status.json',
     'product-question-scope-audit.json','product-question-scope-service-command.json','product-question-scope-transfer-status.json',
     'product-experiment-recovery-audit.json','product-experiment-recovery-service-command.json','product-experiment-recovery-transfer-status.json',
+    'product-strategy-consent-audit.json','product-strategy-consent-service-command.json','product-strategy-consent-transfer-status.json',
     'source-guard.json','pytest.xml','pytest-progress.jsonl')
 
 

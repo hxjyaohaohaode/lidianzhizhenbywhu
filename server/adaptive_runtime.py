@@ -118,6 +118,8 @@ class AdaptiveRun:
         self.validate_runtime_graph()
         if not ws.verify_ledger(self.store, self.id)['valid']:
             raise RuntimeError('CHECKPOINT_EVENT_CHAIN_INVALID')
+        from .execution_scope import stop_for_scope
+        if stop_for_scope(self.worker,self.row):raise PauseBoundary()
         if self.version == 1:
             if self.graph != self.st['adaptive']:
                 raise RuntimeError('GRAPH_APPROVAL_MISMATCH')
@@ -266,6 +268,8 @@ class AdaptiveRun:
         from .saved_experiments import binding_current
         from .saved_comparisons import current_impact as comparison_impact
         if not approved_run_valid(self.store, self.row):return False
+        from .execution_scope import stop_for_scope
+        if stop_for_scope(self.worker,self.row):return False
         user=self.store.one('SELECT * FROM users WHERE id=?',(self.user_id,))
         b=self.st['bindings']
         if not binding_current(self.store,self.user_id,b.get('experiment')):return False
@@ -436,6 +440,12 @@ class AdaptiveRun:
                 self.close_call(call_id,'unknown' if unknown else 'failed',{'error_class':code,'remote_outcome_known':not unknown,
                     'dispatched':dispatched,'dispatch_state':'not_sent' if dispatched is False else 'unknown' if unknown else 'sent',
                     'duration_ms':round((time.monotonic()-started)*1000,2)})
+                # mark_dispatch rejects within a transaction; its rollback must
+                # not erase an explanatory suspension or permit a new report.
+                if code=='MODEL_AUTHORIZATION_CHANGED':
+                    from .studio import approved_run_valid
+                    from .execution_scope import stop_for_scope
+                    if approved_run_valid(self.store,self.row):stop_for_scope(self.worker,self.row)
                 self.worker.ensure_running(self.id)
                 # Only an acknowledged throttle can use an explicitly approved alternate. Timeouts/unknown outcomes do not.
                 if not unknown and dispatched is True and re.fullmatch(r'MODEL_HTTP_429(?:_[A-Za-z0-9_]{1,40})?',code) and len(seen)<len({x['id'] for x in candidates}):

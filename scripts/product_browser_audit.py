@@ -893,6 +893,10 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         from .product_experiment_recovery import experiment_recovery_outcome
     except ImportError:
         from product_experiment_recovery import experiment_recovery_outcome
+    try:
+        from .product_strategy_journey import strategy_consent_journey
+    except ImportError:
+        from product_strategy_journey import strategy_consent_journey
     bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
         expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
@@ -914,6 +918,7 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'I9-report-export': bind(report_export_fresh_report),
         'L7-question-scope': bind(question_scope_journey),
         'L8-experiment-recovery': bind(experiment_recovery_outcome),
+        'L9-strategy-consent': bind(strategy_consent_journey),
     }
 
 

@@ -33,7 +33,7 @@ export function mathResult(kind:string,r:Json,unit='wan'){
  }else if(kind==='comparison'){
   content=comparisonResultView(r)+comparisonArtifactView(r.comparison_provenance,'实际计算引用的多企业范围',false);
  }else if(kind==='counterevidence'){
-  content=notice(r.limitation??'标签对照不是语义矛盾认证。')+table(['人工标注立场','引用 ID'],[['supports','支持'],['contradicts','反向'],['context','背景']].map(([key,label])=>[label,(r.groups?.[key]??[]).map(esc).join('<br>')||'没有对应资料']));
+  content=(r.reason?notice(r.reason,'warm'):'')+notice(r.limitation??'标签对照不是语义矛盾认证。')+table(['人工标注立场','引用 ID'],[['supports','支持'],['contradicts','反向'],['context','背景']].map(([key,label])=>[label,(r.groups?.[key]??[]).map(esc).join('<br>')||'没有对应资料']));
  }else if(kind==='gaps'){
   content=r.items?.length?table(['缺失字段','待补充工作'],r.items.map((p:Json)=>[esc(metricNames[p.field]??p.field),esc(p.action)])):notice('本节点没有列出缺失字段，不代表全部业务事实已核验。');
   if(r.findings?.length)content+=table(['季度','需核对事项'],r.findings.map((p:Json)=>[esc(p.period),esc(p.message)]));

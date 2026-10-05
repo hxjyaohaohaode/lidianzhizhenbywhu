@@ -172,3 +172,86 @@ def test_manifest_cannot_admit_symlink_files_or_directories(tmp_path, linked_dir
     with pytest.raises(ValueError, match='escapes|symlink'):
         package(evidence, suite='first-use')
     assert not (evidence / 'product-first-use-transfer').exists()
+
+
+def strategy_fixture(tmp_path):
+    evidence = tmp_path / 'evidence'
+    directory = evidence / 'product-strategy-consent/L9-strategy-consent'
+    directory.mkdir(parents=True)
+    filename = 'strategy-single-synthetic-input.csv'
+    blob = b'contract-only synthetic CSV bytes\n'
+    (directory / filename).write_bytes(blob)
+    artifact = {'file': filename, 'kind': 'synthetic-input', 'sha256': digest(blob), 'bytes': len(blob)}
+    report = {'suite': 'strategy-consent', 'all_checks_passed': False, 'scenarios': [{
+        'id': 'L9-strategy-consent', 'status': 'failed', 'artifacts': [artifact],
+        'observations': {'fixture': {'csv_sha256': digest(blob)}}}]}
+    (evidence / 'product-strategy-consent-audit.json').write_text(json.dumps(report))
+    return evidence, directory, report
+
+
+def test_strategy_evidence_transfers_exact_declared_fixture_and_preserves_failure(tmp_path):
+    evidence, directory, report = strategy_fixture(tmp_path)
+    (directory / 'synthetic-financial-input.csv').write_bytes(b'unrelated legacy-named file')
+    manifest = package(evidence, suite='strategy-consent', part_bytes=1024)
+    expected = {'product-strategy-consent-audit.json',
+                'product-strategy-consent/L9-strategy-consent/strategy-single-synthetic-input.csv'}
+    assert manifest['suite'] == 'strategy-consent' and manifest['audit_passed'] is False
+    assert set(manifest['files']) == expected
+    output = evidence / 'product-strategy-consent-transfer'
+    combined = b''.join((output / f"part-{part['number']:02d}" / part['file']).read_bytes()
+                        for part in manifest['parts'])
+    assert digest(combined) == manifest['archive_sha256']
+    with zipfile.ZipFile(BytesIO(combined)) as archive:
+        assert set(archive.namelist()) == expected
+        for filename in expected:
+            assert digest(archive.read(filename)) == manifest['files'][filename]['sha256']
+
+
+@pytest.mark.parametrize('damage', ['missing_record', 'same_hash_other_name', 'wrong_kind',
+    'missing_file', 'wrong_file_hash', 'wrong_report_hash', 'missing_report_hash', 'duplicate_record'])
+def test_strategy_fixture_cannot_be_replaced_by_another_artifact_or_hash(tmp_path, damage):
+    evidence, directory, report = strategy_fixture(tmp_path)
+    row = report['scenarios'][0]
+    artifact = row['artifacts'][0]
+    path = directory / artifact['file']
+    if damage == 'missing_record': row['artifacts'] = []
+    elif damage == 'same_hash_other_name':
+        path.rename(directory / 'different-input.csv')
+        artifact['file'] = 'different-input.csv'
+    elif damage == 'wrong_kind': artifact['kind'] = 'download'
+    elif damage == 'missing_file': path.unlink()
+    elif damage == 'wrong_file_hash': path.write_bytes(b'different current bytes')
+    elif damage == 'wrong_report_hash': row['observations']['fixture']['csv_sha256'] = '0' * 64
+    elif damage == 'missing_report_hash': row['observations']['fixture'].pop('csv_sha256')
+    else: row['artifacts'].append(dict(artifact))
+    (evidence / 'product-strategy-consent-audit.json').write_text(json.dumps(report))
+    with pytest.raises(ValueError, match='fixture CSV|missing|hash mismatch|Duplicate'):
+        package(evidence, suite='strategy-consent')
+    assert not (evidence / 'product-strategy-consent-transfer').exists()
+
+
+@pytest.mark.parametrize('csv_already_created', [False, True])
+def test_early_strategy_failure_preserves_current_capture_before_fixture_observation(tmp_path, csv_already_created):
+    evidence, directory, report = strategy_fixture(tmp_path)
+    row = report['scenarios'][0]
+    row['observations'] = {}
+    if not csv_already_created:
+        (directory / row['artifacts'][0]['file']).unlink()
+        row['artifacts'] = []
+    image = b'contract-only failed-step pixels'
+    (directory / 'failed.png').write_bytes(image)
+    row['screenshots'] = [{'file': 'failed.png', 'sha256': digest(image)}]
+    (evidence / 'product-strategy-consent-audit.json').write_text(json.dumps(report))
+    manifest = package(evidence, suite='strategy-consent')
+    assert manifest['audit_passed'] is False
+    assert 'product-strategy-consent/L9-strategy-consent/failed.png' in manifest['files']
+    assert len(manifest['files']) == 2 + int(csv_already_created)
+
+
+def test_successful_strategy_report_cannot_omit_its_fixture_observation(tmp_path):
+    evidence, _, report = strategy_fixture(tmp_path)
+    report['all_checks_passed'] = True
+    report['scenarios'][0].update(status='passed', observations={})
+    (evidence / 'product-strategy-consent-audit.json').write_text(json.dumps(report))
+    with pytest.raises(ValueError, match='fixture CSV'):
+        package(evidence, suite='strategy-consent')
