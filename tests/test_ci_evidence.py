@@ -32,7 +32,7 @@ def test_ci_timeout_budget_is_bounded_and_all_other_checks_remain(monkeypatch,tm
     monkeypatch.setattr(verify,'execute_check',lambda cmd,timeout:(calls.append((cmd,timeout)) or (0,'passed')))
     assert verify.main()==0
     assert len(calls)==7
-    assert [timeout for cmd,timeout in calls if 'pytest' in cmd]==[900]
+    assert [timeout for cmd,timeout in calls if 'pytest' in cmd]==[1200]
     pytest_command=next(cmd for cmd,timeout in calls if 'pytest' in cmd)
     assert 'scripts.pytest_diagnostics' in pytest_command and 'no:faulthandler' in pytest_command
     assert '--diagnostics-test-timeout=120' in pytest_command
@@ -113,5 +113,5 @@ def test_artifact_upload_does_not_include_unexecuted_baseline_reports():
     assert 'evidence/run-context.json' in workflow and 'evidence/ui-current-*.png' in workflow
     assert 'evidence/pytest-progress.jsonl' in workflow and 'evidence/*.log' in workflow
     regression=workflow.split('  regression:',1)[1].split('\n  product-audit:',1)[0]
-    assert 'timeout-minutes: 25' in regression
+    assert 'timeout-minutes: 30' in regression
     assert 'evidence/brand-integrity.json' not in workflow  # Static reference, not a generated run report.

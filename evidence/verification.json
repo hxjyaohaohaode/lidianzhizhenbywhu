@@ -1,12 +1,12 @@
 {
-  "executed_at": "2026-10-05T06:31:50.193513+00:00",
+  "executed_at": "2026-10-05T07:22:30.034518+00:00",
   "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
   "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
   "checks": [
     {
       "check": "python-compile",
       "command": [
-        "/workspace/scratch/ace785cd6eaa/lidian-current-a6e7/../lidian-venv/bin/python",
+        "/workspace/scratch/ace785cd6eaa/lidian-ci-budget/../lidian-venv/bin/python",
         "-m",
         "compileall",
         "-q",
@@ -14,38 +14,38 @@
         "scripts"
       ],
       "exit_code": 0,
-      "seconds": 0.031,
+      "seconds": 0.037,
       "timeout_seconds": 240
     },
     {
       "check": "typecheck",
       "command": [
         "node",
-        "/workspace/scratch/ace785cd6eaa/lidian-current-a6e7/node_modules/typescript/bin/tsc",
+        "/workspace/scratch/ace785cd6eaa/lidian-ci-budget/node_modules/typescript/bin/tsc",
         "--noEmit",
         "-p",
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 1.237,
+      "seconds": 1.485,
       "timeout_seconds": 240
     },
     {
       "check": "build",
       "command": [
         "node",
-        "/workspace/scratch/ace785cd6eaa/lidian-current-a6e7/node_modules/typescript/bin/tsc",
+        "/workspace/scratch/ace785cd6eaa/lidian-ci-budget/node_modules/typescript/bin/tsc",
         "-p",
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 1.248,
+      "seconds": 1.451,
       "timeout_seconds": 240
     },
     {
       "check": "pytest",
       "command": [
-        "/workspace/scratch/ace785cd6eaa/lidian-current-a6e7/../lidian-venv/bin/python",
+        "/workspace/scratch/ace785cd6eaa/lidian-ci-budget/../lidian-venv/bin/python",
         "-m",
         "pytest",
         "-q",
@@ -59,8 +59,8 @@
         "--junitxml=evidence/pytest.xml"
       ],
       "exit_code": 0,
-      "seconds": 333.32,
-      "timeout_seconds": 900
+      "seconds": 331.576,
+      "timeout_seconds": 1200
     },
     {
       "check": "frontend-tests",
@@ -99,27 +99,27 @@
         "tests/workflow-inputs.frontend.test.mjs"
       ],
       "exit_code": 0,
-      "seconds": 1.533,
+      "seconds": 1.601,
       "timeout_seconds": 240
     },
     {
       "check": "source-guard",
       "command": [
-        "/workspace/scratch/ace785cd6eaa/lidian-current-a6e7/../lidian-venv/bin/python",
+        "/workspace/scratch/ace785cd6eaa/lidian-ci-budget/../lidian-venv/bin/python",
         "scripts/source_guard.py"
       ],
       "exit_code": 0,
-      "seconds": 0.352,
+      "seconds": 0.323,
       "timeout_seconds": 240
     },
     {
       "check": "full-chain-http",
       "command": [
-        "/workspace/scratch/ace785cd6eaa/lidian-current-a6e7/../lidian-venv/bin/python",
+        "/workspace/scratch/ace785cd6eaa/lidian-ci-budget/../lidian-venv/bin/python",
         "scripts/full_chain_check.py"
       ],
       "exit_code": 0,
-      "seconds": 6.035,
+      "seconds": 6.144,
       "timeout_seconds": 240
     }
   ],

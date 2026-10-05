@@ -25,6 +25,10 @@ def execute_check(cmd,timeout):
         return 1,'\n'.join(chunks)
     except OSError as exc:return 1,type(exc).__name__+': '+str(exc)
 
+def check_timeout(name):
+    # Full-suite wall budget is separate from the 120s whole-test watchdog.
+    return 1200 if name=='pytest' else 240
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('--tsc',help='Path to TypeScript tsc.js');p.add_argument('--full-chain',action='store_true',help='Run isolated real HTTP/SSE/restart/backup chain (no external suppliers)');a=p.parse_args();os.chdir(ROOT)
     out=ROOT/'evidence';out.mkdir(exist_ok=True);tsc=a.tsc or str(ROOT/'node_modules/typescript/bin/tsc')
@@ -34,14 +38,11 @@ def main():
     if a.full_chain:commands.append(('full-chain-http',[sys.executable,'scripts/full_chain_check.py']))
     for name,cmd in commands:
         t=time.monotonic()
-        # Since the 654-test checkpoint, the suite grew to 1422 with the same
-        # 600s cap (see docs/CI_EXECUTION_BOUNDS_20261002.md).
-        # Windows completed in 506s; a slower attempt reached 1245 in 600s
-        # (~685s projected). The suite stays at 900s with an independent 120s
-        # whole-test watchdog. The 25min CI job also covers installation/browser/
-        # artifact work (see the measured 2026-10-05 bounds supplement).
-        # Security costs and product assertions remain unchanged.
-        timeout=900 if name=='pytest' else 240
+        # f70a20d Windows: 2060/2169 finished before the 900s cap; its
+        # independent PR run finished the complete suite in 897.423s. The
+        # measured bound is now 1200s; per-test setup/call/teardown stays 120s.
+        # See docs/CI_EXECUTION_BOUNDS_20261002.md; no tests or assertions skip.
+        timeout=check_timeout(name)
         try:
             if name=='pytest':clear_pytest_outputs(out)
             code,text=execute_check(cmd,timeout)
