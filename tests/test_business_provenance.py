@@ -157,7 +157,7 @@ def test_completion_freezes_scoped_evidence_content_and_review_history(actor):
     d=actor.dataset();a=ok(action(actor,d),201)
     doc=ok(actor.post('/evidence',json={'title':'保留的验收原始凭据','text':'此为隔离测试验收凭据。'*100,'company':d['payload']['company'],'source_url':'https://example.com/original'}),201)
     e=next(e for e in ok(actor.get('/workspace/evidence'))['items'] if e['id']==doc['id'])
-    ref={k:e[k] for k in ('id','version','content_hash','review_version')}
+    ref={k:e[k] for k in ('id','version','content_hash','review_version','review_hash')}
     ok(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress'}))
     accepted=ok(actor.put('/workspace/actions/'+a['id']+'/status',json={'version':2,'status':'done','note':'逐项核对凭据后完成人工验收','evidence_refs':[ref]}))
     snapshot=accepted['payload']['history'][-1]['evidence_snapshots'][0]
@@ -176,7 +176,7 @@ def test_completion_rejects_stale_evidence_selection_and_foreign_evidence(actor)
     d=actor.dataset();a=ok(action(actor,d),201)
     doc=ok(actor.post('/evidence',json={'title':'版本核对凭据','text':'此为隔离测试版本核对凭据。'*20,'company':d['payload']['company']}),201)
     e=next(e for e in ok(actor.get('/workspace/evidence'))['items'] if e['id']==doc['id'])
-    ref={k:e[k] for k in ('id','version','content_hash','review_version')}
+    ref={k:e[k] for k in ('id','version','content_hash','review_version','review_hash')}
     ok(actor.put('/workspace/evidence/'+doc['id']+'/review',json={'version':e['review_version'],'company':d['payload']['company'],'status':'accepted','note':'重新人工核对该来源的适用口径'}))
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress','evidence_refs':[ref]}).status_code==409
     assert actor.put('/workspace/actions/'+a['id']+'/status',json={'version':1,'status':'in_progress','evidence_refs':[ref,ref]}).status_code==422

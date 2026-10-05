@@ -419,6 +419,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     def export_report(id: str,request: Request,format: str=Query('json',pattern='^(json|md)$'),user=Depends(require_user)):
         from .report_export import report_payload, markdown_report
         from .report_integrity import inspect_report_integrity
+        from .business_provenance import report_reviews_for_export
         db=store(request)
         # The archived report and export-time reviews are read consistently.
         with db.transaction():
@@ -428,9 +429,9 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             if not inspect_report_integrity(db,run)['report_integrity']['valid']:
                 fail('REPORT_INTEGRITY','报告完整性校验失败；已保存报告与冻结产物、事件或输入快照不一致，无法导出。',409)
             events=db.all('SELECT * FROM run_events WHERE run_id=? ORDER BY seq',(id,))
-            reviews=db.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND json_extract(payload,'$.run_id')=? ORDER BY created_at,id",(user['id'],id))
+            reviews,unavailable_reviews=report_reviews_for_export(db,user['id'],id)
             assessment=db.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assessment' AND natural_key=?",(user['id'],id))
-            result=report_payload(run,events,reviews,assessment)
+            result=report_payload(run,events,reviews,assessment,unavailable_reviews=unavailable_reviews)
         if format=='json':content=encode(result);media='application/json'
         else:content=markdown_report(result);media='text/markdown'
         return Response(content,media_type=media,headers={'Content-Disposition':f'attachment; filename="diagnosis-{id[:8]}.{format}"'})

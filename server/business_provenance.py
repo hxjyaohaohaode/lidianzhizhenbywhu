@@ -6,6 +6,7 @@ never updates a historical object or treats a service lens as account authority.
 from __future__ import annotations
 from copy import deepcopy
 from datetime import date
+import json
 import math
 import re
 from typing import Literal
@@ -167,6 +168,10 @@ class EvidenceRef(StrictModel):
     version: StorageInteger = Field(ge=1)
     content_hash: str = Field(pattern=r'^[a-f0-9]{64}$')
     review_version: StorageInteger = Field(ge=0)
+    # Admit legacy wire shapes only far enough to give an owned, actionable
+    # reselection error. Never fill this binding with the current review hash.
+    review_hash: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$',
+        description='提交验收关联时必须提供已查看的审阅内容指纹；缺失或 null 需刷新后重新选择。')
 
 
 def _owned(store, user_id, table, id):
@@ -228,11 +233,53 @@ def _comparison_reference(frozen):
     return {k:frozen[k] for k in ('id','version','hash')}|{'payload':payload,'projection_hash':digest(payload)}
 
 
+def _read_claim_reviews(store, user_id, run_id, claim_id=None):
+    """Read owned review bindings without treating unreadable content as absence.
+
+    An invalid JSON row can only be associated by its saved key. Never guess an
+    orphan's origin, and never let another report's bad JSON poison this read.
+    Exact-claim callers must keep an occupied but invalid slot for validation.
+    """
+    prefix=run_id+':'
+    condition='natural_key=?' if claim_id is not None else "(substr(natural_key,1,?)=? OR CASE WHEN json_valid(payload) THEN json_extract(payload,'$.run_id') END=?)"
+    params=(prefix+claim_id,) if claim_id is not None else (len(prefix),prefix,run_id)
+    rows=store.all("SELECT id,user_id,kind,natural_key,payload AS review_payload,version,created_at,updated_at FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND "+condition+" ORDER BY created_at,id",
+        (user_id,*params))
+    decoded=[]
+    for row in rows:
+        try:payload=json.loads(row['review_payload'])
+        except (TypeError,ValueError):payload=None
+        # Preserve the healthy row's original field order for Markdown exports.
+        decoded.append({('payload' if key=='review_payload' else key):
+            (payload if key=='review_payload' else value) for key,value in row.items()})
+    return decoded
+
+
+def _selected_claim_review(store, user_id, run_id, claim_id):
+    rows=_read_claim_reviews(store,user_id,run_id,claim_id)
+    return rows[0] if rows else None
+
+
+def report_reviews_for_export(store, user_id, run_id):
+    """Keep valid export rows identical; label unavailable records separately."""
+    reviews=[];unavailable=[];prefix=run_id+':'
+    for row in _read_claim_reviews(store,user_id,run_id):
+        key=row['natural_key']
+        if isinstance(key,str) and key.startswith(prefix) and _claim_review_valid(row,run_id,key[len(prefix):]):
+            reviews.append(row)
+        else:
+            unavailable.append({'id':row['id'],'version':row['version'],
+                'reason_code':'claim_review_unavailable','reason':'已保存的人工审阅记录无法校验；不代表没有审阅，原报告及历史指纹保持不变。'})
+    return reviews,unavailable
+
+
 def _claim_review_valid(review, run_id, claim_id):
     """A selected live review needs its stored scope and contract, not defaults."""
     from .contracts import ClaimReview
     try:
         payload=review['payload']
+        if (review['natural_key']!=run_id+':'+claim_id or type(review['version']) is not int
+                or not 1<=review['version']<=2**53-1):return False
         if not isinstance(payload,dict) or payload.get('run_id')!=run_id or payload.get('claim_id')!=claim_id:
             return False
         ClaimReview.model_validate({k:v for k,v in payload.items() if k!='run_id'},strict=True)
@@ -277,7 +324,7 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
             claim=next((c for c in result.get('llm',{}).get('review',{}).get('claims',[])
                         if c.get('id',digest(c)[:24])==ref['claim_id']),None)
             if not claim:fail('NOT_FOUND','来源解释不存在于该报告',404)
-            review=ws.keyed(store,user_id,'claim_review',run['id']+':'+ref['claim_id'])
+            review=_selected_claim_review(store,user_id,run['id'],ref['claim_id'])
             if review and not _claim_review_valid(review,run['id'],ref['claim_id']):
                 fail('SOURCE_INTEGRITY','当前解释审阅记录无法校验，不能将其保存为新来源；请先核对原始审阅记录',409)
             extra.update(claim_id=ref['claim_id'],claim_hash=digest(claim),claim_snapshot=deepcopy(claim),
@@ -495,7 +542,7 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
             reasons.extend(r for r in report_dependencies['reasons'] if (r['code'] in extra_codes or r['code'].startswith('comparison_'))
                 and r['code'] not in {existing['code'] for existing in reasons})
         if p.get('claim_id'):
-            review=ws.keyed(store,user_id,'claim_review',p['run_id']+':'+p['claim_id'])
+            review=_selected_claim_review(store,user_id,p['run_id'],p['claim_id'])
             frozen_hash=p.get('claim_review_hash')
             if frozen_hash is not None and (not isinstance(frozen_hash,str) or not re.fullmatch(r'[a-f0-9]{64}',frozen_hash)):
                 reasons.append({'code':'claim_review_integrity','message':'保存的人工审阅指纹无效，来源无法核验'});unavailable=True
@@ -602,7 +649,7 @@ def evidence_snapshots(store,user_id,company,evidence_ids,evidence_refs=()):
     if len(refs)!=len(evidence_refs) or len(set(evidence_ids))!=len(evidence_ids):
         fail('EVIDENCE_DUPLICATE','同一依据不能重复选择',422)
     if evidence_ids and not refs:
-        fail('ACTION_EVIDENCE_VERSION_REQUIRED','关联证据必须携带已查看的原文版本、指纹和审阅版本，请刷新后重新选择',422)
+        fail('ACTION_EVIDENCE_VERSION_REQUIRED','关联证据必须携带已查看的原文版本、指纹及审阅版本、指纹，请刷新后重新选择',422)
     if evidence_ids and set(refs)!=set(evidence_ids):
         fail('EVIDENCE_MISMATCH','证据标识与版本选择不一致',422)
     ids=evidence_ids or list(refs)
@@ -611,16 +658,18 @@ def evidence_snapshots(store,user_id,company,evidence_ids,evidence_refs=()):
     for id in ids:
         doc=catalog.get(id)
         if not doc:fail('NOT_FOUND','验收依据不存在或无访问权限',404)
+        ref=refs[id]
+        if not ref.review_hash:
+            fail('ACTION_EVIDENCE_REVIEW_REQUIRED','所选依据未记录已查看的审阅内容指纹，请刷新并重新核对选择；原行动历史保持不变',409)
         if not evidence_document_valid(doc):
             fail('SOURCE_INTEGRITY','验收依据原文与保存指纹不一致，请核对可信原始资料后重新选择',409)
         if not doc['eligible'] or doc['review'].get('company') not in ('',company):
             fail('ACTION_EVIDENCE_SCOPE','关联证据已失效、被排除或不属于该企业，请重新选择',409)
-        ref=refs[id]
-        if (ref.version,ref.content_hash,ref.review_version)!=(doc['version'],doc['content_hash'],doc['review_version']):
-            fail('ACTION_EVIDENCE_CHANGED','所选验收依据或审阅版本已变化，请刷新后核对',409)
+        if (ref.version,ref.content_hash,ref.review_version,ref.review_hash)!=(doc['version'],doc['content_hash'],doc['review_version'],doc['review_hash']):
+            fail('ACTION_EVIDENCE_CHANGED','所选验收依据、审阅版本或审阅内容已变化，请刷新后重新核对选择',409)
         text=doc['payload'].get('text','')
         result.append({'id':id,'version':doc['version'],'content_hash':doc['content_hash'],
-            'review_version':doc['review_version'],'review_hash':digest(doc['review']),
+            'review_version':doc['review_version'],'review_hash':doc['review_hash'],
             'review':deepcopy(doc['review']),'captured_at':now(),'title':doc['payload'].get('title',''),
             'source_url':doc['payload'].get('source_url',''),'text':text[:12000],
             'text_length':len(text),'text_truncated':len(text)>12000})
@@ -645,9 +694,9 @@ def report_impact(store,user_id,run,*,integrity=None):
     from .source_bindings import memory_eligible, effective_memory_user
     from .intelligence import profile_for
     review_prefix=run['id']+':'
-    reviews=store.all("SELECT payload,natural_key FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND (json_extract(payload,'$.run_id')=? OR substr(natural_key,1,?)=?)",
-        (user_id,run['id'],len(review_prefix),review_prefix))
-    review_validity=[_claim_review_valid(r,run['id'],r['natural_key'][len(review_prefix):]) for r in reviews]
+    reviews=_read_claim_reviews(store,user_id,run['id'])
+    review_validity=[_claim_review_valid(r,run['id'],r['natural_key'][len(review_prefix):])
+        if isinstance(r['natural_key'],str) and r['natural_key'].startswith(review_prefix) else False for r in reviews]
     disputed=sum(not valid or r['payload']['verdict']!='accepted' for r,valid in zip(reviews,review_validity))
     integrity=integrity or inspect_report_integrity(store,run)['report_integrity']
     if not integrity['valid']:

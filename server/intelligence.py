@@ -7,6 +7,7 @@ from .store import digest
 from . import workspace_store as ws
 from .question_scope import resolve_question, scoped_dataset
 from .metric_facts import fact_comparison
+from .source_bindings import require_dataset_content
 
 
 def profile_for(store,user,company):
@@ -23,7 +24,7 @@ def evidence_catalog(store,user):
     for row in rows:
         rv=reviews.get(row['id']);review=rv['payload'] if rv else {'status':'unreviewed','company':'','tags':[],'stance':'context','note':'','expires_at':None}
         eligible=bool(review.get('company') or review.get('global_scope')) and review['status']!='rejected' and not (review.get('expires_at') and review['expires_at']<today)
-        out.append({**row,'review':review,'review_version':rv['version'] if rv else 0,
+        out.append({**row,'review':review,'review_version':rv['version'] if rv else 0,'review_hash':digest(review),
             'eligible':eligible,'excluded_reason': 'scope_unset' if not (review.get('company') or review.get('global_scope')) else 'rejected' if review['status']=='rejected' else 'expired' if not eligible else None})
     return out
 
@@ -128,6 +129,7 @@ def assistant_answer(store,user,query,dataset_id='',*,resolved_scope=None):
         return {'engine':'local_navigation','answer':('请选择一家企业；多个数据集不会被助手擅自合并。' if has_data else '先添加真实企业数据，助手才能核查指标与来源。'),
             'facts':[],'insights':[],'evidence_matches':[],'quality':[],'followups':ROLE_QUESTIONS.get(role,ROLE_QUESTIONS['enterprise']),
             'actions':[{'label':'选择企业数据' if has_data else '添加经营数据','route':'data'}], 'external_calls':0}
+    require_dataset_content(d)
     # Only an internal caller with a validated, owned saved message may provide
     # this scope. The public free-text endpoint never accepts client overrides.
     question_scope=resolved_scope if resolved_scope is not None else resolve_question(query,d['payload'],['gross_margin','cash_ratio'])

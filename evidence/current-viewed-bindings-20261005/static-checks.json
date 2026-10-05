@@ -1,0 +1,58 @@
+[
+  {
+    "command": [
+      "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+      "-m",
+      "compileall",
+      "-q",
+      "server",
+      "scripts",
+      "tests/test_current_viewed_bindings.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.24,
+    "output": ""
+  },
+  {
+    "command": [
+      "node",
+      "node_modules/typescript/bin/tsc",
+      "--noEmit",
+      "-p",
+      "tsconfig.json"
+    ],
+    "exit_code": 0,
+    "seconds": 1.456,
+    "output": ""
+  },
+  {
+    "command": [
+      "node",
+      "node_modules/typescript/bin/tsc",
+      "-p",
+      "tsconfig.json"
+    ],
+    "exit_code": 0,
+    "seconds": 1.675,
+    "output": ""
+  },
+  {
+    "command": [
+      "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+      "scripts/source_guard.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.759,
+    "output": "{\n  \"files_scanned\": 116,\n  \"files\": [\n    \"server/__init__.py\",\n    \"server/adaptive_runtime.py\",\n    \"server/analytics.py\",\n    \"server/app.py\",\n    \"server/autonomy.py\",\n    \"server/autonomy_api.py\",\n    \"server/autonomy_contracts.py\",\n    \"server/business_provenance.py\",\n    \"server/clock.py\",\n    \"server/config.py\",\n    \"server/connections.py\",\n    \"server/contracts.py\",\n    \"server/copilot.py\",\n    \"server/evolution.py\",\n    \"server/execution_scope.py\",\n    \"server/exports.py\",\n    \"server/financial_import.py\",\n    \"server/identities.py\",\n    \"server/imports.py\",\n    \"server/intelligence.py\",\n    \"server/metric_facts.py\",\n    \"server/model_context.py\",\n    \"server/models.py\",\n    \"server/network.py\",\n    \"server/parse_worker.py\",\n    \"server/providers.py\",\n    \"server/question_scope.py\",\n    \"server/report_export.py\",\n    \"server/report_integrity.py\",\n    \"server/report_readout.py\",\n    \"server/research.py\",\n    \"server/research_context.py\",\n    \"server/research_gaps.py\",\n    \"server/retrieval.py\",\n    \"server/saved_comparisons.py\",\n    \"server/saved_experiments.py\",\n    \"server/schemas.py\",\n    \"server/security.py\",\n    \"server/service_api.py\",\n    \"server/service_contracts.py\",\n    \"server/source_bindings.py\",\n    \"server/store.py\",\n    \"server/studio.py\",\n    \"server/workflows.py\",\n    \"server/workspace_api.py\",\n    \"server/workspace_store.py\",\n    \"web/adaptive.css\",\n    \"web/api-docs.html\",\n    \"web/api.ts\",\n    \"web/app.ts\",\n    \"web/assistant.ts\",\n    \"web/brand.ts\",\n    \"web/business-source.ts\",\n    \"web/components.ts\",\n    \"web/copilot-research-inputs.ts\",\n    \"web/copilot-ui.ts\",\n    \"web/docs.ts\",\n    \"web/evaluation-detail.ts\",\n    \"web/experience.ts\",\n    \"web/experiment-recovery.ts\",\n    \"web/form-snapshot.ts\",\n    \"web/index.html\",\n    \"web/interactions.ts\",\n    \"web/layout.ts\",\n    \"web/live.ts\",\n    \"web/math-results.ts\",\n    \"web/metric-comparison.ts\",\n    \"web/pages.ts\",\n    \"web/report-readout.ts\",\n    \"web/saved-comparisons.ts\",\n    \"web/saved-experiments.ts\",\n    \"web/state.ts\",\n    \"web/styles.css\",\n    \"web/views-analysis.ts\",\n    \"web/views-data.ts\",\n    \"web/views-orchestrator.ts\",\n    \"web/views-services.ts\",\n    \"web/views-studio.ts\",\n    \"web/watch-units.ts\",\n    \"web/workbench.css\",\n    \"web/workflow.ts\",\n    \"scripts/acceptance_diagnostics.py\",\n    \"scripts/backup.py\",\n    \"scripts/bootstrap.py\",\n    \"scripts/browser_check.py\",\n    \"scripts/capture_legacy_scope_fixture.py\",\n    \"scripts/dataset_source_probe.py\",\n    \"scripts/dom_check.py\",\n    \"scripts/full_chain_check.py\",\n    \"scripts/http_check.py\",\n    \"scripts/native_acceptance.py\",\n    \"scripts/native_integrity_faults.py\",\n    \"scripts/pack_product_audit.py\",\n    \"scripts/prepare_evidence.py\",\n    \"scripts/product_audit_config.py\",\n    \"scripts/product_browser_audit.py\",\n    \"scripts/product_comparison_integrity.py\",\n    \"scripts/product_experiment_recovery.py\",\n    \"scripts/product_first_use_audit.py\",\n    \"scripts/product_integrity_outcomes.py\",\n    \"scripts/product_memory_eligibility.py\",\n    \"scripts/product_plan_history.py\",\n    \"scripts/product_question_scope.py\",\n    \"scripts/product_readout_oracles.py\",\n    \"scripts/product_report_export.py\",\n    \"scripts/product_source_integrity.py\",\n    \"scripts/product_strategy_journey.py\",\n    \"scripts/product_tracking_integrity.py\",\n    \"scripts/product_tracking_units.py\",\n    \"scripts/publish.py\",\n    \"scripts/pytest_diagnostics.py\",\n    \"scripts/restart_replay_probe.py\",\n    \"scripts/service_browser_check.py\",\n    \"scripts/source_guard.py\",\n    \"scripts/start.py\",\n    \"scripts/verify.py\"\n  ],\n  \"findings\": [],\n  \"scope\": \"AST and pattern guard only; not a vulnerability certification\"\n}\n"
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.027,
+    "output": ""
+  }
+]

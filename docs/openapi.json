@@ -1527,6 +1527,30 @@
               "default": "",
               "title": "Dataset Id"
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -6429,6 +6453,20 @@
             "maximum": 9007199254740991.0,
             "minimum": 0.0,
             "title": "Review Version"
+          },
+          "review_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "提交验收关联时必须提供已查看的审阅内容指纹；缺失或 null 需刷新后重新选择。",
+            "title": "Review Hash"
           }
         },
         "additionalProperties": false,

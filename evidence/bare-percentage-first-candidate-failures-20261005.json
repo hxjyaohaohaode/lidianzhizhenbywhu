@@ -1,0 +1,260 @@
+{
+  "date_utc": "2026-10-05",
+  "candidate": "ead2012392b2fa0c7add6f6e019305d3e6ffcd3c",
+  "source_artifact": "/workspace/shared/lidian-review-boundaries/independent-product-v2/bare-percent.json",
+  "source_sha256": "53382703e1dc7ae80eee7899e72df32c7758157a2aa124fb1e088b55ce0d07d3",
+  "observations": [
+    {
+      "query": "2024-Q2 营业成本是百分之多少",
+      "assistants": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "cost"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q2",
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "cost",
+              "value": 100000.0
+            }
+          ],
+          "external_calls": 0
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q2",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "cost"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "隔离合成公司 2024-Q2：营业成本为100,000.00元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "id": "cost",
+              "value": 100000.0
+            }
+          ],
+          "external_calls": 0
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 净利润是多少百分比",
+      "assistants": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "net_profit"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q2",
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "net_profit",
+              "value": 10000.0
+            }
+          ],
+          "external_calls": 0
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q2",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "net_profit"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "隔离合成公司 2024-Q2：净利润为10,000.00元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "id": "net_profit",
+              "value": 10000.0
+            }
+          ],
+          "external_calls": 0
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 成本的百分比是多少",
+      "assistants": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "cost"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q2",
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "cost",
+              "value": 100000.0
+            }
+          ],
+          "external_calls": 0
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q2",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "cost"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "隔离合成公司 2024-Q2：营业成本为100,000.00元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "id": "cost",
+              "value": 100000.0
+            }
+          ],
+          "external_calls": 0
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 毛利率是多少百分比",
+      "assistants": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "gross_margin"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q2",
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "gross_margin",
+              "value": 0.3333333333333333
+            }
+          ],
+          "external_calls": 0
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q2",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "gross_margin"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "隔离合成公司 2024-Q2：毛利率为33.33%。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "id": "gross_margin",
+              "value": 0.3333333333333333
+            }
+          ],
+          "external_calls": 0
+        }
+      }
+    }
+  ]
+}

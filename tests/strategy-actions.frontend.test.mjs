@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {workspace,ApiError,contextGuard,invalidateContext} from '../web/dist/api.js';
-import {interactionGuard,invalidateInteractions} from '../web/dist/interactions.js';
+import {interactionGuard,invalidateInteractions,continuationGuard,invalidateInputs} from '../web/dist/interactions.js';
 import {strategyForm} from '../web/dist/views-orchestrator.js';
 import {esc,button as htmlButton,icon} from '../web/dist/components.js';
 
@@ -25,7 +25,7 @@ function harness(action){
  class Button{constructor(dataset){this.dataset={...dataset};this.disabled=false;}closest(){return this;}setAttribute(){}removeAttribute(){}}
  const document={addEventListener:(name,fn)=>listeners[name]=fn};
  const location={hash:'#evolution'};
- const env={document,state,workspace,ApiError,contextGuard,interactionGuard,invalidateInteractions,HTMLButtonElement:Button,strategyForm,esc,button:htmlButton,icon,
+ const env={document,state,workspace,ApiError,contextGuard,interactionGuard,invalidateInteractions,continuationGuard,invalidateInputs,HTMLButtonElement:Button,strategyForm,esc,button:htmlButton,icon,
   modal,inspector,location,closeDrawers(){},safeToLeave:()=>true,confirm:()=>true,
   render:async()=>{invalidateInteractions();calls.renders++;draft.value='';draft.isConnected=false;state.route=location.hash.slice(1);},
   toast:(...args)=>calls.toasts.push(args),showSyncNotice:()=>calls.notices++};

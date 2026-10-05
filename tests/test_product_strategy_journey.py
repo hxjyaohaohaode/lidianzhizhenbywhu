@@ -47,6 +47,42 @@ def test_complete_human_table_with_explicit_missing_counterevidence_passes():
     journey.expect_readable_case(**readable())
 
 
+@pytest.mark.parametrize('damage', [None, 'missing_rendered_word', 'hidden_child', 'missing_range', 'empty_original'])
+def test_reading_group_keeps_rendered_block_breaks_separate_from_full_range(damage):
+    """Reproduce the real L9 table's innerText/textContent distinction, no browser."""
+    rendered = '数据核验\n已计划\n\n已执行 · 完成\n\n满足已标注要求'
+    original = '数据核验已计划已执行 · 完成满足已标注要求'
+    required = ['数据核验', '已计划\n\n已执行 · 完成\n\n满足已标注要求']
+    geometry_calls = []
+    screenshots = []
+
+    class Locator:
+        def count(self): return 1
+        def is_visible(self): return True
+        def locator(self, selector):
+            assert selector == 'svg, pre, details:not([open]), [hidden]'
+            return SimpleNamespace(count=lambda: int(damage == 'hidden_child'))
+        def inner_text(self):
+            return rendered.replace('满足已标注要求', '') if damage == 'missing_rendered_word' else rendered
+        def text_content(self): return '' if damage == 'empty_original' else original
+        def evaluate(self, script, text):
+            assert script == journey._TEXT_GEOMETRY and text == original
+            geometry_calls.append(text)
+            return {'found': damage != 'missing_range', 'visible': True}
+
+    p = SimpleNamespace(observations={}, step=lambda label, work: work(),
+        screenshot=lambda name: screenshots.append(name) or name)
+    if damage:
+        with pytest.raises(AssertionError): journey._read_groups(p, [(Locator(), required)], '完整能力行')
+        assert not screenshots and not p.observations
+    else:
+        journey._read_groups(p, [(Locator(), required)], '完整能力行')
+        assert geometry_calls == [original, original]
+        assert screenshots == ['reader-1']
+        row = p.observations['complete_text_groups'][0]
+        assert row['text'] == original and row['required'] == required
+
+
 @pytest.mark.parametrize('damage', ['question', 'company', 'quarter', 'revision', 'partition',
     'missing_row', 'planned_as_completed', 'false_coverage', 'false_reverse_count',
     'baseline_invented_count', 'changed_math', 'unknown_math', 'invented_comparison'])

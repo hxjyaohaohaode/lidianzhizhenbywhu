@@ -1,11 +1,11 @@
-"""Execution admission for known currency/comparison incompatibilities.
+"""Execution admission for known currency/comparison/transformation incompatibilities.
 
 This is separate from historical integrity: no saved plan, report, approval,
 snapshot or checkpoint is rewritten, and ordinary reads never call this gate.
 """
 import re
 
-from .question_scope import COMPARISON_PATTERNS, resolve_question
+from .question_scope import COMPARISON_PATTERNS, resolve_question, unsupported_amount_percentage, unsupported_growth
 from .store import digest, now
 
 
@@ -65,10 +65,14 @@ def plan_scope_issue(store, plan):
         if not isinstance(target, str) or not target.strip():
             raise ValueError('unavailable target')
         p = plan['payload']; q = target.lower()
-        # Read only currency metadata, not new metric/period interpretations or
-        # the whole scope dictionary. Unspecified comparisons retain the form.
+        # Check bounded incompatible operations, not every new metric/period
+        # interpretation. Unspecified comparisons retain the approved form.
         if resolve_question(target, p['snapshot']['dataset'], [])['unsupported_currency']:
             return issue('foreign_currency_unsupported', '原批准目标要求外币口径，当前金额计算仅支持人民币（CNY）；不能用人民币替代，请重新预览并确认研究目标。')
+        if unsupported_growth(target):
+            return issue('percentage_transformation_unsupported', '原批准目标要求当前不支持的指标增长率或百分比变化，不能用原始金额、原比率或比较差额替代；请重新预览并确认研究目标。')
+        if unsupported_amount_percentage(target):
+            return issue('amount_percentage_unsupported', '原批准目标要求金额指标的百分比，但未明确受支持的分母与比率口径，不能用原始金额替代；请重新预览并确认研究目标。')
         explicit = [key for key, pattern in COMPARISON_PATTERNS.items() if re.search(pattern, q)]
         if len(explicit) > 1 or '同环比' in q:
             return issue('explicit_comparison_ambiguous', '原批准目标同时要求同比与环比；一次计划只支持一个比较基期，请明确后重新预览。')

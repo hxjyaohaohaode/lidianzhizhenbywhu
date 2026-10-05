@@ -31,13 +31,14 @@ def table(headers, rows):
                       *['| ' + ' | '.join(text(x).replace('\n', ' ') for x in row) + ' |' for row in rows]])
 
 
-def report_payload(run, events, reviews, assessment=None):
+def report_payload(run, events, reviews, assessment=None, *, unavailable_reviews=()):
     snapshot = run.get('snapshot') or {}
     return {**run['result'], 'execution_events': events,
         'export_context': {'run_id': run['id'], 'execution_state': run['state'],
             'identity': snapshot.get('identity'), 'research_goal': snapshot.get('profile', {}).get('objective', ''),
             'success_criteria': snapshot.get('studio', {}).get('success_criteria', ''),
             'human_reviews_at_export': reviews, 'assessment_at_export': assessment,
+            **({'unavailable_human_reviews_at_export':list(unavailable_reviews)} if unavailable_reviews else {}),
             'readout_notice':'原问题级事实与来源摘要随报告冻结。' if run['result'].get('readout') else '此历史报告当时未记录问题级答案或原文件回执；不从当前数据回填。',
             'review_notice': '人工审阅为导出时保存的意见；不改写原始报告与输入快照。'}}
 
@@ -142,6 +143,9 @@ def markdown_report(result):
                   code(result['comparison_artifact'])]
     parts += ['## 模型解释与人工复核', '结构门禁与引用关联不等于事实核验。']
     reviews = ctx.get('human_reviews_at_export', [])
+    if ctx.get('unavailable_human_reviews_at_export'):
+        parts += ['部分已保存人工审阅当前无法校验；不代表没有审阅，不推断原意见。',
+                  code(ctx['unavailable_human_reviews_at_export'])]
     for claim in result.get('llm', {}).get('review', {}).get('claims', []):
         parts += [text(claim.get('text')), '指标：' + text('、'.join(claim.get('metric_ids', []))),
                   '引用：' + text('、'.join(claim.get('citation_ids', []))),

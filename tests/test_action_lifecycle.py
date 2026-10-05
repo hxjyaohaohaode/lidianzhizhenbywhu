@@ -132,7 +132,7 @@ def test_action_rejects_evidence_that_became_unavailable(actor,review):
     selected=next(e for e in ok(actor.get('/workspace/evidence'))['items'] if e['id']==doc['id'])
     assert selected['eligible']
     ok(actor.put('/workspace/evidence/'+doc['id']+'/review',json={'version':selected['review_version'],'company':'测试企业',**review}))
-    assert actor.put('/workspace/actions/'+row['id']+'/status',json={'version':1,'status':'in_progress','note':'使用已失效的旧选择应被拒绝','evidence_ids':[doc['id']],'evidence_refs':[{k:selected[k] for k in ('id','version','content_hash','review_version')}]}).status_code==409
+    assert actor.put('/workspace/actions/'+row['id']+'/status',json={'version':1,'status':'in_progress','note':'使用已失效的旧选择应被拒绝','evidence_ids':[doc['id']],'evidence_refs':[{k:selected[k] for k in ('id','version','content_hash','review_version','review_hash')}]}).status_code==409
     assert ok(actor.get('/workspace/actions'))['items'][0]['version']==1
 
 

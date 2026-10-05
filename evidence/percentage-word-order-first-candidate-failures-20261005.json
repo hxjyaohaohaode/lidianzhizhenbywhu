@@ -1,0 +1,401 @@
+{
+  "kind": "Retained failure excerpt from independent real API review, not a rerun or complete source artifact",
+  "candidate_commit": "7b41b53734f9a8ca48ddc53266b82de983b6a91f",
+  "independent_original_sha256": "49757387dca69c0ff60e8fcb352be7855c242da7b06009cd42b81dd0706d3aae",
+  "queries": [
+    {
+      "query": "2024-Q2 成本环比百分之多少",
+      "observed": {
+        "legacy": {
+          "status": "supported",
+          "facts": [
+            {
+              "id": "cost",
+              "label": "营业成本",
+              "value": 100000.0,
+              "period": "2024-Q2",
+              "dataset_id": "60d81707743940538142e45569fe7619",
+              "dataset_version": 1,
+              "input_hash": "51d2474be9702ac2e128cf3bebff879a45fc9c7a54153f9341767139a406e6cb",
+              "formula": "原始季度录入值",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q2/cost",
+                  "value": 100000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2024-Q1",
+                  "value": 80000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 100000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "previous",
+                "period": "2024-Q1",
+                "operation": "difference",
+                "value": 80000.0,
+                "change": 20000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              }
+            }
+          ],
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。"
+        },
+        "service": {
+          "status": "supported",
+          "facts": [
+            {
+              "comparison": {
+                "change": 20000.0,
+                "change_unit": "CNY",
+                "kind": "previous",
+                "operation": "difference",
+                "period": "2024-Q1",
+                "reason": "",
+                "status": "available",
+                "value": 80000.0
+              },
+              "dataset_id": "60d81707743940538142e45569fe7619",
+              "dataset_version": 1,
+              "display_value": "100,000.00元",
+              "formula": "已保存的单季度原始输入（标准化为元）",
+              "id": "cost",
+              "input_hash": "51d2474be9702ac2e128cf3bebff879a45fc9c7a54153f9341767139a406e6cb",
+              "inputs": [
+                {
+                  "field": "cost",
+                  "path": "periods/2024-Q2/cost",
+                  "unit": "CNY",
+                  "value": 100000.0
+                }
+              ],
+              "label": "营业成本",
+              "period": "2024-Q2",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2024-Q1",
+                  "value": 80000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 100000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 100000.0,
+              "verification": "unverified_user_input"
+            }
+          ],
+          "answer": "隔离合成公司 2024-Q2：营业成本为100,000.00元，较2024-Q1增加20,000.00元。这些数值来自当前已保存输入，未经独立真实性核验。"
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 净利润环比百分之多少",
+      "observed": {
+        "legacy": {
+          "status": "supported",
+          "facts": [
+            {
+              "id": "net_profit",
+              "label": "净利润",
+              "value": 10000.0,
+              "period": "2024-Q2",
+              "dataset_id": "60d81707743940538142e45569fe7619",
+              "dataset_version": 1,
+              "input_hash": "51d2474be9702ac2e128cf3bebff879a45fc9c7a54153f9341767139a406e6cb",
+              "formula": "原始季度录入值",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q2/net_profit",
+                  "value": 10000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2024-Q1",
+                  "value": 5000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 10000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "previous",
+                "period": "2024-Q1",
+                "operation": "difference",
+                "value": 5000.0,
+                "change": 5000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              }
+            }
+          ],
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。"
+        },
+        "service": {
+          "status": "supported",
+          "facts": [
+            {
+              "comparison": {
+                "change": 5000.0,
+                "change_unit": "CNY",
+                "kind": "previous",
+                "operation": "difference",
+                "period": "2024-Q1",
+                "reason": "",
+                "status": "available",
+                "value": 5000.0
+              },
+              "dataset_id": "60d81707743940538142e45569fe7619",
+              "dataset_version": 1,
+              "display_value": "10,000.00元",
+              "formula": "已保存的单季度原始输入（标准化为元）",
+              "id": "net_profit",
+              "input_hash": "51d2474be9702ac2e128cf3bebff879a45fc9c7a54153f9341767139a406e6cb",
+              "inputs": [
+                {
+                  "field": "net_profit",
+                  "path": "periods/2024-Q2/net_profit",
+                  "unit": "CNY",
+                  "value": 10000.0
+                }
+              ],
+              "label": "净利润",
+              "period": "2024-Q2",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2024-Q1",
+                  "value": 5000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 10000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 10000.0,
+              "verification": "unverified_user_input"
+            }
+          ],
+          "answer": "隔离合成公司 2024-Q2：净利润为10,000.00元，较2024-Q1增加5,000.00元。这些数值来自当前已保存输入，未经独立真实性核验。"
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 成本环比变化百分比是多少",
+      "observed": {
+        "legacy": {
+          "status": "supported",
+          "facts": [
+            {
+              "id": "cost",
+              "label": "营业成本",
+              "value": 100000.0,
+              "period": "2024-Q2",
+              "dataset_id": "60d81707743940538142e45569fe7619",
+              "dataset_version": 1,
+              "input_hash": "51d2474be9702ac2e128cf3bebff879a45fc9c7a54153f9341767139a406e6cb",
+              "formula": "原始季度录入值",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q2/cost",
+                  "value": 100000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2024-Q1",
+                  "value": 80000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 100000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "previous",
+                "period": "2024-Q1",
+                "operation": "difference",
+                "value": 80000.0,
+                "change": 20000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              }
+            }
+          ],
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。"
+        },
+        "service": {
+          "status": "supported",
+          "facts": [
+            {
+              "comparison": {
+                "change": 20000.0,
+                "change_unit": "CNY",
+                "kind": "previous",
+                "operation": "difference",
+                "period": "2024-Q1",
+                "reason": "",
+                "status": "available",
+                "value": 80000.0
+              },
+              "dataset_id": "60d81707743940538142e45569fe7619",
+              "dataset_version": 1,
+              "display_value": "100,000.00元",
+              "formula": "已保存的单季度原始输入（标准化为元）",
+              "id": "cost",
+              "input_hash": "51d2474be9702ac2e128cf3bebff879a45fc9c7a54153f9341767139a406e6cb",
+              "inputs": [
+                {
+                  "field": "cost",
+                  "path": "periods/2024-Q2/cost",
+                  "unit": "CNY",
+                  "value": 100000.0
+                }
+              ],
+              "label": "营业成本",
+              "period": "2024-Q2",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2024-Q1",
+                  "value": 80000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 100000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 100000.0,
+              "verification": "unverified_user_input"
+            }
+          ],
+          "answer": "隔离合成公司 2024-Q2：营业成本为100,000.00元，较2024-Q1增加20,000.00元。这些数值来自当前已保存输入，未经独立真实性核验。"
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 成本环比增加了多少百分比",
+      "observed": {
+        "legacy": {
+          "status": "supported",
+          "facts": [
+            {
+              "id": "cost",
+              "label": "营业成本",
+              "value": 100000.0,
+              "period": "2024-Q2",
+              "dataset_id": "60d81707743940538142e45569fe7619",
+              "dataset_version": 1,
+              "input_hash": "51d2474be9702ac2e128cf3bebff879a45fc9c7a54153f9341767139a406e6cb",
+              "formula": "原始季度录入值",
+              "inputs": [
+                {
+                  "path": "periods/2024-Q2/cost",
+                  "value": 100000.0
+                }
+              ],
+              "trend": [
+                {
+                  "period": "2024-Q1",
+                  "value": 80000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 100000.0
+                }
+              ],
+              "source_url": "",
+              "verification": "unverified_user_input",
+              "comparison": {
+                "kind": "previous",
+                "period": "2024-Q1",
+                "operation": "difference",
+                "value": 80000.0,
+                "change": 20000.0,
+                "change_unit": "CNY",
+                "status": "available",
+                "reason": ""
+              }
+            }
+          ],
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。"
+        },
+        "service": {
+          "status": "supported",
+          "facts": [
+            {
+              "comparison": {
+                "change": 20000.0,
+                "change_unit": "CNY",
+                "kind": "previous",
+                "operation": "difference",
+                "period": "2024-Q1",
+                "reason": "",
+                "status": "available",
+                "value": 80000.0
+              },
+              "dataset_id": "60d81707743940538142e45569fe7619",
+              "dataset_version": 1,
+              "display_value": "100,000.00元",
+              "formula": "已保存的单季度原始输入（标准化为元）",
+              "id": "cost",
+              "input_hash": "51d2474be9702ac2e128cf3bebff879a45fc9c7a54153f9341767139a406e6cb",
+              "inputs": [
+                {
+                  "field": "cost",
+                  "path": "periods/2024-Q2/cost",
+                  "unit": "CNY",
+                  "value": 100000.0
+                }
+              ],
+              "label": "营业成本",
+              "period": "2024-Q2",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2024-Q1",
+                  "value": 80000.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 100000.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 100000.0,
+              "verification": "unverified_user_input"
+            }
+          ],
+          "answer": "隔离合成公司 2024-Q2：营业成本为100,000.00元，较2024-Q1增加20,000.00元。这些数值来自当前已保存输入，未经独立真实性核验。"
+        }
+      }
+    }
+  ],
+  "provider_calls": 0,
+  "network_attempts": []
+}

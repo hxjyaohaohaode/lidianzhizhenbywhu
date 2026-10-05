@@ -251,10 +251,13 @@ class Store:
         if table=='evidence':
             rows=db.execute("SELECT id,kind FROM workspace_objects WHERE user_id=? AND kind='evidence_review' AND natural_key=?",(user,id)).fetchall()
         elif table=='conversations':
-            rows=db.execute('''SELECT w.id,w.kind FROM workspace_objects w JOIN runs r
+            # The saved run-key anchors unreadable/absent payload bindings too.
+            # An explicit conflicting run_id must never widen this deletion.
+            from .workspace_store import claim_review_parent_match
+            rows=db.execute(f'''SELECT w.id,w.kind FROM workspace_objects w JOIN runs r
                 ON r.user_id=w.user_id AND (
                     (w.kind='assessment' AND w.natural_key=r.id) OR
-                    (w.kind='claim_review' AND json_extract(w.payload,'$.run_id')=r.id))
+                    (w.kind='claim_review' AND {claim_review_parent_match('w','r')}))
                 WHERE w.user_id=? AND r.session_id=?''',(user,id)).fetchall()
         else:return
         for child in rows:

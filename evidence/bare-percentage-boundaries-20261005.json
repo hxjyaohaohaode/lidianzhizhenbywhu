@@ -1,0 +1,159 @@
+{
+  "date_utc": "2026-10-05",
+  "base_commit": "ead2012392b2fa0c7add6f6e019305d3e6ffcd3c",
+  "scope": "Finite Chinese bare-percent unit requests bound locally to registered amount subjects; no formulas, broad percent ban or arbitrary NLP claims.",
+  "behavior": [
+    "Both assistant APIs refuse ambiguous amount percentages with no substitute facts and ask for a denominator and supported ratio.",
+    "Named ratios and registered revenue-relative-change phrases are masked as complete local compounds with a non-whitespace boundary; independent amount and ratio questions retain their scope.",
+    "New previews and the existing bound-target execution-admission gate block these requests. Genuine old drafts cannot gain approval and approved queues stop before new execution.",
+    "Completed historical erroneous readouts and JSON/Markdown exports are preserved byte-for-byte; they are not semantically corrected. Repeated completed approval remains a read-only duplicate.",
+    "Saved plan, snapshot, approval, report and checkpoint payloads are never manufactured or rehashed."
+  ],
+  "source_sha256": {
+    "server/question_scope.py": "09c6b36d35a9ee5941794312d89ef9209f2057335b54fdd782d2913ac04bbcaa",
+    "server/execution_scope.py": "109ff0b92b1bae3806d1876e44565dadaefc475b87f6bcfb88d62d1c0cf5454e",
+    "scripts/capture_percentage_scope_fixture.py": "5a6dff825e816160e3974b53270d5ba69b59c40798dde9bd8f44f3ef922ca143",
+    "tests/test_bare_percentage_scope.py": "41256c75c8d957b05acb0d9bf0bb5c012d66bd4e8a92906e7381930c40d87e07",
+    "tests/test_bare_percentage_execution_scope.py": "f5720b4bdf7304414bd09fc8e3223b1edc307a2421636240a0cf91e443d00515"
+  },
+  "checks": {
+    "related_backend": {
+      "passed": 1228,
+      "failed": 0,
+      "warnings": 1,
+      "seconds": 159.13,
+      "modules": 25,
+      "network_listener_attempts": 0
+    },
+    "new_cases_included": 54,
+    "focused_percentage_apis": {
+      "passed": 92,
+      "warnings": 1,
+      "seconds": 13.4
+    },
+    "authentic_old_plan_cases": {
+      "passed": 20,
+      "warnings": 1,
+      "seconds": 2.77
+    },
+    "frontend": {
+      "passed": 558,
+      "failed": 0,
+      "skipped": 0
+    },
+    "python_compile": "passed",
+    "typescript_typecheck": "passed",
+    "typescript_build": "passed",
+    "compiled_frontend_changes": false,
+    "source_guard": {
+      "files_scanned": 117,
+      "findings": []
+    },
+    "git_diff_check": "passed",
+    "exact_independent_questions_replayed": {
+      "three_ambiguous_amount_queries": "Both assistants refuse without facts",
+      "valid_margin_control": "Both remain supported; value 1/3 and service display 33.33%"
+    }
+  },
+  "old_capture": {
+    "fixture_sha256": "697dc0e7175d10f04ea9f26d9a17edfcbcae40c671d6f993fcb2735b59ab4266",
+    "source": {
+      "commit": "80defc9b54159155000ac7564fbdd1247c0f0403",
+      "tree": "e2ef9e3e482aeebc57e6b63db1fa3058ddfe91d7",
+      "captured_at": "2026-10-05T16:58:43.140091+00:00",
+      "capture": "Clean old checkout; authenticated in-process API; original serialized rows and fingerprints; zero provider calls or listeners.",
+      "question_scope_sha256": "5bbc5dacaa8a9af2e728a2efeeb993593978dc968245efe4c26f4ed80b7c4ab2"
+    },
+    "all_raw_rows_and_serialized_payloads_match": true,
+    "verified_table_rows": {
+      "datasets": 1,
+      "dataset_revisions": 1,
+      "conversations": 8,
+      "workspace_objects": 24,
+      "copilot_messages": 2,
+      "runs": 8,
+      "messages": 10,
+      "run_events": 48,
+      "event_integrity": 48,
+      "adaptive_controls": 4,
+      "adaptive_graphs": 4,
+      "agent_artifacts": 13,
+      "adaptive_checkpoints": 7,
+      "adaptive_calls": 0
+    }
+  },
+  "previous_fixture_hashes_unchanged": {
+    "percentage-execution-scope-80defc9.json": "4c69e0787c384443cd31eebb425d90cb90d60333a2524175b8496690080382fc",
+    "percentage-word-order-scope-80defc9.json": "ac281c2a62fdb2fe98d38cb8dffabcf9fcebebaf41037fec72736628f463e587"
+  },
+  "retained_failures": {
+    "independent_ead2012": {
+      "record": "evidence/bare-percentage-first-candidate-failures-20261005.json",
+      "outcome": "All three erroneous amount responses on both assistants retained; valid margin control retained"
+    },
+    "new_matrix_on_ead2012": {
+      "failed": 21,
+      "passed": 13,
+      "network_listener_attempts": 0,
+      "log_sha256": "698f6725ea8b3a6e0cffcb6e0e550389576eb2501bc1d816dc82514a218535c9"
+    },
+    "initial_old_plan_test_harness": {
+      "failed": 10,
+      "passed": 10,
+      "cause": "Assertions incorrectly assumed 80defc9 lacked scope_query and used QoQ by default. Corrected tests to actual captured API state; fixture and production code unchanged.",
+      "log_sha256": "58f7854e62bca2dee2d4eb624002f9c721ac5ab1e4bfdf420d244ce2e4730bef"
+    },
+    "initial_frontend_setup": {
+      "status": "failed",
+      "cause": "New worktree could not resolve the existing pinned TypeScript package. Reused the existing local installation through an uncommitted symlink; no dependency or frontend source change.",
+      "log_sha256": "e40c70698e3f4de473cb1849dee17787885c2b44ef41e843f0a200de4ed6d997"
+    }
+  },
+  "logs": {
+    "baseline-tests.txt": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/baseline-tests.txt",
+      "sha256": "698f6725ea8b3a6e0cffcb6e0e550389576eb2501bc1d816dc82514a218535c9"
+    },
+    "capture-verification.json": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/capture-verification.json",
+      "sha256": "52eef1ef396f05dbcd72bb3f8412f0ad20ba084bffbebb50cfd00dc881101190"
+    },
+    "first-candidate-tests.txt": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/first-candidate-tests.txt",
+      "sha256": "b658d3b176f2954a13a04be3126e79f277c68067347043366688be4405532c0c"
+    },
+    "frontend-tests-resolved.txt": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/frontend-tests-resolved.txt",
+      "sha256": "4e92d4b218555e29c65a585abf923948cc896f8c840ab94a390e8d9b94e229a2"
+    },
+    "frontend-tests.txt": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/frontend-tests.txt",
+      "sha256": "e40c70698e3f4de473cb1849dee17787885c2b44ef41e843f0a200de4ed6d997"
+    },
+    "old-plan-tests-corrected.txt": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/old-plan-tests-corrected.txt",
+      "sha256": "ef2c8949a58e8723399e6c022e60536874e5369fdc43b9aff15c40365c7a7676"
+    },
+    "old-plan-tests.txt": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/old-plan-tests.txt",
+      "sha256": "58f7854e62bca2dee2d4eb624002f9c721ac5ab1e4bfdf420d244ce2e4730bef"
+    },
+    "related-backend.txt": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/related-backend.txt",
+      "sha256": "79e0dbe84b11f2745f14e38a97cce7108468f2069027e33f49f7e839b27cac36"
+    },
+    "source-guard.json": {
+      "path": "/workspace/shared/lidian-review-boundaries/bare-percent-fix/source-guard.json",
+      "sha256": "1388452b41de9fa4bfb4c11cf95d553c926137707b7327e03ae7ad623411be81"
+    }
+  },
+  "live_provider_calls": 0,
+  "verification_limits": [
+    "Full backend acceptance not run",
+    "No real Uvicorn/HTTP/SSE/listener/restart/backup chain",
+    "No native or rendered browser",
+    "No live suppliers or production data",
+    "No publishing, merge or deployment"
+  ],
+  "counts_notice": "Focused and new-case counts overlap the 1228-case regression; do not add them."
+}

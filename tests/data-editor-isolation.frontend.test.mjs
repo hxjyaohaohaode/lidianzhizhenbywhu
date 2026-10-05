@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {invalidateInputs} from '../web/dist/interactions.js';
 import ts from 'typescript';
 const source=ts.transpileModule(readFileSync(new URL('../web/app.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
@@ -15,13 +16,13 @@ test('add quarter targets the initiating modal editor and uses its own row count
  const background=editor(8),modal=editor(1),state={dirty:false};
  const document={querySelector:s=>background.querySelector(s),querySelectorAll:s=>background.querySelectorAll(s)};
  const el={closest:s=>s==='form'?modal:null};
- await new AsyncFunction('el','document','state','periodRow',`switch('add-period'){${branch('add-period')}}`)(el,document,state,(_p,index)=>'new-row-'+index);
+ await new AsyncFunction('el','document','state','periodRow','invalidateInputs',`switch('add-period'){${branch('add-period')}}`)(el,document,state,(_p,index)=>'new-row-'+index,invalidateInputs);
  assert.deepEqual(background.additions,[]);assert.deepEqual(modal.additions,['new-row-1']);assert.equal(state.dirty,true);
 });
 test('remove quarter only affects the initiating editor',async()=>{
  const background=editor(2),modal=editor(2),state={dirty:false};const row=modal.rows[0];row.remove=()=>modal.rows.splice(modal.rows.indexOf(row),1);
  const el={closest:s=>s==='form'?modal:['tr','[data-period-row]'].includes(s)?row:null};
- await new AsyncFunction('el','state',`switch('remove-period'){${branch('remove-period')}}`)(el,state);
+ await new AsyncFunction('el','state','invalidateInputs',`switch('remove-period'){${branch('remove-period')}}`)(el,state,invalidateInputs);
  assert.equal(background.rows.length,2);assert.equal(modal.rows.length,1);assert.equal(state.dirty,true);
 });
 test('supplemental fields expand the initiating editor rather than the background form',async()=>{

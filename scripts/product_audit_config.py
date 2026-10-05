@@ -63,6 +63,19 @@ AUDIT_SUITES = {
         'scenarios': (('L9-strategy-consent', '一份输入一份报告→人工同意0→1→0→诚实阻塞激活→中文逐例与冻结历史'),),
         'precondition': 'Fresh synthetic account; one two-quarter financial input and one report with background-only evidence; all mutations through visible controls; explicit consent 0 to 1 to 0; blocked activation with no fabricated UI activation request; readable saved case, browser Back/reload and zero-case replay preserve history; no successful activation, rollback, three-input quality, database faults or providers',
     },
+    'report-history': {
+        'mode': 'product-report-history',
+        'report': 'product-report-history-audit.json',
+        'scenarios': (('L10-report-history', '21份实际报告→跨页找回原问题→Back与重登录→跨页冻结结果比较'),),
+        'precondition': 'Fresh synthetic account; all21 reports and approvals created through visible controls; visible20-row page boundary; original report/plan objects frozen across Back/reload/relogin and cross-page comparison; separate201-row API storage test is not native evidence; no providers or database faults',
+    },
+    'late-actions': {
+        'mode': 'product-late-actions',
+        'report': 'product-late-actions-audit.json',
+        'fixture_file': 'late-actions-synthetic-input.csv',
+        'scenarios': (('L11-late-actions', '实际删除与刷新迟到保留新输入→自然关闭重开→正常编辑研究提案'),),
+        'precondition': 'Fresh synthetic account; native-created evidence and exact target-bound confirmation; delay only delivery of one real successful deletion and four real refresh reads; newer drafts preserved; native research form edit/close/reopen and one current proposal; detached-form refusal remains DOM-test evidence; no providers or database faults',
+    },
     'integrity': {
         'mode': 'product-integrity',
         'report': 'product-integrity-audit.json',

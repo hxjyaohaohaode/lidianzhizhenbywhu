@@ -1,0 +1,122 @@
+{
+  "date_utc": "2026-10-05",
+  "base_commit": "4d5f09c277cec403f36918d4782a6f212b1752e8",
+  "scope": "Unambiguous claim-review parent matching for JSON shape cleanup and first-review capacity checks",
+  "retained_failures": {
+    "shape_artifact_sha256": "f2651516949b1083f617d175577e361b00f67bbac43d9d9d8c20616eca29cdb5",
+    "shape_observations": [
+      {
+        "fixture": "{bad",
+        "assessment_status": 200,
+        "unavailable": true,
+        "delete_status": 200,
+        "parent_retained": false,
+        "review_retained": false
+      },
+      {
+        "fixture": null,
+        "assessment_status": 200,
+        "unavailable": true,
+        "delete_status": 200,
+        "parent_retained": false,
+        "review_retained": true
+      },
+      {
+        "fixture": [],
+        "assessment_status": 200,
+        "unavailable": true,
+        "delete_status": 200,
+        "parent_retained": false,
+        "review_retained": true
+      },
+      {
+        "fixture": {},
+        "assessment_status": 200,
+        "unavailable": true,
+        "delete_status": 200,
+        "parent_retained": false,
+        "review_retained": true
+      },
+      {
+        "fixture": 42,
+        "assessment_status": 200,
+        "unavailable": true,
+        "delete_status": 200,
+        "parent_retained": false,
+        "review_retained": true
+      }
+    ],
+    "capacity_artifact_sha256": "e3306231a051ae62f847f359da5340bb55a849915f864dd1f316cdd225e37ca3",
+    "capacity_observations": [
+      {
+        "case": "healthy-A-first-review",
+        "status": 500,
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "服务发生异常；请保存请求编号并重试。"
+          },
+          "request_id": "eeb67b9e12d34483893a4356f5ec7bd6"
+        },
+        "writes": 0
+      },
+      {
+        "case": "healthy-C-first-review",
+        "status": 500,
+        "body": {
+          "error": {
+            "code": "INTERNAL_ERROR",
+            "message": "服务发生异常；请保存请求编号并重试。"
+          },
+          "request_id": "0b6859d0a6e44f93abf064281ce76cd9"
+        },
+        "writes": 0
+      },
+      {
+        "case": "healthy-D-existing-revision-control",
+        "status": 200,
+        "writes": 2
+      }
+    ]
+  },
+  "source_sha256": {
+    "server/store.py": "6029784eda48de777b8aeea652bb914ef6f727e23eb02238733474371a424309",
+    "server/workspace_store.py": "af8fe18d00707c453298e27696070780b8f64154c28bce160766c4d0f0dc355e",
+    "tests/test_review_context_corruption.py": "f495d3ab18ccb8535c24280521dc0e61b752d28dfa57b3bf6ecee4991305b89c"
+  },
+  "checks": {
+    "review_cleanup_integrity_backend": {
+      "passed": 163,
+      "warnings": 1,
+      "seconds": 36.25
+    },
+    "separate_governance_backend": {
+      "passed": 102,
+      "warnings": 1,
+      "seconds": 21.45
+    },
+    "full_frontend": {
+      "passed": 563,
+      "failed": 0,
+      "skipped": 0
+    },
+    "python_compile": "passed",
+    "typescript_typecheck": "passed",
+    "typescript_build": "passed",
+    "source_guard": "passed",
+    "git_diff_check": "passed"
+  },
+  "network_listener_attempts": 0,
+  "live_provider_calls": 0,
+  "added_cases": 26,
+  "counts_notice": "38 review-context cases include26 additions and are within163;163/102 select distinct modules.",
+  "not_run": [
+    "Native/rendered browser",
+    "Real Uvicorn HTTP/SSE/restart/backup",
+    "Live suppliers",
+    "Full backend acceptance",
+    "Publishing",
+    "Merge",
+    "Deployment"
+  ]
+}

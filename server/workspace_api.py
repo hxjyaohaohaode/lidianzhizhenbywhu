@@ -509,6 +509,23 @@ def comparison_add(body:SavedComparisonRequest,request:Request,user=Depends(requ
             # The outcome of an earlier save is returned even if inputs changed;
             # live impact is separate and no new calculation or mutation occurs.
             return public_record(store,user['id'],prior)
+        # Keep the creation token in an independent, non-JSON audit column.
+        # A damaged receipt body cannot turn a known deletion into a new save.
+        removed=store.one("""SELECT metadata AS receipt_json FROM audit
+            WHERE user_id=? AND resource='comparison_request' AND action='deleted'
+              AND resource_id=? ORDER BY seq DESC LIMIT 1""",(user['id'],body.request_id)) if key else None
+        if key and not removed:
+            removed=store.one("""SELECT metadata AS receipt_json FROM audit
+            WHERE user_id=? AND resource='comparison' AND action='deleted'
+              AND CASE WHEN json_valid(metadata) THEN json_extract(metadata,'$.creation_request_id') END=?
+            ORDER BY seq DESC LIMIT 1""",(user['id'],body.request_id))
+        if removed:
+            try:receipt=json.loads(removed['receipt_json'])
+            except (ValueError,TypeError):receipt=None
+            saved_hash=receipt.get('creation_request_hash') if isinstance(receipt,dict) else None
+            if isinstance(saved_hash,str) and re.fullmatch(r'[a-f0-9]{64}',saved_hash) and saved_hash!=request_hash:
+                fail('IDEMPOTENCY_CONFLICT','保存请求标识已用于不同的比较内容，请核对记录后重新提交',409)
+            fail('COMPARISON_REMOVED','这次提交曾保存的企业对照已被清理，不会重新创建；请核对历史后明确新建对照',409)
         row=ws.save(store,db,user['id'],'comparison',create_payload(store,user['id'],body),key=key)
         return public_record(store,user['id'],row)
 
@@ -543,12 +560,21 @@ def comparison_delete(id:str,request:Request,identity_id:str=Query('',max_length
     with store.transaction() as db:
         row=owned_comparison(store,user['id'],id,identity_id);check_version(row,version)
         db.execute('DELETE FROM workspace_objects WHERE user_id=? AND id=?',(user['id'],id))
-        store.audit(db,user['id'],'comparison',id,'deleted',{'version':row['version']})
+        # Keep only the original creation binding, never deleted input snapshots.
+        # The natural key is the authoritative token if damaged payload metadata
+        # no longer agrees. A missing hash still blocks revival of that token.
+        key=row['natural_key'];token=key[len('comparison_request:'):] if key.startswith('comparison_request:') else None
+        store.audit(db,user['id'],'comparison',id,'deleted',{'version':row['version'],
+            'creation_request_id':token,'creation_request_hash':row['payload'].get('creation_request_hash')})
+        if token:
+            store.audit(db,user['id'],'comparison_request',token,'deleted',{
+                'comparison_id':id,'creation_request_hash':row['payload'].get('creation_request_hash')})
     return {'deleted':True,'notice':'原比较已删除；已批准计划和历史报告中的冻结输入仍保留，新的外发将停止'}
 
 
 @router.get('/reports')
-def reports(request:Request,identity_id:str|None=Query(None,max_length=80),dataset_id:str=Query('',max_length=80),user=Depends(require_user)):
+def reports(request:Request,identity_id:str|None=Query(None,max_length=80),dataset_id:str=Query('',max_length=80),
+            offset:int=Query(0,ge=0,le=1000),limit:int=Query(200,ge=1,le=200),user=Depends(require_user)):
     store=dbof(request);_,scope=workspace_scope(store,user['id'],identity_id,dataset_id)
     filters,args=scope_sql(scope,'r.dataset_id',"json_extract(r.snapshot,'$.identity.id')")
     rows=store.all("""SELECT r.id,r.dataset_id,r.state,r.created_at,
@@ -558,9 +584,11 @@ def reports(request:Request,identity_id:str|None=Query(None,max_length=80),datas
         json_extract(r.result,'$.llm.state') AS llm_state,
         COALESCE(json_extract(r.snapshot,'$.identity.id'),'') AS identity_id,
         d.version AS current_version FROM runs r JOIN datasets d ON d.id=r.dataset_id
-        WHERE r.user_id=? AND r.result IS NOT NULL"""+filters+" ORDER BY r.created_at DESC,r.id LIMIT 201",(user['id'],*args))
+        WHERE r.user_id=? AND r.result IS NOT NULL"""+filters+" ORDER BY r.created_at DESC,r.id LIMIT ? OFFSET ?",(user['id'],*args,limit,offset))
+    total=store.one("SELECT count(*) AS n FROM runs r JOIN datasets d ON d.id=r.dataset_id WHERE r.user_id=? AND r.result IS NOT NULL"+filters,(user['id'],*args))['n']
     from .business_provenance import report_impact
-    return {'items':[{**r,'stale':r['dataset_version']!=r['current_version'],'source_impact':report_impact(store,user['id'],owned(store,user,'runs',r['id']))} for r in rows[:200]],'has_more':len(rows)>200,'scope':scope}
+    return {'items':[{**r,'stale':r['dataset_version']!=r['current_version'],'source_impact':report_impact(store,user['id'],owned(store,user,'runs',r['id']))} for r in rows],
+        'has_more':offset+len(rows)<total,'total':total,'offset':offset,'limit':limit,'scope':scope}
 
 
 @router.get('/runs/{id}/audit')

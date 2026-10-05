@@ -271,7 +271,7 @@ def main():
             assert len(require(c.get('/api/services/tracking'))['alerts'])==len(tracking['alerts'])
             action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={'version':action['version'],'status':'in_progress'}))
             evidence_selection=next(row for row in require(c.get('/api/workspace/evidence'))['items'] if row['id']==e['id'])
-            proof={key:evidence_selection[key] for key in ('id','version','content_hash','review_version')}
+            proof={key:evidence_selection[key] for key in ('id','version','content_hash','review_version','review_hash')}
             completion={'version':action['version'],'status':'done','note':'已核对隔离测试凭证并明确其局限','evidence_ids':[e['id']]}
             assert c.put('/api/workspace/actions/'+action['id']+'/status',json=completion).status_code==422
             action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={**completion,'evidence_refs':[proof]}))

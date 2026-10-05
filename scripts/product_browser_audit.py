@@ -129,14 +129,32 @@ class Probe:
         self.step_no = 0
         self._expected_dialog = None
 
-    def with_expected_dialog(self, *, dialog_type, message, action):
-        """One explicit decision to leave this task's unsaved synthetic draft."""
+    def with_expected_dialog(self, *, dialog_type, message, action, evidence_target=None):
+        """One exact declared decision; synthetic evidence is bound and single-use."""
         allowed={('confirm','当前输入尚未保存。离开后这些修改将丢失，是否继续？'),
             ('confirm','确认恢复此历史内容并创建新的数据修订？')}
+        if evidence_target is not None:
+            # Opt in only for the native-created fixture owned by this Probe.
+            # The default dialog allowlist remains unchanged for every suite.
+            fixture=self.observations.get('native_created_synthetic_evidence')
+            if (not isinstance(evidence_target,dict) or set(evidence_target)!={'id','version'}
+                    or not fixture or fixture.get('target')!=evidence_target
+                    or fixture.get('created_through_visible_form') is not True
+                    or fixture.get('synthetic') is not True
+                    or fixture.get('delete_confirmation_started') is True
+                    or not re.fullmatch(r'[A-Za-z0-9_-]+',str(evidence_target['id']))
+                    or type(evidence_target['version']) is not int or evidence_target['version']<1):
+                raise ValueError('Evidence deletion requires this Probe’s exact native-created synthetic target.')
+            control=self.visible('#main[data-page="evidence"] [data-action="delete-evidence"]'
+                f'[data-id="{evidence_target["id"]}"][data-version="{evidence_target["version"]}"]')
+            if not control.is_visible() or not control.is_enabled():
+                raise ValueError('The bound synthetic evidence delete control must be visible and enabled.')
+            allowed={('confirm','删除原始资料？历史报告仍保留当时的引用快照；新任务将不再使用。')}
         if (dialog_type,message) not in allowed or not callable(action):
-            raise ValueError('Only an exact declared synthetic-draft or revision-restore confirmation is allowed.')
+            raise ValueError('Only an exact declared synthetic-fixture confirmation is allowed.')
         if self._expected_dialog is not None:
             raise RuntimeError('Expected browser decisions cannot be nested.')
+        if evidence_target is not None:fixture['delete_confirmation_started']=True
         pending={'type':dialog_type,'message':message,'started_at':now(),'events':[],
             'seen':0,'accepted':0,'mismatch':False}
         self._expected_dialog=pending
@@ -897,6 +915,12 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         from .product_strategy_journey import strategy_consent_journey
     except ImportError:
         from product_strategy_journey import strategy_consent_journey
+    try:
+        from .product_report_history_journey import report_history_journey
+        from .product_late_action_journey import late_action_journey
+    except ImportError:
+        from product_report_history_journey import report_history_journey
+        from product_late_action_journey import late_action_journey
     bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
         expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
@@ -919,6 +943,8 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'L7-question-scope': bind(question_scope_journey),
         'L8-experiment-recovery': bind(experiment_recovery_outcome),
         'L9-strategy-consent': bind(strategy_consent_journey),
+        'L10-report-history': bind(report_history_journey),
+        'L11-late-actions': bind(late_action_journey),
     }
 
 

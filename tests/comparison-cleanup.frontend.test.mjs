@@ -7,7 +7,7 @@ import {servicesPage} from '../web/dist/views-services.js';
 import {agentsPage} from '../web/dist/views-studio.js';
 import {state} from '../web/dist/state.js';
 import {ApiError,contextGuard,invalidateContext,invalidateView} from '../web/dist/api.js';
-import {interactionGuard,invalidateInteractions} from '../web/dist/interactions.js';
+import {interactionGuard,invalidateInteractions,invalidateInputs} from '../web/dist/interactions.js';
 import {unchangedInputGuard} from '../web/dist/saved-experiments.js';
 const datasets=['a','b'].map(id=>({id,version:1,content_hash:id.repeat(64),payload:{company:'合成企业'+id}}));
 const row={id:'comparison/a&b',version:3,comparison_hash:'c'.repeat(64),created_at:'2026-10-01',source_impact:{state:'current'},payload:{identity_id:'identity & a',name:'合成已保存对照',period:'2026-Q2',comparison:'previous',members:datasets.map(d=>({id:d.id,version:d.version,hash:d.content_hash,company:d.payload.company})),result:{items:[]}}};
@@ -78,7 +78,7 @@ function handlerHarness(){
  const values={document,state,HTMLFormElement:Form,FormData:Data,formSnapshot:form=>JSON.stringify([...new Data(form)]),read,contextGuard,interactionGuard,unchangedInputGuard,comparisonRemovalTarget,removeSavedComparison,refreshComparisonReferences:()=>refreshes.push('plan'),forgetCopilotComparison:()=>refreshes.push('copilot'),modal,toast:t=>toasts.push(t),navigate:r=>routes.push(r),ApiError};
  const source=app.slice(app.indexOf("document.addEventListener('submit',"),app.indexOf("document.addEventListener('click',"));
  new Function(...Object.keys(values),source)(...Object.values(values));
- const input=app.slice(app.indexOf("document.addEventListener('input',"),app.indexOf("document.addEventListener('change',"));new Function('document','state',input)(document,state);
+ const input=app.slice(app.indexOf("document.addEventListener('input',"),app.indexOf("document.addEventListener('change',"));new Function('document','state','invalidateInputs',input)(document,state,invalidateInputs);
  const form=new Form();return {form,submit,error,modal,toasts,routes,refreshes,input:el=>listeners.input({target:el}),submitForm:()=>listeners.submit({target:form,preventDefault(){}})};
 }
 test('production handler requires confirmation and leaves all business dirty state untouched',async()=>{

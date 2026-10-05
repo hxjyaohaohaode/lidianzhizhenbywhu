@@ -3,7 +3,7 @@ import { comparisonArtifactView, comparisonHistoryDeleteButton, currentCompariso
 import { unchangedInputGuard } from './saved-experiments.js';
 import { formSource, sourcePanel } from './business-source.js';
 import { actionForm } from './views-analysis.js';
-import { interactionGuard, invalidateInteractions, renewSavedDraft } from './interactions.js';
+import { interactionGuard, invalidateInteractions, continuationGuard, finishMutation, renewSavedDraft } from './interactions.js';
 import { api, contextGuard, invalidateContext } from './api.js';
 import { state, scopedDatasets } from './state.js';
 import { esc, field, input, textarea, formFooter, notice, jsonView, table, metricNames } from './components.js';
@@ -39,7 +39,23 @@ export function setupExperience(value) {
             return;
         el.dataset.pending = 'true';
         el.setAttribute('aria-busy', 'true');
-        const act = el.dataset.xAction, id = el.dataset.id ?? '', clickCurrent = interactionGuard();
+        const act = el.dataset.xAction, id = el.dataset.id ?? '', clickCurrent = continuationGuard();
+        let sameContext = contextGuard();
+        const current = () => sameContext() && clickCurrent();
+        const actionLabel = { 'identity-delete': '服务身份删除', 'watch-toggle': '跟踪状态更新', 'watch-delete': '跟踪规则删除', 'alert-archive': '提醒归档', 'history-more': '历史列表读取', 'history-detail': '历史详情读取' }[act] || el.textContent?.trim() || '服务操作';
+        let completed = false;
+        const complete = async (refresh = false) => {
+            completed = true;
+            if (!sameContext())
+                return;
+            const applied = await finishMutation(current, refresh ? valid => hooks.refresh(valid) : async () => true, () => hooks.render());
+            if (!sameContext())
+                return;
+            if (!applied) {
+                hooks.requestRefresh?.();
+                hooks.toast('先前的' + actionLabel + '已完成；保留当前页面和输入，请核对并刷新，无需重复提交。');
+            }
+        };
         try {
             if (act.startsWith('chat-')) {
                 await chatAction(act, el);
@@ -63,10 +79,7 @@ export function setupExperience(value) {
                     if (!confirm('删除此服务身份？尚未外发的关联调用将停止；历史报告与会话快照仍然保留。'))
                         return;
                     await api('/services/identities/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
-                    await hooks.refresh();
-                    if (state.identity === id)
-                        state.identity = '';
-                    await hooks.render();
+                    await complete(true);
                     break;
                 case 'connection-new':
                     hooks.dialog('配置私有模型连接', connectionForm());
@@ -88,7 +101,7 @@ export function setupExperience(value) {
                     sensitive('撤销登录会话', 'revoke-session', id);
                     break;
                 case 'history-more': {
-                    const valid = interactionGuard();
+                    const valid = continuationGuard();
                     const next = await currentComparisonRead(() => api('/services/history?offset=' + encodeURIComponent(state.cache.serviceHistory?.next_offset ?? el.dataset.offset ?? '0')));
                     if (!valid())
                         break;
@@ -98,7 +111,7 @@ export function setupExperience(value) {
                     break;
                 }
                 case 'history-detail': {
-                    const valid = interactionGuard();
+                    const valid = continuationGuard();
                     const row = state.cache.serviceHistory.items.find((r) => r.id === id);
                     if (!row)
                         throw new Error('历史列表已变化，请刷新');
@@ -141,16 +154,14 @@ export function setupExperience(value) {
                 case 'watch-toggle': {
                     const w = state.cache.tracking.rules.find((x) => x.id === id);
                     await api('/services/watches/' + id, 'PUT', Object.fromEntries([...['title', 'identity_id', 'dataset_id', 'metric', 'operator', 'threshold', 'stale_after_days', 'expires_at'].map(k => [k, w.payload[k]]), ['active', !w.payload.active], ['version', w.version]]));
-                    if (clickCurrent())
-                        await hooks.render();
+                    await complete();
                     break;
                 }
                 case 'watch-delete':
                     if (!confirm('删除此跟踪规则？过去的提醒保留供你核查。'))
                         return;
                     await api('/services/watches/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
-                    if (clickCurrent())
-                        await hooks.render();
+                    await complete();
                     break;
                 case 'alert-ack': {
                     const row = state.cache.tracking.alerts.find((x) => x.id === id);
@@ -159,8 +170,7 @@ export function setupExperience(value) {
                 }
                 case 'alert-archive':
                     await api('/services/alerts/' + id + '?version=' + encodeURIComponent(el.dataset.version ?? ''), 'DELETE');
-                    if (clickCurrent())
-                        await hooks.render();
+                    await complete();
                     break;
                 case 'alert-investigate': {
                     const row = state.cache.tracking.alerts.find((x) => x.id === id);
@@ -188,7 +198,7 @@ export function setupExperience(value) {
                         throw new Error('研究导航尚未就绪，请刷新后重试');
                     state.active = p.dataset_id;
                     invalidateContext();
-                    const sameContext = contextGuard();
+                    sameContext = contextGuard();
                     const continuation = await hooks.navigateRendered('copilot');
                     if (!continuation || !sameContext() || !continuation())
                         break;
@@ -199,7 +209,14 @@ export function setupExperience(value) {
             }
         }
         catch (error) {
-            hooks.toast(error instanceof Error ? error.message : '操作失败', true);
+            if (!sameContext())
+                return;
+            if (completed) {
+                hooks.requestRefresh?.();
+                hooks.toast(actionLabel + '已完成，但同步读取未完成；保留当前页面和输入，请核对并刷新，无需重复提交。', true);
+            }
+            else
+                hooks.toast((clickCurrent() ? '' : '先前的') + actionLabel + '未确认完成：' + (error instanceof Error ? error.message : '操作失败'), true);
         }
         finally {
             delete el.dataset.pending;

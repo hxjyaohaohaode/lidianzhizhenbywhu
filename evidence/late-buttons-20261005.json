@@ -1,0 +1,168 @@
+{
+  "executed_at": "2026-10-05T16:23:15.907752+00:00",
+  "checks": [
+    {
+      "check": "typecheck",
+      "exit_code": 0,
+      "seconds": 1.373,
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ]
+    },
+    {
+      "check": "build",
+      "exit_code": 0,
+      "seconds": 1.574,
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ]
+    },
+    {
+      "check": "python-compile",
+      "exit_code": 0,
+      "seconds": 0.035,
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts"
+      ]
+    },
+    {
+      "check": "frontend-all",
+      "exit_code": 0,
+      "seconds": 1.804,
+      "command": [
+        "node",
+        "--test",
+        "tests/actions.frontend.test.mjs",
+        "tests/assistant-handoff.frontend.test.mjs",
+        "tests/business-source.frontend.test.mjs",
+        "tests/claim-review-readout.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
+        "tests/copilot-message-trace.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
+        "tests/counterevidence-coverage.frontend.test.mjs",
+        "tests/data-draft-continuation.frontend.test.mjs",
+        "tests/data-editor-isolation.frontend.test.mjs",
+        "tests/dataset-source.frontend.test.mjs",
+        "tests/evaluation-detail.frontend.test.mjs",
+        "tests/evidence.frontend.test.mjs",
+        "tests/experiment-recovery.frontend.test.mjs",
+        "tests/form-snapshot.frontend.test.mjs",
+        "tests/frontend.test.mjs",
+        "tests/import-navigation.frontend.test.mjs",
+        "tests/import-readability.frontend.test.mjs",
+        "tests/import.frontend.test.mjs",
+        "tests/late-actions.frontend.test.mjs",
+        "tests/math-results.frontend.test.mjs",
+        "tests/metric-comparison.frontend.test.mjs",
+        "tests/plan-history.frontend.test.mjs",
+        "tests/preferences-completion.frontend.test.mjs",
+        "tests/product-numeric-outcomes.frontend.test.mjs",
+        "tests/proposal-preview.frontend.test.mjs",
+        "tests/recovery.frontend.test.mjs",
+        "tests/report-integrity.frontend.test.mjs",
+        "tests/report-readout.frontend.test.mjs",
+        "tests/research-form-lifecycle.frontend.test.mjs",
+        "tests/saved-comparisons.frontend.test.mjs",
+        "tests/saved-experiments.frontend.test.mjs",
+        "tests/saved-mutation.frontend.test.mjs",
+        "tests/service-completion.frontend.test.mjs",
+        "tests/services.frontend.test.mjs",
+        "tests/strategy-actions.frontend.test.mjs",
+        "tests/watch-units.frontend.test.mjs",
+        "tests/workflow-inputs.frontend.test.mjs"
+      ]
+    },
+    {
+      "check": "backend-focused",
+      "exit_code": 0,
+      "seconds": 10.773,
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_versioned_deletion.py",
+        "tests/test_security_api.py",
+        "tests/test_services.py::test_identities_are_scoped_owned_versioned_and_not_role_privileges",
+        "tests/test_services.py::test_identity_scope_applies_to_threads_watch_and_agent_plans",
+        "tests/test_adaptive.py::test_pause_queued_resume_idempotency_and_terminal_guard",
+        "tests/test_adaptive.py::test_paused_run_can_cancel",
+        "tests/test_adaptive.py::test_control_cross_account_and_legacy_rejected",
+        "tests/test_service_hardening.py::test_identity_and_chat_deletes_require_observed_revision",
+        "tests/test_service_hardening.py::test_watch_alert_and_proposal_deletes_are_revision_bound"
+      ]
+    },
+    {
+      "check": "source-guard",
+      "exit_code": 0,
+      "seconds": 0.398,
+      "command": [
+        "python",
+        "scripts/source_guard.py"
+      ]
+    },
+    {
+      "check": "diff-check",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ]
+    }
+  ],
+  "base_commit": "80defc9b54159155000ac7564fbdd1247c0f0403",
+  "supersedes_rejected_candidate": "c587142388408e14dc7d5c52a59410bc0f082368",
+  "scope": "Isolated local late-button continuation fix with separate draft and dialog generations; complete compiled listeners/render and combined app/service/copilot edit-submit flows use explicit DOM/view/transport doubles.",
+  "frontend": {
+    "all_passed": 932,
+    "late_action_cases": 364,
+    "combined_form_lifecycle_cases": 10,
+    "existing_cases": 558,
+    "failed": 0
+  },
+  "backend": {
+    "passed": 49,
+    "failed": 0,
+    "warning": "Existing Starlette/httpx deprecation warning; no suppressed assertions or provider calls."
+  },
+  "independent_rejection": {
+    "baseline_record": "evidence/late-buttons-research-form-80def.json",
+    "rejected_record": "evidence/late-buttons-research-form-c587.json",
+    "observed": "Four ordinary research form edits sent one POST on the base, zero on c587 with a stale-window error; untouched positive and closed-form negative controls behaved correctly on both. Original failure records preserved unchanged.",
+    "repair": "Input edits invalidate only pending continuation guards; researchForm.valid retains the existing navigation/dialog lifetime guard. No removal of stale-form validation."
+  },
+  "not_run": [
+    "Native browser and operating-system UI",
+    "HTTP/SSE/socket server",
+    "Full restart/backup chain",
+    "Full backend regression suite",
+    "Real providers or business data",
+    "Push, merge, deployment"
+  ],
+  "sha256": {
+    "web/app.ts": "a69d0f5f5526648ae56b2e4b5e822d249d134c5d581ad97a70ee94dd49b577f3",
+    "web/experience.ts": "7bb896e938332e8be3b220cf8cf5b39a5053627348a2335f4883223808450c2e",
+    "web/interactions.ts": "d1ce5f15c7b4063be30630d7190dd38b69953ae4cc9ecf1371a50830e923ba6f",
+    "web/copilot-ui.ts": "40e37f3b64f96382e1353f383ec5f580124f2fd762e5e87244eef99206fdcc70",
+    "web/dist/app.js": "d98c6f90a1b1a76e76a03869cfade1e93438f4ee04c53d66e62891e6a018a9b7",
+    "web/dist/experience.js": "aea4860a691a1234c7088e4048bfe434fb601dd4a9e664b4376a690c39016472",
+    "web/dist/interactions.js": "8e3613000e926862f82108d4d4f37b6c218de20554301e20f4a11381b2f260dd",
+    "web/dist/copilot-ui.js": "f62e1b75d146342bab5a29f14864b7a2a66f0b00073683ef45be1f477f57ca68",
+    "tests/late-actions.frontend.test.mjs": "2b1ccf8591360de86c10f7d2eb067269ec5c520ca6d64d693b9003020b187303",
+    "tests/research-form-lifecycle.frontend.test.mjs": "fb173aefaa0dae403938f53129b8b06b082f7e05ed6c322bf3a97ad622c9baf0"
+  }
+}

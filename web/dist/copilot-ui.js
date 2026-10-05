@@ -4,7 +4,7 @@ import { currentComparisonRead, removeComparisonOption } from './saved-compariso
 import { scopedResearchInputs, researchInputFields, syncResearchInputControls, researchInputRequest, researchApprovalInputs, researchRunOutputs } from './copilot-research-inputs.js';
 import { unchangedInputGuard } from './saved-experiments.js';
 import { claimMathReferences } from './math-results.js';
-import { interactionGuard, invalidateInteractions, renewSavedDraft } from './interactions.js';
+import { interactionGuard, invalidateInteractions, continuationGuard, renewSavedDraft } from './interactions.js';
 import { api, workspace, ApiError } from './api.js';
 import { assistantView } from './assistant.js';
 import { metricComparison } from './metric-comparison.js';
@@ -275,7 +275,7 @@ export function rememberDraft(text) { draft = text; drafts.set(contextKey, text)
 export async function chatAction(action, el) {
     if (['chat-history', 'chat-open', 'chat-propose', 'chat-review', 'chat-detail'].includes(action))
         invalidateInteractions();
-    const id = el.dataset.id ?? '', valid = interactionGuard(), started = epoch, scope = contextKey;
+    const id = el.dataset.id ?? '', valid = continuationGuard(), started = epoch, scope = contextKey;
     const active = () => valid() && validContext(started, scope);
     if (action === 'chat-forecast') {
         if (!active() || !current?.messages.some((m) => m.id === el.dataset.message))
@@ -481,7 +481,7 @@ async function proposalForm(kind, messageId, valid) {
     hooks.dialog({ research: '交给 Agent 深入研判', action: '创建跟进行动提案', watch: '创建指标跟踪提案', memory: '保存记忆提案' }[kind], serviceForm('proposal', body, `data-thread="${esc(threadId)}" data-kind="${esc(kind)}" data-message="${esc(messageId)}" data-key="${formKey}" data-research-inputs="${formKey}"`), true);
     researchForm = inputs ? { ...inputs, key: formKey, threadId, valid: interactionGuard() } : null;
 }
-export async function reviewProposal(row, valid = interactionGuard()) {
+export async function reviewProposal(row, valid = continuationGuard()) {
     if (!valid())
         return;
     const p = row.payload;

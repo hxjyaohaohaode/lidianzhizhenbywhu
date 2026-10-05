@@ -1,0 +1,45 @@
+{
+  "date_utc": "2026-10-05",
+  "previous_candidate": "7b41b53734f9a8ca48ddc53266b82de983b6a91f",
+  "scope": "Explicit percent-unit and comparison/change-word ordering; no formula changes",
+  "source_sha256": {
+    "server/app.py": "94372d89654c955f3b98317f43da61bf1a57188ae8ef8a716c11e1cad9fc5575",
+    "server/business_provenance.py": "2b250ee1c9448b109f945246bf5677325d5a316af405da806d3f5dc815b02403",
+    "server/execution_scope.py": "65a4b0357ac80f2952e4342d4efa3df265f8f5380346d753296eddf16d0840a4",
+    "server/question_scope.py": "5aebab92b2dbbf78d058f6f36334b0d6aa73259e1c5d4f97c386ff8f6355d9e6",
+    "server/report_export.py": "1f9d044007e4e3278b6095fcaecd077708f736749ab90c453211977677bd6917"
+  },
+  "checks": {
+    "related_backend": {
+      "passed": 1154,
+      "warnings": 1,
+      "seconds": 156.71
+    },
+    "new_cases_included": 85,
+    "frontend": {
+      "passed": 558,
+      "failed": 0,
+      "skipped": 0
+    },
+    "python_compile": "passed",
+    "typescript_typecheck": "passed",
+    "typescript_build": "passed",
+    "source_guard": "passed",
+    "git_diff_check": "passed"
+  },
+  "live_provider_calls": 0,
+  "network_listener_attempts": 0,
+  "supplemental_captured_old_cases": 8,
+  "supplemental_fixture_sha256": "ac281c2a62fdb2fe98d38cb8dffabcf9fcebebaf41037fec72736628f463e587",
+  "supplemental_raw_tables_verified": 14,
+  "first_fixture_retained_sha256": "4c69e0787c384443cd31eebb425d90cb90d60333a2524175b8496690080382fc",
+  "independent_7b41_failure_original_sha256": "49757387dca69c0ff60e8fcb352be7855c242da7b06009cd42b81dd0706d3aae",
+  "not_run": [
+    "Full backend acceptance",
+    "Native or rendered browser",
+    "Real Uvicorn HTTP/SSE/restart/backup",
+    "Live suppliers",
+    "Deployment"
+  ],
+  "counts_notice": "All listed backend test subsets overlap; do not add counts."
+}

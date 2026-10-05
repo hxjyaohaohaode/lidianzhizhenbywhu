@@ -21,9 +21,12 @@ COMPLETED_STATES = {'succeeded', 'degraded'}
 
 
 def review_context(store,user_id,run_id):
-    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='claim_review' AND json_extract(payload,'$.run_id')=? ORDER BY id",(user_id,run_id))
+    from .business_provenance import report_reviews_for_export
+    rows,unavailable=report_reviews_for_export(store,user_id,run_id)
+    rows.sort(key=lambda row:row['id']);unavailable.sort(key=lambda row:row['id'])
     actions=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='action' AND (json_extract(payload,'$.run_id')=? OR json_extract(payload,'$.provenance.run_id')=?) ORDER BY id",(user_id,run_id,run_id))
     bindings=[{'kind':'claim_review','id':r['id'],'version':r['version'],'hash':digest(r['payload'])} for r in rows]
+    bindings.extend({'kind':'claim_review','id':r['id'],'version':r['version'],'unavailable':True} for r in unavailable)
     bindings.extend({'kind':'action','id':r['id'],'version':r['version'],'hash':digest(r['payload'])} for r in actions)
     feedback=[]
     for action in actions:
@@ -32,15 +35,18 @@ def review_context(store,user_id,run_id):
             'acceptance':p['acceptance'],'latest_record':{k:last.get(k) for k in ('at','status','note')},
             'evidence':[{'id':e['id'],'version':e['version'],'content_hash':e['content_hash'],'review_version':e['review_version']} for e in last.get('evidence_snapshots',[])]})
     return {'hash':digest(bindings),'bindings':bindings,'items':rows,'related_actions':feedback,
-            'disputed':sum(r['payload']['verdict']!='accepted' for r in rows)}
+            'disputed':len(unavailable)+sum(r['payload']['verdict']!='accepted' for r in rows),
+            **({'available':False,'unavailable':unavailable,
+                'notice':'已有人工审阅记录无法核验，不能作为新的回放授权或策略依据；可保存非授权反馈或撤回原同意，原报告与已保存验收依据保持不变。'} if unavailable else {})}
 
 
 def assessment_context(store,user_id,row):
     context=review_context(store,user_id,row['payload']['run_id'])
     saved=row['payload'].get('feedback_context_hash',row['payload'].get('claim_review_hash',digest([])))
     return {**row,'feedback_context':{'current_hash':context['hash'],'saved_hash':saved,
-        'state':'current' if saved==context['hash'] else 'changed','disputed':context['disputed'],
-        'message':'解释复核或关联行动反馈已变化，请重新查看并确认回放授权' if saved!=context['hash'] else '回放仅核对能力覆盖，不替代对模型解释的人工复核'}}
+        'state':'current' if not context.get('unavailable') and saved==context['hash'] else 'changed','disputed':context['disputed'],
+        **({'available':False} if context.get('unavailable') else {}),
+        'message':context['notice'] if context.get('unavailable') else '解释复核或关联行动反馈已变化，请重新查看并确认回放授权' if saved!=context['hash'] else '回放仅核对能力覆盖，不替代对模型解释的人工复核'}}
 
 
 def assessment(store, user, run_id, body):
@@ -56,6 +62,8 @@ def assessment(store, user, run_id, body):
         if body.consent_replay and not inspect_report_integrity(store, run)['report_integrity']['valid']:
             fail('REPORT_INTEGRITY', '报告的冻结产物、事件或输入快照校验失败，不能授权本地策略回放', 409)
         reviews=review_context(store,user['id'],run_id)
+        if body.consent_replay and reviews.get('unavailable'):
+            fail('REVIEW_CONTEXT_UNAVAILABLE',reviews['notice'],409)
         if body.consent_replay and (reviews['items'] or reviews['related_actions']) and body.review_context_hash!=reviews['hash']:
             fail('REVIEW_CONTEXT_CHANGED','解释复核或关联行动反馈已变化，请查看当前意见并重新确认回放授权',409)
         payload = body.model_dump(mode='json', exclude={'version','review_context_hash'})
@@ -67,8 +75,16 @@ def assessment(store, user, run_id, body):
             'snapshot_hash': digest(run['snapshot']), 'result_hash': digest(run['result']),
             'dataset_hash': (run['snapshot'] if isinstance(run['snapshot'], dict) else {}).get('dataset_hash'),
             'request_hash': digest(run['payload'])}
-        payload.update({'run_id': run_id, **source, 'feedback_context_hash':reviews['hash'],
-                        'claim_reviews':reviews['items'],'action_feedback':reviews['related_actions']})
+        feedback={'feedback_context_hash':reviews['hash'],'claim_reviews':reviews['items'],
+                  'action_feedback':reviews['related_actions']}
+        if reviews.get('unavailable'):
+            if withdrawing:
+                # Revocation must not replace the prior assessed review receipt
+                # with a hash derived from unavailable current content.
+                feedback={k:existing['payload'][k] for k in ('feedback_context_hash','claim_review_hash',
+                    'claim_reviews','action_feedback','feedback_context_unavailable') if k in existing['payload']}
+            else:feedback['feedback_context_unavailable']=reviews['unavailable']
+        payload.update({'run_id': run_id, **source, **feedback})
         row = ws.save(store, db, user['id'], 'assessment', payload, key=run_id, expected=body.version)
         current_active(store, user['id'])
         return row
@@ -83,7 +99,9 @@ def current_case(store, user_id, a):
         if digest(run['snapshot']) != a['payload']['snapshot_hash'] or digest(run['result']) != a['payload']['result_hash']: return None
         if a['payload'].get('request_hash', digest(run['payload'])) != digest(run['payload']): return None
         if not inspect_report_integrity(store, run)['report_integrity']['valid']: return None
-        if a['payload'].get('feedback_context_hash',a['payload'].get('claim_review_hash',digest([]))) != review_context(store,user_id,run['id'])['hash']: return None
+        feedback=review_context(store,user_id,run['id'])
+        if feedback.get('unavailable'):return None
+        if a['payload'].get('feedback_context_hash',a['payload'].get('claim_review_hash',digest([]))) != feedback['hash']: return None
         return run
     except (KeyError, TypeError, ValueError):
         return None

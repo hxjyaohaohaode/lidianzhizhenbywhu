@@ -10,7 +10,7 @@ from server.store import digest
 from test_action_lifecycle import create, ok
 
 
-FIELDS=('id','version','content_hash','review_version')
+FIELDS=('id','version','content_hash','review_version','review_hash')
 
 
 def capture(actor,suffix=''):
@@ -48,13 +48,13 @@ def test_incomplete_or_ambiguous_evidence_selection_is_rejected_before_writing(a
     unchanged(store,actor.user['id'],before,audit)
 
 
-@pytest.mark.parametrize('field',['version','content_hash','review_version'])
+@pytest.mark.parametrize('field',['version','content_hash','review_version','review_hash'])
 def test_each_evidence_binding_field_is_mandatory_and_independently_checked(actor,field):
     row=create(actor,company='测试企业');doc=capture(actor);ref=actor.evidence_ref(doc)
     route='/workspace/actions/'+row['id']+'/status'
     missing={k:v for k,v in ref.items() if k!=field}
-    assert actor.put(route,json={'version':1,'status':'in_progress','evidence_refs':[missing]}).status_code==422
-    invalid={**ref,field:'0'*64 if field=='content_hash' else ref[field]+1}
+    assert actor.put(route,json={'version':1,'status':'in_progress','evidence_refs':[missing]}).status_code==(409 if field=='review_hash' else 422)
+    invalid={**ref,field:'0'*64 if field in ('content_hash','review_hash') else ref[field]+1}
     result=actor.put(route,json={'version':1,'status':'in_progress','evidence_refs':[invalid]})
     assert result.status_code==409 and result.json()['error']['code']=='ACTION_EVIDENCE_CHANGED'
     current=next(a for a in ok(actor.get('/workspace/actions'))['items'] if a['id']==row['id'])

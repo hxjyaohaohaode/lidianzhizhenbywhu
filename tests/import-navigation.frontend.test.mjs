@@ -168,8 +168,9 @@ test('production import refresh stages auth and workspace responses before guard
  assert(start>=0&&end>start);
  const refresh=source.slice(start,end);
  const publish=refresh.indexOf('state.datasets=');
- const guarded=refresh.indexOf('if(!valid())return false;');
+ const guarded=refresh.lastIndexOf('if(!valid())return false;',publish);
  assert(guarded>=0&&guarded<publish,'guard must be checked before workspace publication');
+ assert(refresh.indexOf('if(!valid())return false;')<refresh.indexOf('Promise.all'),'invalid continuation must stop before dispatching reads');
  assert(refresh.indexOf("api('/auth/me')")<guarded,'authentication response must be staged before publication');
  assert(!/\bawait\b/.test(refresh.slice(publish)),'publishing datasets, account and CSRF must be atomic');
  assert.match(refresh,/return true;/);

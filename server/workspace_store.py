@@ -6,13 +6,22 @@ from .security import fail
 KINDS = frozenset({'profile','plan','action','experiment','comparison','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation','identity','assistant_thread','assistant_proposal','watch','alert'})
 
 
+def claim_review_parent_match(review, parent):
+    """Known slot plus an absent/agreed payload binding; never guess a conflict."""
+    reference=f"CASE WHEN json_valid({review}.payload) THEN json_extract({review}.payload,'$.run_id') END"
+    return (f"substr({review}.natural_key,1,length({parent}.id)+1)={parent}.id||':'"
+            f" AND ({reference}={parent}.id OR {reference} IS NULL)")
+
+
 def current_parent_filter(kind):
     # Earlier deletions left logical children behind. Keep that legacy history
     # exportable, but do not let it occupy current review lists or live capacity.
     # Both sides must belong to the same account; references alone confer no scope.
     if kind=='evidence_review':table,reference='evidence','workspace_objects.natural_key'
     elif kind=='assessment':table,reference='runs','workspace_objects.natural_key'
-    elif kind=='claim_review':table,reference='runs',"json_extract(workspace_objects.payload,'$.run_id')"
+    elif kind=='claim_review':
+        return (' AND EXISTS (SELECT 1 FROM runs parent WHERE parent.user_id=workspace_objects.user_id AND '
+                +claim_review_parent_match('workspace_objects','parent')+')')
     else:return ''
     return f' AND EXISTS (SELECT 1 FROM {table} parent WHERE parent.id={reference} AND parent.user_id=workspace_objects.user_id)'
 

@@ -3,8 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {contextGuard} from '../web/dist/api.js';
 import {evaluationDetail} from '../web/dist/evaluation-detail.js';
-import {interactionGuard,invalidateInteractions} from '../web/dist/interactions.js';
+import {interactionGuard,invalidateInteractions,continuationGuard} from '../web/dist/interactions.js';
 import {button,esc,icon} from '../web/dist/components.js';
 
 const H='a'.repeat(64),OTHER='b'.repeat(64);
@@ -124,7 +125,7 @@ test('actual detail click opens the saved readable inspector with no request and
  const {evaluation,overview}=fixture(),listeners={},state={cache:{evolution:overview}},toasts=[];
  class Button{constructor(id){this.dataset={action:'evaluation-detail',id};this.disabled=false;}closest(){return this;}setAttribute(){}removeAttribute(){}}
  const inspector={innerHTML:'',open:false,showModal(){this.open=true;}},document={addEventListener:(name,handler)=>listeners[name]=handler};
- const env={document,state,HTMLButtonElement:Button,inspector,evaluationDetail,interactionGuard,invalidateInteractions,esc,icon,button,toast:t=>toasts.push(t)};
+ const env={document,state,HTMLButtonElement:Button,inspector,evaluationDetail,contextGuard,interactionGuard,invalidateInteractions,continuationGuard,esc,icon,button,toast:t=>toasts.push(t)};
  new Function(...Object.keys(env),app.slice(inspectStart,inspectEnd)+app.slice(start,end))(...Object.values(env));
  const old=globalThis.fetch;globalThis.fetch=()=>assert.fail('Opening saved detail made a request');
  try{await listeners.click({target:new Button(evaluation.id)});assert.equal(inspector.open,true);assert(inspector.innerHTML.includes('原问题：为什么毛利率下降？'));assert(inspector.innerHTML.includes('逐例回放与门槛依据'));

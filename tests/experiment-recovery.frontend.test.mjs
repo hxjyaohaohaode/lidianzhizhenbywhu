@@ -8,7 +8,7 @@ import {api,workspace,ApiError,contextGuard,invalidateContext} from '../web/dist
 import {state,scopedDatasets} from '../web/dist/state.js';
 import {saveExperiment,experimentRecoveryPanel,forgetExperimentAttempt,experimentAttemptManager} from '../web/dist/experiment-recovery.js';
 import {unchangedInputGuard} from '../web/dist/saved-experiments.js';
-import {interactionGuard,invalidateInteractions} from '../web/dist/interactions.js';
+import {interactionGuard,invalidateInteractions,continuationGuard} from '../web/dist/interactions.js';
 import {formSnapshot} from '../web/dist/form-snapshot.js';
 import {notice,routeButton} from '../web/dist/components.js';
 
@@ -38,7 +38,7 @@ function installListener(save=saveExperiment){
  new Function('env',`const {document,state,workspace,api,ApiError,contextGuard,unchangedInputGuard,interactionGuard,formSnapshot,scopedDatasets,navigate,toast,saveExperiment,notice,routeButton}=env;${read}\n${listener}`)({document:{addEventListener:(_,fn)=>submit=fn},state,workspace,api,ApiError,contextGuard,unchangedInputGuard,interactionGuard,formSnapshot,scopedDatasets,saveExperiment:save,notice,routeButton,navigate:(path)=>navigations.push(path),toast:(...args)=>toasts.push(args)});
 }
 function installClickListener(){
- new Function('env',`const {document,state,interactionGuard,experimentAttemptManager,forgetExperimentAttempt,toast,dialog}=env;${clickListener}`)({document:{addEventListener:(_,fn)=>click=fn},state,interactionGuard,experimentAttemptManager,forgetExperimentAttempt,toast:(...args)=>toasts.push(args),dialog:(title,html)=>dialogs.push({title,html})});
+ new Function('env',`const {document,state,contextGuard,interactionGuard,continuationGuard,experimentAttemptManager,forgetExperimentAttempt,toast,dialog}=env;${clickListener}`)({document:{addEventListener:(_,fn)=>click=fn},state,contextGuard,interactionGuard,continuationGuard,experimentAttemptManager,forgetExperimentAttempt,toast:(...args)=>toasts.push(args),dialog:(title,html)=>dialogs.push({title,html})});
 }
 test.beforeEach(()=>{
  Object.assign(state,{user:{id:'owner-a'},identity:'identity-a',identities:[],active:'dataset-a',datasets:[{id:'dataset-a',version:1,content_hash:'a'.repeat(64),payload:{company:'测试企业'}}],cache:{},dirty:true});

@@ -1,0 +1,93 @@
+{
+  "status": "all_local_executed_checks_pass",
+  "executed_at": "2026-10-05T17:48:30.040623+00:00",
+  "base_local": "80defc9b54159155000ac7564fbdd1247c0f0403",
+  "base_remote": "9685dbf4dd3ec941465d9aadae01eb9431efcd59",
+  "protected_tree_ids": {
+    "server": "e889fd6a8a4e8fd02f475ed8c55f505b2a6a9dc1",
+    "web": "804a8fa701e8481250346324947d7455e1271a06"
+  },
+  "checks": [
+    {
+      "check": "python-compile",
+      "exit_code": 0,
+      "seconds": 0.056,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "typecheck",
+      "exit_code": 0,
+      "seconds": 1.361,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "build",
+      "exit_code": 0,
+      "seconds": 1.515,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "pytest",
+      "exit_code": 0,
+      "seconds": 472.818,
+      "timeout_seconds": 1500
+    },
+    {
+      "check": "frontend-tests",
+      "exit_code": 0,
+      "seconds": 1.868,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "source-guard",
+      "exit_code": 0,
+      "seconds": 0.407,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "exit_code": 0,
+      "seconds": 6.238,
+      "timeout_seconds": 240
+    }
+  ],
+  "backend": {
+    "collected": 3299,
+    "started": 3299,
+    "completed": 3299,
+    "exit_code": 0
+  },
+  "frontend": {
+    "tests": 960,
+    "passed": 960,
+    "failed": 0,
+    "skipped": 0
+  },
+  "source_files_unchanged": 333,
+  "independent_review": {
+    "late_actions": "e8ea corrected the rejected research-form lifetime regression; compiled event and source scope cleared",
+    "history_and_deleted_recovery": "v2 bound deletion without depending on JSON metadata; damaged receipt and 201-row API controls cleared",
+    "review_and_question_boundaries": "ead201 + c41a19 + 320d1e3 source, API and rendered-module scope cleared",
+    "current_viewed_bindings": "2dbcc34 independent real API counterexamples closed; current UI does not yet expose review note and stance at evidence selection",
+    "native_scripts": "L9 semantic readout correction and L10/L11 strict reader contracts cleared statically; no new native execution accepted"
+  },
+  "complete_product_accepted": false,
+  "native": {
+    "executed_on_this_application_tree": false,
+    "next_required": "Exact new GitHub SHA: 15 product suites on Linux and Windows plus 2 aggregate and 1 dependency job per Push and PR event; independent raw media review for L9/L10/L11"
+  },
+  "known_reader_gaps": [
+    "Old completed unsupported percentage questions preserve their original incorrect amount readout/export; a visible read-only scope warning is still pending.",
+    "Action evidence selection currently shows title and review status but not full review note or stance; hash binding is not evidence the person read those fields."
+  ],
+  "not_exercised": [
+    "Live model API credentials",
+    "Live public sources",
+    "Public HTTPS deployment",
+    "Long-duration production load",
+    "Native browser navigation/Cookie/CSP integration",
+    "Cross-device browser compatibility",
+    "Future dependency advisories",
+    "Optional patched PDF integration"
+  ]
+}

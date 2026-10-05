@@ -12,7 +12,7 @@ from scripts.product_audit_config import audit_suite
 from scripts.product_first_use_audit import REVIEWED_WEB, REVIEWED_SERVER
 
 
-@pytest.mark.parametrize('flag,suite', [('--product-audit', 'contract'), ('--product-first-use', 'first-use'), ('--product-integrity','integrity'),('--product-comparison-integrity','comparison-integrity'),('--product-source-integrity','source-integrity'),('--product-tracking-integrity','tracking-integrity'),('--product-plan-history','plan-history'),('--product-tracking-units','tracking-units'),('--product-memory-eligibility','memory-eligibility'),('--product-report-export','report-export'),('--product-question-scope','question-scope'),('--product-experiment-recovery','experiment-recovery'),('--product-strategy-consent','strategy-consent')])
+@pytest.mark.parametrize('flag,suite', [('--product-audit', 'contract'), ('--product-first-use', 'first-use'), ('--product-integrity','integrity'),('--product-comparison-integrity','comparison-integrity'),('--product-source-integrity','source-integrity'),('--product-tracking-integrity','tracking-integrity'),('--product-plan-history','plan-history'),('--product-tracking-units','tracking-units'),('--product-memory-eligibility','memory-eligibility'),('--product-report-export','report-export'),('--product-question-scope','question-scope'),('--product-experiment-recovery','experiment-recovery'),('--product-strategy-consent','strategy-consent'),('--product-report-history','report-history'),('--product-late-actions','late-actions')])
 def test_local_native_modes_stop_before_socket_process_or_browser(tmp_path, monkeypatch, flag, suite):
     monkeypatch.setattr(native_acceptance, 'ROOT', tmp_path)
     monkeypatch.setattr(sys, 'argv', ['native_acceptance.py', flag])
@@ -28,24 +28,24 @@ def test_local_native_modes_stop_before_socket_process_or_browser(tmp_path, monk
     assert report['suite'] == suite and report['all_checks_passed'] is False
 
 
-@pytest.mark.parametrize('suite',['contract','first-use','integrity','comparison-integrity','source-integrity','tracking-integrity','plan-history','tracking-units','memory-eligibility','report-export','question-scope','experiment-recovery','strategy-consent'])
+@pytest.mark.parametrize('suite',['contract','first-use','integrity','comparison-integrity','source-integrity','tracking-integrity','plan-history','tracking-units','memory-eligibility','report-export','question-scope','experiment-recovery','strategy-consent','report-history','late-actions'])
 def test_native_subprocess_receives_selected_suite_and_both_protected_tree_ids(suite):
     assert native_acceptance.product_browser_options(suite,'a'*40,'b'*40)==[
         '--suite',suite,'--expected-web-tree','a'*40,'--expected-server-tree','b'*40]
     with pytest.raises(ValueError):native_acceptance.product_browser_options('not-a-suite','a'*40,'b'*40)
 
 
-def test_suite_destinations_and_registry_are_disjoint_with_l6_l7_l8_l9():
-    contract, first_use, integrity, comparison_integrity, source_integrity, tracking_integrity, plan_history, tracking_units, memory_eligibility, report_export, question_scope, experiment_recovery, strategy_consent = [audit_suite(name) for name in ('contract', 'first-use', 'integrity','comparison-integrity','source-integrity','tracking-integrity','plan-history','tracking-units','memory-eligibility','report-export','question-scope','experiment-recovery','strategy-consent')]
-    assert len({x['mode'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery,strategy_consent)})==13
-    assert len({x['report'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery,strategy_consent)})==13
+def test_suite_destinations_and_registry_are_disjoint_with_l6_l7_l8_l9_l10_l11():
+    contract, first_use, integrity, comparison_integrity, source_integrity, tracking_integrity, plan_history, tracking_units, memory_eligibility, report_export, question_scope, experiment_recovery, strategy_consent, report_history, late_actions = [audit_suite(name) for name in ('contract', 'first-use', 'integrity','comparison-integrity','source-integrity','tracking-integrity','plan-history','tracking-units','memory-eligibility','report-export','question-scope','experiment-recovery','strategy-consent','report-history','late-actions')]
+    assert len({x['mode'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery,strategy_consent,report_history,late_actions)})==15
+    assert len({x['report'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery,strategy_consent,report_history,late_actions)})==15
     assert contract['mode'] != first_use['mode'] and contract['report'] != first_use['report']
     assert contract['mode'] == 'product-audit' and contract['report'] == 'product-browser-audit.json'
     assert contract['scenarios'] == runner.SCENARIOS
     registry = runner.scenario_registry(repository_root='unused', data_dir='unused',
         expected_web_tree=REVIEWED_WEB, expected_server_tree=REVIEWED_SERVER)
     assert tuple(registry) == ('F1-trace-handoff', 'F2-forecast-units', 'F3-report-points', 'L1-first-use-report',
-        'I1-import-integrity','I2-report-integrity','I3-memory-integrity','I4-comparison-integrity','I5-review-scope','I6-dataset-source','I7-tracking-source','L6-plan-history','L4-tracking-units','I8-memory-preference','I9-report-export','L7-question-scope','L8-experiment-recovery','L9-strategy-consent')
+        'I1-import-integrity','I2-report-integrity','I3-memory-integrity','I4-comparison-integrity','I5-review-scope','I6-dataset-source','I7-tracking-source','L6-plan-history','L4-tracking-units','I8-memory-preference','I9-report-export','L7-question-scope','L8-experiment-recovery','L9-strategy-consent','L10-report-history','L11-late-actions')
     assert registry['L1-first-use-report'].keywords['expected_web_tree'] == REVIEWED_WEB
     assert tuple(code for code, _ in first_use['scenarios']) == ('L1-first-use-report',)
     assert integrity['database_fault_injection'] is True and comparison_integrity['database_fault_injection'] is True
@@ -74,6 +74,8 @@ def test_suite_destinations_and_registry_are_disjoint_with_l6_l7_l8_l9():
         (question_scope, 'L7-question-scope', 'scripts.product_question_scope', 'question_scope_journey'),
         (experiment_recovery, 'L8-experiment-recovery', 'scripts.product_experiment_recovery', 'experiment_recovery_outcome'),
         (strategy_consent, 'L9-strategy-consent', 'scripts.product_strategy_journey', 'strategy_consent_journey'),
+        (report_history, 'L10-report-history', 'scripts.product_report_history_journey', 'report_history_journey'),
+        (late_actions, 'L11-late-actions', 'scripts.product_late_action_journey', 'late_action_journey'),
     ):
         assert tuple(code for code, _ in configuration['scenarios']) == (scenario,)
         assert not configuration.get('database_fault_injection')
@@ -91,7 +93,7 @@ def test_suite_destinations_and_registry_are_disjoint_with_l6_l7_l8_l9():
         audit_suite('L6')
 
 
-@pytest.mark.parametrize('mode', ['product-first-use', 'product-question-scope', 'product-experiment-recovery', 'product-strategy-consent'])
+@pytest.mark.parametrize('mode', ['product-first-use', 'product-question-scope', 'product-experiment-recovery', 'product-strategy-consent', 'product-report-history', 'product-late-actions'])
 def test_preparation_clears_only_known_suite_root_outputs(tmp_path, mode):
     from scripts.prepare_evidence import prepare
     evidence = tmp_path / 'evidence'
@@ -146,7 +148,7 @@ class FakeContext:
 
 @pytest.mark.parametrize('suite,scenario_id', [('first-use', 'L1-first-use-report'),
     ('question-scope', 'L7-question-scope'), ('experiment-recovery', 'L8-experiment-recovery'),
-    ('strategy-consent', 'L9-strategy-consent')])
+    ('strategy-consent', 'L9-strategy-consent'), ('report-history','L10-report-history'), ('late-actions','L11-late-actions')])
 @pytest.mark.parametrize('failure,broken_trace,expected', [(None, False, 'passed'),
     (AssertionError('outcome missing'), False, 'failed'),
     (RuntimeError('adapter incomplete'), False, 'blocked_or_error'),
@@ -208,7 +210,7 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
     root = Path(__file__).resolve().parents[1]
     after = (root / '.github/workflows/ci.yml').read_text()
     def section(name):return re.search(r'^  '+re.escape(name)+r':\n(.*?)(?=^  [a-z][a-z-]*:|\Z)',after,re.M|re.S).group(1)
-    legacy_job,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery,strategy_consent=[section(name) for name in ('product-audit','product-first-use','product-integrity','product-comparison-integrity','product-source-integrity','product-tracking-integrity','product-plan-history','product-tracking-units','product-memory-eligibility','product-report-export','product-question-scope','product-experiment-recovery','product-strategy-consent')]
+    legacy_job,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity,plan_history,tracking_units,memory_eligibility,report_export,question_scope,experiment_recovery,strategy_consent,report_history,late_actions=[section(name) for name in ('product-audit','product-first-use','product-integrity','product-comparison-integrity','product-source-integrity','product-tracking-integrity','product-plan-history','product-tracking-units','product-memory-eligibility','product-report-export','product-question-scope','product-experiment-recovery','product-strategy-consent','product-report-history','product-late-actions')]
     protected_pins = set()
     for job, mode, report_name, pack_options in (
         (legacy_job, 'product-audit', 'product-browser-audit.json', ''),
@@ -224,6 +226,8 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
         (question_scope, 'product-question-scope', 'product-question-scope-audit.json', ' --suite question-scope'),
         (experiment_recovery, 'product-experiment-recovery', 'product-experiment-recovery-audit.json', ' --suite experiment-recovery'),
         (strategy_consent, 'product-strategy-consent', 'product-strategy-consent-audit.json', ' --suite strategy-consent'),
+        (report_history, 'product-report-history', 'product-report-history-audit.json', ' --suite report-history'),
+        (late_actions, 'product-late-actions', 'product-late-actions-audit.json', ' --suite late-actions'),
     ):
         assert 'timeout-minutes: 15' in job
         assert 'os: [ubuntu-latest, windows-latest]' in job
@@ -242,12 +246,12 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
         for part in range(1, 17):
             assert f'name: {mode}-${{{{ matrix.os }}}}-part-{part:02d}\n' in job
             assert f'path: evidence/{mode}-transfer/part-{part:02d}/\n' in job
-    assert protected_pins == {('94534eed3a56136f83d837d3f4169f8a9d33db22',
-        '8621e57f92c821eccaf15fceed5a7bb0265bd31f')}
-    assert len(re.findall(r'^  product-[a-z-]+:', after, re.M)) == 13
+    assert protected_pins == {('804a8fa701e8481250346324947d7455e1271a06',
+        'e889fd6a8a4e8fd02f475ed8c55f505b2a6a9dc1')}
+    assert len(re.findall(r'^  product-[a-z-]+:', after, re.M)) == 15
     jobs = re.findall(r'^  ([a-z][a-z-]*):\n', after, re.M)
-    assert len(jobs) == 15 and {'regression', 'dependency-audit'} <= set(jobs)
-    assert sum(2 if 'os: [ubuntu-latest, windows-latest]' in section(name) else 1 for name in jobs) == 29
+    assert len(jobs) == 17 and {'regression', 'dependency-audit'} <= set(jobs)
+    assert sum(2 if 'os: [ubuntu-latest, windows-latest]' in section(name) else 1 for name in jobs) == 33
     assert 'timeout-minutes: 35' in section('regression')
     from scripts.pack_product_audit import PART_BYTES, MAX_PARTS
     assert PART_BYTES == 24 * 1024 * 1024 and MAX_PARTS == 16

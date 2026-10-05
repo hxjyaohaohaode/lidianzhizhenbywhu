@@ -1,5 +1,5 @@
 {
-  "files_scanned": 116,
+  "files_scanned": 119,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -87,6 +87,7 @@
     "scripts/bootstrap.py",
     "scripts/browser_check.py",
     "scripts/capture_legacy_scope_fixture.py",
+    "scripts/capture_percentage_scope_fixture.py",
     "scripts/dataset_source_probe.py",
     "scripts/dom_check.py",
     "scripts/full_chain_check.py",
@@ -101,11 +102,13 @@
     "scripts/product_experiment_recovery.py",
     "scripts/product_first_use_audit.py",
     "scripts/product_integrity_outcomes.py",
+    "scripts/product_late_action_journey.py",
     "scripts/product_memory_eligibility.py",
     "scripts/product_plan_history.py",
     "scripts/product_question_scope.py",
     "scripts/product_readout_oracles.py",
     "scripts/product_report_export.py",
+    "scripts/product_report_history_journey.py",
     "scripts/product_source_integrity.py",
     "scripts/product_strategy_journey.py",
     "scripts/product_tracking_integrity.py",

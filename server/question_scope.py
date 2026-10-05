@@ -41,11 +41,24 @@ COMPARISON_PATTERNS = {
     'previous': r'环比|上一季度|上季|(?<![a-z0-9_])(?:previous\s+quarter|' + QUARTER_COMPARISON + r')(?![a-z0-9_])',
     'year_over_year': r'同比|上年同季|去年同季|(?<![a-z0-9_])' + YEAR_COMPARISON + r'(?![a-z0-9_])',
 }
+# Explicit relative changes are a different operation from an amount difference
+# or percentage-point difference. This finite vocabulary adds no new formulas.
+PERCENT_QUESTION_ZH = r'(?:百分之\s*(?:多少|几)|(?:多少|多大)?\s*百分比)'
+CHANGE_VERB_ZH = r'(?:增长|增加|减少|下降|上升|降低|变化)'
+# The percent unit may precede or follow the change verb. A comparison can
+# supply the change operation when the verb is omitted. Bare ratio values and
+# percentage points have neither this operation/unit pair nor this meaning.
+PERCENT_CHANGE_ZH = (r'(?:(?:'+CHANGE_VERB_ZH+r'|同比|环比)\s*(?:了|为|是|的)?\s*'+PERCENT_QUESTION_ZH
+    +r'|百分比\s*'+CHANGE_VERB_ZH+r'|涨幅|降幅)')
+PERCENT_CHANGE_EN = r'(?:percent(?:age)?\s+(?:growth|change|increase|decrease|decline))'
+REVENUE_CHANGE_ZH = '(?:'+PERCENT_CHANGE_ZH+r'|增长率?|增速)'
+REVENUE_CHANGE_EN = '(?:'+PERCENT_CHANGE_EN+r'|growth(?:\s+rate)?)'
 REVENUE_GROWTH_PATTERN = (r'(?:营业收入|收入|营收|销售额)\s*(?:的\s*)?'
-    r'(?:(?:同比|环比)\s*(?:增长率?|增速)?|增长率?|增速)'
-    r'|(?<![a-z0-9_])(?:revenue\s+(?:growth(?:\s+rate)?|' + GROWTH_COMPARISON + r'(?:\s+growth(?:\s+rate)?)?)'
-    r'|' + GROWTH_COMPARISON + r'\s+revenue(?:\s+growth(?:\s+rate)?)?'
-    r'|growth(?:\s+rate)?\s+(?:in\s+)?revenue)(?![a-z0-9_])')
+    r'(?:(?:同比|环比)\s*(?:'+REVENUE_CHANGE_ZH+'|'+PERCENT_QUESTION_ZH+')?|'+REVENUE_CHANGE_ZH+')'
+    +r'|(?<![a-z0-9_])(?:revenue\s+(?:'+GROWTH_COMPARISON+r'\s+)?'+REVENUE_CHANGE_EN
+    +r'|revenue\s+'+GROWTH_COMPARISON
+    +r'|' + GROWTH_COMPARISON + r'\s+revenue(?:\s+'+REVENUE_CHANGE_EN+r')?'
+    +r'|'+REVENUE_CHANGE_EN+r'\s+(?:(?:in|of)\s+)?revenue)(?![a-z0-9_])')
 AMOUNT_TOPICS = {'revenue', 'cost', 'net_profit', 'cash_flow'}
 RATIO_TOPICS = {key for key, _ in TOPICS} - AMOUNT_TOPICS
 # Refusal vocabulary, not currency conversion support or arbitrary ISO/NLP
@@ -66,6 +79,32 @@ def matches(text, term):
     return bool(re.search(_term_pattern(term), text))
 
 
+def unsupported_growth(text):
+    """A supported revenue phrase cannot mask a separate requested transform."""
+    remainder=re.sub(REVENUE_GROWTH_PATTERN,' ',text.lower())
+    return bool(re.search(r'增长率|增速|'+PERCENT_CHANGE_ZH
+        +r'|(?<![a-z0-9_])(?:growth\s+rate|'+PERCENT_CHANGE_EN+r')(?![a-z0-9_])',remainder))
+
+
+def unsupported_amount_percentage(text):
+    """Bind a bare percent unit to an amount, without inventing a denominator.
+
+    Named ratios and revenue changes already define a supported operation.
+    Mask their complete occurrences, keeping a boundary so an independent
+    amount cannot acquire the masked ratio's following unit. The unit must
+    attach locally to the amount; a ratio elsewhere does not block a mixed ask.
+    """
+    remainder = re.sub(RD_RATIO_PATTERN, '\0', text.lower())
+    for key in ('net_margin', 'cash_ratio'):
+        for term in dict(TOPICS)[key]:
+            remainder = re.sub(_term_pattern(term), '\0', remainder)
+    remainder = re.sub(REVENUE_GROWTH_PATTERN, '\0', remainder)
+    unit = (r'\s*(?:的\s*)?(?:(?:金额|数额|总额)\s*)?'
+            r'(?:(?:是|为|有|占)\s*)?' + PERCENT_QUESTION_ZH)
+    return any(re.search(_term_pattern(term) + unit, remainder)
+               for key, terms in TOPICS if key in AMOUNT_TOPICS for term in terms)
+
+
 def unsupported_modifier(text):
     """Reject unregistered units/operations on the finite metric catalog.
 
@@ -77,8 +116,10 @@ def unsupported_modifier(text):
         for term in dict(TOPICS)[key]:
             remainder=re.sub(_term_pattern(term),' ',remainder)
     remainder=re.sub(REVENUE_GROWTH_PATTERN,' ',remainder)
-    if re.search(r'增长率|增速|(?<![a-z0-9])growth\s+rate(?![a-z0-9])',remainder):
-        return '当前问答仅支持收入增长率；其他指标的增长率或增速不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。'
+    if unsupported_growth(text):
+        return '当前问答仅支持收入增长率；其他指标的增长率、百分比变化或涨跌幅不能用原始金额、原比率或比较差额替代，请单独提问已支持的指标。'
+    if unsupported_amount_percentage(text):
+        return '当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。'
     for key,terms in TOPICS:
         if key not in AMOUNT_TOPICS:continue
         for term in terms:
@@ -304,7 +345,8 @@ def analysis_dataset(snapshot):
 
 def plan_scope(query, data):
     resolved=resolve_question(query,data,[])
-    blocked=resolved['status'] in ('needs_clarification','period_unavailable') or resolved['unsupported_currency']
+    blocked=(resolved['status'] in ('needs_clarification','period_unavailable') or resolved['unsupported_currency']
+        or unsupported_growth(query) or unsupported_amount_percentage(query))
     return {'status':'blocked' if blocked else 'selected','period':resolved['period'],
             'topics':list(resolved['topics']),'question_status':resolved['status'],
             'explicit':resolved['period_explicit'],'requested_comparison':resolved['comparison'] if resolved['comparison_explicit'] else None,'available_periods':resolved['available_periods'],

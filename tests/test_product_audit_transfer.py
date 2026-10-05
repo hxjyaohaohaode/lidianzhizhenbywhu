@@ -255,3 +255,25 @@ def test_successful_strategy_report_cannot_omit_its_fixture_observation(tmp_path
     (evidence / 'product-strategy-consent-audit.json').write_text(json.dumps(report))
     with pytest.raises(ValueError, match='fixture CSV'):
         package(evidence, suite='strategy-consent')
+
+
+@pytest.mark.parametrize('damage',[None,'missing_observation','wrong_hash','wrong_file'])
+def test_late_action_suite_binds_its_actual_registered_csv_name_and_hash(tmp_path,damage):
+    import hashlib
+    from scripts.pack_product_audit import package
+    evidence=tmp_path/'evidence';directory=evidence/'product-late-actions/L11-late-actions';directory.mkdir(parents=True)
+    name='late-actions-synthetic-input.csv';blob=b'contract-only synthetic fixture bytes';h=hashlib.sha256(blob).hexdigest()
+    file='another-input.csv' if damage=='wrong_file' else name
+    (directory/file).write_bytes(blob)
+    scenario={'id':'L11-late-actions','status':'passed','artifacts':[{'file':file,'kind':'synthetic-input','bytes':len(blob),'sha256':h}],
+        'observations':{'fixture':{'synthetic':True,'csv_sha256':'0'*64 if damage=='wrong_hash' else h}}}
+    if damage=='missing_observation':scenario['observations']={}
+    report={'suite':'late-actions','all_checks_passed':False,'scenarios':[scenario]}
+    (evidence/'product-late-actions-audit.json').write_text(json.dumps(report))
+    if damage:
+        with pytest.raises(ValueError,match='Configured fixture CSV'):
+            package(evidence,suite='late-actions',part_bytes=1024)
+    else:
+        manifest=package(evidence,suite='late-actions',part_bytes=1024)
+        assert manifest['audit_passed'] is False
+        assert manifest['files']['product-late-actions/L11-late-actions/'+name]['sha256']==h

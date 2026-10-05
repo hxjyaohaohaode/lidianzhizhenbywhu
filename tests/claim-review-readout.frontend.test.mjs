@@ -6,7 +6,7 @@ import {runPage,claimReviewForm,claimReviewState} from '../web/dist/views-studio
 import {reportsPage} from '../web/dist/views-analysis.js';
 import {state} from '../web/dist/state.js';
 import {workspace,ApiError,contextGuard,invalidateContext,invalidateView} from '../web/dist/api.js';
-import {invalidateInteractions,interactionGuard,finishMutation} from '../web/dist/interactions.js';
+import {invalidateInteractions,interactionGuard,continuationGuard,finishMutation} from '../web/dist/interactions.js';
 import {unchangedInputGuard} from '../web/dist/saved-experiments.js';
 import {esc,button,icon} from '../web/dist/components.js';
 
@@ -69,7 +69,7 @@ function harness(){
  class Data extends FormData{constructor(form){super();for(const [k,v]of Object.entries(form?.values??{}))this.set(k,v);}}
  class Button{constructor(){this.dataset={action:'review-claim',id:'claim-a'};this.disabled=false;}setAttribute(){}removeAttribute(){}}
  const modal={innerHTML:'',open:false,closed:0,classList:{toggle(){}},showModal(){this.open=true;},close(){this.open=false;this.closed++;}},inspector={open:false,close(){this.open=false;}},toasts=[],renders=[],refreshes=[];
- const values={document,state,HTMLFormElement:Form,HTMLButtonElement:Button,FormData:Data,esc,button,icon,invalidateInteractions,claimReviewState,claimReviewForm,contextGuard,interactionGuard,unchangedInputGuard,finishMutation,workspace,ApiError,modal,inspector,toast:t=>toasts.push(t),read:form=>{const f=new Data(form);return {f,str:k=>String(f.get(k)??'').trim(),check:k=>f.has(k)};},formSnapshot:form=>JSON.stringify([...new Data(form)]),refreshData:async valid=>{refreshes.push('read');return valid();},render:async()=>renders.push('render'),showSyncNotice:()=>{}};
+ const values={document,state,HTMLFormElement:Form,HTMLButtonElement:Button,FormData:Data,esc,button,icon,invalidateInteractions,claimReviewState,claimReviewForm,contextGuard,interactionGuard,continuationGuard,unchangedInputGuard,finishMutation,workspace,ApiError,modal,inspector,toast:t=>toasts.push(t),read:form=>{const f=new Data(form);return {f,str:k=>String(f.get(k)??'').trim(),check:k=>f.has(k)};},formSnapshot:form=>JSON.stringify([...new Data(form)]),refreshData:async valid=>{refreshes.push('read');return valid();},render:async()=>renders.push('render'),showSyncNotice:()=>{}};
  const dialogSource=app.slice(app.indexOf('function dialog('),app.indexOf('function inspect('));
  const submitSource=app.slice(app.indexOf("document.addEventListener('submit',"),app.indexOf("document.addEventListener('click',"));
  const clickSource=app.slice(app.indexOf("document.addEventListener('click',"),app.indexOf("document.addEventListener('input',"));

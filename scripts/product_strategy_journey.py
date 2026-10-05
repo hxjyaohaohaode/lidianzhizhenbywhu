@@ -192,8 +192,12 @@ def _read_groups(p, groups, label):
         for locator, required in groups:
             assert locator.count() == 1 and locator.is_visible()
             assert locator.locator('svg, pre, details:not([open]), [hidden]').count() == 0
+            # Semantic needles come from rendered cell text, whose block breaks
+            # are absent from textContent. Keep exact rendered-text checks and
+            # use the complete original textContent only for DOM range geometry.
+            rendered = locator.inner_text().strip()
             text = locator.text_content().strip()
-            assert text and all(part in text for part in required), (label, text, required)
+            assert text and rendered and all(part in rendered for part in required), (label, rendered, required)
             geometry = locator.evaluate(_TEXT_GEOMETRY, text)
             if not geometry.get('visible'):
                 capture()

@@ -17,6 +17,7 @@ from .intelligence import scoped_retrieve, build_insights, assistant_answer
 from .service_contracts import WatchSpec
 from .autonomy_contracts import ExecutionOptions
 from .business_provenance import resolve_source, assert_source_current, with_source_impact, report_impact
+from .source_bindings import require_dataset_content
 from .metric_facts import fact_comparison, RATIO_METRICS as _RATIO_METRICS, AMOUNT_METRICS as _AMOUNT_METRICS
 
 
@@ -127,6 +128,7 @@ def trace_message(store,user,thread_id,message_id,identity_id,dataset_id):
                 or (original_identity is not None and not isinstance(original_identity,dict))
                 or (original_identity or {}).get('id','')!=identity_id):
             fail('TRACE_SCOPE_UNAVAILABLE','原问题未保留可核查的完整季度、基期与指标范围，请明确这些条件后重新提问；不会改用最新季度',409)
+        require_dataset_content(data)
         periods=[p['period'] for p in data['payload']['periods']]
         if saved['period'] not in periods:
             fail('TRACE_PERIOD_UNAVAILABLE','原问题的目标季度已不在当前数据中，请补充原始输入或明确新的季度；不会改用最新季度',409)
@@ -222,6 +224,9 @@ def _grounded_facts(data, result, topics, dataset, links, trend_limit):
 
 
 def answer_with_tools(store, user, identity, data, text, history):
+    # The caller has resolved ownership and scope. Validate current bytes before
+    # reading financial fields or labeling a new answer with the saved hash.
+    if data:require_dataset_content(data)
     traces = []; cards = []; facts = []; citations = []; warnings = []; actions = []; next_steps = []
     started = time.perf_counter()
     ip = identity['payload'] if identity else {}
