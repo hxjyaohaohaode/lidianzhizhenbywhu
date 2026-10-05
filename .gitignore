@@ -33,3 +33,8 @@ evidence/product-first-use-transfer/
 evidence/product-first-use-transfer-status.json
 evidence/product-first-use-audit.json
 evidence/product-first-use-service-command.json
+evidence/product-integrity/
+evidence/product-integrity-transfer/
+evidence/product-integrity-transfer-status.json
+evidence/product-integrity-audit.json
+evidence/product-integrity-service-command.json

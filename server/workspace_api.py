@@ -4,6 +4,8 @@ from .schemas import MAX_SAFE_INTEGER
 import asyncio
 import json
 import hashlib
+import math
+import re
 from datetime import date,datetime,timezone
 from typing import Literal
 from .connections import scoped_providers
@@ -238,6 +240,7 @@ def import_commit(id:str,body:StageCommit,request:Request,user=Depends(require_u
     store=dbof(request)
     with store.transaction() as db:
         row=ws.get(store,user['id'],'import_stage',id);p=row['payload']
+        _verify_import_stage(store,user['id'],row)
         if body.fingerprint!=p['fingerprint']:fail('PREVIEW_MISMATCH','内容校验指纹不匹配',409)
         if p['status']=='committed':return owned(store,user,'datasets',p['committed_id'])
         if body.version!=row['version']:fail('VERSION_CONFLICT','预览版本不一致',409)
@@ -263,6 +266,43 @@ def import_commit(id:str,body:StageCommit,request:Request,user=Depends(require_u
         store.audit(db,user['id'],'datasets',key,'import_committed',{'stage_id':id,'revision':saved['version'],'receipt_hash':digest(receipt)})
         ws.save(store,db,user['id'],'import_stage',{**p,'status':'committed','committed_id':key},key=row['natural_key'],expected=row['version'])
     return owned(store,user,'datasets',key)
+
+
+def _verify_import_stage(store,user_id,row):
+    """Recheck approved bytes before writing or acknowledging a previous write."""
+    p=row['payload']
+    valid=isinstance(p,dict) and isinstance(p.get('status'),str) and p['status'] in {'preview','committed'}
+    try:
+        if valid:
+            original={k:v for k,v in p.items() if k not in {'fingerprint','committed_id'}}
+            original['status']='preview'
+            valid=(p.get('fingerprint')==digest(original)
+                and (p['status']=='committed' or 'committed_id' not in p))
+    except (TypeError,ValueError):valid=False
+    if not valid:fail('PREVIEW_INTEGRITY','保存前预览内容的完整性校验失败；未写入数据，请返回重新选择文件或重新预览',409)
+    receipts=store.all("SELECT * FROM dataset_import_receipts WHERE user_id=? AND CASE WHEN json_valid(payload) THEN json_extract(payload,'$.stage_id') END=?",(user_id,row['id']))
+    if p['status']=='preview':
+        if receipts:fail('PREVIEW_INTEGRITY','此预览已有保存回执但状态不一致；未重复写入，请核对当前数据和修订记录',409)
+        return
+    # Status and committed_id are completion metadata, outside the original
+    # fingerprint. Their authority comes from the owner-scoped commit receipt.
+    valid=False
+    try:
+        if len(receipts)==1:
+            r=receipts[0];receipt=r['payload']
+            valid=(isinstance(receipt,dict) and r['content_hash']==digest(receipt)
+                and receipt.get('schema_version')==1
+                and receipt.get('preview_fingerprint')==p['fingerprint']
+                and receipt.get('dataset_id')==r['dataset_id']==p.get('committed_id')
+                and receipt.get('dataset_version')==r['version']==p['target_version']+1
+                and receipt.get('dataset_hash')==digest(p['dataset'])
+                and receipt.get('basis')==p['basis']
+                and receipt.get('import_context')==p.get('import_context')
+                and receipt.get('source_kind')==('file' if p.get('import_context') else 'structured_preview')
+                and receipt.get('prior_version')==(p['target_version'] or None)
+                and receipt.get('confirmed_at')==r['created_at'])
+    except (KeyError,TypeError,ValueError):valid=False
+    if not valid:fail('PREVIEW_INTEGRITY','原预览的保存回执无法校验；未重复写入，请核对当前数据和修订记录',409)
 
 
 @router.get('/evidence')
@@ -516,23 +556,62 @@ def review_claim(id:str,body:ClaimReview,request:Request,user=Depends(require_us
         return ws.save(store,db,user['id'],'claim_review',{'run_id':id,**body.model_dump(exclude={'version'})},key=id+':'+body.claim_id,expected=body.version)
 
 
+def _finite_metric(value):
+    if isinstance(value,bool) or not isinstance(value,(int,float)):return False
+    try:return math.isfinite(value)
+    except (OverflowError,ValueError):return False
+
+
+def _comparison_analysis(run,label):
+    """Validate saved values only; never recalculate a historical report.
+
+    Pre-anchor legacy reports cannot prove their whole output hash, so evidence
+    checks alone cannot establish that their comparison fields remain usable.
+    """
+    result=run.get('result');analysis=result.get('analysis') if isinstance(result,dict) else None
+    metrics=analysis.get('metrics') if isinstance(analysis,dict) else None
+    period=analysis.get('current_period') if isinstance(analysis,dict) else None
+    rule=analysis.get('model_version') if isinstance(analysis,dict) else None
+    valid=(isinstance(metrics,dict) and any(key!='period' for key in metrics)
+        and isinstance(period,str) and re.fullmatch(r'[0-9]{4}-Q[1-4]',period)
+        and isinstance(rule,str) and bool(rule.strip())
+        and ('period' not in metrics or metrics['period']==period)
+        and all(value is None or _finite_metric(value) for key,value in metrics.items() if key!='period'))
+    if not valid:fail('REPORT_INTEGRITY',label+'保存的指标结构或数值无效；未计算差异，请核对原报告及可信备份',409)
+    return analysis
+
+
 @router.get('/reports/compare')
 def report_compare(request:Request,left:str=Query(...,max_length=80),right:str=Query(...,max_length=80),user=Depends(require_user)):
     store=dbof(request);a=owned(store,user,'runs',left);b=owned(store,user,'runs',right)
-    if not a['result'] or not b['result']:fail('NOT_READY','两次运行均需生成报告',409)
+    from .report_integrity import inspect_report_integrity
+    if any(not r['result'] and r['state'] not in {'succeeded','degraded'} for r in (a,b)):
+        fail('NOT_READY','两次运行均需生成报告',409)
+    verification={};partial=[];analyses={}
+    for side,label,run in (('left','基准报告',a),('right','对照报告',b)):
+        analyses[side]=_comparison_analysis(run,label)
+        audit=inspect_report_integrity(store,run)
+        if not audit['report_integrity']['valid']:
+            fail('REPORT_INTEGRITY',label+'的冻结产物、事件或输入快照校验失败；未计算差异，请核对原报告及可信备份',409)
+        verification[side]={'format':audit['report_integrity']['format'],'whole_output_hash_verified':audit['report_hash_valid']}
+        if audit['report_hash_valid'] is None:partial.append(label)
     if a['snapshot']['dataset']['company']!=b['snapshot']['dataset']['company']:
         fail('COMPANY_MISMATCH','报告修订对比只支持同一企业；跨企业请使用企业对照',422)
-    am=a['result']['analysis'];bm=b['result']['analysis']
+    am=analyses['left'];bm=analyses['right']
     keys=set(am['metrics'])&set(bm['metrics']);deltas=[]
     for k in sorted(keys):
         av,bv=am['metrics'][k],bm['metrics'][k]
         if k=='period':continue
-        deltas.append({'metric':k,'before':av,'after':bv,'delta':bv-av if isinstance(av,(int,float)) and isinstance(bv,(int,float)) else None})
+        delta=bv-av if av is not None and bv is not None else None
+        if delta is not None and not _finite_metric(delta):
+            fail('REPORT_INTEGRITY','保存值的差异超出有限数值范围；未发布比较结果，请核对原报告',409)
+        deltas.append({'metric':k,'before':av,'after':bv,'delta':delta})
     same_period=am['current_period']==bm['current_period']
-    return {'left':left,'right':right,'same_period':same_period,
+    notice=('、'.join(partial)+'为旧版记录，未保存完整输出的独立散列；此处仅比较其保存值并核对已有输入和事件记录。' if partial else '')
+    return {'left':left,'right':right,'same_period':same_period,'verification':verification,
         'same_rule_version':am['model_version']==bm['model_version'],'left_period':am['current_period'],'right_period':bm['current_period'],
         'changes':deltas,'input_diff':dataset_diff(a['snapshot']['dataset'],b['snapshot']['dataset']),
-        'warning':('同季度比较反映输入修订或研究口径差异，不代表跨期经营增长，也不能解释为干预效果' if same_period
+        'warning':notice+('同季度比较反映输入修订或研究口径差异，不代表跨期经营增长，也不能解释为干预效果' if same_period
             else '跨季度变化包含期间差异；不能把修订差异或相关变化当成干预效果')}
 
 

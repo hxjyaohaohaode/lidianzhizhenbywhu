@@ -79,7 +79,8 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS, suite='cont
             if name in seen_artifacts:
                 raise ValueError('Duplicate scenario artifact')
             seen_artifacts.add(name)
-            if item.get('kind') not in ('download', 'synthetic-input'):
+            allowed_kinds = ('download', 'synthetic-input', 'fault-injection') if suite == 'integrity' else ('download', 'synthetic-input')
+            if item.get('kind') not in allowed_kinds:
                 raise ValueError('Unknown scenario artifact kind')
             if not isinstance(item.get('sha256'), str) or not re.fullmatch(r'[0-9a-f]{64}', item['sha256']):
                 raise ValueError('Artifact requires a current-report SHA256')

@@ -38,6 +38,15 @@ def partial_output(exc):
     return ''.join(value.decode('utf-8', errors='replace') if isinstance(value, bytes)
         else value for value in (exc.stdout, exc.stderr) if value)
 
+
+def product_browser_options(suite, expected_web_tree, expected_server_tree):
+    audit_suite(suite)  # Validate the suite before constructing a subprocess.
+    options=['--suite',suite]
+    for flag,value in (('--expected-web-tree',expected_web_tree),('--expected-server-tree',expected_server_tree)):
+        if value:options.extend([flag,value])
+    return options
+
+
 class WindowsSafeTemporaryDirectory(tempfile.TemporaryDirectory):
     def cleanup(self):
         # Windows can release the stopped server's SQLite file shortly after
@@ -54,11 +63,12 @@ def main():
     mode_args.add_argument('--bridge',action='store_true',help='Run separately labeled DOM/API bridge acceptance')
     mode_args.add_argument('--product-audit',action='store_true',help='Run independent native user-outcome probes on the authorized CI runner')
     mode_args.add_argument('--product-first-use',action='store_true',help='Run only L1 first-use outcomes in a separate native CI audit')
+    mode_args.add_argument('--product-integrity',action='store_true',help='Run native rejection/recovery tasks with explicit isolated database faults')
     parser.add_argument('--expected-web-tree')
     parser.add_argument('--expected-server-tree')
     args=parser.parse_args()
-    product_mode=args.product_audit or args.product_first_use
-    suite='first-use' if args.product_first_use else 'contract'
+    product_mode=args.product_audit or args.product_first_use or args.product_integrity
+    suite='integrity' if args.product_integrity else 'first-use' if args.product_first_use else 'contract'
     configuration=audit_suite(suite)
     if not product_mode and (args.expected_web_tree or args.expected_server_tree):
         parser.error('Expected application trees apply only to product audit modes')
@@ -105,11 +115,8 @@ def main():
                     time.sleep(.1)
                 browser_script='scripts/product_browser_audit.py' if product_mode else 'scripts/service_browser_check.py'
                 options=[] if args.bridge or product_mode else ['--native']
-                if args.product_first_use:
-                    options.extend(['--suite',suite])
                 if product_mode:
-                    for flag,value in (('--expected-web-tree',args.expected_web_tree),('--expected-server-tree',args.expected_server_tree)):
-                        if value:options.extend([flag,value])
+                    options=product_browser_options(suite,args.expected_web_tree,args.expected_server_tree)
                 command=[sys.executable,browser_script,*options]
                 journal.emit('browser_command_started',server_exit_code=server.poll(),timeout_seconds=300)
                 result=subprocess.run(command,cwd=ROOT,env=env,timeout=300,capture_output=True,text=True,encoding='utf-8',errors='replace')

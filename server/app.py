@@ -370,7 +370,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
                     if not p['approved'] or (p.get('expires_at') and p['expires_at']<utc_today().isoformat()):continue
                     if p['role'] not in ('all',user['preferences'].get('role')):continue
                     if p['company'] and p['company']!=dataset['payload']['company']:continue
-                    memory.append({'id':m['id'],'version':m['version'],'text':p['text'],'kind':p['kind']})
+                    memory.append({'id':m['id'],'version':m['version'],'text':p['text'],'kind':p['kind'],'payload_hash':digest(p)})
                     if len(memory)>=8:break
             history=db.all('SELECT role,payload FROM messages WHERE session_id=? AND user_id=? ORDER BY created_at DESC LIMIT 8',(body.session_id,user['id']))
             history=[{'role':h['role'],'text':h['payload']['text'][:600]} for h in reversed(history)]

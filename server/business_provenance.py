@@ -7,7 +7,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Literal
 from pydantic import Field, ValidationError, model_validator
-from .schemas import StorageInteger, StrictModel
+from .schemas import StorageInteger, StrictModel, Memory
 from .store import digest, now
 from .security import fail
 from . import workspace_store as ws
@@ -15,6 +15,7 @@ from .identities import resolve_identity, identity_binding
 from .report_integrity import inspect_report_integrity
 
 MAX_RULE_ORIGIN_DEPTH = 8
+UNKNOWN_REASON_CODES = {'baseline_unknown','identity_baseline_unknown','rule_origin_unknown','legacy_unknown','memory_baseline_unknown'}
 
 
 def _rule_origin_structure(origin):
@@ -387,11 +388,12 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
         if run:
             # The report helper deliberately omits run_id in its base provenance,
             # avoiding recursion while rechecking original contextual dependencies.
-            extra_codes={'memory_removed','memory_withdrawn','memory_changed','objective_changed',
+            extra_codes={'memory_removed','memory_withdrawn','memory_changed','memory_baseline_unknown','objective_changed',
                 'experiment_removed','experiment_changed','report_integrity_failed'}
             if not p.get('claim_id'):extra_codes.add('human_review_disputes')
             report_dependencies=report_impact(store,user_id,run)
             if report_dependencies['state']=='unavailable':unavailable=True
+            if report_dependencies['state']=='unknown':unknown=True
             reasons.extend(r for r in report_dependencies['reasons'] if (r['code'] in extra_codes or r['code'].startswith('comparison_'))
                 and r['code'] not in {existing['code'] for existing in reasons})
         if p.get('claim_id'):
@@ -474,7 +476,7 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
     reasons.extend(_evidence_changes(store,user_id,p.get('evidence',[]),p.get('company','')))
     reasons.extend({**r,'dependency':'action_acceptance'} for r in
         _evidence_changes(store,user_id,p.get('action_acceptance_evidence',[]),p.get('company','')))
-    changed=any(r['code'] not in {'baseline_unknown','identity_baseline_unknown','rule_origin_unknown','legacy_unknown'} for r in reasons)
+    changed=any(r['code'] not in UNKNOWN_REASON_CODES for r in reasons)
     return {'state':'unavailable' if unavailable else 'changed' if changed else 'unknown' if unknown else 'current',
         'reasons':reasons,'baseline':baseline,'current':current}
 
@@ -548,10 +550,21 @@ def report_impact(store,user_id,run,*,integrity=None):
     for old in snapshot.get('memory',[]):
         memory=store.owned('memories',user_id,old['id'])
         if not memory:reasons.append({'code':'memory_removed','message':'原计划使用的记忆已删除；报告仍保留当时上下文'})
-        elif not memory['payload'].get('approved') or (memory['payload'].get('expires_at') and memory['payload']['expires_at']<utc_today().isoformat()):
-            reasons.append({'code':'memory_withdrawn','message':'原记忆当前已撤回批准或到期'})
-        elif memory['version']!=old.get('version'):
-            reasons.append({'code':'memory_changed','message':'原记忆内容或适用范围已有修订'})
+        else:
+            try:
+                checked=Memory.model_validate(memory['payload'])
+                live_hash=digest(memory['payload'])
+            except (ValidationError,TypeError,ValueError):
+                reasons.append({'code':'memory_changed','message':'当前记忆内容无法校验；不能认定仍与原批准上下文一致'})
+                continue
+            if not checked.approved or (checked.expires_at and checked.expires_at<utc_today()):
+                reasons.append({'code':'memory_withdrawn','message':'原记忆当前已撤回批准或到期'})
+            elif memory['version']!=old.get('version'):
+                reasons.append({'code':'memory_changed','message':'原记忆内容或适用范围已有修订'})
+            elif not isinstance(old.get('payload_hash'),str) or len(old['payload_hash'])!=64 or any(c not in '0123456789abcdef' for c in old['payload_hash']):
+                reasons.append({'code':'memory_baseline_unknown','message':'旧报告未保存该记忆的完整内容指纹，无法确认当前上下文是否仍一致；不会回填现行内容'})
+            elif live_hash!=old['payload_hash']:
+                reasons.append({'code':'memory_changed','message':'当前记忆内容与原批准指纹不一致，即使记录版本号未变也需重新核对'})
     if 'profile_version' in bindings:
         current=ws.keyed(store,user_id,'profile',p['company'])
         if (current['version'] if current else 0)!=bindings['profile_version']:
@@ -569,5 +582,6 @@ def report_impact(store,user_id,run,*,integrity=None):
         reasons.extend(comparison_impact['reasons'])
         if comparison_impact['state']=='unavailable':impact['state']='unavailable'
     if disputed:reasons.append({'code':'human_review_disputes','message':f'{disputed} 条解释存在人工拒绝或待补证意见；这不自动否定本地数学计算'})
-    if impact['state']=='current' and reasons:impact['state']='changed'
+    if impact['state']!='unavailable' and reasons:
+        impact['state']='changed' if any(r['code'] not in UNKNOWN_REASON_CODES for r in reasons) else 'unknown'
     return {**impact,'historical_report_preserved':True,'human_review_count':len(reviews),'human_disputes':disputed}

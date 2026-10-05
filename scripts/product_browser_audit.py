@@ -109,7 +109,12 @@ def points_display(value, header, expected_delta):
 
 
 class Probe:
-    """All changes go through visible controls; HTTP GETs corroborate results."""
+    """Operate visible controls; HTTP GETs corroborate results.
+
+    Only the separately declared integrity suite admits recorded temporary-DB
+    faults. Those fixture writes never count as user interaction evidence.
+    """
+    artifact_kinds = ('download', 'synthetic-input')
     def __init__(self, page, base_url, directory, submit_form, journal=None):
         self.page = page
         self.base_url = base_url.rstrip('/')
@@ -128,7 +133,7 @@ class Probe:
         path = Path(path)
         if path.is_symlink() or path.resolve().parent != self.directory.resolve():
             raise ValueError('Artifact must be a regular file directly in this scenario directory.')
-        if kind not in ('download', 'synthetic-input') or not path.is_file():
+        if kind not in self.artifact_kinds or not path.is_file():
             raise ValueError('Unknown artifact kind or missing scenario file.')
         item = {'file': path.name, 'kind': kind, 'sha256': digest(path), 'bytes': path.stat().st_size}
         if any(existing['file'] == item['file'] for existing in self.artifacts):
@@ -792,12 +797,21 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         from .product_first_use_audit import l1_new_user_report
     except ImportError:
         from product_first_use_audit import l1_new_user_report
+    try:
+        from .product_integrity_outcomes import integrity_import_recovery, integrity_comparison_recovery, integrity_memory_historical_choice
+    except ImportError:
+        from product_integrity_outcomes import integrity_import_recovery, integrity_comparison_recovery, integrity_memory_historical_choice
+    bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
+        expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
         'F1-trace-handoff': probe_handoff,
         'F2-forecast-units': probe_forecast,
         'F3-report-points': probe_report_points,
         'L1-first-use-report': partial(l1_new_user_report, repository_root=repository_root,
             data_dir=data_dir, expected_web_tree=expected_web_tree, expected_server_tree=expected_server_tree),
+        'I1-import-integrity': bind(integrity_import_recovery),
+        'I2-report-integrity': bind(integrity_comparison_recovery),
+        'I3-memory-integrity': bind(integrity_memory_historical_choice),
     }
 
 
@@ -826,6 +840,8 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
         raise RuntimeError("Protected web/server content differs from this run's explicitly reviewed tree IDs. Never silently inherit baseline approval after product edits.")
     report = {'started_at': now(), 'status': 'running', 'all_checks_passed': False, 'transport': 'native Playwright Chromium + actual isolated Uvicorn', 'policy_modified': False, 'bridge_used': False, 'direct_api_mutations_used': False, 'synthetic_only': True, 'repository': str(root), 'expected_protected_tree_ids': expected, 'git': identity, 'browser': browser.version, 'viewport': {'width': 1520, 'height': 1080}, 'timezone_id': 'UTC', 'runner': {k: os.getenv(k, '') for k in ('GITHUB_SHA', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'RUNNER_OS')}, 'scenarios': []}
     report['suite'] = suite
+    report['database_fault_injection_allowed'] = bool(configuration.get('database_fault_injection'))
+    report['direct_database_fault_injection_used'] = False
     report_path = Path(report_path) if report_path else root / 'evidence' / configuration['report']
     dump(report_path, report)
     registry = scenario_registry(repository_root=root, data_dir=data_dir,
@@ -867,6 +883,8 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
                 dialog.dismiss()  # Never silently approve a surprise destructive confirmation.
             page.on('dialog', unexpected_dialog)
             probe = Probe(page, base_url, directory, submit_form, journal)
+            if suite == 'integrity':
+                probe.artifact_kinds = (*probe.artifact_kinds, 'fault-injection')
             function(probe)
             assert not result['js_errors'], result['js_errors']
             assert not result['external_requests'], result['external_requests']
@@ -883,6 +901,7 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
         finally:
             if probe is not None:
                 result['observations'] = probe.observations
+                report['direct_database_fault_injection_used'] = report['direct_database_fault_injection_used'] or bool(probe.observations.get('database_faults'))
                 result['steps'] = probe.steps
                 result['artifacts'] = probe.artifacts
                 try:

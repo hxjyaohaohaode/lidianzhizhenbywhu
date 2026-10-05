@@ -76,18 +76,23 @@ def test_preview_commit_revision_and_restore_are_atomic(actor):
     assert good(actor.get('/workspace/datasets/'+row['id']+'/lineage?revision=2'))['version']==2
 
 
-def test_preview_expiry_and_version_conflict_leave_original_unchanged(actor):
+def test_preview_expiry_and_version_conflict_leave_original_unchanged(actor,monkeypatch):
     d=dataset(actor);payload=editable(d);payload.pop('version');payload['periods'][-1]['cost']+=10
     p=good(actor.post('/workspace/imports/preview',json={'dataset':payload,'target_id':d['id'],'target_version':1}),201)
     good(actor.put('/datasets/'+d['id'],json=editable(d)))
     conflict=actor.post('/workspace/imports/'+p['id']+'/commit',json={'fingerprint':p['payload']['fingerprint'],'version':1})
     assert conflict.status_code==409
     assert good(actor.get('/datasets/'+d['id']))['payload']==d['payload']
-    p2=good(actor.post('/workspace/imports/preview',json={'dataset':series(6)}),201)
-    store=actor.client.app.state.store;data={**p2['payload'],'created_at':(datetime.now(timezone.utc)-timedelta(days=2)).isoformat()}
-    with store.transaction() as db:db.execute('UPDATE workspace_objects SET payload=? WHERE id=?',(encode(data),p2['id']))
+    # Age the actual preview clock before it is fingerprinted. Editing its
+    # stored timestamp afterward is corruption, not a genuine expiry fixture.
+    with monkeypatch.context() as clock:
+        clock.setattr('server.workspace_api.now',lambda:(datetime.now(timezone.utc)-timedelta(days=2)).isoformat())
+        p2=good(actor.post('/workspace/imports/preview',json={'dataset':series(6)}),201)
+    store=actor.client.app.state.store;before=store.db.total_changes
+    assert p2['payload']['fingerprint']==digest({k:v for k,v in p2['payload'].items() if k!='fingerprint'})
     response=actor.post('/workspace/imports/'+p2['id']+'/commit',json={'fingerprint':p2['payload']['fingerprint'],'version':1})
     assert response.status_code==409 and 'EXPIRED' in response.text
+    assert store.db.total_changes==before
 
 
 def test_preview_no_synthetic_quarter_or_cross_company_overwrite(actor):
