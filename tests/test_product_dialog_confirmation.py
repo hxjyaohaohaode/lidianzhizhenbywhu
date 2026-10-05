@@ -57,3 +57,12 @@ def test_other_requested_decisions_and_nested_scope_are_rejected_before_acceptan
         p.with_expected_dialog(dialog_type='confirm',message=MESSAGE,
             action=lambda:p.with_expected_dialog(dialog_type='confirm',message=MESSAGE,action=lambda:None))
     assert p._expected_dialog is None
+
+
+def test_exact_synthetic_revision_restore_confirmation_is_scoped_once(tmp_path):
+    message='确认恢复此历史内容并创建新的数据修订？'
+    p=Probe(None,'unused',tmp_path,None);d=Dialog(message=message);unexpected=[]
+    p.with_expected_dialog(dialog_type='confirm',message=message,action=lambda:handler(p,d,unexpected))
+    assert d.accepted==1 and not unexpected and p._expected_dialog is None
+    another=Dialog(message=message);handler(p,another,unexpected)
+    assert another.accepted==0 and another.dismissed==1

@@ -43,3 +43,13 @@ evidence/product-comparison-integrity-transfer/
 evidence/product-comparison-integrity-transfer-status.json
 evidence/product-comparison-integrity-audit.json
 evidence/product-comparison-integrity-service-command.json
+evidence/product-source-integrity/
+evidence/product-source-integrity-transfer/
+evidence/product-source-integrity-transfer-status.json
+evidence/product-source-integrity-audit.json
+evidence/product-source-integrity-service-command.json
+evidence/product-tracking-integrity/
+evidence/product-tracking-integrity-transfer/
+evidence/product-tracking-integrity-transfer-status.json
+evidence/product-tracking-integrity-audit.json
+evidence/product-tracking-integrity-service-command.json

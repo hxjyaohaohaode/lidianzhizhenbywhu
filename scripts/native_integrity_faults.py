@@ -61,6 +61,8 @@ class InjectedFault:
             if not owned:raise RuntimeError('Faulted record owner/version no longer matches.')
             if self.table=='agent_artifacts':
                 changed=db.execute('UPDATE agent_artifacts SET payload=? WHERE id=? AND payload=? AND content_hash=? AND EXISTS(SELECT 1 FROM runs r WHERE r.id=agent_artifacts.run_id AND r.user_id=?)',(self.before,self.record_id,self.after,self.stored_hash,self.owner_id)).rowcount
+            elif self.table=='datasets':
+                changed=db.execute('UPDATE datasets SET payload=? WHERE id=? AND payload=? AND user_id=? AND version=? AND content_hash=?',(self.before,self.record_id,self.after,self.owner_id,self.version,self.stored_hash)).rowcount
             else:
                 changed=db.execute('UPDATE '+self.table+' SET payload=? WHERE id=? AND payload=? AND user_id=? AND version=?',(self.before,self.record_id,self.after,self.owner_id,self.version)).rowcount
             if changed!=1:raise RuntimeError('Exact original-record restoration failed.')
@@ -74,7 +76,7 @@ class InjectedFault:
 def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None, expected_payload_hash=None):
     """Return a receipt-bearing lease with optional explicit restore().
 
-    kind: import_payload | import_fake_committed | report_artifact | memory_text | action_comparison
+    kind: import_payload | import_fake_committed | report_artifact | memory_text | action_comparison | evidence_review_scope | dataset_payload
     record_id: ID observed from the current user's actual UI/API, never a route.
     The caller labels this as fixture setup and subsequently operates real UI.
     """
@@ -119,6 +121,11 @@ def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None,
             row=rows[0];record_id=row['id']
         elif kind=='memory_text':
             table='memories';row=db.execute('SELECT * FROM memories WHERE id=? AND user_id=?',(record_id,owner)).fetchone()
+        elif kind=='evidence_review_scope':
+            table='workspace_objects';row=db.execute("SELECT * FROM workspace_objects WHERE user_id=? AND kind='evidence_review' AND natural_key=?",(owner,record_id)).fetchone()
+            if row is not None:record_id=row['id']
+        elif kind=='dataset_payload':
+            table='datasets';row=db.execute('SELECT * FROM datasets WHERE id=? AND user_id=?',(record_id,owner)).fetchone()
         elif kind=='action_comparison':
             table='workspace_objects';row=db.execute("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='action'",(record_id,owner)).fetchone()
         else:raise RuntimeError('Unsupported native fixture fault kind.')
@@ -138,6 +145,19 @@ def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None,
         elif kind=='memory_text':
             if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash:raise RuntimeError('Live memory must still match the actual approved frozen hash before injection.')
             payload['text']=payload['text'][:1400]+'（仅隔离验收：原版本号不变的临时内容）'
+        elif kind=='evidence_review_scope':
+            if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash:
+                raise RuntimeError('Original evidence review differs from the actual approved baseline.')
+            if payload.get('status') not in ('unreviewed','accepted') or not (payload.get('company') or payload.get('global_scope')):
+                raise RuntimeError('Original evidence review must be eligible before scope withdrawal.')
+            payload.update(company='另一家隔离企业',global_scope=False)
+        elif kind=='dataset_payload':
+            if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash or row['content_hash']!=expected_payload_hash:
+                raise RuntimeError('Original dataset must match the actual viewed payload fingerprint.')
+            revision=db.execute('SELECT payload,content_hash FROM dataset_revisions WHERE dataset_id=? AND user_id=? AND version=?',(record_id,owner,row['version'])).fetchone()
+            if not revision or revision['payload']!=before or revision['content_hash']!=expected_payload_hash:
+                raise RuntimeError('Original trusted revision must remain intact for real UI recovery.')
+            payload['periods'][-1]['cost']+=1
         else:
             if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash:
                 raise RuntimeError('Original action changed since its exact viewed hash; no fault was applied.')
@@ -153,6 +173,8 @@ def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None,
         stored_hash=row['content_hash'] if 'content_hash' in row.keys() else None
         if table=='agent_artifacts':
             changed=db.execute('UPDATE agent_artifacts SET payload=? WHERE id=? AND payload=? AND content_hash=? AND EXISTS(SELECT 1 FROM runs r WHERE r.id=agent_artifacts.run_id AND r.user_id=?)',(after,record_id,before,stored_hash,owner)).rowcount
+        elif table=='datasets':
+            changed=db.execute('UPDATE datasets SET payload=? WHERE id=? AND payload=? AND user_id=? AND version=? AND content_hash=?',(after,record_id,before,owner,version,stored_hash)).rowcount
         else:
             changed=db.execute('UPDATE '+table+' SET payload=? WHERE id=? AND payload=? AND user_id=? AND version=?',(after,record_id,before,owner,version)).rowcount
         if changed!=1:raise RuntimeError('Target changed concurrently; no fixture retry is permitted.')

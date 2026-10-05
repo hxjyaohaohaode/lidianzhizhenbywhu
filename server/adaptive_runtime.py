@@ -274,23 +274,9 @@ class AdaptiveRun:
         if not user or user['version'] != b['user_version']: return False
         from .identities import execution_service_valid
         if not execution_service_valid(self.store,self.user_id,b,self.r,self.worker.providers,binding):return False
-        # Frozen input remains available for local report; new external sends require current authorization.
-        d=self.store.owned('datasets',self.user_id,self.row['dataset_id'])
-        if not d or d['version'] != b['dataset_version'] or d['content_hash'] != b['dataset_hash']:return False
-        profile=ws.keyed(self.store,self.user_id,'profile',self.s['dataset']['company'])
-        if (profile['version'] if profile else 0) != b['profile_version']:return False
-        for m in self.s['memory']:
-            if m['id'] not in self.st['packing']['included_memory_ids']:continue
-            live=self.store.owned('memories',self.user_id,m['id'])
-            if not live or live['version']!=m['version'] or not live['payload']['approved']:return False
-            if m.get('payload_hash') and digest(live['payload']) != m['payload_hash']:return False
-            expiry=live['payload'].get('expires_at')
-            if expiry and expiry<utc_today().isoformat():return False
-        for e in b['evidence']:
-            live=self.store.owned('evidence',self.user_id,e['id']);review=ws.keyed(self.store,self.user_id,'evidence_review',e['id'])
-            if not live or live['content_hash']!=e['hash'] or (review['version'] if review else 0)!=e['review_version']:return False
-            if review and (review['payload']['status']=='rejected' or (review['payload'].get('expires_at') and review['payload']['expires_at']<utc_today().isoformat())):return False
-        return True
+        # Existing checkpoints stay frozen; each new send needs current source authority.
+        from .source_bindings import source_error
+        return source_error(self.store,user,self.r,self.s,b) is None
 
     def reserve_call(self, n, binding, prompt, disclosure):
         with self.store.transaction() as db:

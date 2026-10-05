@@ -87,7 +87,7 @@ def test_fixture_restore_does_not_overwrite_a_new_artifact_hash(tmp_path):
     with sqlite3.connect(dbfile) as db:assert db.execute('SELECT payload,content_hash FROM agent_artifacts').fetchone()==(after,'0'*64)
 
 
-@pytest.mark.parametrize('suite',['integrity','comparison-integrity'])
+@pytest.mark.parametrize('suite',['integrity','comparison-integrity','source-integrity','tracking-integrity'])
 def test_fault_receipt_transfer_is_explicit_and_declared_fault_suite_only(tmp_path,suite):
     configuration=audit_suite(suite)
     evidence=tmp_path/'evidence';directory=evidence/configuration['mode']/'I-test';directory.mkdir(parents=True)

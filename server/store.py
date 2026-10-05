@@ -213,14 +213,8 @@ class Store:
     def validate_dataset_revision(row):
         """Verify persisted history before using it as a live input, never repair it."""
         from .security import fail
-        from .schemas import Dataset
-        try:
-            payload=row['payload']
-            if not isinstance(payload,dict) or digest(payload)!=row['content_hash']:
-                raise ValueError('hash mismatch')
-            Dataset.model_validate({k:v for k,v in payload.items() if k in Dataset.model_fields})
-            if payload.get('amount_unit')!='yuan':raise ValueError('not normalized')
-        except (ValueError,TypeError,KeyError):
+        from .source_bindings import dataset_content_valid
+        if not dataset_content_valid(row):
             fail('REVISION_INTEGRITY','历史修订内容或校验值不一致；未采用该内容，请保留原记录并检查可信备份',409)
         return row
 

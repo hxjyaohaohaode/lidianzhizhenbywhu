@@ -358,6 +358,8 @@ def make_app(settings=None,providers=None,worker_enabled=True):
                 if existing['request_hash']!=request_hash:fail('IDEMPOTENCY_CONFLICT','相同幂等键对应不同请求。',409)
                 return existing
             session=owned(db,'conversations',user,body.session_id);dataset=owned(db,'datasets',user,body.dataset_id)
+            from .source_bindings import require_dataset_content
+            require_dataset_content(dataset)
             if session['payload'].get('company') and session['payload']['company']!=dataset['payload']['company']:fail('COMPANY_MISMATCH','会话绑定企业与数据集不一致，请新建会话。',409)
             if not session['payload'].get('company'):conn.execute('UPDATE conversations SET payload=? WHERE id=?',(encode({**session['payload'],'company':dataset['payload']['company']}),body.session_id))
             if db.one('SELECT count(*) AS n FROM runs WHERE session_id=?',(body.session_id,))['n']>=200:fail('SESSION_FULL','会话已达200次诊断，请新建会话。',409)

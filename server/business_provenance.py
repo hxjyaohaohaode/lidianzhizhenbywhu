@@ -339,8 +339,14 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         extra['action_acceptance_evidence']=list({digest(e):e for e in completion}.values())
     elif kind=='insight' or source_key:
         from .intelligence import build_insights
-        items=build_insights(store,user_id,identity_id=identity_id)['items']
+        from .source_bindings import require_dataset_content
         key=ref.get('source_key') or source_key
+        # Generated insight keys start with their owner-scoped dataset ID. Check
+        # that input before calculating, without letting another damaged company
+        # prevent a healthy source choice or computing on malformed live data.
+        insight_data=store.owned('datasets',user_id,key.split(':',1)[0]) if key else None
+        if insight_data:require_dataset_content(insight_data)
+        items=build_insights(store,user_id,[insight_data] if insight_data else [],identity_id=identity_id)['items']
         insight=next((i for i in items if i['key']==key),None)
         if insight:
             if dataset_id and dataset_id!=insight['dataset_id']:fail('DATASET_MISMATCH','建议与所选企业数据不一致',409)
@@ -354,6 +360,9 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         else:extra={'unverified_source_key':source_key}  # Legacy keys are labels, not verified insight lineage.
     data=_owned(store,user_id,'datasets',dataset_id) if dataset_id else None
     identity=resolve_identity(store,user_id,identity_id,dataset_id)
+    if data and (baseline is None or kind=='insight'):
+        from .source_bindings import require_dataset_content
+        require_dataset_content(data)
     if baseline is None:
         # New direct references must identify the revision actually reviewed.
         # Never replace an omitted/partial (or stale) binding with today's row,
@@ -367,7 +376,8 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         binding=identity_binding(identity)
     elif kind=='insight':
         binding=identity_binding(identity)
-    baseline.setdefault('company',data['payload']['company'] if data else '')
+    if 'company' not in baseline:
+        baseline['company']=data['payload'].get('company','') if data and isinstance(data.get('payload'),dict) else ''
     if ref.get('dataset_version') is not None and ref['dataset_version']!=baseline['dataset_version']:
         fail('SOURCE_CHANGED','选中的来源数据版本已变化，请重新打开来源',409)
     if ref.get('dataset_hash') and ref['dataset_hash']!=baseline['dataset_hash']:
@@ -414,6 +424,7 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
     if not provenance or provenance.get('schema_version')!=1:
         return {'state':'unknown','reasons':[{'code':'legacy_unknown','message':'旧记录未保存完整来源，无法回填当时依据'}],
             'baseline':None,'current':None}
+    from .source_bindings import dataset_content_valid
     p=provenance;reasons=[];unavailable=False;unknown=False
     baseline={'dataset_id':p.get('dataset_id',''),'version':p.get('dataset_version'),'hash':p.get('dataset_hash')}
     d=store.owned('datasets',user_id,p['dataset_id']) if p.get('dataset_id') else None
@@ -421,6 +432,8 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
     if p.get('dataset_id'):
         if not d:
             reasons.append({'code':'dataset_removed','message':'源企业数据已删除，保留历史依据'});unavailable=True
+        elif not dataset_content_valid(d):
+            reasons.append({'code':'dataset_integrity','message':'当前企业输入校验失败，不能作为当前依据；完整历史报告保持原值'});unavailable=True
         elif not p.get('dataset_version') or not p.get('dataset_hash'):
             reasons.append({'code':'baseline_unknown','message':'来源没有完整的数据版本和指纹'});unknown=True
         elif (d['version'],d['content_hash'])!=(p['dataset_version'],p['dataset_hash']):
@@ -462,7 +475,7 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
         if not _comparison_receipt_valid(reference):
             reasons.append({'code':'comparison_receipt_changed','message':'行动归档的对照摘要校验不一致'});unavailable=True
         else:
-            comparison_impact=current_impact(store,user_id,reference)
+            comparison_impact=current_impact(store,user_id,reference,receipt_projection=True)
             existing={(r['code'],r.get('dataset_id')) for r in reasons}
             reasons.extend(r for r in comparison_impact['reasons'] if (r['code'],r.get('dataset_id')) not in existing)
             if comparison_impact['state']=='unavailable':unavailable=True

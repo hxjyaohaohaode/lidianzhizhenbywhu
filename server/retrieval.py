@@ -62,6 +62,21 @@ def retrieve_indexed(store,user,query,limit=6,company=None):
         AND (json_extract(w.payload,'$.expires_at') IS NULL OR json_extract(w.payload,'$.expires_at')>=?)
         AND (?='' OR coalesce(json_extract(w.payload,'$.company'),'') IN ('',?))
         ORDER BY bm25(evidence_fts),c.id LIMIT 48''',(expression,user,user,utc_today().isoformat(),scope_company,scope_company))
+    # Validate only the bounded, already owner/scope-filtered FTS candidates.
+    # Cached excerpt text is not proof that it belongs to its original document.
+    from .source_bindings import evidence_content_valid
+    from .security import fail
+    documents={}
+    for row in rows:
+        doc_id=row['document_id']
+        if doc_id not in documents:documents[doc_id]=store.owned('evidence',user,doc_id)
+        try:
+            candidate={'start':row['start'],'end':row['start']+len(row['excerpt']),
+                'excerpt':row['excerpt'],'content_hash':digest(row['excerpt']),'document_hash':row['content_hash']}
+            valid=bool(documents[doc_id] and evidence_content_valid(documents[doc_id],candidate))
+        except (KeyError,TypeError,ValueError):valid=False
+        if not valid:
+            fail('SOURCE_INTEGRITY','证据原文或检索片段校验失败，未采用该内容；请核对原始资料后重新录入并预览',409)
     docs=[{'id':x['id'],'content_hash':x['content_hash'],'payload':{**x['payload'],'text':x['excerpt']}} for x in rows]
     by_id={x['id']:x for x in rows};seen=set();per_doc=Counter();candidates=[]
     for item in retrieve(docs,query,48):
@@ -71,6 +86,8 @@ def retrieve_indexed(store,user,query,limit=6,company=None):
         item.update(id=key,document_id=row['document_id'],start=row['start'],end=row['start']+len(row['excerpt']),excerpt=row['excerpt'],content_hash=digest(row['excerpt']),document_hash=row['content_hash'])
         review=store.one("SELECT payload,version FROM workspace_objects WHERE kind='evidence_review' AND user_id=? AND natural_key=?",(user,row['document_id']))
         item.update(stance=review['payload'].get('stance','context') if review else 'context',review_note=review['payload'].get('note','') if review else '',review_version=review['version'] if review else 0,review_state=review['payload']['status'] if review else 'unreviewed',company_scope=review['payload'].get('company','') if review else '')
+        document=documents[row['document_id']]
+        item.update(document_version=document['version'],document_payload_hash=digest(document['payload']),review_hash=digest(review['payload']) if review else None)
         candidates.append(item)
         if len(candidates)>=limit:break
     return candidates

@@ -131,9 +131,10 @@ class Probe:
 
     def with_expected_dialog(self, *, dialog_type, message, action):
         """One explicit decision to leave this task's unsaved synthetic draft."""
-        allowed=('confirm','当前输入尚未保存。离开后这些修改将丢失，是否继续？')
-        if (dialog_type,message)!=allowed or not callable(action):
-            raise ValueError('Only the exact declared unsaved-draft confirmation is allowed.')
+        allowed={('confirm','当前输入尚未保存。离开后这些修改将丢失，是否继续？'),
+            ('confirm','确认恢复此历史内容并创建新的数据修订？')}
+        if (dialog_type,message) not in allowed or not callable(action):
+            raise ValueError('Only an exact declared synthetic-draft or revision-restore confirmation is allowed.')
         if self._expected_dialog is not None:
             raise RuntimeError('Expected browser decisions cannot be nested.')
         pending={'type':dialog_type,'message':message,'started_at':now(),'events':[],
@@ -839,6 +840,14 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         from .product_comparison_integrity import comparison_receipt_recovery
     except ImportError:
         from product_comparison_integrity import comparison_receipt_recovery
+    try:
+        from .product_source_integrity import evidence_review_scope_recovery, dataset_source_recovery
+    except ImportError:
+        from product_source_integrity import evidence_review_scope_recovery, dataset_source_recovery
+    try:
+        from .product_tracking_integrity import tracking_source_recovery
+    except ImportError:
+        from product_tracking_integrity import tracking_source_recovery
     bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
         expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
@@ -851,6 +860,9 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'I2-report-integrity': bind(integrity_comparison_recovery),
         'I3-memory-integrity': bind(integrity_memory_historical_choice),
         'I4-comparison-integrity': bind(comparison_receipt_recovery),
+        'I5-review-scope': bind(evidence_review_scope_recovery),
+        'I6-dataset-source': bind(dataset_source_recovery),
+        'I7-tracking-source': bind(tracking_source_recovery),
     }
 
 

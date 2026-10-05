@@ -546,6 +546,9 @@ inputs are visible evaluations, never silently converted into safe values.
                     identity=store.one("SELECT * FROM workspace_objects WHERE user_id=? AND id=? AND kind='identity'",(user_id,p['identity_id']))
                     if not identity or (identity['payload']['dataset_ids'] and d['id'] not in identity['payload']['dataset_ids']):
                         evaluations.append({**entry,'reason':'服务身份已删除或企业已不在范围'});continue
+                from .source_bindings import dataset_content_valid
+                if not dataset_content_valid(d):
+                    evaluations.append({**entry,'reason':'当前财务输入校验失败，未计算或生成提醒；请核对原始资料或从可信修订恢复'});continue
                 a=calculate(d['payload']);latest=d['payload']['periods'][-1]
                 value=latest.get(p['metric']) if p['metric'] in ('revenue','cash_flow') else a['metrics'].get(p['metric'])
                 stale=(today-period_end(latest['period'])).days>p['stale_after_days']

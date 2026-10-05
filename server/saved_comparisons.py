@@ -42,6 +42,8 @@ def create_payload(store, user_id, request):
             fail('NOT_FOUND', '比较输入不存在或无访问权限', 404)
         if identity and identity['payload']['dataset_ids'] and ref.id not in identity['payload']['dataset_ids']:
             fail('IDENTITY_SCOPE', '全部比较企业必须在当前服务身份范围内', 403)
+        from .source_bindings import require_dataset_content
+        require_dataset_content(d)
         if d['version'] != ref.version or d['content_hash'] != ref.hash:
             fail('COMPARISON_STALE', '比较输入版本或指纹已变化，请重新选择全部企业', 409)
         if (d['payload'].get('currency'), d['payload'].get('amount_unit'), d['payload'].get('period_basis')) != ('CNY', 'yuan', 'standalone_quarter'):
@@ -91,10 +93,11 @@ def verified_result(frozen):
     return result
 
 
-def current_impact(store, user_id, frozen):
+def current_impact(store, user_id, frozen, *, receipt_projection=False):
     """Read-only live impact. Never change the archived comparison or its report."""
     if not frozen:
         return {'state': 'current', 'reasons': []}
+    from .source_bindings import dataset_content_valid
     p = frozen['payload']; reasons = []; unavailable = False
     row = store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='comparison' AND id=?", (user_id, frozen['id']))
     if not row:
@@ -106,12 +109,21 @@ def current_impact(store, user_id, frozen):
         identity = store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='identity' AND id=?", (user_id,p['identity_id']))
         if not identity:
             unavailable = True; reasons.append({'code': 'comparison_identity_removed', 'message': '比较所属服务身份已删除'})
+        elif not receipt_projection:
+            # Full saved artifacts bind their original identity settings. The
+            # older five-metric receipt projection never carried this field;
+            # its enclosing business origin independently binds the identity.
+            if not p.get('identity_binding'):
+                unavailable = True
+                reasons.append({'code': 'comparison_identity_unverified', 'message': '原比较缺少可核验的身份绑定，请重新保存比较'})
+            elif identity_binding(identity) != p['identity_binding']:
+                reasons.append({'code': 'comparison_identity_changed', 'message': '比较所属身份设置已变化，请重新保存比较'})
     allowed = identity['payload']['dataset_ids'] if identity else []
     for m in p['members']:
         d = store.owned('datasets', user_id, m['id'])
         if not d:
             unavailable = True; reasons.append({'code': 'comparison_member_removed', 'dataset_id': m['id'], 'message': m['company']+'的原始财务输入已删除或不可访问'})
-        elif (d['version'], d['content_hash']) != (m['version'], m['hash']):
+        elif not dataset_content_valid(d) or (d['version'], d['content_hash']) != (m['version'], m['hash']):
             reasons.append({'code': 'comparison_member_changed', 'dataset_id': m['id'], 'message': m['company']+'的财务输入已修订'})
         if allowed and m['id'] not in allowed:
             unavailable = True; reasons.append({'code': 'comparison_identity_scope', 'dataset_id': m['id'], 'message': m['company']+'已不在原服务身份范围内'})

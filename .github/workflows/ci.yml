@@ -71,7 +71,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Bind every native audit to the explicitly reviewed application revision.
       # Every probe must pass; failed or incomplete evidence remains a failure.
-      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree 9c565a3338f8ad8e05416f71b4bd7acefd64b804
+      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree b815d4dee5f4586f5039b74404aabeabdde70a4d
       - run: python scripts/pack_product_audit.py
         if: always()
       - uses: actions/upload-artifact@v4
@@ -218,7 +218,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # L1 alone, with an independent account, native lifecycle and evidence.
       # The runner retains its existing 300-second bound; no L6 heavy setup.
-      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree 9c565a3338f8ad8e05416f71b4bd7acefd64b804
+      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree b815d4dee5f4586f5039b74404aabeabdde70a4d
       - run: python scripts/pack_product_audit.py --suite first-use
         if: always()
       - uses: actions/upload-artifact@v4
@@ -365,7 +365,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Explicit temporary-database faults followed by actual UI rejection/recovery.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-integrity --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree 9c565a3338f8ad8e05416f71b4bd7acefd64b804
+      - run: python scripts/native_acceptance.py --product-integrity --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree b815d4dee5f4586f5039b74404aabeabdde70a4d
       - run: python scripts/pack_product_audit.py --suite integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -512,7 +512,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # One separate comparison-receipt rejection/reconstruction task.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-comparison-integrity --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree 9c565a3338f8ad8e05416f71b4bd7acefd64b804
+      - run: python scripts/native_acceptance.py --product-comparison-integrity --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree b815d4dee5f4586f5039b74404aabeabdde70a4d
       - run: python scripts/pack_product_audit.py --suite comparison-integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -638,6 +638,300 @@ jobs:
         with:
           name: product-comparison-integrity-${{ matrix.os }}-part-16
           path: evidence/product-comparison-integrity-transfer/part-16/
+          if-no-files-found: ignore
+          retention-days: 14
+  product-source-integrity:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python scripts/prepare_evidence.py
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      # Two separate source-integrity refusal and real application recovery tasks.
+      # Separate synthetic accounts, 300-second bound, no production fault endpoint.
+      - run: python scripts/native_acceptance.py --product-source-integrity --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree b815d4dee5f4586f5039b74404aabeabdde70a4d
+      - run: python scripts/pack_product_audit.py --suite source-integrity
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-summary
+          path: |
+            evidence/run-context.json
+            evidence/product-source-integrity-audit.json
+            evidence/product-source-integrity-service-command.json
+            evidence/product-source-integrity-transfer-status.json
+            evidence/product-source-integrity*.log
+            evidence/product-source-integrity*-events.jsonl
+            evidence/product-source-integrity-transfer/manifest.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-01
+          path: evidence/product-source-integrity-transfer/part-01/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-02
+          path: evidence/product-source-integrity-transfer/part-02/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-03
+          path: evidence/product-source-integrity-transfer/part-03/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-04
+          path: evidence/product-source-integrity-transfer/part-04/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-05
+          path: evidence/product-source-integrity-transfer/part-05/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-06
+          path: evidence/product-source-integrity-transfer/part-06/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-07
+          path: evidence/product-source-integrity-transfer/part-07/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-08
+          path: evidence/product-source-integrity-transfer/part-08/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-09
+          path: evidence/product-source-integrity-transfer/part-09/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-10
+          path: evidence/product-source-integrity-transfer/part-10/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-11
+          path: evidence/product-source-integrity-transfer/part-11/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-12
+          path: evidence/product-source-integrity-transfer/part-12/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-13
+          path: evidence/product-source-integrity-transfer/part-13/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-14
+          path: evidence/product-source-integrity-transfer/part-14/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-15
+          path: evidence/product-source-integrity-transfer/part-15/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-source-integrity-${{ matrix.os }}-part-16
+          path: evidence/product-source-integrity-transfer/part-16/
+          if-no-files-found: ignore
+          retention-days: 14
+  product-tracking-integrity:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python scripts/prepare_evidence.py
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      # One separate existing-watch integrity and real revision recovery task.
+      # Separate synthetic accounts, 300-second bound, no production fault endpoint.
+      - run: python scripts/native_acceptance.py --product-tracking-integrity --expected-web-tree 89f17577a67425cafd63a1c6f444f02b9e32d4ce --expected-server-tree b815d4dee5f4586f5039b74404aabeabdde70a4d
+      - run: python scripts/pack_product_audit.py --suite tracking-integrity
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-summary
+          path: |
+            evidence/run-context.json
+            evidence/product-tracking-integrity-audit.json
+            evidence/product-tracking-integrity-service-command.json
+            evidence/product-tracking-integrity-transfer-status.json
+            evidence/product-tracking-integrity*.log
+            evidence/product-tracking-integrity*-events.jsonl
+            evidence/product-tracking-integrity-transfer/manifest.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-01
+          path: evidence/product-tracking-integrity-transfer/part-01/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-02
+          path: evidence/product-tracking-integrity-transfer/part-02/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-03
+          path: evidence/product-tracking-integrity-transfer/part-03/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-04
+          path: evidence/product-tracking-integrity-transfer/part-04/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-05
+          path: evidence/product-tracking-integrity-transfer/part-05/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-06
+          path: evidence/product-tracking-integrity-transfer/part-06/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-07
+          path: evidence/product-tracking-integrity-transfer/part-07/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-08
+          path: evidence/product-tracking-integrity-transfer/part-08/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-09
+          path: evidence/product-tracking-integrity-transfer/part-09/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-10
+          path: evidence/product-tracking-integrity-transfer/part-10/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-11
+          path: evidence/product-tracking-integrity-transfer/part-11/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-12
+          path: evidence/product-tracking-integrity-transfer/part-12/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-13
+          path: evidence/product-tracking-integrity-transfer/part-13/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-14
+          path: evidence/product-tracking-integrity-transfer/part-14/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-15
+          path: evidence/product-tracking-integrity-transfer/part-15/
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-tracking-integrity-${{ matrix.os }}-part-16
+          path: evidence/product-tracking-integrity-transfer/part-16/
           if-no-files-found: ignore
           retention-days: 14
   dependency-audit:

@@ -30,6 +30,25 @@ AUDIT_SUITES = {
         'precondition': 'Fresh synthetic accounts created through visible UI; no providers; explicitly recorded corruption of selected owner-bound rows in the existing disposable CI database only; corruption is not a UI action or a production API',
         'database_fault_injection': True,
     },
+    'source-integrity': {
+        'mode': 'product-source-integrity',
+        'report': 'product-source-integrity-audit.json',
+        'scenarios': (
+            ('I5-review-scope', '证据范围变化拒绝旧计划→真实重新审阅→新预览恢复'),
+            ('I6-dataset-source', '财务输入校验异常拒绝产物→可信历史恢复新修订→新计划'),
+        ),
+        'precondition': 'Fresh synthetic accounts; visible source/plan creation; explicit temporary owner-bound review-scope or dataset-payload fault; actual application review/revision recovery; no fixture restore, providers, or production fault API',
+        'database_fault_injection': True,
+    },
+    'tracking-integrity': {
+        'mode': 'product-tracking-integrity',
+        'report': 'product-tracking-integrity-audit.json',
+        'scenarios': (
+            ('I7-tracking-source', '既有规则遇坏输入不计算不留提醒→可信修订恢复→原规则重读'),
+        ),
+        'precondition': 'Fresh synthetic account; existing report/watch created through visible UI; one exact owner-bound temporary dataset fault; explicit trusted revision restore creates v2; original rule/report preserved; no providers or production fault API',
+        'database_fault_injection': True,
+    },
     'comparison-integrity': {
         'mode': 'product-comparison-integrity',
         'report': 'product-comparison-integrity-audit.json',

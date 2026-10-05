@@ -86,6 +86,8 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
     user=context_user(user,identity)
     d=store.owned('datasets',user['id'],body.dataset_id)
     if not d:fail('NOT_FOUND','数据不存在或无权访问',404)
+    from .source_bindings import require_dataset_content
+    require_dataset_content(d)
     research_scope=plan_scope(scope_query if scope_query is not None else body.query,d['payload'])
     comparison=research_scope.get('requested_comparison')
     if comparison and 'comparison' not in body.model_fields_set:
@@ -142,7 +144,7 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
             'skip_reason':None if enabled else '任务不需要该专家或未授权模型调用'})
     bindings={'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],
         'user_version':user['version'],'profile_version':pr['version'] if pr else 0,
-        'evidence':[{'id':c['document_id'],'hash':c['document_hash'],'review_version':c.get('review_version',0)} for c in citations],
+        'evidence':[{'id':c['document_id'],'hash':c['document_hash'],'review_version':c.get('review_version',0),'review_hash':c['review_hash']} for c in citations],
         'memory':[{'id':m['id'],'version':m['version'],'hash':m['payload_hash']} for m in memories],
         'session_version':session_version if body.include_history else None,
         'provider':provider_binding(provider) if provider else None,'identity':identity_binding(identity)}
@@ -221,23 +223,9 @@ def check_bindings(store,user,plan,providers):
     check_binding(store,user['id'],b.get('experiment'))
     from .saved_comparisons import check_binding as check_comparison_binding
     check_comparison_binding(store,user['id'],p['snapshot'].get('comparison_artifact'))
-    d=store.owned('datasets',user['id'],b['dataset_id'])
-    if not d or (d['version'],d['content_hash'])!=(b['dataset_version'],b['dataset_hash']):
-        fail('PLAN_STALE','财务数据已修改或删除，请重建计划后重新批准',409)
-    if user['version']!=b['user_version']:fail('PLAN_STALE','用户偏好已更新，请重新预览上下文',409)
-    profile=ws.keyed(store,user['id'],'profile',d['payload']['company'])
-    if (profile['version'] if profile else 0)!=b['profile_version']:fail('PLAN_STALE','企业目标已变化，请重建计划',409)
-    for e in b['evidence']:
-        doc=store.owned('evidence',user['id'],e['id']);review=ws.keyed(store,user['id'],'evidence_review',e['id'])
-        if not doc or doc['content_hash']!=e['hash'] or (review['version'] if review else 0)!=e['review_version']:
-            fail('PLAN_STALE','证据或审阅状态已变化，请重建计划',409)
-        if review and review['payload'].get('expires_at') and review['payload']['expires_at']<utc_today().isoformat():
-            fail('PLAN_STALE','证据已过期，请重建计划',409)
-    for m in b['memory']:
-        row=store.owned('memories',user['id'],m['id'])
-        if not row or row['version']!=m['version'] or digest(row['payload'])!=m['hash']:
-            fail('PLAN_STALE','记忆已修改、撤回或删除，请重新预览',409)
-        if row['payload'].get('expires_at') and row['payload']['expires_at']<utc_today().isoformat():fail('PLAN_STALE','记忆已过期',409)
+    from .source_bindings import source_error
+    source_issue=source_error(store,user,r,p['snapshot'],b)
+    if source_issue:fail('PLAN_STALE',source_issue,409)
     if b['session_version'] is not None:
         s=store.owned('conversations',user['id'],r['session_id'])
         if not s or s['version']!=b['session_version']:fail('PLAN_STALE','会话历史已改变，请重新预览',409)
@@ -363,23 +351,11 @@ async def perform_studio(worker,id):
                         current=store.one('SELECT * FROM users WHERE id=?',(row['user_id'],))
                         bindings=st['bindings']
                         changed=not current or current['version']!=bindings['user_version'] or not approved_run_valid(store, row)
-                        data=store.owned('datasets',row['user_id'],row['dataset_id'])
-                        profile=ws.keyed(store,row['user_id'],'profile',s['dataset']['company'])
-                        if not data or (data['version'],data['content_hash']) != (bindings['dataset_version'],bindings['dataset_hash']):changed=True
-                        if (profile['version'] if profile else 0) != bindings['profile_version']:changed=True
                         if (datetime.now(timezone.utc)-datetime.fromisoformat(row['created_at'])).total_seconds()>86400:changed=True
                         from .identities import execution_service_valid
                         if not execution_service_valid(store,row['user_id'],bindings,r,worker.providers,bindings['provider']):changed=True
-                        for m in s['memory']:
-                            if m['id'] not in st['packing']['included_memory_ids']:continue
-                            live=store.owned('memories',row['user_id'],m['id'])
-                            if not live or live['version']!=m['version'] or not live['payload']['approved'] or (live['payload'].get('expires_at') and live['payload']['expires_at']<utc_today().isoformat()):changed=True
-                        for c in s['citations']:
-                            if c['id'] not in planned_citations:continue
-                            live=store.owned('evidence',row['user_id'],c['document_id'])
-                            rev=ws.keyed(store,row['user_id'],'evidence_review',c['document_id'])
-                            if not live or live['content_hash']!=c['document_hash'] or (rev['version'] if rev else 0)!=c.get('review_version',0):changed=True
-                            if rev and (rev['payload']['status']=='rejected' or (rev['payload'].get('expires_at') and rev['payload']['expires_at']<utc_today().isoformat())):changed=True
+                        from .source_bindings import source_error
+                        if source_error(store,current,r,s,bindings):changed=True
                         return not changed
                     if not dispatch_guard():
                         return {'agent':name,'status':'blocked','error_class':'AUTHORIZATION_CHANGED','dispatched':False,'dispatch_state':'not_sent','remote_outcome_known':True,'output':{'claims':[],'missing':['审批后记忆、证据、偏好或模型配置发生变化，未继续外发，请重新预览计划']}}

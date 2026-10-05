@@ -12,7 +12,7 @@ from scripts.product_audit_config import audit_suite
 from scripts.product_first_use_audit import REVIEWED_WEB, REVIEWED_SERVER
 
 
-@pytest.mark.parametrize('flag,suite', [('--product-audit', 'contract'), ('--product-first-use', 'first-use'), ('--product-integrity','integrity'),('--product-comparison-integrity','comparison-integrity')])
+@pytest.mark.parametrize('flag,suite', [('--product-audit', 'contract'), ('--product-first-use', 'first-use'), ('--product-integrity','integrity'),('--product-comparison-integrity','comparison-integrity'),('--product-source-integrity','source-integrity'),('--product-tracking-integrity','tracking-integrity')])
 def test_local_native_modes_stop_before_socket_process_or_browser(tmp_path, monkeypatch, flag, suite):
     monkeypatch.setattr(native_acceptance, 'ROOT', tmp_path)
     monkeypatch.setattr(sys, 'argv', ['native_acceptance.py', flag])
@@ -28,7 +28,7 @@ def test_local_native_modes_stop_before_socket_process_or_browser(tmp_path, monk
     assert report['suite'] == suite and report['all_checks_passed'] is False
 
 
-@pytest.mark.parametrize('suite',['contract','first-use','integrity','comparison-integrity'])
+@pytest.mark.parametrize('suite',['contract','first-use','integrity','comparison-integrity','source-integrity','tracking-integrity'])
 def test_native_subprocess_receives_selected_suite_and_both_protected_tree_ids(suite):
     assert native_acceptance.product_browser_options(suite,'a'*40,'b'*40)==[
         '--suite',suite,'--expected-web-tree','a'*40,'--expected-server-tree','b'*40]
@@ -36,21 +36,27 @@ def test_native_subprocess_receives_selected_suite_and_both_protected_tree_ids(s
 
 
 def test_suite_destinations_and_registry_are_disjoint_and_l6_absent():
-    contract, first_use, integrity, comparison_integrity = [audit_suite(name) for name in ('contract', 'first-use', 'integrity','comparison-integrity')]
-    assert len({x['mode'] for x in (contract,first_use,integrity,comparison_integrity)})==4
-    assert len({x['report'] for x in (contract,first_use,integrity,comparison_integrity)})==4
+    contract, first_use, integrity, comparison_integrity, source_integrity, tracking_integrity = [audit_suite(name) for name in ('contract', 'first-use', 'integrity','comparison-integrity','source-integrity','tracking-integrity')]
+    assert len({x['mode'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity)})==6
+    assert len({x['report'] for x in (contract,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity)})==6
     assert contract['mode'] != first_use['mode'] and contract['report'] != first_use['report']
     assert contract['mode'] == 'product-audit' and contract['report'] == 'product-browser-audit.json'
     assert contract['scenarios'] == runner.SCENARIOS
     registry = runner.scenario_registry(repository_root='unused', data_dir='unused',
         expected_web_tree=REVIEWED_WEB, expected_server_tree=REVIEWED_SERVER)
     assert tuple(registry) == ('F1-trace-handoff', 'F2-forecast-units', 'F3-report-points', 'L1-first-use-report',
-        'I1-import-integrity','I2-report-integrity','I3-memory-integrity','I4-comparison-integrity')
+        'I1-import-integrity','I2-report-integrity','I3-memory-integrity','I4-comparison-integrity','I5-review-scope','I6-dataset-source','I7-tracking-source')
     assert registry['L1-first-use-report'].keywords['expected_web_tree'] == REVIEWED_WEB
     assert tuple(code for code, _ in first_use['scenarios']) == ('L1-first-use-report',)
     assert integrity['database_fault_injection'] is True and comparison_integrity['database_fault_injection'] is True
     assert tuple(code for code,_ in comparison_integrity['scenarios'])==('I4-comparison-integrity',)
     assert registry['I4-comparison-integrity'].keywords['expected_web_tree']==REVIEWED_WEB
+    assert source_integrity['database_fault_injection'] is True
+    assert tracking_integrity['database_fault_injection'] is True
+    assert tuple(code for code,_ in tracking_integrity['scenarios'])==('I7-tracking-source',)
+    assert registry['I7-tracking-source'].keywords['expected_server_tree']==REVIEWED_SERVER
+    assert tuple(code for code,_ in source_integrity['scenarios'])==('I5-review-scope','I6-dataset-source')
+    assert all(registry[code].keywords['expected_server_tree']==REVIEWED_SERVER for code,_ in source_integrity['scenarios'])
     assert all(registry[code].keywords['expected_server_tree']==REVIEWED_SERVER for code,_ in integrity['scenarios'])
     with pytest.raises(ValueError, match='Unknown'):
         audit_suite('L6')
@@ -169,12 +175,14 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
     root = Path(__file__).resolve().parents[1]
     after = (root / '.github/workflows/ci.yml').read_text()
     def section(name):return re.search(r'^  '+re.escape(name)+r':\n(.*?)(?=^  [a-z][a-z-]*:|\Z)',after,re.M|re.S).group(1)
-    legacy_job,first_use,integrity,comparison_integrity=[section(name) for name in ('product-audit','product-first-use','product-integrity','product-comparison-integrity')]
+    legacy_job,first_use,integrity,comparison_integrity,source_integrity,tracking_integrity=[section(name) for name in ('product-audit','product-first-use','product-integrity','product-comparison-integrity','product-source-integrity','product-tracking-integrity')]
     for job, mode, report_name, pack_options in (
         (legacy_job, 'product-audit', 'product-browser-audit.json', ''),
         (first_use, 'product-first-use', 'product-first-use-audit.json', ' --suite first-use'),
         (integrity, 'product-integrity', 'product-integrity-audit.json', ' --suite integrity'),
         (comparison_integrity, 'product-comparison-integrity', 'product-comparison-integrity-audit.json', ' --suite comparison-integrity'),
+        (source_integrity, 'product-source-integrity', 'product-source-integrity-audit.json', ' --suite source-integrity'),
+        (tracking_integrity, 'product-tracking-integrity', 'product-tracking-integrity-audit.json', ' --suite tracking-integrity'),
     ):
         assert 'timeout-minutes: 15' in job
         assert 'os: [ubuntu-latest, windows-latest]' in job
