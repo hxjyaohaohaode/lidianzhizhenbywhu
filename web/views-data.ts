@@ -56,12 +56,21 @@ export async function memoryPage(){const result=await api('/memories');state.cac
 export function memoryForm(m:Json|null=null){const p=m?.payload??{};return `<form id="memory-form" data-id="${esc(m?.id??'')}" data-version="${m?.version??0}" class="stack">${field('要记住的内容',textarea('text',p.text,'rows="4" required maxlength="1500"'))}<div class="form-grid">${field('记忆类型',select('kind',{preference:'偏好',fact:'用户声明事实（待核实）',note:'研究备注'},p.kind??'note'))}${field('作用企业',input('company',p.company??activeDataset()?.payload.company??''))}${field('适用角色',select('role',{all:'所有角色',enterprise:'企业分析',investor:'投资研究',analyst:'财务分析',advisor:'顾问服务'},p.role??'all'))}${field('到期时间',input('expires_at',p.expires_at,'type="date"'))}</div><label class="check-label"><input name="approved" type="checkbox" ${p.approved?'checked':''}> 允许在匹配的诊断任务中使用</label><p class="micro">撤回或删除会阻止新计划召回；已执行报告保留历史快照。相关会话及独立保存的计划/实验需分别清理，或删除整个账户。</p>${formFooter('保存记忆')}</form>`;}
 
 
+export function revisionContent(v:Json){
+ const data=v.snapshot;if(v.integrity_valid===false||!data)return '';
+ const receipt=v.import_receipt,context=receipt?.integrity_valid===true?receipt.payload?.import_context:null;
+ const source=receipt?.integrity_valid===false?notice('本次导入回执校验异常，不能据此确认原文件；以下财务修订内容单独通过校验。','warm'):context?
+  `<p>本次导入文件：${esc(context.filename??'未记录')} · 原文件金额单位：${esc(unitName(context.input_amount_unit))} · ${context.input_basis==='year_to_date'?'年初累计转换为独立单季':'独立单季'}</p><p class="micro">文件对应新增 / 替换季度：${esc([...(context.added??[]),...(context.replaced??[])].join('、')||'未记录')}；保留季度不归属于本次文件。这里只保留文件指纹及处理回执，不是原文件存档。</p>`:
+  notice('此修订未记录可用的原始导入文件；请结合原始资料核对，不能推定早期文件就是本次来源。');
+ const units:Record<string,string>={sales_volume:'原填数量',production_volume:'原填数量',lithium_price:'元/吨',industry_volatility:'比值'};
+ return `<section data-revision-content="${esc(v.version)}"><h3>此修订保存的完整内容</h3><p>${esc(data.company)} · ${esc(data.name)} · ${data.periods.length} 个季度</p>${notice('以下为该历史修订的独立单季度保存值，金额统一为人民币元；未提供和数值 0 分开。通过完整性校验不等于原始资料真实。')}${source}<p class="micro">记录的来源地址：${esc(data.source_url||'未填写')}<br>口径备注：${esc(data.notes||'未填写；数量的具体单位未记录')}</p>${data.periods.map((row:Json)=>`<details data-revision-period="${esc(row.period)}"><summary>${esc(row.period)} · 营业收入 ${esc(previewNumber(row.revenue))} 元 · 营业成本 ${esc(previewNumber(row.cost))} 元</summary>${table(['已保存指标','该修订原值','单位'],financialFields.map(([key,label])=>[esc(label),row[key]==null?'未提供':esc(previewNumber(row[key])),esc(units[key]??'元')]))}</details>`).join('')}</section>`;
+}
 export function revisionHistory(items:Json[]){
  return notice('恢复历史内容会创建新的修订，不会修改或抹除旧报告。')+items.slice().reverse().map((v:Json)=>{
   const valid=v.integrity_valid!==false;
   const changes=!valid?notice('此修订完整性校验失败，未采用其内容、计算差异或提供恢复。请保留原记录并检查可信备份。','warm'):
    v.diff_available===false?notice('相邻历史修订无法校验，未计算差异；本修订内容已通过完整性校验。','warm'):
    v.diff.length?table(['路径','原值','新值'],v.diff.map((c:Json)=>[esc(c.path),esc(c.before),esc(c.after)])):'<p>初始保存的内容或与上一修订无字段差异。</p>';
-  return `<details><summary>修订 ${esc(v.version)} · ${timeText(v.created_at)}${valid?'':' · 完整性异常'}</summary>${changes}${valid?button('以此内容创建新修订','restore-revision','secondary',`data-revision="${esc(v.version)}"`):''}<p class="micro">${esc(v.content_hash)}</p>${v.import_receipt?`<details><summary>本次导入处理回执</summary>${jsonView(v.import_receipt.payload)}<p class="micro">回执校验 ${esc(v.import_receipt.content_hash)}</p></details>`:notice('此修订没有导入处理回执；不能推定原文件或转换过程。')}</details>`;
+  return `<details><summary>修订 ${esc(v.version)} · ${timeText(v.created_at)}${valid?'':' · 完整性异常'}</summary>${revisionContent(v)}${changes}${valid?button('以此内容创建新修订','restore-revision','secondary',`data-revision="${esc(v.version)}"`):''}<p class="micro">${esc(v.content_hash)}</p>${v.import_receipt?.integrity_valid===false?notice('导入回执损坏，未展示不可信来源字段；不会用它替换或修复历史内容。','warm'):v.import_receipt?`<details><summary>本次导入处理回执</summary>${jsonView(v.import_receipt.payload)}<p class="micro">回执校验 ${esc(v.import_receipt.content_hash)}</p></details>`:notice('此修订没有导入处理回执；不能推定原文件或转换过程。')}</details>`;
  }).join('');
 }

@@ -14,6 +14,7 @@ REPORTS=('verification.json','full-chain-http.json','native-service-browser.json
     'product-tracking-integrity-audit.json','product-tracking-integrity-service-command.json','product-tracking-integrity-transfer-status.json',
     'product-source-integrity-audit.json','product-source-integrity-service-command.json','product-source-integrity-transfer-status.json',
     'product-comparison-integrity-audit.json','product-comparison-integrity-service-command.json','product-comparison-integrity-transfer-status.json',
+    'product-plan-history-audit.json','product-plan-history-service-command.json','product-plan-history-transfer-status.json',
     'source-guard.json','pytest.xml','pytest-progress.jsonl')
 
 

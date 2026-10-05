@@ -67,11 +67,12 @@ def main():
     mode_args.add_argument('--product-comparison-integrity',action='store_true',help='Run the separate native comparison-receipt rejection/reconstruction task')
     mode_args.add_argument('--product-source-integrity',action='store_true',help='Run separate source withdrawal and verified revision recovery tasks')
     mode_args.add_argument('--product-tracking-integrity',action='store_true',help='Run separate existing-watch source rejection and revision recovery task')
+    mode_args.add_argument('--product-plan-history',action='store_true',help='Run the real seven-plan history retrieval journey')
     parser.add_argument('--expected-web-tree')
     parser.add_argument('--expected-server-tree')
     args=parser.parse_args()
-    product_mode=args.product_audit or args.product_first_use or args.product_integrity or args.product_comparison_integrity or args.product_source_integrity or args.product_tracking_integrity
-    suite='tracking-integrity' if args.product_tracking_integrity else 'source-integrity' if args.product_source_integrity else 'comparison-integrity' if args.product_comparison_integrity else 'integrity' if args.product_integrity else 'first-use' if args.product_first_use else 'contract'
+    product_mode=args.product_audit or args.product_first_use or args.product_integrity or args.product_comparison_integrity or args.product_source_integrity or args.product_tracking_integrity or args.product_plan_history
+    suite='plan-history' if args.product_plan_history else 'tracking-integrity' if args.product_tracking_integrity else 'source-integrity' if args.product_source_integrity else 'comparison-integrity' if args.product_comparison_integrity else 'integrity' if args.product_integrity else 'first-use' if args.product_first_use else 'contract'
     configuration=audit_suite(suite)
     if not product_mode and (args.expected_web_tree or args.expected_server_tree):
         parser.error('Expected application trees apply only to product audit modes')

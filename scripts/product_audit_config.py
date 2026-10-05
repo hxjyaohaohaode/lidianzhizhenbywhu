@@ -19,6 +19,12 @@ AUDIT_SUITES = {
         ),
         'precondition': 'Fresh empty synthetic account; actual header-only template; two closed standalone 2024 quarters in wan; missing cash flow; Q1 cost corrected from 9 to 8 wan through file re-selection; no configured providers',
     },
+    'plan-history': {
+        'mode': 'product-plan-history',
+        'report': 'product-plan-history-audit.json',
+        'scenarios': (('L6-plan-history', '七份真实计划→全部历史分页→第一份原问题→返回及重新登录找回'),),
+        'precondition': 'Fresh synthetic account; seven draft plans created with actual visible controls; no API mutations, fixture faults or providers; history reads leave every original plan unchanged',
+    },
     'integrity': {
         'mode': 'product-integrity',
         'report': 'product-integrity-audit.json',

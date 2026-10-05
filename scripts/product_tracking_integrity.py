@@ -26,7 +26,7 @@ try:
     from .product_first_use_audit import canonical_hash
     from .product_integrity_outcomes import _guard, _capture_response
     from .product_readout_oracles import observe_text_by_normal_scroll
-    from .product_source_integrity import _trusted_revision_bytes
+    from .product_source_integrity import _trusted_revision_bytes, observe_trusted_revision
     from .native_integrity_faults import inject_fault
 except ImportError:
     from product_browser_audit import (
@@ -35,7 +35,7 @@ except ImportError:
     from product_first_use_audit import canonical_hash
     from product_integrity_outcomes import _guard, _capture_response
     from product_readout_oracles import observe_text_by_normal_scroll
-    from product_source_integrity import _trusted_revision_bytes
+    from product_source_integrity import _trusted_revision_bytes, observe_trusted_revision
     from native_integrity_faults import inject_fault
 
 
@@ -56,6 +56,27 @@ def _one(rows, predicate):
 def _rule_record(row):
     # Live applicability is intentionally separate from immutable saved content.
     return deepcopy({key: value for key, value in row.items() if key != 'source_impact'})
+
+
+def _plain_reason_geometry_needle(locator, rendered_text):
+    """Keep the whole I7 reason range in raw DOM offsets, after semantic checks.
+
+    inner_text collapses HTML whitespace, whereas the geometry oracle uses
+    textContent offsets. This reason must remain one plain text node; do not
+    silently concatenate descendants that could contain hidden text.
+    """
+    content = locator.evaluate('''element => ({
+        child_count: element.childNodes.length,
+        first_is_text: element.firstChild?.nodeType === Node.TEXT_NODE,
+        text: element.firstChild?.textContent
+    })''')
+    assert content['child_count'] == 1 and content['first_is_text'] is True, \
+        'I7 evaluation reason must contain exactly one plain text node.'
+    raw = content['text']
+    assert isinstance(raw, str) and rendered_text, 'I7 evaluation reason must not be empty.'
+    assert re.sub(r'[\t\n\f\r ]+', ' ', raw).strip(' \t\n\f\r') == rendered_text, \
+        'I7 raw reason must match the already-checked rendered reason.'
+    return raw
 
 
 def _receipt_rows(p, data_dir, owner_id, rule):
@@ -194,7 +215,8 @@ def _tracking_read(p, original_rule, dataset, expected_state, phase):
 
     card, badge, reason, reason_text, empty = p.step(phase + '：保留真实到达帧并核对现有规则结果', inspect_card)
     observe_text_by_normal_scroll(p, badge, badge.inner_text().strip(), phase + '：实际评估状态')
-    observe_text_by_normal_scroll(p, reason, reason_text, phase + '：实际原因及当前数值是否存在')
+    reason_needle = _plain_reason_geometry_needle(reason, reason_text)
+    observe_text_by_normal_scroll(p, reason, reason_needle, phase + '：实际原因及当前数值是否存在')
     observe_text_by_normal_scroll(p, empty, '当前没有已触发提醒', phase + '：无提醒的真实列表')
     source_badge = card.locator('.business-source > .row-between > .badge')
     observe_text_by_normal_scroll(p, source_badge, source_badge.inner_text().strip(),
@@ -226,6 +248,7 @@ def _restore_from_revision(p, trusted, owner_id, data_dir, original_revision, re
     assert summary.count() == 1 and '完整性异常' not in summary.inner_text()
     p.step('I7真实展开可信原修订1，保留展开后的自然视口', lambda: summary.click())
     section = summary.locator('..')
+    observe_trusted_revision(p,section,trusted)
     restore = section.get_by_role('button', name='以此内容创建新修订', exact=True)
     assert restore.count() == 1 and restore.is_visible()
     assert restore.get_attribute('data-action') == 'restore-revision'

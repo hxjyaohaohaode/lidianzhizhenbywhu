@@ -413,6 +413,32 @@ def evidence_review_scope_recovery(p, *, repository_root, data_dir, expected_web
     p.no_external()
 
 
+
+def observe_trusted_revision(p, section, trusted):
+    """Inspect real historical values/source before the user's restore decision."""
+    content=section.locator('[data-revision-content="1"]')
+    assert content.count()==1 and content.is_visible()
+    text=content.inner_text()
+    assert trusted['payload']['company'] in text and '人民币元' in text
+    assert '独立单季度保存值' in text and '不等于原始资料真实' in text
+    periods=content.locator('[data-revision-period]')
+    assert periods.count()==len(trusted['payload']['periods'])
+    assert [periods.nth(i).get_attribute('data-revision-period') for i in range(periods.count())]==[r['period'] for r in trusted['payload']['periods']]
+    source=content.locator('p').filter(has_text='本次导入文件：')
+    assert source.count()==1 and 'synthetic-financial-input.csv' in source.inner_text()
+    observe_text_by_normal_scroll(p,source,'本次导入文件：synthetic-financial-input.csv','恢复前可核对原始导入文件及其季度边界')
+    quarter=content.locator('[data-revision-period="2024-Q4"]')
+    p.step('恢复前展开原修订2024-Q4的实际保存值',lambda:quarter.locator('summary').click())
+    values={}
+    for label,expected in [('营业收入','100,000'),('营业成本','80,000')]:
+        row=quarter.locator('tbody tr').filter(has=p.page.locator('td').filter(has_text=re.compile('^'+label+'$')))
+        assert row.count()==1
+        cells=row.locator('td').all_text_contents()
+        assert cells==[label,expected,'元'],cells
+        observe_text_by_normal_scroll(p,row.locator('td').nth(1),expected,'恢复前读取'+label+'的原值与人民币元单位')
+        values[label]=cells
+    p.observations['trusted_revision_readable_preview']={'company':trusted['payload']['company'],'revision':1,'periods':[r['period'] for r in trusted['payload']['periods']],'target_period':'2024-Q4','visible_original_values':values,'file_name':'synthetic-financial-input.csv','read_before_restore':True}
+
 def dataset_source_recovery(p, *, repository_root, data_dir, expected_web_tree, expected_server_tree):
     owner_id, trusted = _begin(p, 'I6: latest payload/hash mismatch → preview refusal → real trusted v1 restore as v2 → local report',
                               repository_root, data_dir, expected_web_tree, expected_server_tree)
@@ -456,6 +482,7 @@ def dataset_source_recovery(p, *, repository_root, data_dir, expected_web_tree, 
     assert summary.count() == 1
     p.step('在真实修订记录中展开通过完整性校验的原修订1', lambda: summary.click())
     section = summary.locator('..')
+    observe_trusted_revision(p,section,trusted)
     restore = section.get_by_role('button', name='以此内容创建新修订', exact=True)
     assert restore.count() == 1 and restore.is_visible()
     assert restore.get_attribute('data-action') == 'restore-revision'

@@ -848,6 +848,10 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         from .product_tracking_integrity import tracking_source_recovery
     except ImportError:
         from product_tracking_integrity import tracking_source_recovery
+    try:
+        from .product_plan_history import plan_history_retrieval
+    except ImportError:
+        from product_plan_history import plan_history_retrieval
     bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
         expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
@@ -863,6 +867,7 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'I5-review-scope': bind(evidence_review_scope_recovery),
         'I6-dataset-source': bind(dataset_source_recovery),
         'I7-tracking-source': bind(tracking_source_recovery),
+        'L6-plan-history': bind(plan_history_retrieval),
     }
 
 

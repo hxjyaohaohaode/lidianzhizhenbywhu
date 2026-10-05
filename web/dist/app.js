@@ -489,7 +489,7 @@ document.addEventListener('submit', async (event) => {
                     return;
                 if (applied) {
                     await render();
-                    toast('已保存。');
+                    toast(form.id === 'preferences-form' ? '个人偏好已保存。' : '已保存。');
                 }
                 else {
                     syncPending = true;

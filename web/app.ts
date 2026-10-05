@@ -95,7 +95,7 @@ document.addEventListener('submit',async(event)=>{const form=event.target as HTM
   try{
    const applied=await finishMutation(()=>submittedContext()&&submittedCurrent(),refreshData,()=>{state.dirty=false;if(modal.open)modal.close();if(inspector.open)inspector.close();});
    if(!submittedContext())return;
-   if(applied){await render();toast('已保存。');}
+   if(applied){await render();toast(form.id==='preferences-form'?'个人偏好已保存。':'已保存。');}
    else{syncPending=true;showSyncNotice();toast(savedDraftMessage||'已保存；保留你当前的页面和输入，稍后可刷新核对。');}
   }catch(e){
    if(!submittedContext())return;

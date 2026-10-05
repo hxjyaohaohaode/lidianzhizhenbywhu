@@ -88,13 +88,14 @@ def plan_create(body:PlanDraft,request:Request,user=Depends(require_user)):
 
 
 @router.get('/plans')
-def plans(request:Request,identity_id:str|None=Query(None,max_length=80),dataset_id:str=Query('',max_length=80),user=Depends(require_user)):
+def plans(request:Request,identity_id:str|None=Query(None,max_length=80),dataset_id:str=Query('',max_length=80),
+          offset:int=Query(0,ge=0,le=1000),limit:int=Query(100,ge=1,le=100),user=Depends(require_user)):
     store=dbof(request);_,scope=workspace_scope(store,user['id'],identity_id,dataset_id)
     filters,args=scope_sql(scope,"json_extract(payload,'$.request.dataset_id')","json_extract(payload,'$.request.identity_id')")
-    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='plan'"+filters+" ORDER BY updated_at DESC,id LIMIT 101",(user['id'],*args))
+    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='plan'"+filters+" ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",(user['id'],*args,limit,offset))
     total=store.one("SELECT count(*) AS n FROM workspace_objects WHERE user_id=? AND kind='plan'"+filters,(user['id'],*args))['n']
-    return {'items':[{k:v for k,v in row.items() if k!='payload'} | {'payload':{k:row['payload'][k] for k in ('status','request','max_calls','blockers','run_id','created_at')}} for row in rows[:100]],
-        'total':total,'has_more':total>100,'scope':scope}
+    return {'items':[{k:v for k,v in row.items() if k!='payload'} | {'payload':{k:row['payload'][k] for k in ('status','request','max_calls','blockers','run_id','created_at')}} for row in rows],
+        'total':total,'has_more':offset+len(rows)<total,'offset':offset,'limit':limit,'scope':scope}
 
 
 @router.get('/plans/{id}')
@@ -159,10 +160,29 @@ def revisions(id:str,request:Request,user=Depends(require_user)):
             store.validate_dataset_revision(r)
         except (ValueError,TypeError,HTTPException):valid=False
         diff_available=valid and (i==0 or previous is not None)
+        receipt=store.one('SELECT payload AS receipt_payload,content_hash,created_at FROM dataset_import_receipts WHERE dataset_id=? AND user_id=? AND version=?',(id,user['id'],r['version']))
+        if receipt:
+            try:
+                p=json.loads(receipt.pop('receipt_payload'))
+                receipt_valid=(isinstance(p,dict) and digest(p)==receipt['content_hash']
+                    and type(p.get('schema_version')) is int and p['schema_version']==1
+                    and p.get('dataset_id')==id and type(p.get('dataset_version')) is int
+                    and p['dataset_version']==r['version'] and p.get('dataset_hash')==r['content_hash'])
+                if receipt_valid and p.get('source_kind')=='file':
+                    context=p.get('import_context')
+                    receipt_valid=(isinstance(context,dict)
+                        and all(isinstance(context.get(k),list) and all(isinstance(v,str) for v in context[k]) for k in ('added','replaced','retained'))
+                        and isinstance(context.get('filename'),str)
+                        and context.get('input_amount_unit') in ('yuan','wan','yi')
+                        and context.get('input_basis') in ('standalone_quarter','year_to_date'))
+                elif receipt_valid:receipt_valid=p.get('source_kind')=='structured_preview'
+            except (ValueError,TypeError):receipt_valid=False
+            receipt['integrity_valid']=receipt_valid
+            if receipt_valid:receipt['payload']=p
         result.append({k:v for k,v in r.items() if k!='payload'} | {
             'integrity_valid':valid,'diff_available':diff_available,
             'diff':dataset_diff(previous,r['payload']) if diff_available and i else [],'initial':i==0,
-            'import_receipt':store.one('SELECT payload,content_hash,created_at FROM dataset_import_receipts WHERE dataset_id=? AND user_id=? AND version=?',(id,user['id'],r['version']))})
+            'snapshot':r['payload'] if valid else None,'import_receipt':receipt})
         previous=r['payload'] if valid else None
     return {'items':result}
 

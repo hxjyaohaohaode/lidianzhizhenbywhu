@@ -97,3 +97,8 @@ test('known restored revision with refresh failure reports recovery rather than 
  assert.deepEqual(await p,{syncPending:true});assert.equal(f.calls.reads,1);assert.equal(f.calls.renders,0);
  assert.equal(f.modal.open,false);assert.equal(f.state.dirty,false);assert.match(f.calls.toasts[0][0],/已恢复.*无需重复恢复/);
 });
+
+test('preference success names the saved settings and cannot look like a later plan success',async()=>{
+ const f=fixture();f.form.id='preferences-form';const p=f.run();await f.entered.promise;f.wait.resolve(['saved']);await p;
+ assert.deepEqual(f.calls.toasts,[['个人偏好已保存。']]);
+});
