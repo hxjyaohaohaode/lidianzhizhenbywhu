@@ -38,3 +38,8 @@ evidence/product-integrity-transfer/
 evidence/product-integrity-transfer-status.json
 evidence/product-integrity-audit.json
 evidence/product-integrity-service-command.json
+evidence/product-comparison-integrity/
+evidence/product-comparison-integrity-transfer/
+evidence/product-comparison-integrity-transfer-status.json
+evidence/product-comparison-integrity-audit.json
+evidence/product-comparison-integrity-service-command.json

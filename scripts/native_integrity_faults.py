@@ -74,7 +74,7 @@ class InjectedFault:
 def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None, expected_payload_hash=None):
     """Return a receipt-bearing lease with optional explicit restore().
 
-    kind: import_payload | import_fake_committed | report_artifact | memory_text
+    kind: import_payload | import_fake_committed | report_artifact | memory_text | action_comparison
     record_id: ID observed from the current user's actual UI/API, never a route.
     The caller labels this as fixture setup and subsequently operates real UI.
     """
@@ -94,6 +94,16 @@ def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None,
         if not audit['report_integrity']['valid']:raise RuntimeError('Original report must pass its actual audit before fault injection.')
         originals=[r for r in audit['artifacts'] if r['node']=='report']
         if len(originals)!=1:raise RuntimeError('Missing independently audited final artifact.')
+    elif kind=='action_comparison':
+        action=next((r for r in probe.get('/api/workspace/actions')['items'] if r['id']==record_id),None)
+        if not action or action.get('object_hash')!=expected_payload_hash or action['source_impact']['state']!='current':
+            raise RuntimeError('Original action must still be the exact viewed intact current source.')
+        origin=action['payload'].get('provenance',{});run_id=origin.get('run_id')
+        if not isinstance(run_id,str) or not run_id:raise RuntimeError('Action fixture requires its genuine original report.')
+        audit=probe.get('/api/workspace/runs/'+run_id+'/audit')
+        report=probe.get('/api/runs/'+run_id)
+        if not audit['report_integrity']['valid'] or canonical_hash(report['result'])!=origin.get('report_hash'):
+            raise RuntimeError('Original report must remain valid and match the action binding.')
     with connect_existing(database) as db:
         db.row_factory=sqlite3.Row
         db.execute('BEGIN IMMEDIATE')
@@ -109,6 +119,8 @@ def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None,
             row=rows[0];record_id=row['id']
         elif kind=='memory_text':
             table='memories';row=db.execute('SELECT * FROM memories WHERE id=? AND user_id=?',(record_id,owner)).fetchone()
+        elif kind=='action_comparison':
+            table='workspace_objects';row=db.execute("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='action'",(record_id,owner)).fetchone()
         else:raise RuntimeError('Unsupported native fixture fault kind.')
         if row is None:raise RuntimeError('Fault target is not owned by the active synthetic account.')
         before=row['payload'];payload=json.loads(before)
@@ -123,9 +135,18 @@ def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None,
         elif kind=='report_artifact':
             if row['id']!=originals[0]['id'] or row['content_hash']!=originals[0]['content_hash'] or canonical_hash(payload)!=row['content_hash']:raise RuntimeError('Original artifact no longer matches its audited hash.')
             payload['title']+='（仅隔离验收的产物损坏）'
-        else:
+        elif kind=='memory_text':
             if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash:raise RuntimeError('Live memory must still match the actual approved frozen hash before injection.')
             payload['text']=payload['text'][:1400]+'（仅隔离验收：原版本号不变的临时内容）'
+        else:
+            if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash:
+                raise RuntimeError('Original action changed since its exact viewed hash; no fault was applied.')
+            reference=(payload.get('provenance') or {}).get('comparison_reference')
+            if not isinstance(reference,dict) or not isinstance(reference.get('payload'),dict) or canonical_hash(reference['payload'])!=reference.get('projection_hash'):
+                raise RuntimeError('Original archived comparison must have an intact projection hash.')
+            note=reference['payload'].get('comparability_note')
+            if not isinstance(note,str):raise RuntimeError('Original comparison note must be a recorded string.')
+            reference['payload']['comparability_note']=note+'（仅隔离验收：对照摘要被临时损坏）'
         after=json.dumps(payload,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False)
         if after==before:raise RuntimeError('Fault setup did not change the target.')
         version=row['version'] if 'version' in row.keys() else None

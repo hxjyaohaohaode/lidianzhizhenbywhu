@@ -11,6 +11,7 @@ REPORTS=('verification.json','full-chain-http.json','native-service-browser.json
     'product-browser-audit.json','product-audit-service-command.json','product-audit-transfer-status.json',
     'product-first-use-audit.json','product-first-use-service-command.json','product-first-use-transfer-status.json',
     'product-integrity-audit.json','product-integrity-service-command.json','product-integrity-transfer-status.json',
+    'product-comparison-integrity-audit.json','product-comparison-integrity-service-command.json','product-comparison-integrity-transfer-status.json',
     'source-guard.json','pytest.xml','pytest-progress.jsonl')
 
 

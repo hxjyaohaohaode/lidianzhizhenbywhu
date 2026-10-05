@@ -30,6 +30,15 @@ AUDIT_SUITES = {
         'precondition': 'Fresh synthetic accounts created through visible UI; no providers; explicitly recorded corruption of selected owner-bound rows in the existing disposable CI database only; corruption is not a UI action or a production API',
         'database_fault_injection': True,
     },
+    'comparison-integrity': {
+        'mode': 'product-comparison-integrity',
+        'report': 'product-comparison-integrity-audit.json',
+        'scenarios': (
+            ('I4-comparison-integrity', '真实两企业对照→坏行动摘要拒绝历史继承→完整原报告重建跟踪'),
+        ),
+        'precondition': 'One fresh synthetic account; two company inputs and comparison/report/action created through visible UI; one explicit owner-bound temporary action-comparison receipt fault; an exact one-time decision to leave the test draft; no providers or production fault API',
+        'database_fault_injection': True,
+    },
 }
 
 

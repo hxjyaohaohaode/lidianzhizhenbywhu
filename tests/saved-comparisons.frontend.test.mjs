@@ -71,6 +71,22 @@ test('bounded receipt survives deleted report with five labeled ratios and indep
  const panel=sourcePanel({payload:{provenance:{run_id:'removed-run',comparison_reference:receipt}},source_impact:{state:'unavailable',reasons:[{code:'report_removed',message:'原报告已清理'}]}});
  assert(panel.includes('合成同行企业')&&panel.includes('25%'));assert(!panel.includes('data-route="agents:run-removed-run"'));
 });
+test('known-corrupt receipt is quarantined without rendering purported frozen numbers or losing the original report link',()=>{
+ for(const reference of [{...frozen,projection_hash:'bad'}, {...frozen,payload:{...row.payload,members:'malformed'}}, {}, null]){
+  const value={payload:{provenance:{run_id:'original-report',comparison_reference:reference}},source_impact:{state:'unavailable',reasons:[{code:'comparison_receipt_changed',message:'行动归档的对照摘要校验不一致'}]}};
+  const before=structuredClone(value);const panel=sourcePanel(value);
+  assert(panel.includes('归档对照摘要校验失败'));assert(panel.includes('停止展示其中的指标'));
+  assert(!panel.includes('原始企业对照摘要'));assert(!panel.includes('25%'));
+  assert(panel.includes('data-route="agents:run-original-report"'));assert.deepEqual(value,before);
+ }
+});
+test('healthy historic receipts remain readable after peer updates or original comparison removal',()=>{
+ for(const reason of ['comparison_member_changed','comparison_removed']){
+  const panel=sourcePanel({payload:{provenance:{run_id:'original-report',comparison_reference:{...frozen,projection_hash:'e'.repeat(64)}}},source_impact:{state:reason==='comparison_removed'?'unavailable':'changed',reasons:[{code:reason,message:'来源已变化'}]}});
+  assert(panel.includes('原始企业对照摘要'));assert(panel.includes('25%'));
+  assert(!panel.includes('停止展示其中的指标'));assert(panel.includes('data-route="agents:run-original-report"'));
+ }
+});
 test('saved detail exposes all original inputs but removes transfer controls when stale',async()=>{
  reset();const old=globalThis.fetch;let response=row;const requests=[];globalThis.fetch=async(url,init)=>{requests.push({url,method:init.method});return json(response);};
  try{const html=await savedComparisonPage(row.id);assert(html.includes('comparison-transfer-form')&&html.includes('name="primary_dataset_id"'));assert(html.includes('value=""'));assert(html.includes('合成同行企业'));

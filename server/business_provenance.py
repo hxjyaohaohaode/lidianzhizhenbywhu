@@ -5,6 +5,9 @@ never updates a historical object or treats a service lens as account authority.
 """
 from __future__ import annotations
 from copy import deepcopy
+from datetime import date
+import math
+import re
 from typing import Literal
 from pydantic import Field, ValidationError, model_validator
 from .schemas import StorageInteger, StrictModel, Memory
@@ -16,6 +19,57 @@ from .report_integrity import inspect_report_integrity
 
 MAX_RULE_ORIGIN_DEPTH = 8
 UNKNOWN_REASON_CODES = {'baseline_unknown','identity_baseline_unknown','rule_origin_unknown','legacy_unknown','memory_baseline_unknown'}
+
+
+def _comparison_receipt_valid(reference):
+    """Validate the existing bounded projection, never recalculate old facts."""
+    from .saved_comparisons import METRICS
+    def text(value):return isinstance(value,str) and bool(value)
+    def revision(value):return type(value) is int and 1<=value<=2**53-1
+    def hash_value(value):return isinstance(value,str) and len(value)==64 and all(c in '0123456789abcdef' for c in value)
+    def period(value):return isinstance(value,str) and bool(re.fullmatch(r'[0-9]{4}-Q[1-4]',value))
+    def number(value):
+        if value is None:return True
+        if isinstance(value,bool) or not isinstance(value,(int,float)):return False
+        try:return math.isfinite(value)
+        except (OverflowError,ValueError):return False
+    if not isinstance(reference,dict) or not isinstance(reference.get('payload'),dict):return False
+    if not text(reference.get('id')) or not revision(reference.get('version')) or not hash_value(reference.get('hash')):return False
+    payload=reference['payload'];members=payload.get('members');result=payload.get('result')
+    if (not isinstance(payload.get('identity_id'),str) or not text(payload.get('name'))
+        or not text(payload.get('comparability_note')) or not period(payload.get('period'))
+        or payload.get('comparison') not in ('previous','year_over_year')
+        or payload.get('period_basis')!='standalone_quarter'):return False
+    try:
+        if not isinstance(payload.get('analysis_as_of'),str):return False
+        date.fromisoformat(payload['analysis_as_of'])
+    except ValueError:return False
+    if not isinstance(members,list) or not 2<=len(members)<=8:return False
+    if any(not isinstance(m,dict) or not text(m.get('id')) or not text(m.get('company'))
+           or not revision(m.get('version')) or not hash_value(m.get('hash')) for m in members):return False
+    by_id={m['id']:m for m in members}
+    if len(by_id)!=len(members):return False
+    if not isinstance(result,dict) or result.get('period')!=payload['period'] or not isinstance(result.get('warning'),str):return False
+    items=result.get('items')
+    if not isinstance(items,list) or len(items)!=len(members):return False
+    seen=set()
+    for row in items:
+        if not isinstance(row,dict) or not text(row.get('id')) or row['id'] in seen or row['id'] not in by_id:return False
+        seen.add(row['id']);member=by_id[row['id']];analysis=row.get('analysis')
+        if (row.get('company')!=member['company'] or not revision(row.get('dataset_version'))
+            or row['dataset_version']!=member['version'] or row.get('dataset_hash')!=member['hash']
+            or row.get('source_kind') not in ('user_provided','sample','public_document')):return False
+        if (not isinstance(analysis,dict) or analysis.get('current_period')!=payload['period']
+            or analysis.get('comparison')!=payload['comparison']
+            or (analysis.get('baseline_period') is not None and not period(analysis['baseline_period']))
+            or not isinstance(analysis.get('warnings'),list) or any(not isinstance(w,str) for w in analysis['warnings'])):return False
+        metrics=analysis.get('metrics')
+        if not isinstance(metrics,dict) or set(metrics)!=set(METRICS) or any(not number(v) for v in metrics.values()):return False
+    units=payload.get('units')
+    if not isinstance(units,dict) or set(units)!=set(METRICS) or any(unit!='ratio' for unit in units.values()):return False
+    if payload.get('summary_notice') is not None and not isinstance(payload['summary_notice'],str):return False
+    try:return hash_value(reference.get('projection_hash')) and digest(payload)==reference['projection_hash']
+    except (TypeError,ValueError):return False
 
 
 def _rule_origin_structure(origin):
@@ -49,9 +103,7 @@ def _rule_origin_structure(origin):
     if 'action_id' in origin and not revision(origin.get('action_version')):return False
     if origin['kind'] in {'alert','watch_evaluation'} and (not text(origin.get('rule_id')) or not revision(origin.get('rule_version'))):return False
     if 'comparison_reference' in origin:
-        reference=origin['comparison_reference']
-        if not isinstance(reference,dict) or not isinstance(reference.get('payload'),dict):return False
-        if not hash_value(reference.get('projection_hash')) or digest(reference['payload'])!=reference['projection_hash']:return False
+        if not _comparison_receipt_valid(origin['comparison_reference']):return False
     return True
 
 
@@ -332,6 +384,8 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
         fail('SOURCE_DEPTH_LIMIT','跟踪来源链已达上限，请从原始报告或数据建立新的依据',409)
     if any(r['code'] in {'rule_origin_invalid','alert_changed'} for r in impact['reasons']):
         fail('SOURCE_INTEGRITY','提醒或其规则来源完整性不可核验，不能作为新的业务依据',409)
+    if any(r['code']=='comparison_receipt_changed' for r in impact['reasons']):
+        fail('SOURCE_INTEGRITY','行动归档的企业对照摘要无法校验，不能通过保留历史依据继续使用；请核对完整原报告或可信原始资料后重新建立行动',409)
     if impact['state']!='current' and not ref.get('allow_historical'):
         fail('SOURCE_CHANGED','来源已变化或完整来源不可核验；请重新核对，或明确保留历史依据',409)
     return provenance
@@ -402,10 +456,10 @@ def source_impact(store,user_id,provenance,*,_origin_depth=0):
                 reasons.append({'code':'claim_rejected','message':'来源解释当前已被人工排除'})
             elif (review['version'] if review else 0)!=p.get('claim_review_version',0):
                 reasons.append({'code':'claim_review_changed','message':'来源解释的人工审阅已变化'})
-    if p.get('comparison_reference'):
+    if 'comparison_reference' in p:
         from .saved_comparisons import current_impact
         reference=p['comparison_reference']
-        if digest(reference['payload'])!=reference.get('projection_hash'):
+        if not _comparison_receipt_valid(reference):
             reasons.append({'code':'comparison_receipt_changed','message':'行动归档的对照摘要校验不一致'});unavailable=True
         else:
             comparison_impact=current_impact(store,user_id,reference)

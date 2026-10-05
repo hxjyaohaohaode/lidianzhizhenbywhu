@@ -8,6 +8,7 @@ import pytest
 from scripts.native_integrity_faults import InjectedFault, canonical_hash, connect_existing, inject_fault
 from scripts.product_browser_audit import Probe
 from scripts.pack_product_audit import package
+from scripts.product_audit_config import audit_suite
 from server.store import digest
 from test_product_audit_transfer import first_use_fixture
 
@@ -86,17 +87,19 @@ def test_fixture_restore_does_not_overwrite_a_new_artifact_hash(tmp_path):
     with sqlite3.connect(dbfile) as db:assert db.execute('SELECT payload,content_hash FROM agent_artifacts').fetchone()==(after,'0'*64)
 
 
-def test_fault_receipt_transfer_is_explicit_and_integrity_suite_only(tmp_path):
-    evidence=tmp_path/'evidence';directory=evidence/'product-integrity/I1-test';directory.mkdir(parents=True)
+@pytest.mark.parametrize('suite',['integrity','comparison-integrity'])
+def test_fault_receipt_transfer_is_explicit_and_declared_fault_suite_only(tmp_path,suite):
+    configuration=audit_suite(suite)
+    evidence=tmp_path/'evidence';directory=evidence/configuration['mode']/'I-test';directory.mkdir(parents=True)
     p=Probe(None,'unused',directory,None)
     receipt=directory/'fault-receipt.json';receipt.write_text('{"synthetic":true,"ui_mutation_claimed":false}')
     with pytest.raises(ValueError,match='kind'):p.record_artifact(receipt,kind='fault-injection')
     p.artifact_kinds=(*p.artifact_kinds,'fault-injection');p.record_artifact(receipt,kind='fault-injection')
-    report={'suite':'integrity','all_checks_passed':False,'scenarios':[{'id':'I1-test','artifacts':p.artifacts}]}
-    (evidence/'product-integrity-audit.json').write_text(json.dumps(report))
-    m=package(evidence,suite='integrity',part_bytes=1024)
-    assert m['suite']=='integrity' and m['audit_passed'] is False
-    assert set(m['files'])=={'product-integrity-audit.json','product-integrity/I1-test/fault-receipt.json'}
+    report={'suite':suite,'all_checks_passed':False,'scenarios':[{'id':'I-test','artifacts':p.artifacts}]}
+    (evidence/configuration['report']).write_text(json.dumps(report))
+    m=package(evidence,suite=suite,part_bytes=1024)
+    assert m['suite']==suite and m['audit_passed'] is False
+    assert set(m['files'])=={configuration['report'],configuration['mode']+'/I-test/fault-receipt.json'}
 
 
 def test_existing_suites_do_not_gain_database_fault_artifacts(tmp_path):

@@ -111,7 +111,7 @@ def points_display(value, header, expected_delta):
 class Probe:
     """Operate visible controls; HTTP GETs corroborate results.
 
-    Only the separately declared integrity suite admits recorded temporary-DB
+    Only the separately declared integrity suites admit recorded temporary-DB
     faults. Those fixture writes never count as user interaction evidence.
     """
     artifact_kinds = ('download', 'synthetic-input')
@@ -127,6 +127,40 @@ class Probe:
         self.artifacts = []
         self.dataset_id = ''
         self.step_no = 0
+        self._expected_dialog = None
+
+    def with_expected_dialog(self, *, dialog_type, message, action):
+        """One explicit decision to leave this task's unsaved synthetic draft."""
+        allowed=('confirm','当前输入尚未保存。离开后这些修改将丢失，是否继续？')
+        if (dialog_type,message)!=allowed or not callable(action):
+            raise ValueError('Only the exact declared unsaved-draft confirmation is allowed.')
+        if self._expected_dialog is not None:
+            raise RuntimeError('Expected browser decisions cannot be nested.')
+        pending={'type':dialog_type,'message':message,'started_at':now(),'events':[],
+            'seen':0,'accepted':0,'mismatch':False}
+        self._expected_dialog=pending
+        try:
+            value=action()
+            assert pending['seen']==pending['accepted']==1 and not pending['mismatch'], 'The exact single expected confirmation was not completed.'
+            return value
+        finally:
+            pending['finished_at']=now()
+            self.observations.setdefault('expected_dialogs',[]).append(dict(pending))
+            self._expected_dialog=None
+
+    def handle_expected_dialog(self, dialog):
+        pending=self._expected_dialog
+        if pending is None:return False
+        pending['seen']+=1
+        event={'observed_at':now(),'type':dialog.type,'message_matches':dialog.message==pending['message'],'accepted':False}
+        pending['events'].append(event)
+        if pending['seen']!=1 or dialog.type!=pending['type'] or dialog.message!=pending['message']:
+            pending['mismatch']=True
+            return False
+        dialog.accept()
+        event.update(accepted=True,accepted_at=now())
+        pending['accepted']+=1
+        return True
 
     def record_artifact(self, path, *, kind):
         """Admit explicit current-scenario files, never sweep an output folder."""
@@ -801,6 +835,10 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         from .product_integrity_outcomes import integrity_import_recovery, integrity_comparison_recovery, integrity_memory_historical_choice
     except ImportError:
         from product_integrity_outcomes import integrity_import_recovery, integrity_comparison_recovery, integrity_memory_historical_choice
+    try:
+        from .product_comparison_integrity import comparison_receipt_recovery
+    except ImportError:
+        from product_comparison_integrity import comparison_receipt_recovery
     bind=lambda function:partial(function,repository_root=repository_root,data_dir=data_dir,
         expected_web_tree=expected_web_tree,expected_server_tree=expected_server_tree)
     return {
@@ -812,6 +850,7 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'I1-import-integrity': bind(integrity_import_recovery),
         'I2-report-integrity': bind(integrity_comparison_recovery),
         'I3-memory-integrity': bind(integrity_memory_historical_choice),
+        'I4-comparison-integrity': bind(comparison_receipt_recovery),
     }
 
 
@@ -878,13 +917,14 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
                 if url.scheme in ('http', 'https') and (url.scheme, url.netloc) != (urlsplit(base_url).scheme, urlsplit(base_url).netloc):
                     row['external_requests'].append({'method': request.method, 'origin': url.scheme + '://' + url.netloc})
             page.on('request', request_started)
-            def unexpected_dialog(dialog, row=result):
+            probe = Probe(page, base_url, directory, submit_form, journal)
+            if configuration.get('database_fault_injection'):
+                probe.artifact_kinds = (*probe.artifact_kinds, 'fault-injection')
+            def unexpected_dialog(dialog, row=result, current=probe):
+                if current.handle_expected_dialog(dialog):return
                 row['unexpected_dialogs'].append({'type': dialog.type, 'message': dialog.message})
                 dialog.dismiss()  # Never silently approve a surprise destructive confirmation.
             page.on('dialog', unexpected_dialog)
-            probe = Probe(page, base_url, directory, submit_form, journal)
-            if suite == 'integrity':
-                probe.artifact_kinds = (*probe.artifact_kinds, 'fault-injection')
             function(probe)
             assert not result['js_errors'], result['js_errors']
             assert not result['external_requests'], result['external_requests']
