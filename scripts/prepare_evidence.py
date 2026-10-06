@@ -24,6 +24,7 @@ REPORTS=('verification.json','full-chain-http.json','native-service-browser.json
     'product-question-scope-audit.json','product-question-scope-service-command.json','product-question-scope-transfer-status.json',
     'product-experiment-recovery-audit.json','product-experiment-recovery-service-command.json','product-experiment-recovery-transfer-status.json',
     'product-strategy-consent-audit.json','product-strategy-consent-service-command.json','product-strategy-consent-transfer-status.json',
+    'product-strategy-consent-access-blocked.json',
     'product-report-history-audit.json','product-report-history-service-command.json','product-report-history-transfer-status.json',
     'product-late-actions-audit.json','product-late-actions-service-command.json','product-late-actions-transfer-status.json',
     'product-action-evidence-audit.json','product-action-evidence-service-command.json','product-action-evidence-transfer-status.json',

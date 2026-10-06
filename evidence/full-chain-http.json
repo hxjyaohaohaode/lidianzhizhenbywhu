@@ -26,9 +26,9 @@
   "load_probe": {
     "read_requests": 64,
     "concurrency": 4,
-    "p50_ms": 14.99,
-    "p95_ms": 79.94,
-    "max_ms": 103.78
+    "p50_ms": 13.57,
+    "p95_ms": 86.31,
+    "max_ms": 117.86
   },
-  "elapsed_seconds": 5.53
+  "elapsed_seconds": 5.69
 }

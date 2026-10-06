@@ -10,7 +10,6 @@ import json
 import os
 from pathlib import Path
 import platform
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -297,6 +296,7 @@ def run(root, out, timeout=MAX_SECONDS, *, test_timeout=120, deadline=None):
     acceptance always uses 1500/120. No selection or increased budget exists.
     """
     from scripts.owned_process import OwnedProcess
+    from scripts.private_temp_cleanup import capture_private_root, cleanup_private_tree
     started = time.monotonic() if deadline is None else deadline - timeout
     deadline = started + timeout
     if not 0 < timeout <= MAX_SECONDS or not 0 < test_timeout <= 120:
@@ -308,9 +308,11 @@ def run(root, out, timeout=MAX_SECONDS, *, test_timeout=120, deadline=None):
         'invocation_id': invocation, 'started_at': datetime.now(timezone.utc).isoformat(),
         'status': 'incomplete', 'exit_code': 1, 'cleanup_confirmed': True,
         'timeout_seconds': timeout, 'test_timeout_seconds': test_timeout,
-        'collection': None, 'children': [], 'errors': []}
+        'collection': None, 'children': [], 'errors': [],
+        'temporary_cleanup': {'attempted': False, 'complete': False}}
     processes = []
     temporary = None
+    temporary_identity = None
     summary = ''
     boundary = False
     try:
@@ -325,6 +327,7 @@ def run(root, out, timeout=MAX_SECONDS, *, test_timeout=120, deadline=None):
             'event_name': os.getenv('GITHUB_EVENT_NAME', ''), 'platform': platform.platform(),
             'python': sys.version, 'executable': sys.executable, 'pytest': pytest.__version__})
         temporary = Path(tempfile.mkdtemp(prefix='lidian-pytest-'))
+        temporary_identity = capture_private_root(temporary)
         if out == temporary or out in temporary.parents:
             raise ValueError('temporary data must remain outside evidence')
         # Give cleanup and aggregation time inside, never after, the total wall cap.
@@ -415,10 +418,10 @@ def run(root, out, timeout=MAX_SECONDS, *, test_timeout=120, deadline=None):
                 receipt['cleanup_confirmed'] = False
                 receipt['errors'].append('cleanup: ' + type(exc).__name__ + ': ' + str(exc))
         if temporary is not None and receipt['cleanup_confirmed']:
-            try:
-                shutil.rmtree(temporary)
-            except OSError as exc:
-                receipt['errors'].append('temporary cleanup: ' + type(exc).__name__)
+            receipt['temporary_cleanup'] = cleanup_private_tree(temporary, temporary_identity, deadline)
+            if not receipt['temporary_cleanup']['complete']:
+                failure = receipt['temporary_cleanup']['failure']
+                receipt['errors'].append('temporary cleanup: ' + failure['type'])
                 receipt['exit_code'] = 1
         if not receipt['cleanup_confirmed']:
             receipt['exit_code'] = 1

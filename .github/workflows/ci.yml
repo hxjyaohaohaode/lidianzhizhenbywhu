@@ -1835,19 +1835,28 @@ jobs:
         with:
           python-version: '3.13'
       - run: python scripts/prepare_evidence.py
+      # Explicit hold: the original L9 Linux download received a geographic AccessDenied.
+      # Keep this named Linux job non-passing; do not retry or move the denied task.
+      - name: Record blocked L9 Linux access
+        if: matrix.os == 'ubuntu-latest'
+        run: python scripts/record_strategy_access_block.py
       - run: python -m pip install -r requirements-dev.txt
+        if: matrix.os != 'ubuntu-latest'
       - run: python -m playwright install --with-deps chromium
+        if: matrix.os != 'ubuntu-latest'
       # One synthetic input/report; visible human feedback and explicit replay consent 0 to 1 to 0.
       # Read the blocked saved case in Chinese and preserve history; no successful activation, database faults or providers.
       - run: python scripts/native_acceptance.py --product-strategy-consent --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
+        if: matrix.os != 'ubuntu-latest'
       - run: python scripts/pack_product_audit.py --suite strategy-consent
-        if: always()
+        if: always() && matrix.os != 'ubuntu-latest'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: product-strategy-consent-${{ matrix.os }}-summary
           path: |
             evidence/run-context.json
+            evidence/product-strategy-consent-access-blocked.json
             evidence/product-strategy-consent-audit.json
             evidence/product-strategy-consent-service-command.json
             evidence/product-strategy-consent-transfer-status.json
