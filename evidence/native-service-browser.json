@@ -1,56 +1,13 @@
 {
-  "transport": "native Chromium + loopback HTTP",
-  "native_network_e2e": true,
+  "attempted_at": "2026-10-04T12:12:42.931165+00:00",
   "mode": "native",
-  "all_checks_passed": true,
-  "checks": [
-    "原生浏览器会话 HttpOnly/SameSite 与禁止 unsafe-eval 的实际 CSP",
-    "注册后零业务数据，真实冷启动与登录",
-    "桌面侧栏真实折叠，中央可用宽度增加，ARIA状态同步",
-    "助手独立展开/收起与键盘调宽，不占用隐藏空间",
-    "服务身份创建、选择、顶部上下文同步",
-    "上传真实CSV：暂存不写正式库，确认后入库",
-    "持久会话调用财务、血缘、质量及证据工具，有真实返回与输入修订",
-    "同一研究会话可追踪实际公式、季度输入及证据范围",
-    "同一账户切换研究视角并持久化；已有会话仍可读取",
-    "连续追问保留会话，不是覆盖单条固定回复",
-    "助手提案显示实际Agent依赖和上下文，确认前没有运行或模型调用",
-    "助手批准→真实Agent运行→数学工具与报告回到原会话",
-    "原生 EventSource 带浏览器会话读取真实任务全部事件并正常结束",
-    "原生同源写请求缺少CSRF时被拒绝，不影响现有登录会话",
-    "助手行动提案→明确验收标准→确认入库",
-    "助手记忆确认与身份作用域持久化",
-    "切换服务身份不混入前身份的研究会话",
-    "切回身份恢复原会话与独立任务结果",
-    "跟踪规则真实触发、核对归档、相同输入不重复提醒",
-    "私有连接界面保存与重新鉴权，密钥不回显",
-    "编辑连接不把既有凭据发回浏览器",
-    "原协同研判、数学与策略工作区继续可访问",
-    "调节侧栏不重建主表单，不丢失未保存研究问题",
-    "15个工作区390px真实渲染，无文档级水平溢出",
-    "移动抽屉真正打开、遮罩、Escape关闭与焦点恢复",
-    "移动助手抽屉可单独收起",
-    "全部上述流程零捕获JavaScript异常、零HTTP5xx"
-  ],
-  "count": 27,
-  "js_errors": [],
-  "http": {
-    "requests": 124,
-    "status_counts": {
-      "200": 110,
-      "201": 12,
-      "401": 1,
-      "403": 1
-    },
-    "server_errors": []
-  },
-  "screenshots": [
-    "ui-current-empty.png",
-    "ui-current-copilot.png",
-    "ui-current-approval.png",
-    "ui-current-services.png",
-    "ui-current-mobile.png"
-  ],
+  "all_checks_passed": false,
+  "native_network_e2e": false,
+  "status": "failed_before_browser_checks",
+  "checks": [],
+  "count": 0,
+  "screenshots": [],
   "policy_modified": false,
-  "data": "isolated synthetic test account and input"
+  "note": "浏览器启动或服务访问未完成；详见本次命令日志。历史截图不代表当前界面。",
+  "exit_code": 1
 }

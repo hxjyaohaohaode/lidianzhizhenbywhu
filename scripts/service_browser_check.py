@@ -6,29 +6,155 @@ No browser policy or application security header is weakened for either mode.
 """
 from __future__ import annotations
 import argparse
+import atexit
 import base64
+import hashlib
 import json
 import os
 import re
 import time
 import uuid
+from collections import deque
+from urllib.parse import urlsplit
 from pathlib import Path
 import httpx
 from playwright.sync_api import sync_playwright
+try:
+    from .acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
+    from .recorded_balance_reading import read_source_row, read_report_rows
+except ImportError:
+    from acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
+    from recorded_balance_reading import read_source_row, read_report_rows
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
+UI_TIMEOUT_MS=10000
+
+
+def assert_copilot_entity_binding(message, proposal, plan, run, *, message_id,
+        proposal_id, thread_id, dataset_id, prior_run_ids):
+    """Corroborate the exact visible interaction, not list order or equal values."""
+    payload=proposal['payload']
+    assert message['id']==message_id and message['thread_id']==thread_id
+    assert proposal['id']==proposal_id and payload['thread_id']==thread_id
+    assert payload['source_message_id']==message_id and payload['status']=='executed'
+    assert payload['request']['text']==message['payload']['question']
+    assert plan['id']==payload['plan_id']==run['snapshot']['studio']['plan_id']
+    assert run['id']==payload['result']['run_id'] and run['id'] not in prior_run_ids
+    assert run['dataset_id']==dataset_id
+    assert message['user_id']==proposal['user_id']==plan['user_id']==run['user_id']
+    assert plan['payload']['max_calls']==payload['external_calls']==0
+    assert message['payload']['response']['external_calls']==0
+    assert run['result']['llm']['state']=='not_requested' and run['result']['llm']['calls']==[]
+
+
+def assert_copilot_trace_binding(message, traced, dataset, *, message_id, thread_id):
+    """The actual trace response must bind this click to its source and revision."""
+    assert message['id']==message_id and message['thread_id']==thread_id
+    assert traced['source_message_id']==message_id and traced['source_thread_id']==thread_id
+    original=message['payload']['response']['context']['question_scope']
+    selected=traced['question_scope'];scope=traced['scope']
+    assert selected['status']=='supported' and selected['can_calculate'] is True
+    for key in ('period','comparison','topics'):assert selected[key]==original[key]
+    assert scope['dataset_id']==dataset['id'] and scope['dataset_version']==dataset['version']
+    assert scope['input_hash']==dataset['content_hash'] and scope['period']==original['period']
+    assert [fact['id'] for fact in traced['facts']]==original['topics']
+    for fact in traced['facts']:
+        assert fact['period']==original['period'] and fact['dataset_id']==dataset['id']
+        assert fact['dataset_version']==dataset['version'] and fact['input_hash']==dataset['content_hash']
+    assert traced['external_calls']==0
+
+
+def assert_form_errors(page, selector):
+    """Read one DOM snapshot; a successful transition may remove the old form.
+
+    Absence is not success: every caller still waits for its specific next state.
+    Never count a locator and then wait for elements that may already be gone.
+    """
+    for text in page.locator(selector+' .form-error').all_text_contents():
+        if text.strip():raise AssertionError(text.strip())
+
+
+FORM_COMPLETION = r"""(form, timeout) => new Promise((resolve, reject) => {
+    let timer;
+    const busy = () => form.dataset.submitting === 'true' || form.dataset.pending === 'true';
+    const cleanup = () => { observer.disconnect(); clearTimeout(timer); };
+    const check = () => {
+        if (busy()) return;
+        cleanup();
+        resolve([...form.querySelectorAll('.form-error')].map(el => el.textContent || ''));
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(form, {attributes: true, attributeFilter: ['data-submitting', 'data-pending']});
+    timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('Submission did not finish within ' + timeout + ' ms; submitting=' +
+            form.dataset.submitting + ', pending=' + form.dataset.pending + ', connected=' + form.isConnected));
+    }, timeout);
+    check();
+})"""
+
+
+def submit_form(page, selector):
+    """Observe the original submit lifecycle, including failure and detachment.
+
+    Both production handlers set a busy attribute before their first await and
+    clear it in finally. Keep the original form: navigation or replacement is
+    not completion, and must not discard its error. The observer uses the same
+    10-second budget as page locators, without sleeps, eval polling or retries.
+    Callers must still assert their specific rendered/persisted result.
+    """
+    form=page.locator(selector).element_handle()
+    if form is None:raise AssertionError('Submission form is missing: '+selector)
+    button=form.query_selector('button[type="submit"]')
+    if button is None:raise AssertionError('Submission button is missing: '+selector)
+    button.click()
+    for text in form.evaluate(FORM_COMPLETION,UI_TIMEOUT_MS):
+        if text.strip():raise AssertionError(text.strip())
+
+
+class FixtureRequestBudget:
+    """Admission pacing for synthetic setup, never a retry of business requests.
+
+    The application retains its original 600 non-auth API requests / minute.
+    Reserve headroom before a bounded 200-record fixture plus its UI assertions.
+    """
+    def __init__(self, clock=time.monotonic):
+        self.clock=clock;self.requests=deque()
+
+    def record(self, url):
+        path=urlsplit(url).path
+        if path.startswith('/api/') and not path.startswith('/api/auth/'):
+            self.requests.append(self.clock())
+
+    def reserve(self, count, wait=time.sleep):
+        if not 1 <= count <= 600:raise ValueError('Invalid fixture request reservation')
+        start=self.clock();deadline=start+65
+        while True:
+            now=self.clock()
+            while self.requests and self.requests[0]<=now-60:self.requests.popleft()
+            if len(self.requests)+count<=600:return round(now-start,3)
+            delay=max(.05,self.requests[0]+60.05-now)
+            if now+delay>deadline:raise RuntimeError('Fixture request window did not settle within 65 seconds')
+            wait(delay)
 
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--native',action='store_true');args=parser.parse_args();native=args.native
-    checks=[];errors=[];responses=[];screens=[];completed=False
-    def record(label):checks.append(label);print('PASS',label,flush=True)
-    with httpx.Client(base_url='http://127.0.0.1:8000',trust_env=False,timeout=30) as client,sync_playwright() as p:
+    checks=[];errors=[];responses=[];screens=[];completed=False;api_budget=FixtureRequestBudget();fixture_budget_wait=0
+    balance_source_readings={}
+    journal=EventJournal(OUT/('native-browser-events.jsonl' if native else 'bridge-browser-events.jsonl'))
+    atexit.register(journal.close)
+    def record(label):
+        checks.append(label);journal.emit('check_passed',number=len(checks),label=label)
+        print('PASS',label,flush=True)
+    with httpx.Client(base_url='http://127.0.0.1:8000',trust_env=False,timeout=30,event_hooks={'request':[lambda request:api_budget.record(str(request.url))]}) as client,sync_playwright() as p:
         launch={'headless':True};executable=os.getenv('CHROMIUM_PATH')
         if executable:launch['executable_path']=executable
         elif not native:launch['executable_path']='/usr/bin/chromium'
         b=p.chromium.launch(**launch)
         page=b.new_page(viewport={'width':1520,'height':1080},device_scale_factor=1)
-        page.set_default_timeout(10000)
+        page.set_default_timeout(UI_TIMEOUT_MS)
+        attach_browser_diagnostics(page,journal)
+        if native:page.on('request',lambda request:api_budget.record(request.url))
         page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
         def call(payload):
             path=payload['path']
@@ -63,18 +189,16 @@ def main():
             page.evaluate("assets=>new MutationObserver(()=>document.querySelectorAll('img,video').forEach(el=>{const src=el.getAttribute('src');if(assets[src])el.src=assets[src]})).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['src']})",brand)
             page.add_script_tag(type='module',content="import 'lidian:app';")
         def submit(selector):
-            page.locator(selector+' button[type="submit"]').click()
-            page.wait_for_timeout(500)
-            err=page.locator(selector+' .form-error')
-            for i in range(err.count()):
-                if err.nth(i).inner_text().strip():raise AssertionError(err.nth(i).inner_text())
+            submit_form(page,selector)
         def go(route):
+            journal.emit('navigation_started',**route_metadata(route),viewport=page.viewport_size)
             page.evaluate('(r)=>location.hash=r',route)
             page.locator('#main[data-page="'+route.split(':')[0]+'"] h1').wait_for(timeout=12000)
             assert page.locator('#main h1').inner_text()!='读取未完成',page.locator('#main').inner_text()
-        def snap(name):
+            journal.emit('navigation_completed',**route_metadata(route),viewport=page.viewport_size)
+        def snap(name,full_page=True):
             page.wait_for_timeout(250)
-            page.screenshot(path=str(OUT/name),full_page=True);screens.append(name)
+            page.screenshot(path=str(OUT/name),full_page=full_page);screens.append(name)
         def overflow():return page.evaluate('document.documentElement.scrollWidth > innerWidth + 1')
         def wait_box(selector, min_x=-1, max_x=None):
             # Poll geometry through Playwright's native locator, outside page eval.
@@ -119,8 +243,27 @@ def main():
             page.locator('[data-action="close-assistant"]').click();assert not rail.is_visible()
             record('助手独立展开/收起与键盘调宽，不占用隐藏空间')
             go('services');page.locator('[data-x-action="identity-new"]').click()
-            f='form[data-service-form="identity"]';page.locator(f+' [name="name"]').fill('经营负责人（合成验收）');page.locator(f+' [name="objective"]').fill('核对现金流与毛利差异，明确反向证据')
-            submit(f);page.locator('.identity-card').wait_for();page.locator('[data-x-action="identity-use"]').first.click();page.wait_for_timeout(400)
+            f='form[data-service-form="identity"]';page.locator(f+' [name="name"]').fill('经营负责人（合成验收）');page.locator(f+' [name="objective"]').fill('核对现金流与毛利差异，明确反向证据');page.locator(f+' [name="max_calls"]').fill('0')
+            if native:
+                # Explicit fault injection: the mutation succeeds, only its
+                # following read is disconnected. No mutation is retried.
+                refresh_faults=[]
+                def fail_saved_refresh(route):
+                    refresh_faults.append(route.request.url)
+                    journal.emit('expected_read_failure',path='/api/capabilities',purpose='known-save recovery')
+                    route.abort('failed')
+                page.route('**/api/capabilities',fail_saved_refresh)
+                try:
+                    submit(f)
+                    page.locator('#notifications .toast').filter(has_text='已保存，但同步读取未完成').wait_for()
+                    assert refresh_faults and len(client.get('/api/services/identities').json()['items'])==1
+                    page.locator('#modal').wait_for(state='hidden')
+                finally:page.unroute('**/api/capabilities',fail_saved_refresh)
+                go('brief');go('services')
+                assert len(client.get('/api/services/identities').json()['items'])==1
+                record('已确认身份保存后仅同步读取断开：显示已保存与恢复指引，无重复写入')
+            else:submit(f)
+            page.locator('.identity-card').wait_for();page.locator('[data-x-action="identity-use"]').first.click();page.wait_for_timeout(400)
             assert page.locator('#active-identity').input_value()
             identity_id=page.locator('#active-identity').input_value();record('服务身份创建、选择、顶部上下文同步')
             go('brief');page.locator('#main [data-action="import-dialog"]').click()
@@ -129,8 +272,64 @@ def main():
             for i in range(12):csv+=f'{2022+i//4}-Q{i%4+1},{100000+i*1200},{70000+i*600},{12000+i*100},9000,500000,200000,300000,290000,20000,3000\n'
             page.locator('#import-file-form [name="amount_unit"]').select_option('yuan')
             page.locator('#import-file-form [name="file"]').set_input_files({'name':'synthetic-service-test.csv','mimeType':'text/csv','buffer':csv.encode('utf-8-sig')})
+            assert page.locator('#import-file-form').evaluate('(form)=>new FormData(form).get("file")===new FormData(form).get("file")')
             submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for();assert client.get('/api/datasets').json()['items']==[]
-            page.locator('[data-action="commit-stage"]').click();page.locator('#dataset-editor').wait_for();record('上传真实CSV：暂存不写正式库，确认后入库')
+            page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden');page.locator('#dataset-editor[data-version="1"]').wait_for();record('上传真实CSV：暂存不写正式库，确认后入库')
+            # Revise an existing dataset through the visible file workflow. No
+            # direct API write substitutes for preview, target choice or commit.
+            original=client.get('/api/datasets').json()['items'][0]
+            # Two editors are visible in the DOM: controls must belong to the
+            # new-data dialog, without mutating the existing background editor.
+            go('data');background_rows=page.locator('#main [data-period-row]').count()
+            page.locator('#main [data-action="new-dataset"]').click()
+            editor='#modal #dataset-editor'
+            page.locator(editor+' [data-action="add-period"]').click()
+            assert page.locator(editor+' [data-period-row]').count()==2
+            assert page.locator('#main [data-period-row]').count()==background_rows
+            page.locator(editor+' #extra-fields').check()
+            assert 'expanded' in page.locator(editor+' .editor-table').get_attribute('class')
+            assert 'expanded' not in page.locator('#main .editor-table').get_attribute('class')
+            page.locator(editor+' [name="company"]').fill('独立新建草稿（合成验收）')
+            page.locator(editor+' [name="name"]').fill('仅预览不保存')
+            for i,period in enumerate(['2024-Q1','2024-Q2']):
+                row=page.locator(editor+' [data-period-row]').nth(i)
+                row.locator('[name="period"]').fill(period)
+                row.locator('[name="revenue"]').fill('100')
+                row.locator('[name="cost"]').fill('70')
+            submit(editor);page.locator('#modal [data-action="stage-back"]').click()
+            assert page.locator(editor+' [name="company"]').is_editable()
+            page.locator(editor+' [name="company"]').fill('返回仍可修改的新企业（合成验收）')
+            assert page.locator('#main [name="company"]').input_value()==original['payload']['company']
+            assert len(client.get('/api/datasets').json()['items'])==1
+            snap('ui-current-new-data-draft.png')
+            page.locator('#modal [data-action="close-modal"]').click()
+            record('已有企业背景中新建数据：季度/补充字段仅改当前表单，预览返回仍可改企业且未入库')
+            go('data');page.locator('#main [data-action="import-dialog"]').click()
+            page.locator('#import-file-form [name="target_id"]').select_option(original['id'])
+            page.locator('#import-file-form [name="merge_mode"]').select_option('merge')
+            page.locator('#import-file-form [name="amount_unit"]').select_option('yuan')
+            revision=csv.splitlines()[0]+'\n2024-Q4,120000,76600,13100,9000,500000,200000,300000,290000,20000,3000\n'
+            page.locator('#import-file-form [name="file"]').set_input_files({'name':'synthetic-quarter-revision.csv','mimeType':'text/csv','buffer':revision.encode('utf-8-sig')})
+            submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for()
+            before=client.get('/api/datasets').json()['items'];assert len(before)==1 and before[0]['version']==original['version']
+            assert '合并到已有数据集' in page.locator('#modal').inner_text()
+            page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden')
+            page.locator('#dataset-editor[data-id="'+original['id']+'"][data-version="'+str(original['version']+1)+'"]').wait_for()
+            revised=client.get('/api/datasets').json()['items'];assert len(revised)==1 and revised[0]['id']==original['id'] and revised[0]['version']==original['version']+1
+            assert len(revised[0]['payload']['periods'])==12 and revised[0]['payload']['periods'][-1]['revenue']==120000
+            record('文件修订显式选择合并，预览不写入，确认保留数据ID和历史季度')
+            page.locator('[data-action="data-revisions"]').click();page.locator('#modal').wait_for(state='visible')
+            history=page.locator('#modal .dialog-body > details')
+            assert history.count()==2
+            assert page.locator('#modal [data-action="restore-revision"]').count()==2
+            history.first.locator('summary').first.click()
+            assert history.first.locator('[data-action="restore-revision"]').is_visible()
+            assert '完整性异常' not in page.locator('#modal').inner_text()
+            assert all(x['integrity_valid'] for x in client.get('/api/workspace/datasets/'+original['id']+'/revisions').json()['items'])
+            snap('ui-current-revisions.png')
+            page.locator('#modal [data-action="close-modal"]').click();page.locator('#modal').wait_for(state='hidden')
+            assert client.get('/api/datasets/'+original['id']).json()['version']==revised[0]['version']
+            record('修订记录可读并显示通过校验的历史恢复入口；查看和关闭不改数据版本')
             go('copilot');page.locator('#assistant-query').fill('核查毛利现金流的来源与数据质量，查看已保存证据')
             submit('#assistant-form');page.locator('.chat-turn').wait_for();assert page.locator('.fact-tile').count()>=2
             assert '数据质量' in page.locator('#assistant-answer').inner_text();assert page.locator('.tool-receipts').count()==1
@@ -153,18 +352,74 @@ def main():
             page.locator('.chat-turn').first.wait_for()
             record('同一账户切换研究视角并持久化；已有会话仍可读取')
             page.locator('#assistant-query').fill('继续展开刚才的现金流依据');submit('#assistant-form')
+            page.locator('.chat-turn').nth(1).wait_for()
             assert page.locator('.chat-turn').count()==2;record('连续追问保留会话，不是覆盖单条固定回复')
+            page.locator('#assistant-query').fill('市场占有率是多少');submit('#assistant-form')
+            page.locator('.chat-turn').nth(2).wait_for()
+            assert page.locator('.chat-turn').count()==3
+            assert page.locator('.chat-turn').last.locator('.fact-tile').count()==0
+            assert '未匹配可计算' in page.locator('.chat-turn').last.inner_text()
+            record('未知研究问题明确能力边界，不用毛利或现金模板替代答案')
+            page.locator('#assistant-query').fill('2024-Q2经营现金流是多少');submit('#assistant-form')
+            page.locator('.chat-turn').nth(3).wait_for()
+            assert page.locator('.chat-turn').count()==4
+            latest=page.locator('.chat-turn').last
+            assert '2024-Q2' in latest.inner_text() and '12,900.00元' in latest.inner_text()
+            record('指定历史季度显示当期现金流金额与真实来源，不误用最新季度或比率')
+            page.locator('#assistant-query').fill('那环比呢');submit('#assistant-form')
+            page.locator('.chat-turn').nth(4).wait_for()
+            followup=page.locator('.chat-turn').last
+            message_id=followup.get_attribute('data-message')
+            thread_row=client.get('/api/services/threads?identity_id='+identity_id+'&dataset_id='+original['id']).json()['items'][0]
+            saved_turn=client.get('/api/services/threads/'+thread_row['id']).json()['messages'][-1]
+            saved_scope=saved_turn['payload']['response']['context']['question_scope']
+            assert saved_scope['period']=='2024-Q2' and saved_scope['comparison']=='previous'
+            followup.locator('[data-x-action="chat-trace"]').click()
+            followup.locator('.trace-container .assistant-fact').first.wait_for()
+            trace=client.get('/api/services/threads/'+thread_row['id']+'/messages/'+message_id+'/trace',params={'identity_id':identity_id,'dataset_id':original['id']}).json()
+            assert trace['question_scope']['period']==saved_scope['period']
+            assert trace['question_scope']['comparison']==saved_scope['comparison']
+            assert trace['question_scope']['topics']==saved_scope['topics']
+            assert trace['scope']['dataset_version']==revised[0]['version'] and trace['external_calls']==0
+            assert '2024-Q2' in followup.locator('.trace-container').inner_text()
+            record('历史季度短追问复核绑定原消息期间/环比/指标，使用当前修订且不外发')
             snap('ui-current-copilot.png')
             page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
-            f='form[data-service-form="proposal"]';page.locator(f+' details').first.click();page.locator(f+' [name="forecast"]').check()
+            f='form[data-service-form="proposal"]';page.locator(f+' summary').filter(has_text='模型参与与数学工具').click();page.locator(f+' [name="forecast"]').check()
+            assert page.locator(f+' [name="max_calls"]').input_value()=='0'
+            assert page.locator(f).evaluate('(form)=>form.checkValidity()')
             submit(f);page.locator('form[data-service-form="confirm-proposal"]').wait_for()
+            record('零外部调用预算身份仍能预览本地Agent与预测任务，表单无隐藏非法约束')
             assert client.get('/api/runs').json()['items']==[]
             record('助手提案显示实际Agent依赖和上下文，确认前没有运行或模型调用')
             snap('ui-current-approval.png')
             submit('form[data-service-form="confirm-proposal"]');page.locator('.chat-run-result').wait_for(timeout=25000)
             assert '未调用模型' in page.locator('#assistant-answer').inner_text();record('助手批准→真实Agent运行→数学工具与报告回到原会话')
+            run_id=client.get('/api/runs').json()['items'][0]['id'];run_row=client.get('/api/runs/'+run_id).json()
+            assert run_row['result']['analysis']['current_period']=='2024-Q2'
+            assert run_row['result']['adaptive']['mathematical_outputs']['forecast']['train_end']=='2024-Q2'
+            record('助手历史问题进入批准计划后，数学输入仍截至同一目标季度')
+            go('agents:run-'+run_id)
+            math=page.locator('#main [data-math-kind="forecast"]');math.wait_for()
+            assert math.locator('svg.chart').is_visible()
+            assert '相同滚动起点回测' in math.inner_text() and '点估计' in math.inner_text()
+            assert page.locator('#main a[href$="export?format=json"]').is_visible()
+            assert not overflow();snap('ui-current-agent-math.png')
+            record('Agent报告直接展示真实预测曲线、逐季数值、回测和缺失误差带，不要求阅读JSON')
             if native:
-                run_id=client.get('/api/runs').json()['items'][0]['id']
+                for format in ('json','md'):
+                    with page.expect_download() as downloaded:
+                        page.locator('#main a[href$="export?format='+format+'"]').first.click()
+                    content=Path(downloaded.value.path()).read_text(encoding='utf-8')
+                    if format=='json':
+                        exported=json.loads(content)
+                        assert exported['export_context']['run_id']==run_id
+                        assert exported['adaptive']['mathematical_outputs']['forecast']['forecast']
+                    else:
+                        assert '时间序列预测与回测' in content and 'locked_holdout' in content
+                record('浏览器原生下载Markdown与完整JSON，实际数学结果与归档上下文均保留')
+            go('copilot');page.locator('.chat-turn').first.wait_for()
+            if native:
                 stream=page.evaluate("""id => new Promise((resolve,reject)=>{
                     const entries=[];let opened=false;
                     const source=new EventSource('/api/runs/'+encodeURIComponent(id)+'/events',{withCredentials:true});
@@ -184,19 +439,385 @@ def main():
                 assert rejected['status']==403 and rejected['body']['error']['code']=='CSRF_REJECTED'
                 record('原生同源写请求缺少CSRF时被拒绝，不影响现有登录会话')
             page.locator('[data-x-action="chat-propose"][data-kind="action"]').last.click()
-            f='form[data-service-form="proposal"]';page.locator(f+' [name="acceptance"]').fill('核对原始财务表，记录输入口径和复核证据');submit(f);submit('form[data-service-form="confirm-proposal"]')
+            f='form[data-service-form="proposal"]';page.locator(f+' [name="text"]').fill('核对2024-Q2经营现金流环比变化与财务原表');page.locator(f+' [name="acceptance"]').fill('核对原始财务表，记录输入口径和复核证据');submit(f);submit('form[data-service-form="confirm-proposal"]')
             assert client.get('/api/workspace/actions').json()['items'];record('助手行动提案→明确验收标准→确认入库')
-            page.locator('[data-x-action="chat-propose"][data-kind="memory"]').last.click();submit(f);submit('form[data-service-form="confirm-proposal"]')
+            action=client.get('/api/workspace/actions').json()['items'][0]
+            go('actions');page.locator('[data-action="action-detail"][data-id="'+action['id']+'"]').click()
+            page.locator('[data-action="action-edit"]').click()
+            edit='#action-edit-form';page.locator(edit+' [name="owner"]').fill('验收复核负责人')
+            page.locator(edit+' [name="due_at"]').fill('2026-12-31')
+            page.locator(edit+' [name="priority"]').select_option('high')
+            page.locator(edit+' [name="note"]').fill('调整验收分工和期限，保留原始来源')
+            submit(edit)
+            updated=next(x for x in client.get('/api/workspace/actions').json()['items'] if x['id']==action['id'])
+            assert updated['version']==action['version']+1 and updated['payload']['identity_id']==identity_id
+            assert updated['payload']['owner']=='验收复核负责人' and updated['payload']['due_at']=='2026-12-31'
+            assert updated['payload']['changes'] and updated['payload']['history']==action['payload']['history']
+            record('行动原位调整负责人、期限和优先级，保留身份、来源与完整状态/修改历史')
+            go('copilot');page.locator('.chat-turn').first.wait_for()
+            page.locator('[data-x-action="chat-propose"][data-kind="memory"]').last.click();page.locator(f+' [name="text"]').fill('2024-Q2经营现金流环比复核须保留财务原表与输入口径');submit(f);submit('form[data-service-form="confirm-proposal"]')
             m=client.get('/api/memories').json()['items'][0];assert m['payload']['identity_id']==identity_id and m['payload']['approved'];record('助手记忆确认与身份作用域持久化')
             page.locator('#active-identity').select_option('');page.wait_for_timeout(700)
             assert page.locator('.chat-turn').count()==0;record('切换服务身份不混入前身份的研究会话')
             page.locator('#active-identity').select_option(identity_id);page.wait_for_timeout(700)
-            assert page.locator('.chat-turn').count()==2;record('切回身份恢复原会话与独立任务结果')
+            assert page.locator('.chat-turn').count()==5;record('切回身份恢复原会话与独立任务结果')
             print('STEP tracking',flush=True);go('tracking');page.locator('[data-x-action="watch-new"]').click();f='form[data-service-form="watch"]'
-            page.locator(f+' [name="title"]').fill('毛利低于40%（验收）');page.locator(f+' [name="threshold"]').fill('0.4');page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
-            print('STEP rule submitted',flush=True);page.locator('.alert-card').wait_for();page.locator('[data-x-action="alert-ack"]').click();f='form[data-service-form="alert-ack"]';page.locator(f+' [name="note"]').fill('已核对合成输入，仅用于流程验收');submit(f)
+            page.locator(f+' [name="title"]').fill('毛利低于40%（验收）');page.locator(f+' [name="threshold"]').fill('40');page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
+            print('STEP rule submitted',flush=True);page.locator('.alert-card').wait_for()
+            alert_id=page.locator('[data-x-action="alert-investigate"]').first.get_attribute('data-id')
+            page.locator('[data-x-action="alert-investigate"]').first.click()
+            page.locator('[data-x-action="alert-current-investigate"]').click()
+            page.locator('#main[data-page="copilot"] .chat-turn').nth(5).wait_for()
+            latest_turn=page.locator('.chat-turn').last
+            assert alert_id in latest_turn.inner_text() and '明确使用当前保存的修订' in latest_turn.inner_text()
+            current_thread=client.get('/api/services/threads/'+thread_row['id']).json()
+            assert len(current_thread['messages'])==6
+            assert alert_id in current_thread['messages'][-1]['payload']['question']
+            assert current_thread['messages'][-1]['payload']['response']['external_calls']==0
+            record('历史提醒明确转交当前修订研究：一次导航后问题实际入会话，不空跳转或重复提交')
+            go('tracking');page.locator('[data-x-action="alert-ack"]').click();f='form[data-service-form="alert-ack"]';page.locator(f+' [name="note"]').fill('已核对合成输入，仅用于流程验收');submit(f)
             page.locator('[data-x-action="alert-archive"]').click();page.wait_for_timeout(500);assert page.locator('.alert-card').count()==0
             go('brief');go('tracking');assert page.locator('.alert-card').count()==0;record('跟踪规则真实触发、核对归档、相同输入不重复提醒')
+            # Reuse a saved mathematical result through the actual review/approval
+            # UI, rather than copying parameters into a second unrelated experiment.
+            go('lab');page.locator('#experiment-form [name="name"]').fill('保存假设闭环（合成验收）')
+            page.locator('#experiment-form [name="price_change"]').fill('5')
+            page.locator('#experiment-form [name="fixed_cost_share"]').fill('30')
+            page.locator('#experiment-form [name="assumptions"]').fill('明确假设售价上调且固定成本份额不变，仅作流程验收')
+            submit('#experiment-form')
+            saved_experiment=client.get('/api/workspace/experiments').json()['items'][0]
+            saved_id=saved_experiment['id']
+            page.locator('[data-route="agents:experiment-'+saved_id+'"]').click()
+            page.locator('#plan-form').wait_for()
+            assert page.locator('#plan-experiment').input_value()==saved_id
+            assert page.locator('#plan-form [name="scenario_note"]').is_disabled()
+            assert '明确假设售价上调' in page.locator('#selected-experiment-details').inner_text()
+            submit('#plan-form');page.locator('#execute-plan-form').wait_for()
+            page.get_by_text('实验来源与结果指纹',exact=True).click()
+            assert saved_experiment['experiment_hash'] in page.locator('#main').inner_text()
+            submit('#execute-plan-form')
+            page.locator('[data-math-kind="sensitivity"]').wait_for(timeout=25000)
+            selected_run_id=page.url.split('agents:run-')[-1]
+            selected_run=client.get('/api/runs/'+selected_run_id).json()
+            full_experiment=client.get('/api/workspace/experiments/'+saved_id).json()
+            tool=selected_run['result']['adaptive']['mathematical_outputs']['sensitivity']
+            assert tool['result']==full_experiment['payload']['result']['result']
+            assert selected_run['result']['experiment']['hash']==saved_experiment['experiment_hash']
+            page.locator('[data-math-kind="sensitivity"]').get_by_text('实验来源与结果指纹',exact=True).click()
+            assert saved_experiment['experiment_hash'] in page.locator('[data-math-kind="sensitivity"]').inner_text()
+            assert not overflow();snap('ui-current-saved-experiment.png')
+            record('保存情景→原参数锁定转交Agent→预览批准→同一数学结果和实验指纹归档')
+            page.locator('[data-action="action-from-report"]').click()
+            page.locator('#action-form [name="acceptance"]').fill('核对本报告明确假设、原始财务输入和实际数学结果')
+            submit('#action-form');page.locator('#modal').wait_for(state='hidden')
+            linked_action=next(x for x in client.get('/api/workspace/actions').json()['items'] if x['payload'].get('run_id')==selected_run_id)
+            assert linked_action['payload']['provenance']['run_id']==selected_run_id
+            assert linked_action['payload']['provenance']['dataset_version']==selected_run['snapshot']['dataset_version']
+            page.locator('[data-x-action="watch-from-report"]').click();f='form[data-service-form="watch"]'
+            page.locator(f+' [name="title"]').fill('报告来源跟踪（合成验收）')
+            page.locator(f+' [name="threshold"]').fill('-100')
+            page.locator(f+' [name="stale_after_days"]').fill('1460');submit(f)
+            linked_watch=next(w for w in client.get('/api/services/tracking?identity_id='+identity_id).json()['rules'] if w['payload']['title']=='报告来源跟踪（合成验收）')
+            assert linked_watch['payload']['provenance']['run_id']==selected_run_id
+            record('报告分别转为行动与跟踪规则，保存原报告和财务修订来源')
+            # A newer input revision never silently re-labels the old report as
+            # current. Choosing it as a new action basis requires explicit consent.
+            go('data');page.locator('#dataset-editor [name="notes"]').fill('合成验收追加数据说明；历史报告和实验不得重写')
+            submit('#dataset-editor');page.locator('[data-action="commit-stage"]').click()
+            page.locator('#modal').wait_for(state='hidden')
+            assert client.get('/api/datasets').json()['items'][0]['version']>selected_run['snapshot']['dataset_version']
+            go('agents:run-'+selected_run_id)
+            assert client.get('/api/runs/'+selected_run_id).json()['result']==selected_run['result']
+            page.locator('[data-action="action-from-report"]').click()
+            page.locator('#action-form [name="acceptance"]').fill('明确基于旧报告复核历史假设与差异，另行检查新修订')
+            page.locator('#action-form button[type="submit"]').click()
+            page.locator('#action-form .form-error').filter(has_text='历史').wait_for()
+            assert page.locator('#action-form [name="allow_historical"]').is_visible()
+            page.locator('#action-form [name="allow_historical"]').check();submit('#action-form')
+            page.locator('#modal').wait_for(state='hidden')
+            historical=client.get('/api/workspace/actions').json()['items'][0]
+            assert historical['payload']['provenance']['dataset_version']==selected_run['snapshot']['dataset_version']
+            assert historical['source_impact']['state']=='changed'
+            record('数据修订后旧报告保持不变，创建新行动须明确历史依据并显示来源变化')
+            # A second explicit synthetic CSV enters through the real import UI.
+            go('data');page.locator('#main [data-action="import-dialog"]').click()
+            page.locator('#import-file-form [name="target_id"]').select_option('')
+            page.locator('#import-file-form [name="company"]').fill('对照合成企业（非真实财报）')
+            page.locator('#import-file-form [name="amount_unit"]').select_option('yuan')
+            page.locator('#import-file-form [name="file"]').set_input_files({'name':'synthetic-comparison-peer.csv','mimeType':'text/csv','buffer':csv.encode('utf-8-sig')})
+            submit('#import-file-form');page.locator('[data-action="commit-stage"]').wait_for()
+            page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden')
+            peer=next(d for d in client.get('/api/datasets').json()['items'] if d['id']!=original['id'])
+            go('compare');page.locator('#compare-form [name="dataset_ids"]').nth(0).check()
+            page.locator('#compare-form [name="dataset_ids"]').nth(1).check();submit('#compare-form')
+            page.locator('#comparison-save-form').wait_for()
+            page.locator('#comparison-save-form [name="name"]').fill('已核对企业对照（合成验收）')
+            page.locator('#comparison-save-form [name="comparability_note"]').fill('两份合成单季人民币数据仅验证来源链，不代表行业样本或排名')
+            submit('#comparison-save-form');page.locator('#comparison-transfer-form').wait_for()
+            comparison_id=page.url.split('compare:')[-1]
+            comparison_row=client.get('/api/workspace/comparisons/'+comparison_id,params={'identity_id':identity_id}).json()
+            assert len(comparison_row['payload']['members'])==2
+            assert not overflow();snap('ui-current-saved-comparison.png')
+            page.locator('#comparison-transfer-form [name="primary_dataset_id"]').select_option(original['id'])
+            submit('#comparison-transfer-form');page.locator('#plan-comparison').wait_for()
+            assert page.locator('#plan-comparison').input_value()==comparison_id
+            assert peer['payload']['company'] in page.locator('#selected-comparison-details').inner_text()
+            submit('#plan-form');page.locator('#execute-plan-form').wait_for()
+            assert peer['payload']['company'] in page.locator('#main').inner_text()
+            submit('#execute-plan-form');page.locator('[data-comparison-stage="report"]').wait_for(timeout=25000)
+            comparison_run_id=page.url.split('agents:run-')[-1]
+            comparison_run=client.get('/api/runs/'+comparison_run_id).json()
+            assert comparison_run['result']['comparison_provenance']['hash']==comparison_row['comparison_hash']
+            assert peer['payload']['company'] in page.locator('[data-comparison-stage="report"]').inner_text()
+            assert not overflow();snap('ui-current-comparison-report.png')
+            record('共同季度对照经界面保存，明确主企业与额外企业输入，批准后报告保留原比较指纹和数值')
+            # Save a new experiment against the current primary revision; the older
+            # experiment above intentionally remains tied to its original inputs.
+            go('lab')
+            # A plan's primary enterprise does not change the global workspace
+            # selection. Explicitly choose the original before creating this chat.
+            if page.locator('#active-dataset').input_value()!=original['id']:
+                previous=page.locator('#experiment-form').element_handle()
+                page.locator('#active-dataset').select_option(original['id'])
+                previous.wait_for_element_state('hidden')
+            page.locator('#experiment-form').wait_for()
+            assert page.locator('#experiment-form [name="dataset_id"]').input_value()==original['id']
+            page.locator('#experiment-form [name="name"]').fill('助手复用实验（合成验收）')
+            page.locator('#experiment-form [name="price_change"]').fill('3')
+            page.locator('#experiment-form [name="assumptions"]').fill('明确保存假设后由助手引用，仅为隔离流程验收')
+            submit('#experiment-form')
+            chat_experiment=client.get('/api/workspace/experiments').json()['items'][0]
+            assert chat_experiment['payload']['dataset_id']==original['id']
+            go('copilot');page.locator('[data-x-action="chat-new"]').first.click()
+            for index,question in enumerate([comparison_row['payload']['period']+'毛利率同比核查','继续展开刚才的原因','继续展开','那环比呢']):
+                page.locator('#assistant-query').fill(question);submit('#assistant-form')
+                page.locator('.chat-turn').nth(index).wait_for()
+                assert comparison_row['payload']['period'] in page.locator('.chat-turn').last.inner_text()
+            assert '毛利率' in page.locator('.chat-turn').last.locator('.fact-tile').first.inner_text()
+            # Explicitly switch back to the comparison's saved year-over-year basis.
+            page.locator('#assistant-query').fill('那同比呢');submit('#assistant-form');page.locator('.chat-turn').nth(4).wait_for()
+            page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
+            f='form[data-service-form="proposal"]';page.locator('#copilot-experiment').select_option(chat_experiment['id'])
+            page.locator('#copilot-comparison').select_option(comparison_id)
+            assert '明确保存假设' in page.locator('#copilot-experiment-details').inner_text()
+            assert peer['payload']['company'] in page.locator('#copilot-comparison-details').inner_text()
+            assert page.locator(f).evaluate('(form)=>form.checkValidity()')
+            submit(f);page.locator('form[data-service-form="confirm-proposal"]').wait_for()
+            assert comparison_row['payload']['period'] in page.locator('#modal').inner_text()
+            assert peer['payload']['company'] in page.locator('#modal').inner_text()
+            assert '明确保存假设' in page.locator('#modal').inner_text()
+            submit('form[data-service-form="confirm-proposal"]')
+            page.locator('.chat-math-results [data-math-kind="comparison"]').wait_for(timeout=25000)
+            assert page.locator('.chat-math-results [data-math-kind="sensitivity"]').is_visible()
+            assert peer['payload']['company'] in page.locator('.chat-math-results').inner_text()
+            chat_run=client.get('/api/runs/'+client.get('/api/runs').json()['items'][0]['id']).json()
+            assert chat_run['dataset_id']==original['id']
+            chat_proposal_id=page.locator('.proposal-card').last.get_attribute('data-proposal')
+            assert chat_run['result']['experiment']['hash']==chat_experiment['experiment_hash']
+            assert chat_run['result']['comparison_provenance']['hash']==comparison_row['comparison_hash']
+            assert chat_run['result']['analysis']['current_period']==comparison_row['payload']['period']
+            assert not overflow();snap('ui-current-copilot-saved-inputs.png')
+            record('连续短追问保持季度和指标→助手显式选实验/全体对照→批准→同会话真实数学与对照结果')
+            go('data');page.locator('#active-dataset').select_option(peer['id'])
+            page.locator('#dataset-editor').wait_for()
+            page.locator('#dataset-editor [name="notes"]').fill('仅同行修订说明：历史对照仍须冻结')
+            submit('#dataset-editor');page.locator('[data-action="commit-stage"]').click();page.locator('#modal').wait_for(state='hidden')
+            go('compare:'+comparison_id)
+            assert page.locator('#comparison-transfer-form').count()==0 or page.locator('#comparison-transfer-form button[type="submit"]').is_disabled()
+            assert client.get('/api/runs/'+comparison_run_id).json()['result']==comparison_run['result']
+            record('同行单独修订后已保存对照不再当成当前Agent输入，原报告比较结果不被重写')
+            page.locator('#active-dataset').select_option(original['id']);go('copilot')
+            current_proposal=page.locator('[data-proposal="'+chat_proposal_id+'"]')
+            current_proposal.wait_for()
+            current_proposal.get_by_text('财务输入已修订',exact=False).wait_for()
+            assert '财务输入已修订' in current_proposal.inner_text()
+            assert client.get('/api/runs/'+chat_run['id']).json()['result']==chat_run['result']
+            record('同行修订在原助手会话显示来源适用性变化，冻结数学与报告不重算')
+            # Delete only the comparison created by this isolated browser account.
+            # Cancel leaves it intact; permanent cleanup preserves historical runs
+            # while both live proposal selectors stop offering the removed record.
+            go('compare:'+comparison_id)
+            page.locator('[data-action="delete-comparison"][data-id="'+comparison_id+'"]').click()
+            cleanup='#comparison-delete-form';page.locator(cleanup).wait_for()
+            assert comparison_row['payload']['name'] in page.locator('#modal').inner_text()
+            assert comparison_id in page.locator('#modal').inner_text()
+            assert comparison_row['payload']['period'] in page.locator('#modal').inner_text()
+            assert not page.locator(cleanup).evaluate('(form)=>form.checkValidity()')
+            assert not overflow();snap('ui-current-comparison-cleanup.png',full_page=False)
+            page.locator('#modal [data-action="close-modal"]').first.click()
+            assert client.get('/api/workspace/comparisons/'+comparison_id,params={'identity_id':identity_id}).status_code==200
+            page.locator('[data-action="delete-comparison"][data-id="'+comparison_id+'"]').click()
+            page.locator(cleanup+' [name="confirm_delete"]').check();submit(cleanup)
+            page.locator('#modal').wait_for(state='hidden')
+            page.locator('#compare-form').wait_for()
+            assert page.locator('#main [data-route="compare:'+comparison_id+'"]').count()==0
+            assert client.get('/api/workspace/comparisons/'+comparison_id,params={'identity_id':identity_id}).status_code==404
+            assert client.get('/api/runs/'+comparison_run_id).json()['result']==comparison_run['result']
+            go('agents');page.locator('#plan-form').wait_for()
+            assert page.locator('#plan-comparison option[value="'+comparison_id+'"]').count()==0
+            go('copilot');current_proposal=page.locator('[data-proposal="'+chat_proposal_id+'"]')
+            current_proposal.get_by_text('原始企业比较已删除或不可访问',exact=False).wait_for()
+            assert client.get('/api/runs/'+chat_run['id']).json()['result']==chat_run['result']
+            page.locator('[data-x-action="chat-propose"][data-kind="research"]').last.click()
+            page.locator('#copilot-comparison').wait_for()
+            assert page.locator('#copilot-comparison option[value="'+comparison_id+'"]').count()==0
+            page.locator('#modal [data-action="close-modal"]').first.click()
+            record('对照清理明确对象和影响→取消保留→确认删除→列表与双计划选择器移除→同会话来源失效且原报告保留')
+            # New isolated conversation after the historical message-count checks.
+            # Read the actual fixture revision; all questions and trace reads go
+            # through production UI controls, with no response or DOM replacement.
+            go('copilot');page.locator('[data-x-action="chat-new"]').first.click()
+            growth_data=client.get('/api/datasets/'+original['id']).json()
+            growth_periods={row['period']:row for row in growth_data['payload']['periods']}
+            target_period='2024-Q2'
+            for index,(word,baseline_period,screenshot) in enumerate([
+                    ('同比','2023-Q2','ui-current-growth-yoy.png'),
+                    ('环比','2024-Q1','ui-current-growth-qoq.png')]):
+                current_revenue=growth_periods[target_period]['revenue']
+                baseline_revenue=growth_periods[baseline_period]['revenue']
+                assert baseline_revenue>0
+                rate=(current_revenue/baseline_revenue-1)*100
+                display=f'{rate:.2f}'.rstrip('0').rstrip('.')
+                page.locator('#assistant-query').fill(target_period+'收入'+word);submit('#assistant-form')
+                turn=page.locator('.chat-turn').nth(index);turn.wait_for()
+                assert turn.locator('.fact-tile').count()==2
+                growth_fact=turn.locator('.fact-tile').first
+                assert '收入增速' in growth_fact.inner_text()
+                assert growth_fact.locator('strong').inner_text()==f'{rate:.2f}%'
+                comparison_text=growth_fact.locator('.fact-comparison').inner_text()
+                assert word+' · '+baseline_period in comparison_text
+                assert '收入增速 +'+display+' %' in comparison_text
+                assert '基期收入 '+f'{baseline_revenue:,.0f}'+' 元' in comparison_text
+                assert '缺少可比基期' not in comparison_text and '个百分点' not in comparison_text
+                # The formula trace is the second assistant's actual renderer.
+                turn.locator('[data-x-action="chat-trace"]').click()
+                traced=turn.locator('.trace-container .assistant-fact').first;traced.wait_for()
+                trace_comparison=traced.locator('.fact-comparison').inner_text()
+                assert word+' · '+baseline_period in trace_comparison
+                assert '收入增速 +'+display+' %' in trace_comparison
+                assert '缺少可比基期' not in trace_comparison and '个百分点' not in trace_comparison
+                growth_fact.scroll_into_view_if_needed();assert not overflow();snap(screenshot)
+                record('收入'+word+'实际UI与公式复核显示已计算增速百分比、指定基期和收入金额，不误报缺少基期或百分点')
+            page.locator('#assistant-query').fill(target_period+'现金余额与经营现金流');submit('#assistant-form')
+            unsupported=page.locator('.chat-turn').nth(2);unsupported.wait_for()
+            assert unsupported.locator('.fact-tile').count()==0
+            unsupported_answer=unsupported.locator('.research-answer').inner_text()
+            assert '当前不支持现金余额' in unsupported_answer
+            assert '不能用期间流量' in unsupported_answer and '资产负债表' in unsupported_answer
+            assert '请单独提问' in unsupported_answer
+            unsupported.scroll_into_view_if_needed();assert not overflow();snap('ui-current-cash-balance-unsupported.png')
+            record('现金余额与经营现金流混合提问明确拒绝余额替代，保留来源提示且不显示无关金额或比率')
+            for index,(question,subject) in enumerate([
+                    ('总资产、总负债和资产负债率分别是多少','总额'),('有息负债是多少','负债'),('库存金额是多少','库存'),
+                    ('研发费用是多少元','研发'),('毛利多少钱','毛利')],start=3):
+                page.locator('#assistant-query').fill(target_period+question)
+                if subject=='总额':
+                    with page.expect_response(lambda response: response.request.method=='POST'
+                            and re.fullmatch(r'/api/services/threads/[^/]+/messages',urlsplit(response.url).path)) as sent:
+                        submit('#assistant-form')
+                    assert sent.value.status==201
+                    stock_created=sent.value.json()
+                else:submit('#assistant-form')
+                amount_turn=page.locator('.chat-turn').nth(index);amount_turn.wait_for()
+                if subject=='总额':
+                    assert amount_turn.locator('.fact-tile').count()==3
+                    stock_message_id=amount_turn.get_attribute('data-message')
+                    stock_message=stock_created['message'];stock_thread_id=stock_created['thread']['id']
+                    assert stock_message['id']==stock_message_id and stock_message['thread_id']==stock_thread_id
+                    assert stock_message['payload']['question']==target_period+question
+                    stock_saved=client.get('/api/services/threads/'+stock_thread_id).json()
+                    assert next(m for m in stock_saved['messages'] if m['id']==stock_message_id)=={
+                        key:stock_message[key] for key in ('id','payload','created_at')}
+                    stock_response=stock_message['payload']['response'];stock_facts=stock_response['facts']
+                    assert [fact['id'] for fact in stock_facts]==['leverage','assets','liabilities']
+                    assert stock_response['external_calls']==0
+                    assert stock_facts[0]['unit']=='ratio'
+                    assert abs(stock_facts[0]['value']-growth_periods[target_period]['liabilities']/growth_periods[target_period]['assets'])<1e-12
+                    for position,key in [(1,'assets'),(2,'liabilities')]:
+                        raw=growth_periods[target_period][key];fact=stock_facts[position]
+                        assert fact['value']==raw and fact['unit']=='CNY' and fact['period']==target_period
+                        assert fact['dataset_id']==growth_data['id'] and fact['dataset_version']==growth_data['version']
+                        assert fact['input_hash']==growth_data['content_hash']
+                        assert fact['inputs']==[{'path':f'periods/{target_period}/{key}','field':key,'value':raw,'unit':'CNY'}]
+                        tile=amount_turn.locator('.fact-tile').nth(position)
+                        assert tile.locator('strong').first.inner_text()==fact['display_value']
+                        tile.locator('summary').click()
+                        read_source_row(page,tile.locator('.fact-basis > div'),fact,growth_data,
+                            period=target_period,key=key,renderer='service',message_id=stock_message_id,
+                            screenshot=snap,observations=balance_source_readings,emit=journal.emit)
+                    stock_trace_path=f'/api/services/threads/{stock_thread_id}/messages/{stock_message_id}/trace'
+                    with page.expect_response(lambda response: response.request.method=='GET'
+                            and urlsplit(response.url).path==stock_trace_path) as trace_read:
+                        amount_turn.locator('[data-x-action="chat-trace"]').click()
+                    assert trace_read.value.status==200
+                    stock_trace=trace_read.value.json()
+                    assert_copilot_trace_binding(stock_message,stock_trace,growth_data,
+                        message_id=stock_message_id,thread_id=stock_thread_id)
+                    amount_turn.locator('.trace-container .assistant-fact').nth(2).wait_for()
+                    assert amount_turn.locator('.trace-container .assistant-fact').count()==3
+                    for position,key in [(1,'assets'),(2,'liabilities')]:
+                        trace_fact=stock_trace['facts'][position]
+                        traced=amount_turn.locator('.trace-container .assistant-fact').nth(position)
+                        assert traced.locator('.assistant-fact-head strong').inner_text()==trace_fact['display_value']
+                        traced.locator('summary').click()
+                        assert '期末存量' in traced.inner_text()
+                        read_source_row(page,traced.locator('.trace-list > li'),trace_fact,growth_data,
+                            period=target_period,key=key,renderer='trace',message_id=stock_message_id,
+                            screenshot=snap,observations=balance_source_readings,emit=journal.emit)
+                    amount_turn.scroll_into_view_if_needed();assert not overflow();snap('ui-current-recorded-balance-fields.png')
+                    amount_turn.locator('[data-x-action="chat-propose"][data-kind="research"]').click()
+                    f='form[data-service-form="proposal"]';page.locator(f).wait_for()
+                    assert page.locator(f).get_attribute('data-thread')==stock_thread_id
+                    assert page.locator(f).get_attribute('data-message')==stock_message_id
+                    assert not page.locator(f+' [name="forecast"]').is_checked()
+                    assert not page.locator(f+' [name="use_llm"]').is_checked()
+                    submit(f);page.locator('form[data-service-form="confirm-proposal"]').wait_for()
+                    stock_proposal_id=page.locator('form[data-service-form="confirm-proposal"]').get_attribute('data-id')
+                    stock_proposal=client.get('/api/services/proposals/'+stock_proposal_id).json()
+                    assert stock_proposal['payload']['source_message_id']==stock_message_id
+                    stock_plan=client.get('/api/workspace/plans/'+stock_proposal['payload']['plan_id']).json()
+                    stock_prior_runs={row['id'] for row in client.get('/api/runs').json()['items']}
+                    assert target_period in page.locator('#modal').inner_text()
+                    assert '总资产' in page.locator('#modal').inner_text() and '总负债' in page.locator('#modal').inner_text()
+                    submit('form[data-service-form="confirm-proposal"]')
+                    stock_card=page.locator('.proposal-card[data-proposal="'+stock_proposal_id+'"]')
+                    stock_card.locator('.chat-run-result [data-report-readout]').wait_for(timeout=25000)
+                    stock_confirmed=client.get('/api/services/proposals/'+stock_proposal_id).json()
+                    stock_run=client.get('/api/runs/'+stock_confirmed['payload']['result']['run_id']).json()
+                    assert_copilot_entity_binding(stock_message,stock_confirmed,stock_plan,stock_run,
+                        message_id=stock_message_id,proposal_id=stock_proposal_id,thread_id=stock_thread_id,
+                        dataset_id=growth_data['id'],prior_run_ids=stock_prior_runs)
+                    stock_readout=stock_run['result']['readout'];stock_report_facts=stock_readout['facts']
+                    assert [fact['id'] for fact in stock_report_facts]==['leverage','assets','liabilities']
+                    assert stock_readout['input_source']['dataset_hash']==growth_data['content_hash']
+                    for position,key in [(1,'assets'),(2,'liabilities')]:
+                        assert stock_report_facts[position]['value']==growth_periods[target_period][key]
+                        assert stock_report_facts[position]['unit']=='CNY'
+                    assert 'forecast' not in stock_run['result']['adaptive']['mathematical_outputs']
+                    report_view=stock_card.locator('.chat-run-result [data-report-readout]')
+                    assert '总资产' in report_view.inner_text() and '总负债' in report_view.inner_text()
+                    assert '期末存量' in report_view.inner_text()
+                    report_view.scroll_into_view_if_needed();assert not overflow();snap('ui-current-recorded-balance-report.png')
+                    read_report_rows(page,report_view,stock_message,stock_run,growth_data,
+                        period=target_period,proposal_id=stock_proposal_id,screenshot=snap,
+                        observations=balance_source_readings,emit=journal.emit)
+                    record('明确总资产/总负债及资产负债率→双助手原字段、金额单位/季度/来源→预测保持未选→确认后原字段报告，未调用外部模型')
+                    continue
+                assert amount_turn.locator('.fact-tile').count()==0
+                answer=amount_turn.locator('.research-answer');answer.wait_for()
+                assert subject in answer.inner_text() and '金额' in answer.inner_text() and '不能' in answer.inner_text()
+                if subject=='负债':
+                    answer.scroll_into_view_if_needed();assert not overflow();snap('ui-current-liability-subtype-unsupported.png',full_page=False)
+            record('未保存的有息负债/库存/研发/毛利金额问法保留单位含义，不以总负债或比率冒充细分金额')
+            for index,question in enumerate(['营业成本率','operating margin'],start=8):
+                page.locator('#assistant-query').fill(target_period+' '+question);submit('#assistant-form')
+                rejected_turn=page.locator('.chat-turn').nth(index);rejected_turn.wait_for()
+                assert rejected_turn.locator('.fact-tile').count()==0
+                answer=rejected_turn.locator('.research-answer');answer.wait_for()
+                assert '不支持' in answer.inner_text() or '未支持' in answer.inner_text()
+                if question=='operating margin':
+                    answer.scroll_into_view_if_needed();assert not overflow();snap('ui-current-unsupported-margin.png',full_page=False)
+            record('未实现的成本率和营业利润率明确拒答，不借通用别名替换为成本金额或毛利率')
             go('services');page.locator('[data-x-action="connection-new"]').click();f='form[data-service-form="connection"]'
             for name,val in {'name':'验收测试连接（未联网）','base_url':'https://models.test.example/v1','model':'fixture-model','api_key':'TEST-ONLY-UI-SECRET','password':password}.items():page.locator(f+' [name="'+name+'"]').fill(val)
             submit(f);page.locator('[data-x-action="connection-edit"]').wait_for();assert 'TEST-ONLY-UI-SECRET' not in page.locator('body').inner_text();record('私有连接界面保存与重新鉴权，密钥不回显')
@@ -223,16 +844,105 @@ def main():
             assert not page.locator('#drawer-backdrop').is_visible();record('移动抽屉真正打开、遮罩、Escape关闭与焦点恢复')
             go('brief');page.locator('[data-action="show-assistant"]').click();wait_box('#assistant-rail',max_x=390);assert page.locator('#assistant-rail').bounding_box()['x']>=-1
             page.locator('[data-action="close-assistant"]').click();record('移动助手抽屉可单独收起')
+            # Current layout acceptance includes constrained desktop, breakpoint,
+            # narrow handset and landscape. These are real browser geometry checks,
+            # not assertions inferred from CSS or historical screenshots.
+            for width,height in [(1440,1000),(1280,900),(1241,900),(1240,900),(1024,768),(901,768)]:
+                page.set_viewport_size({'width':width,'height':height});go('brief')
+                page.locator('[data-action="show-assistant"]').click();page.wait_for_timeout(250)
+                rail=page.locator('#assistant-rail');rail.wait_for(state='visible')
+                assert rail.evaluate('(el)=>getComputedStyle(el).visibility')=='visible'
+                assert not rail.evaluate('(el)=>el.inert')
+                assert page.locator('[data-action="show-assistant"]').get_attribute('aria-expanded')=='true'
+                assert not overflow(),f'{width} desktop assistant overflow'
+                main_width=page.locator('#main').bounding_box()['width'];assert main_width>=300
+                rail_width=rail.bounding_box()['width'];nav_width=page.locator('#sidebar').bounding_box()['width']
+                if width==1024:assert page.locator('#sidebar').bounding_box()['width']<=73
+                page.locator('[data-action="close-assistant"]').click()
+                rail.wait_for(state='hidden');page.wait_for_timeout(250)
+                assert rail.evaluate('(el)=>el.inert')
+                assert page.locator('[data-action="show-assistant"]').get_attribute('aria-expanded')=='false'
+                # Closing can restore the user's expanded navigation at <=1100px.
+                # Its measured growth legitimately consumes part of the freed rail.
+                nav_growth=page.locator('#sidebar').bounding_box()['width']-nav_width
+                main_growth=page.locator('#main').bounding_box()['width']-main_width
+                assert main_growth>0 and main_growth>=rail_width-nav_growth-2
+                page.locator('[data-action="menu"]').click();page.wait_for_timeout(250)
+                assert not overflow(),f'{width} desktop navigation overflow'
+            record('1440/1280/1241/1240/1024/901px桌面助手真实可见、关闭释放空间与导航几何检查')
+            for width,height in [(900,900),(320,720),(750,500)]:
+                page.set_viewport_size({'width':width,'height':height})
+                for route in (allroutes if width==320 else ['brief','copilot','agents','settings']):
+                    go(route);page.wait_for_timeout(80)
+                    assert not overflow(),f'{width}x{height} {route} overflow'
+                    assert page.locator('#sidebar').evaluate('(el)=>el.inert')
+                go('brief');page.locator('[data-action="menu"]').click();wait_box('#sidebar')
+                assert not page.locator('#sidebar').evaluate('(el)=>el.inert')
+                assert page.locator('.main-shell').evaluate('(el)=>el.inert')
+                page.keyboard.press('Escape');page.wait_for_timeout(250)
+                assert page.locator('#sidebar').evaluate('(el)=>el.inert')
+                assert page.locator('[data-action="menu"]').evaluate('(el)=>el===document.activeElement')
+            record('900px断点、320px全部工作区、750x500横屏及抽屉inert/焦点恢复')
+            page.set_viewport_size({'width':1280,'height':900})
+            page.emulate_media(reduced_motion='reduce')
+            go('settings');page.locator('#preferences-form [name="theme"]').select_option('dark');submit('#preferences-form')
+            assert page.locator('html').get_attribute('data-theme')=='dark'
+            assert client.get('/api/auth/me').json()['user']['preferences']['theme']=='dark'
+            go('copilot');assert not overflow();snap('ui-current-dark.png')
+            record('深色主题与减少动效模式真实渲染，不复用历史截图')
+            # Capacity fixture setup uses authenticated HTTP on this temporary
+            # account; the owner cleanup and confirmation below are native UI.
+            fixture_budget_wait=api_budget.reserve(300,wait=lambda seconds:page.wait_for_timeout(seconds*1000))
+            page.set_viewport_size({'width':1520,'height':1080})
+            client.headers['X-CSRF-Token']=client.get('/api/auth/me').json()['csrf']
+            setup=client.post('/api/services/identities',json={'name':'清理容量专用合成身份','dataset_ids':[original['id'],peer['id']]})
+            assert setup.status_code==201,setup.text
+            orphan_identity=setup.json()
+            current_members=[client.get('/api/datasets/'+d['id']).json() for d in (original,peer)]
+            capacity_payload={'name':'失效范围容量合成对照','identity_id':orphan_identity['id'],
+                'datasets':[{'id':d['id'],'version':d['version'],'hash':d['content_hash']} for d in current_members],
+                'comparison':'year_over_year','comparability_note':'隔离容量边界验收，仅使用合成输入，不用于业务判断'}
+            orphan_rows=[]
+            for index in range(200):
+                created=client.post('/api/workspace/comparisons',json={**capacity_payload,'name':capacity_payload['name']+' '+str(index)})
+                assert created.status_code==201,created.text
+                orphan_rows.append(created.json())
+            assert client.delete('/api/services/identities/'+orphan_identity['id'],params={'version':orphan_identity['version']}).status_code==200
+            replacement_payload={**capacity_payload,'identity_id':identity_id,'name':'清理失效范围后恢复容量（合成验收）'}
+            full=client.post('/api/workspace/comparisons',json=replacement_payload)
+            assert full.status_code==409 and full.json()['error']['code']=='RESOURCE_LIMIT'
+            go('services')
+            archived=next(row for row in client.get('/api/services/history').json()['items'] if row['kind']=='comparison')
+            page.locator('[data-x-action="history-detail"][data-id="'+archived['id']+'"]').click()
+            page.locator('#inspector [data-action="delete-comparison"][data-id="'+archived['id']+'"]').click()
+            page.locator(cleanup).wait_for()
+            assert archived['id'] in page.locator('#modal').inner_text()
+            assert page.locator(cleanup).get_attribute('data-identity-id')==orphan_identity['id']
+            assert page.locator('#active-identity').input_value()==identity_id
+            assert not overflow();snap('ui-current-history-comparison-cleanup.png',full_page=False)
+            page.locator(cleanup+' [name="confirm_delete"]').check();submit(cleanup)
+            page.locator('#modal').wait_for(state='hidden')
+            assert client.get('/api/workspace/comparisons/'+archived['id'],params={'identity_id':orphan_identity['id']}).status_code==404
+            recovered=client.post('/api/workspace/comparisons',json=replacement_payload)
+            assert recovered.status_code==201,recovered.text
+            assert orphan_identity['id'] not in [row['id'] for row in client.get('/api/services/identities').json()['items']]
+            assert page.locator('#active-identity').input_value()==identity_id
+            record('200份失效身份对照占满容量→账户历史逐项确认清理→容量恢复，原身份与研究执行权不恢复')
+            # The isolated database is destroyed after the browser exits. Do not
+            # create another 200-request DELETE burst merely to tidy test fixtures.
             assert not errors,errors
             assert not [r for r in responses if r['status']>=500],responses
             record('全部上述流程零捕获JavaScript异常、零HTTP5xx')
             completed=True
         except Exception as exc:
+            journal.emit('acceptance_failed',error_type=type(exc).__name__,checks_completed=len(checks))
             snap('ui-current-failure.png');print('FAIL',type(exc).__name__,str(exc),flush=True)
             raise
         finally:
             status_counts={str(status):sum(row['status']==status for row in responses) for status in sorted({row['status'] for row in responses})}
             http={'requests':len(responses),'status_counts':status_counts,'server_errors':[row for row in responses if row['status']>=500]}
-            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'policy_modified':False,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
+            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'screenshot_sha256':{name:hashlib.sha256((OUT/name).read_bytes()).hexdigest() for name in screens},'run_identity':{key:os.getenv(key,'') for key in ('GITHUB_SHA','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},'balance_source_readings':balance_source_readings,'policy_modified':False,'fixture_budget_wait_seconds':fixture_budget_wait,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
+            journal.emit('browser_cleanup_requested',all_checks_passed=completed)
             b.close()
+            journal.close()
 if __name__=='__main__':main()

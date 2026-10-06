@@ -1,0 +1,222 @@
+{
+  "date_utc": "2026-10-05",
+  "verification": "Authenticated in-process APIs with isolated synthetic data; no native browser or live supplier verification",
+  "responses": [
+    {
+      "query": "2024-Q2 营业成本是百分之多少",
+      "assistants": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q2",
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": [],
+          "external_calls": 0
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2024-Q2",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": [],
+          "external_calls": 0
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 净利润是多少百分比",
+      "assistants": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q2",
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": [],
+          "external_calls": 0
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2024-Q2",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": [],
+          "external_calls": 0
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 成本的百分比是多少",
+      "assistants": {
+        "legacy": {
+          "scope": {
+            "status": "unsupported_topic",
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "topics": [],
+            "comparison": "year_over_year",
+            "period": "2024-Q2",
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": false,
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": [],
+          "external_calls": 0
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "can_calculate": false,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+            "period": "2024-Q2",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "unsupported_topic",
+            "topics": [],
+            "unsupported_currency": false
+          },
+          "answer": "当前问答不支持将该金额指标直接作为百分比；百分比需要明确分母与比率口径，不能用原始金额替代。请明确已支持的比率指标，或单独询问金额。",
+          "facts": [],
+          "external_calls": 0
+        }
+      }
+    },
+    {
+      "query": "2024-Q2 毛利率是多少百分比",
+      "assistants": {
+        "legacy": {
+          "scope": {
+            "status": "supported",
+            "notice": "",
+            "topics": [
+              "gross_margin"
+            ],
+            "comparison": "year_over_year",
+            "period": "2024-Q2",
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "period_explicit": true,
+            "default_overview": false,
+            "comparison_explicit": false,
+            "period_basis": "single_quarter",
+            "can_calculate": true,
+            "unsupported_currency": false
+          },
+          "answer": "已核对隔离合成公司的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+          "facts": [
+            {
+              "id": "gross_margin",
+              "value": 0.3333333333333333
+            }
+          ],
+          "external_calls": 0
+        },
+        "service": {
+          "scope": {
+            "available_periods": [
+              "2024-Q1",
+              "2024-Q2"
+            ],
+            "can_calculate": true,
+            "comparison": "year_over_year",
+            "comparison_explicit": false,
+            "default_overview": false,
+            "notice": "",
+            "period": "2024-Q2",
+            "period_basis": "single_quarter",
+            "period_explicit": true,
+            "status": "supported",
+            "topics": [
+              "gross_margin"
+            ],
+            "unsupported_currency": false
+          },
+          "answer": "隔离合成公司 2024-Q2：毛利率为33.33%。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "facts": [
+            {
+              "id": "gross_margin",
+              "value": 0.3333333333333333
+            }
+          ],
+          "external_calls": 0
+        }
+      }
+    }
+  ],
+  "provider_calls": 0,
+  "network_listener_attempts": 0,
+  "source_sha256": {
+    "server/question_scope.py": "09c6b36d35a9ee5941794312d89ef9209f2057335b54fdd782d2913ac04bbcaa",
+    "server/execution_scope.py": "109ff0b92b1bae3806d1876e44565dadaefc475b87f6bcfb88d62d1c0cf5454e"
+  }
+}

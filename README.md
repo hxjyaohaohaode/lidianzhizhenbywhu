@@ -2,6 +2,8 @@
 
 面向锂电企业经营研究的工作台：数学建模、动态 Agent 协同和可审阅的策略演进是基础，研究助手、数据、证据、报告、行动与跟踪围绕同一条真实数据链工作。
 
+完整产品验收进行中，暂不建议合并。最新改动、已知未完成项和独立验证边界见[本轮记录](docs/READER_NATIVE_COVERAGE_20261005.md)及[PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。
+
 保留比赛工程原始 Logo 和开场动画。首次工作区为空，没有自动生成的企业财报、模拟模型回复或无来源概率。
 
 ## Windows 启动
@@ -31,7 +33,20 @@ cd "D:\项目文件\比赛文件\计算机设计大赛\lidian-workbench"
 - **数学建模**：统一财务口径、DQI/GMPS透明研究规则、成本情景/敏感性、四类预测基线与开发/留出验证。保留缺失值和不适用原因，不宣称专业预测经验校准已完成。
 - **策略演进**：用户验收形成案例，去重回放比较，明确基线、门槛和人工批准，支持回滚；不把模型自评分当效果验证。
 
-## 本次重点
+## 4.1 更新重点（2026-09-30）
+
+身份范围一致的研究入口、带修订号的删除与提案确认、助手迟到响应隔离、未知付费结果不重发、真实本地能力回放、凭据撤销竞态保护，以及完整一致的数据导出。DeepSeek、智谱 GLM、阿里 Qwen 保留，新增小米 MiMo 的受限结构化输出适配。
+
+[本轮修改、兼容说明与15个工作区覆盖](docs/RELEASE_4_1.md) · [本轮实际验收及未验证项](docs/VALIDATION.md)
+
+迁移原子性、历史恢复校验、备份副本重启和删除后的持续使用边界见[恢复一致性记录](docs/RECOVERY_INTEGRITY_20260930.md)。
+
+企业对照的保存、明确批准复用与历史来源合同见[对照联动记录](docs/COMPARISON_INTEGRATION_20260930.md)，其验收与上一轮单独记录。
+
+第四轮按完整业务旅程修复来源交接：保存实验进入批准 Agent、版本绑定的报告/行动/跟踪、冻结验收证据、历史告警核对与人工反馈回放。详见[根因、15工作区覆盖、回归矩阵与未验证边界](docs/SYSTEM_INTEGRATION_20260930.md)。
+
+第二轮补齐持续使用路径：同ID季度文件合并/修订、行动重新分派与改期、资料原子作用域与原始采集出处、可读Agent数学结果及完整报告导出、身份范围一致的汇总、可清理的策略回放。详见[产品完整性核查](docs/PRODUCT_COMPLETENESS_20260930.md)和[用户手册](docs/USER_MANUAL.md)。
+
 
 真实收起的导航、独立可伸缩助手、15个互相联动工作区；同一账户多服务身份、持久会话、批准后执行的研究/行动/跟踪/记忆提案、版本绑定；私有连接加密保存、会话吊销、再认证、限流；有界本地跟踪与提醒去重；不删除用户文件的 Windows 环境检查；包含匹配密钥选项的 SQLite 在线备份。
 
@@ -39,7 +54,11 @@ cd "D:\项目文件\比赛文件\计算机设计大赛\lidian-workbench"
 
 ## 更新与备份
 
-先关闭旧服务并备份，不要删除或覆盖自己的 `.runtime`、`.env`、`.git` 或资料。数据库升级到版本3，旧程序拒绝降级写入。私有连接的恢复需要数据库与原匹配主密钥；不要把两者上传 GitHub。备份帮助：`python scripts/backup.py --help`。
+先关闭旧服务并备份，不要删除或覆盖自己的 `.runtime`、`.env`、`.git` 或资料。基础数据库版本仍为3，跨工作区来源合同升级工作区扩展版本至3，旧应用会拒绝降级写入。升级不会重算或重写历史报告；高于支持版本的数据库拒绝降级写入。私有连接的恢复需要数据库与原匹配主密钥；不要把两者上传 GitHub。备份帮助：`python scripts/backup.py --help`。
+
+本轮真实使用与恢复改进（2026-10-02）：历史追问复核、双数据表单隔离、保存后的断网恢复、提醒转研究与损坏输入/回放门禁，见[工作流一致性记录](docs/WORKFLOW_RECOVERY_20261002.md)。验收结论以对应提交的执行记录和CI为准。
+
+按钮迟到响应、新输入保留、归档窗口和暂停/继续发送边界见[定向修正与验证边界](docs/LATE_BUTTON_CONTINUATIONS_20261005.md)。
 
 ## 开发与验收
 
@@ -56,6 +75,6 @@ python scripts/native_acceptance.py
 
 ## 发布
 
-仓库：`https://github.com/hxjyaohaohaode/lidianzhizhenbywhu`，交付版本以 `main` 为准。`python scripts/publish.py` 是未来变更的预览及审阅分支辅助工具，`--confirm` 才会测试并推送；不会强推或合并 main。推送 SHA 核对、GitHub CI 成功、第三方模型可用和公网生产验收是四项不同结果。
+仓库：`https://github.com/hxjyaohaohaode/lidianzhizhenbywhu`，当前交付候选在 [PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2) 的 `feat/research-workbench-hardening` 分支，尚未合并到 `main`；请按PR顶部记录的精确SHA取得本轮代码，不把main或旧ZIP当作该候选。`python scripts/publish.py` 是未来变更的预览及审阅分支辅助工具，`--confirm` 才会测试并推送；不会强推或合并 main。推送 SHA 核对、GitHub CI 成功、第三方模型可用和公网生产验收是四项不同结果。
 
 本地/远端验收状态以本次交付报告和命令记录为准。没有宣称零漏洞、所有环境都验证过或软件著作权已审批。

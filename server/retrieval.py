@@ -1,5 +1,6 @@
 """Owner-isolated persistent lexical index; retrievable does not mean verified true."""
 from __future__ import annotations
+from .clock import utc_today
 import math
 import re
 from collections import Counter
@@ -32,9 +33,9 @@ def retrieve(documents,query,limit=6):
         if len(matches)<min(2,len(q)) or len(matches)/len(q)<.08:continue
         p=doc['payload'];dt=p.get('published_at');age=None
         if dt:
-            try:age=(date.today()-date.fromisoformat(dt)).days
+            try:age=(utc_today()-date.fromisoformat(dt)).days
             except ValueError:pass
-        ranked.append({'id':f"{doc['id']}:{start}",'document_id':doc['id'],'title':p['title'],'url':p.get('source_url',''),'excerpt':excerpt,'start':start,'end':start+len(excerpt),'content_hash':digest(excerpt),'document_hash':doc['content_hash'],'score':round(score,4),'matched_terms':sorted(matches),'published_at':dt,'age_days':age,'source_kind':p.get('source_kind','user_provided'),'verification':p.get('verification','unverified'),'stale':age is None or age>365})
+        ranked.append({'id':f"{doc['id']}:{start}",'document_id':doc['id'],'title':p['title'],'url':p.get('source_url',''),'excerpt':excerpt,'start':start,'end':start+len(excerpt),'content_hash':digest(excerpt),'document_hash':doc['content_hash'],'score':round(score,4),'matched_terms':sorted(matches),'published_at':dt,'age_days':age,'source_kind':p.get('source_kind','user_provided'),'verification':p.get('verification','unverified'),'retrieved_at':p.get('retrieved_at'),'fetched_at':p.get('fetched_at'),'original_source_url':p.get('original_source_url',p.get('source_url','')),'stale':age is None or age>365})
     ranked.sort(key=lambda r:(-r['score'],r['id']));selected=[];per_doc=Counter()
     for row in ranked:
         if per_doc[row['document_id']]>=2:continue
@@ -51,14 +52,31 @@ def retrieve_indexed(store,user,query,limit=6,company=None):
     rows=store.all('''SELECT c.id,c.document_id,c.start,c.excerpt,e.content_hash,
         json_object('title',json_extract(e.payload,'$.title'),'source_url',json_extract(e.payload,'$.source_url'),
         'published_at',json_extract(e.payload,'$.published_at'),'source_kind',json_extract(e.payload,'$.source_kind'),
-        'verification',json_extract(e.payload,'$.verification')) AS payload
+        'verification',json_extract(e.payload,'$.verification'),'retrieved_at',json_extract(e.payload,'$.retrieved_at'),
+        'fetched_at',json_extract(e.payload,'$.fetched_at'),'original_source_url',coalesce(json_extract(e.payload,'$.original_source_url'),json_extract(e.payload,'$.source_url'))) AS payload
         FROM evidence_fts f JOIN evidence_chunks c ON c.id=f.chunk_id JOIN evidence e ON e.id=c.document_id
         LEFT JOIN workspace_objects w ON w.kind='evidence_review' AND w.user_id=e.user_id AND w.natural_key=e.id
         WHERE evidence_fts MATCH ? AND c.user_id=? AND e.user_id=?
+        AND (coalesce(json_extract(w.payload,'$.company'),'')!='' OR json_extract(w.payload,'$.global_scope')=1)
         AND coalesce(json_extract(w.payload,'$.status'),'unreviewed')!='rejected'
         AND (json_extract(w.payload,'$.expires_at') IS NULL OR json_extract(w.payload,'$.expires_at')>=?)
         AND (?='' OR coalesce(json_extract(w.payload,'$.company'),'') IN ('',?))
-        ORDER BY bm25(evidence_fts),c.id LIMIT 48''',(expression,user,user,date.today().isoformat(),scope_company,scope_company))
+        ORDER BY bm25(evidence_fts),c.id LIMIT 48''',(expression,user,user,utc_today().isoformat(),scope_company,scope_company))
+    # Validate only the bounded, already owner/scope-filtered FTS candidates.
+    # Cached excerpt text is not proof that it belongs to its original document.
+    from .source_bindings import evidence_content_valid
+    from .security import fail
+    documents={}
+    for row in rows:
+        doc_id=row['document_id']
+        if doc_id not in documents:documents[doc_id]=store.owned('evidence',user,doc_id)
+        try:
+            candidate={'start':row['start'],'end':row['start']+len(row['excerpt']),
+                'excerpt':row['excerpt'],'content_hash':digest(row['excerpt']),'document_hash':row['content_hash']}
+            valid=bool(documents[doc_id] and evidence_content_valid(documents[doc_id],candidate))
+        except (KeyError,TypeError,ValueError):valid=False
+        if not valid:
+            fail('SOURCE_INTEGRITY','证据原文或检索片段校验失败，未采用该内容；请核对原始资料后重新录入并预览',409)
     docs=[{'id':x['id'],'content_hash':x['content_hash'],'payload':{**x['payload'],'text':x['excerpt']}} for x in rows]
     by_id={x['id']:x for x in rows};seen=set();per_doc=Counter();candidates=[]
     for item in retrieve(docs,query,48):
@@ -68,6 +86,8 @@ def retrieve_indexed(store,user,query,limit=6,company=None):
         item.update(id=key,document_id=row['document_id'],start=row['start'],end=row['start']+len(row['excerpt']),excerpt=row['excerpt'],content_hash=digest(row['excerpt']),document_hash=row['content_hash'])
         review=store.one("SELECT payload,version FROM workspace_objects WHERE kind='evidence_review' AND user_id=? AND natural_key=?",(user,row['document_id']))
         item.update(stance=review['payload'].get('stance','context') if review else 'context',review_note=review['payload'].get('note','') if review else '',review_version=review['version'] if review else 0,review_state=review['payload']['status'] if review else 'unreviewed',company_scope=review['payload'].get('company','') if review else '')
+        document=documents[row['document_id']]
+        item.update(document_version=document['version'],document_payload_hash=digest(document['payload']),review_hash=digest(review['payload']) if review else None)
         candidates.append(item)
         if len(candidates)>=limit:break
     return candidates

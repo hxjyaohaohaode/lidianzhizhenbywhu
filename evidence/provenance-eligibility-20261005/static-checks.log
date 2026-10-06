@@ -1,0 +1,2 @@
+PASS: Python compilation
+PASS: git diff --check

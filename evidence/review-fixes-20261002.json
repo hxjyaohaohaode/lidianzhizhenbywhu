@@ -1,0 +1,56 @@
+{
+  "base_commit": "9811f9817a0f14e29f5120dd7c096b403cc20b75",
+  "scope": [
+    "net margin aliases",
+    "version-bound action evidence",
+    "interrupted legacy cancellation",
+    "legacy and adaptive actual dispatch accounting",
+    "reservation deletion race and repeated-crash recovery"
+  ],
+  "local_validation": {
+    "backend": 1316,
+    "frontend": 309,
+    "http_groups": 17,
+    "aggregate_stages": 7,
+    "independent_review": "No unresolved blockers in reviewed fix boundaries"
+  },
+  "files": {
+    "docs/openapi.json": "bb11358f3cb653e3406e2ff1cba9f2dcb9af4314985ee92b69ab2a02bd474b12",
+    "scripts/full_chain_check.py": "e5bb63dbc0f785f625c383458d10745bf6d9414569f2caca73a656f5cf839bfc",
+    "server/adaptive_runtime.py": "5ac87be5c0e2b93a0f707eca4d2fa07adfe33afaa5b431138d4f2949690f867e",
+    "server/business_provenance.py": "fbb5c399a53cf7e9a8dc2b549aa40b0238e3762a0e252ef6ae373b2555cbf903",
+    "server/contracts.py": "7f926b408e8374f8b69bbc9d0245678d97a8406f91cb7730c4199ad147aa79ff",
+    "server/network.py": "321d6d4cb88cb50017569eb99ca0202d934f85e1d7737b0607d361794c632600",
+    "server/providers.py": "0912db922db43f351b4195e6afe9231b192e8e0770e31770c47e02ef7e41cdf7",
+    "server/question_scope.py": "42c47dcfd1fd7bb61bbf46a5906f02bcbf2f13767723fa28c870a8a3cd029f69",
+    "server/studio.py": "a77eb4505677251bd825c5e8dab871ce279743f538109d8d872bdcee15bf66c5",
+    "server/workflows.py": "c51e75e98deb28516081fa075df89875706a5cd7fae59a93613119514c4a02c0",
+    "tests/conftest.py": "fd2ec2020f27af505d74fba1acdbc4ab034eb0555b96c01ade262137ab50f20e",
+    "tests/test_action_lifecycle.py": "baf7befd092b376f2c76331966c32f58763b4588f9c067e2db9fbd832db33da8",
+    "tests/test_adaptive_recovery_selection.py": "65387a6aa9ed26023ff6a431ef34afb9d790ca68ef65e38cfde7b4a01970baf3",
+    "tests/test_business_provenance.py": "91df1de2e0b8de3260617dd54f2fd5dd8fafa4e95f70dcdbe7eddeb46651eca3",
+    "tests/test_deleted_child_lifecycle.py": "868bd7a4308e51cb459f3c65c362f984de1db797c0e705153918d473150f0bf8",
+    "tests/test_execution_services.py": "693e8137631b770eef0a772692804bbe3f1a5f53a977eb5873c75e1bc2200de1",
+    "tests/test_question_scope.py": "2bfb0d476e20afeb7339024701aa88cfbbffe8da778d3758e009298355998464",
+    "tests/test_workspace_api.py": "9bcf8d319de533426b4b7dce6109fe5dc2a7efe132eae51759aec80a589a5c34",
+    "tests/test_action_evidence_binding.py": "19ee381474b1fa6c6d05581e21e215b2a6c65e5d9a34c90ef394812772fa7a7a",
+    "tests/test_adaptive_transport_disclosure.py": "b795f1acff4c13411effef649369cfdde2f47b4512f18bead60ee24afd241c36",
+    "tests/test_legacy_studio_lifecycle.py": "fb32845085fc7ed16b1bffc66d853c30a0e26fd1a76413052bad8c17a3856c51"
+  },
+  "not_verified": [
+    "Live model providers",
+    "Production load",
+    "Public deployment"
+  ],
+  "publication": "Pending exact-commit CI; no merge or deployment",
+  "executed_at": "2026-10-02T08:05:23.973574+00:00",
+  "local_native": {
+    "passed": false,
+    "checks": 0,
+    "attempts": [
+      "bundled Chromium absent",
+      "existing system Chromium failed at launch: socket Operation not permitted"
+    ],
+    "policy_modified": false
+  }
+}

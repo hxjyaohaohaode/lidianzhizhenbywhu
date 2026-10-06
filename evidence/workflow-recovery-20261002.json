@@ -1,0 +1,223 @@
+{
+  "recorded_at": "2026-10-02T03:47:26.484585+00:00",
+  "base_commit": "dce853a77a28505c8dabdcff5041740596a24841",
+  "review_target": "https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2",
+  "source_manifest_sha256": "93690d875abbfbacbafd03fcbdb8b96bcb3de17b6f259876a3b10bc87e533c45",
+  "source_file_count": 198,
+  "working_source_matches_aggregate": true,
+  "checks": [
+    {
+      "check": "python-compile",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.136,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "typecheck",
+      "command": [
+        "node",
+        "/tmp/lidian-workflow-validation-20261002/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 1.038,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "build",
+      "command": [
+        "node",
+        "/tmp/lidian-workflow-validation-20261002/node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 1.267,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "pytest",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--junitxml=evidence/pytest.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 159.083,
+      "timeout_seconds": 600
+    },
+    {
+      "check": "frontend-tests",
+      "command": [
+        "node",
+        "--test",
+        "tests/actions.frontend.test.mjs",
+        "tests/business-source.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
+        "tests/copilot-message-trace.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
+        "tests/data-draft-continuation.frontend.test.mjs",
+        "tests/data-editor-isolation.frontend.test.mjs",
+        "tests/evidence.frontend.test.mjs",
+        "tests/form-snapshot.frontend.test.mjs",
+        "tests/frontend.test.mjs",
+        "tests/import-navigation.frontend.test.mjs",
+        "tests/import.frontend.test.mjs",
+        "tests/math-results.frontend.test.mjs",
+        "tests/proposal-preview.frontend.test.mjs",
+        "tests/recovery.frontend.test.mjs",
+        "tests/report-integrity.frontend.test.mjs",
+        "tests/saved-comparisons.frontend.test.mjs",
+        "tests/saved-experiments.frontend.test.mjs",
+        "tests/saved-mutation.frontend.test.mjs",
+        "tests/service-completion.frontend.test.mjs",
+        "tests/services.frontend.test.mjs",
+        "tests/workflow-inputs.frontend.test.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 0.867,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "source-guard",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/source_guard.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.226,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/full_chain_check.py"
+      ],
+      "exit_code": 0,
+      "seconds": 5.142,
+      "timeout_seconds": 240
+    }
+  ],
+  "backend": {
+    "passed": 1216,
+    "failed": 0,
+    "skipped": 0,
+    "new_cases": 64,
+    "warnings": [
+      "Starlette TestClient/httpx upstream deprecation"
+    ]
+  },
+  "frontend": {
+    "passed": 309,
+    "failed": 0,
+    "new_cases": 63,
+    "scope": "production-handler and renderer/transport regressions, not native browser evidence"
+  },
+  "full_chain_http": {
+    "transport": "real loopback TCP/HTTP; actual Uvicorn process + SQLite; NOT native browser E2E",
+    "real_external_supplier_calls": 0,
+    "test_data": "explicitly synthetic; temporary isolated database; never bundled",
+    "passed": true,
+    "checks": [
+      "原始PNG/MP4实际HTTP散列一致、视频Range分段与安全响应头",
+      "真实Cookie登录与全新工作区零业务数据（非浏览器SameSite验收）",
+      "跨源写入、缺失CSRF与伪造内部身份的真实HTTP拒绝链",
+      "multipart实际解析→暂存预览→明确事务提交→企业跨账户隔离",
+      "证据范围、反向标签、批准记忆与真实全文检索联动",
+      "问题→计划指纹→明确批准→动态DAG→预测/情景/反向证据→冻结报告",
+      "报告字段血缘、节点产物、事件锚点、完整工作区导出和跨账户隔离",
+      "连续追问→原季度/基期→明确保存实验与全部对照成员→硬重启后幂等批准→数学和报告回到同会话",
+      "双企业共同季度对照→版本冻结→明确批准Agent→报告引用→另一企业修订/清理→行动适用性变化且历史不改写",
+      "真实HTTP流式SSE、单调事件ID、Last-Event-ID精确续读与非法游标拒绝",
+      "真实HTTP超界整数在查询/续读头/修订入口提前422拒绝，合法上界SSE仍返回终态，无空200断流",
+      "安全暂停→真实SIGKILL进程退出→重启持久状态→显式继续→无重复节点产物",
+      "真实报告验收→自动提出策略→逐例回放与保留组→明确激活→旧计划失效→回滚；历史结果不变",
+      "真实HTTP来源→保存实验→批准Agent→报告→行动→指标跟踪→证据验收→人工反馈；修订/清理后历史冻结与当前失效分离",
+      "实际本机四并发64次跨工作区读取全部成功；单独保留延迟样本",
+      "运行中的SQLite一致性备份、副本结构及外键检查、回执散列核对",
+      "备份→全新DATA_DIR实际Uvicorn重启→重新登录→完整来源/报告核对→跨账户拒绝→历史恢复新修订且原库/报告不变"
+    ],
+    "load_probe": {
+      "read_requests": 64,
+      "concurrency": 4,
+      "p50_ms": 13.1,
+      "p95_ms": 80.62,
+      "max_ms": 100.66
+    },
+    "elapsed_seconds": 5.04
+  },
+  "independent_review": {
+    "verdict": "no remaining code blockers in frozen scoped patch",
+    "manifest_entries_verified": 198,
+    "compiled_modules_verified": 25,
+    "openapi_matches": true,
+    "focused_backend_passed": 375,
+    "focused_frontend_passed": 309,
+    "counts_overlap_aggregate": true
+  },
+  "native_browser": {
+    "local_passed": false,
+    "checks_completed": 0,
+    "first_attempt": "Playwright managed executable absent",
+    "supported_system_browser_attempt": "/usr/bin/chromium failed before navigation: process_singleton socket() Operation not permitted",
+    "policy_modified": false,
+    "new_scenarios_require_exact_commit_ci": true,
+    "scope": "UI snapshot; final native result must come from exact-SHA GitHub Actions, not prior acceptance"
+  },
+  "other_checks": {
+    "pip_check": true,
+    "diff_check": true,
+    "compiled_js_matches_source": true,
+    "openapi_matches": true,
+    "brand_and_financial_provider_core_unchanged": true
+  },
+  "preserved_evidence_sha256": {
+    "full-chain-http.json": "fa108d2d5730eead029c8813cbcecf6e1218bf84958b6ad4a05f0272aec0718d",
+    "verification.json": "1230fc0f83799b2662a0777df6f974ed6b2b955254c20975299301890b1de9c3"
+  },
+  "brand_sha256": {
+    "logo.png": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+    "loading-video.mp4": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd"
+  },
+  "execution_log_sha256": {
+    "verification.json": "f33d8443b47292ea830dcfb84ebe1d6aed544aaafacacd01ca8bf9598864582b",
+    "pytest.log": "cb0eb0cab7d600d79081fdb86772d4c7d4782c26baced67db49a143660a47c5f",
+    "frontend-tests.log": "b6c1b741236b35169a9947fc5af9883512853f60eeebaa6f47a3fce248586dcd",
+    "full-chain-http.json": "f22f7508ae35b19bbb544e6ff08e7ab85a436e071396deb581372d5eec6b0cbb",
+    "source-guard.json": "a79025c8903c1267a9084450012b8c0209fc74e51e36727e7650650015aa4a44"
+  },
+  "local_native_log_sha256": {
+    "native-missing-executable.log": "38e5ea88fd7e4aeb356136dde2608122ef310f12044323d589761b64e25a843a",
+    "native-system-chromium.log": "147755bc47ac4718917643300e92ed812fc4d1ed6daee3c4acd8be1a28e09b25"
+  },
+  "real_external_supplier_calls": 0,
+  "publication": {
+    "published": false,
+    "exact_commit_ci": "pending after publication",
+    "merged": false,
+    "deployed": false
+  },
+  "boundaries": [
+    "No live business data, provider credentials or paid supplier calls",
+    "No database schema migration, formula changes or historical report rewrite",
+    "No merge, force push, manual deployment or ZIP delivery",
+    "Legacy missing question scope requires a restated question rather than guessed quarter",
+    "Existing unanchored legacy report and orphaned-preview limits remain as previously documented",
+    "Full alert-origin feedback-display policy remains a separate bounded design question",
+    "Native known-save recovery intentionally disconnects one read; this is expected fault injection, not an unexplained network failure"
+  ],
+  "documentation": "docs/WORKFLOW_RECOVERY_20261002.md"
+}

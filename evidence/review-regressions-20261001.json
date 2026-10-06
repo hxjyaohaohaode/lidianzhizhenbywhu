@@ -1,0 +1,212 @@
+{
+  "recorded_at": "2026-10-01T18:57:28.091007+00:00",
+  "review_target": "https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2",
+  "base_commit": "63fcc3813e0cf2ea15d0b582e4e95f5318a89476",
+  "code_tree_excluding_dated_docs_and_evidence": "9ba5e404011ecedfeed2d8172c811d3c25d18dfd",
+  "validation_scope": "Isolated copy of the final source and tests; temporary synthetic databases; no live business data or provider credentials",
+  "source_file_count": 179,
+  "source_manifest_sha256": "cdf11f67166596d972725ff96e2023729be24a6703849c6a599b24321bf54277",
+  "working_tree_matches_tested_source": true,
+  "checks": [
+    {
+      "check": "python-compile",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.279,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "typecheck",
+      "command": [
+        "node",
+        "/tmp/lidian-review-final-validation-20261001/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 2.188,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "build",
+      "command": [
+        "node",
+        "/tmp/lidian-review-final-validation-20261001/node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 2.298,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "pytest",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--junitxml=evidence/pytest.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 259.216,
+      "timeout_seconds": 600
+    },
+    {
+      "check": "frontend-tests",
+      "command": [
+        "node",
+        "--test",
+        "tests/actions.frontend.test.mjs",
+        "tests/business-source.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
+        "tests/evidence.frontend.test.mjs",
+        "tests/frontend.test.mjs",
+        "tests/import-navigation.frontend.test.mjs",
+        "tests/import.frontend.test.mjs",
+        "tests/math-results.frontend.test.mjs",
+        "tests/proposal-preview.frontend.test.mjs",
+        "tests/recovery.frontend.test.mjs",
+        "tests/report-integrity.frontend.test.mjs",
+        "tests/saved-comparisons.frontend.test.mjs",
+        "tests/saved-experiments.frontend.test.mjs",
+        "tests/services.frontend.test.mjs",
+        "tests/workflow-inputs.frontend.test.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 1.15,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "source-guard",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/source_guard.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.315,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/full_chain_check.py"
+      ],
+      "exit_code": 0,
+      "seconds": 9.639,
+      "timeout_seconds": 240
+    }
+  ],
+  "backend": {
+    "passed": 1152,
+    "failed": 0,
+    "new_regression_cases": 107,
+    "warnings": [
+      "Starlette TestClient/httpx deprecation warning"
+    ]
+  },
+  "frontend": {
+    "passed": 246,
+    "failed": 0,
+    "new_regression_cases": 7,
+    "scope": "Node renderer/API/event-race regression tests, not native browser acceptance"
+  },
+  "full_chain_http": {
+    "transport": "real loopback TCP/HTTP; actual Uvicorn process + SQLite; NOT native browser E2E",
+    "real_external_supplier_calls": 0,
+    "test_data": "explicitly synthetic; temporary isolated database; never bundled",
+    "passed": true,
+    "checks": [
+      "原始PNG/MP4实际HTTP散列一致、视频Range分段与安全响应头",
+      "真实Cookie登录与全新工作区零业务数据（非浏览器SameSite验收）",
+      "跨源写入、缺失CSRF与伪造内部身份的真实HTTP拒绝链",
+      "multipart实际解析→暂存预览→明确事务提交→企业跨账户隔离",
+      "证据范围、反向标签、批准记忆与真实全文检索联动",
+      "问题→计划指纹→明确批准→动态DAG→预测/情景/反向证据→冻结报告",
+      "报告字段血缘、节点产物、事件锚点、完整工作区导出和跨账户隔离",
+      "连续追问→原季度/基期→明确保存实验与全部对照成员→硬重启后幂等批准→数学和报告回到同会话",
+      "双企业共同季度对照→版本冻结→明确批准Agent→报告引用→另一企业修订/清理→行动适用性变化且历史不改写",
+      "真实HTTP流式SSE、单调事件ID、Last-Event-ID精确续读与非法游标拒绝",
+      "真实HTTP超界整数在查询/续读头/修订入口提前422拒绝，合法上界SSE仍返回终态，无空200断流",
+      "安全暂停→真实SIGKILL进程退出→重启持久状态→显式继续→无重复节点产物",
+      "真实报告验收→自动提出策略→逐例回放与保留组→明确激活→旧计划失效→回滚；历史结果不变",
+      "真实HTTP来源→保存实验→批准Agent→报告→行动→指标跟踪→证据验收→人工反馈；修订/清理后历史冻结与当前失效分离",
+      "实际本机四并发64次跨工作区读取全部成功；单独保留延迟样本",
+      "运行中的SQLite一致性备份、副本结构及外键检查、回执散列核对",
+      "备份→全新DATA_DIR实际Uvicorn重启→重新登录→完整来源/报告核对→跨账户拒绝→历史恢复新修订且原库/报告不变"
+    ],
+    "load_probe": {
+      "read_requests": 64,
+      "concurrency": 4,
+      "p50_ms": 18.99,
+      "p95_ms": 77.03,
+      "max_ms": 100.43
+    },
+    "elapsed_seconds": 9.45
+  },
+  "native_browser": {
+    "attempted_at": "2026-10-01T18:51:39.288380+00:00",
+    "mode": "native",
+    "all_checks_passed": false,
+    "native_network_e2e": false,
+    "status": "blocked_before_navigation",
+    "checks": [],
+    "count": 0,
+    "screenshots": [],
+    "policy_modified": false,
+    "note": "浏览器启动或服务访问未完成；详见本次命令日志。历史截图不代表当前界面。",
+    "exit_code": 1,
+    "reason": "Chromium process_singleton socket() failed: Operation not permitted; process aborted before navigation",
+    "rendered_ui_verified": false
+  },
+  "dom_api_bridge": "Not rerun; a transport bridge would not constitute native browser acceptance",
+  "real_external_supplier_calls": 0,
+  "publication": {
+    "committed": false,
+    "pushed": false,
+    "commented": false,
+    "merged": false,
+    "deployed": false
+  },
+  "brand_sha256": {
+    "logo.png": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+    "loading-video.mp4": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd"
+  },
+  "preexisting_evidence_preserved_sha256": {
+    "full-chain-http.json": "fa108d2d5730eead029c8813cbcecf6e1218bf84958b6ad4a05f0272aec0718d",
+    "verification.json": "1230fc0f83799b2662a0777df6f974ed6b2b955254c20975299301890b1de9c3"
+  },
+  "execution_log_sha256": {
+    "pytest.log": "1032dfb8944fbd186654ed479f0bc1c987de3e2203f512d8b0c50c9e3e1c675b",
+    "frontend-tests.log": "676900dd3bf3ab54160029e14e468a39973adfab8e6dce2ec6ffbbe854f31433",
+    "verification.json": "fd55039add5416f6f1502db2c3514de3749d8fbd296216c4629766579d1b4a00",
+    "full-chain-http.json": "823f1c139cc5e854cc17f4b1a66b1dae16e9e70f8442de4fd0dfef187f0bad1b",
+    "native-service-browser.json": "39ce25a5436b45cfb8ac14213f67689b98cc31e611673bd5edfeb47a7d543bf1",
+    "native-service-browser.log": "513212487c403910dc0c984d72826d7bab8db61d451d39689abcd70c97723645"
+  },
+  "upgrade_limits": [
+    "Already-orphaned pre-marker proposal plans cannot be automatically distinguished from ordinary legacy workspace drafts; no blanket invalidation or live-data migration is performed.",
+    "Older legacy reports without a whole-output event digest retain report_hash_valid=null and partial-verification disclosure; arbitrary historical output changes cannot be independently authenticated.",
+    "Old unfinished non-dispatched calls without trustworthy closure evidence fail closed and are never retried; old terminal failures require matching immutable checkpoint evidence.",
+    "Strategy source revocation invalidates new planning and draft bindings; independently approved frozen runs and historical reports remain unchanged."
+  ],
+  "not_exercised": [
+    "Live model providers",
+    "Live public-source integrations",
+    "Public HTTPS deployment",
+    "Long-duration production load",
+    "Cross-device browser compatibility",
+    "Optional patched PDF integration"
+  ],
+  "documentation": "docs/review-regressions-20261001.md"
+}

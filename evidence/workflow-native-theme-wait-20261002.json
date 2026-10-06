@@ -1,0 +1,107 @@
+{
+  "recorded_at": "2026-10-02T08:45:06.100087+00:00",
+  "parent_commit": "6dc06d60fa994b4dd833987566e8d2497be58dff",
+  "application_source_changed": false,
+  "prior_ci_windows": {
+    "same_source_tree": "70980b4522d056ab3305c338cdcb67b3f5e21be6",
+    "failed_push": {
+      "run": 36983023418,
+      "job": 110761642561,
+      "artifact": 11216920578,
+      "artifact_sha256": "b2aba2af4e730d0b297d63f9e149f60ebb4424d96ba534271db5636976b6056c",
+      "job_url": "https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36983023418/job/110761642561",
+      "native_completed_checks": 49,
+      "passed": false,
+      "preference_put_started_utc": "2026-10-02T08:26:33.606827+00:00",
+      "theme_assertion_failed_utc": "2026-10-02T08:26:34.131129+00:00",
+      "response_observed_before_failure": false,
+      "screenshot": "Dark preference selected; rendered UI still light; Save button disabled",
+      "eventual_write_outcome": "Not established by the failed run; request was still pending at assertion"
+    },
+    "successful_pr": {
+      "run": 36983026417,
+      "job": 110761652210,
+      "artifact": 11216224204,
+      "test_commit": "b773659be79026b92b49938f222464ee640f0087",
+      "artifact_sha256": "b0ddeae8f727ba4f4219947d40bb6657ec88d15b2090f4c84a089c298b868a12",
+      "job_url": "https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/actions/runs/36983026417/job/110761652210",
+      "native_completed_checks": 52,
+      "passed": true,
+      "preference_put_started_utc": "2026-10-02T08:31:06.832540+00:00",
+      "preference_response_utc": "2026-10-02T08:31:06.844455+00:00",
+      "preference_response_status": 200
+    },
+    "interpretation": "The failed push remains failed. Same-tree PR success is comparison evidence, not verification of this new patch."
+  },
+  "fix": {
+    "cause": "The acceptance submit helper waited a fixed 500 ms, then read theme before the preferences PUT and guarded refresh completed.",
+    "completion": "Capture the original form and observe its existing submitting/pending attributes through finally, including detached forms; preserve its own errors.",
+    "assertions": "All existing business-result assertions retained; persisted /auth/me theme equality added.",
+    "same_mechanism_sites": [
+      "theme rendering",
+      "action confirmation/edit",
+      "memory confirmation",
+      "saved experiment readback",
+      "watch creation/readback",
+      "alert acknowledgement before archive"
+    ],
+    "timeout_ms": 10000,
+    "timeouts_increased": false,
+    "fixed_completion_sleeps_added": false,
+    "business_requests_retried": false,
+    "policy_modified": false
+  },
+  "regressions": {
+    "focused_python": 18,
+    "new_python_tests": 5,
+    "new_frontend_tests": 7,
+    "deterministic_cases": [
+      "delayed preferences PUT",
+      "delayed four-read refresh before theme render",
+      "failed PUT preserves original error and light theme",
+      "known save with failed refresh reports recovery without false dark or retry",
+      "navigation/idle replacement cannot complete the pending original",
+      "detached original service form preserves error",
+      "already completed form resolves without leaked observer/timer",
+      "stuck pending form fails at unchanged 10-second bound",
+      "destroyed execution context propagates without retry"
+    ],
+    "evidence_boundary": "Controlled JavaScript and helper contract tests; not native browser acceptance"
+  },
+  "independent_review": "Read-only review passed the original-form lifecycle, adverse cases, unchanged timeout/security boundaries, and retained assertions; no unresolved blockers.",
+  "local_validation": {
+    "executed_at": "2026-10-02T08:43:00.479815+00:00",
+    "command": "python scripts/verify.py --full-chain",
+    "aggregate_stages": 7,
+    "backend_passed": 1321,
+    "frontend_passed": 316,
+    "http_groups_passed": 17,
+    "diff_check": "passed",
+    "real_external_supplier_calls": 0
+  },
+  "source_files": {
+    "scripts/service_browser_check.py": "b31312d2b76dbe7f18f9a23b49d4ee9e2ea603705636661665d1f95fa4656242",
+    "tests/test_browser_form_completion.py": "8b87ca67b835e8a0d39b76f3d86f32dcf872045180ae68bc15aff6ae6e97b987",
+    "tests/preferences-completion.frontend.test.mjs": "c68f041093969b0db989480c77d2d684c407e7aedc8310f769e90eca13aebe34"
+  },
+  "verification_files": {
+    "evidence/verification.json": "1575e786683fabc22701efdb74aad5edac6592998c00e1ddb2ac8bff606f0156",
+    "evidence/full-chain-http.json": "27fb8e38db85d784d9fa1c6a2c678ffc889247098ef6de97c2ab13c89688f16a",
+    "evidence/source-guard.json": "b507057ed3ae4544ac6250ffbb837767d37a79f6538d5fd7576cfe276730e768",
+    "evidence/python-compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "evidence/typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "evidence/build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "evidence/pytest.log": "98939d62fb553257a6626468c26454877e9ef5cccd757651ca0f318326c47cc9",
+    "evidence/pytest.xml": "0b4f3f44ba05c1d0e8e14f12612a77506307fe03a13ee26ca471e1cef081d2bb",
+    "evidence/frontend-tests.log": "748c9bebf158106c84950b86c114f9ff0de7cd5ed29174acc47d5af46f1637f8",
+    "evidence/source-guard.log": "8fff5004443e1efeb351ab69652569c364c1d13f033acc247e6d10b56c554cae",
+    "evidence/full-chain-http.log": "349b4891e1c6b29281b5d0ebfe1e4744f69e57c304548d6f9fde2baa9733e4c4"
+  },
+  "local_native": {
+    "attempted_for_this_patch": false,
+    "reason": "Previously verified local Chromium socket restriction; unchanged policy. New exact-commit native CI is required."
+  },
+  "publication": "Not committed or pushed by this change; exact-commit CI remains pending.",
+  "merged": false,
+  "deployed": false
+}

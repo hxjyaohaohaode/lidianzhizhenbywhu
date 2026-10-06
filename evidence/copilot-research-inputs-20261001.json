@@ -1,0 +1,65 @@
+{
+  "executed_at": "2026-10-01T11:36:35.059216+00:00",
+  "baseline_remote_commit": "da2613b4f6b4b751c3cd5890f3a6cac7fd2ad8e1",
+  "baseline_tree": "73c6e8bc77c48a1c13d29398c44667997ca0683c",
+  "final_checks": {
+    "backend_passed": 989,
+    "backend_skipped": 0,
+    "backend_upstream_deprecation_warnings": 1,
+    "frontend_passed": 202,
+    "frontend_skipped": 0,
+    "http_journeys": 17,
+    "all_seven_stages_passed": true,
+    "dependency_consistency": "pip check passed",
+    "openapi_runtime_matches": true,
+    "original_brand_and_calculators_unchanged": true
+  },
+  "independent_review": {
+    "backend_focused_passed": 201,
+    "frontend_focused_passed": 91,
+    "final_backend_focused_passed": 66,
+    "overlaps_full_suite": true,
+    "remaining_blockers_in_reviewed_scope": 0,
+    "final_lifecycle_tests_passed": 4
+  },
+  "iterations_disclosed": [
+    "Initial new replay test expected the wrong covered-capability order; assertion corrected without changing production replay order.",
+    "Independent scope-only baseline follow-up misrouting fixed in production; historical period and metric retained.",
+    "Short sourced follow-up rejected before normalization in HTTP and API tests; server normalization order and HTML constraints fixed.",
+    "Explicit negated continuation now asks for clarification and cannot dispatch a guessed plan.",
+    "An intermediate aggregate run used compiled JS from before the last compatibility wording change: 986 backend passed but one frontend failed; rebuilt and ran all seven stages again."
+  ],
+  "real_external_supplier_calls": 0,
+  "native_browser_current_commit": "pending GitHub CI; known local host permission restriction not bypassed",
+  "not_verified": [
+    "real enterprise samples",
+    "live DeepSeek/GLM/MiMo/Qwen accounts or billed usage",
+    "public deployment",
+    "production load",
+    "copyright filing readiness"
+  ],
+  "tested_source_sha256": {
+    "server/copilot.py": "d3cc2047324a593534c3c0965ec6673c289681a67dfbf7285fcda9a1287d4982",
+    "server/question_scope.py": "6277b3a2d6182376a615fd4129b4ea0ac64f9a5c1c7d7c7077356811c504c0a3",
+    "server/service_contracts.py": "44dec5a79cb5b188360a36d32a22e2eb8bb9b3d2cd339e0fd0fa08561fc2ef67",
+    "web/copilot-ui.ts": "6289e80fd2d4ae6ff1e657438ece97687310895b60c03cc3c8fd24b8001f1e77",
+    "web/copilot-research-inputs.ts": "2901cdb86a2073d69adfe5b65b8388b4ebd39c57685222ccaf69baa4b79c9bae",
+    "web/dist/copilot-ui.js": "a2bef2b3f547faafe3add20c00845bf6999b8042482bed796beb470040aaf82f",
+    "web/dist/copilot-research-inputs.js": "086cb1a73159145237f88be2cb22796a24fc96e23f4933198bcdd01a0ff04713",
+    "scripts/full_chain_check.py": "12e121948b9c0df44e29640e6474126187ab9e21f3cd268688ab2252166512fb",
+    "scripts/service_browser_check.py": "648df90fa0c62730b0abbce37752e2e1f0b155f3f415ab76f7f56e8455712525"
+  },
+  "prior_final_executed_at": "2026-10-01T11:20:03.993672+00:00",
+  "native_ci_initial_failure": {
+    "commit": "24fdf2b6af55650c27c6dda3284018489793882a",
+    "runs": [
+      36855212518,
+      36855207414
+    ],
+    "all_four_regression_jobs": "seven-stage verification passed, native failed",
+    "failure": "Native test created a chat under the globally selected peer, then asserted the original enterprise old conversation. Actual screenshot proves the enterprise mismatch; corrected by explicit selection and exact proposal identity, not a sleep or removed assertion.",
+    "related_production_fix": "Completed chat remount rechecks source impacts; pending read followed by current-thread deletion clears loading and does not revive deleted conversation.",
+    "failed_artifact_id": 11159161177,
+    "failed_artifact_zip_sha256": "2ed0e098b59f6a5603fd6b71a0287f3635d5d83699a31cf33e77d054039dc883"
+  }
+}

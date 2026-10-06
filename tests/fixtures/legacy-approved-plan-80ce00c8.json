@@ -1,0 +1,758 @@
+{
+  "source": {
+    "repository": "hxjyaohaohaode/lidianzhizhenbywhu",
+    "commit": "80ce00c8c2dc1d942117bef7a397be41cf4df6ae",
+    "tree": "91e1bb6dfaebd7d9c238199d41d0c149bfd4e6dc",
+    "capture": "Actual old API-produced queued plan; no removed or rewritten business fields; synthetic account; no auth records or provider execution."
+  },
+  "run_id": "134782cf4a3547a286b789c4a5a875ac",
+  "plan_id": "5acd84fe57944a638a78cfff5aa9cc50",
+  "original_draft": {
+    "id": "5acd84fe57944a638a78cfff5aa9cc50",
+    "user_id": "ebda5b75769f4d7da7861890d00552fb",
+    "kind": "plan",
+    "natural_key": "74411f5d52c54d118fcac329864e0ce8",
+    "payload": {
+      "bindings": {
+        "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "dataset_id": "ad1e0721167d4467845bfd63d0d5496d",
+        "dataset_version": 1,
+        "evidence": [
+          {
+            "hash": "13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca",
+            "id": "48d17c084527442cbe521bba1f29a383",
+            "review_version": 1
+          }
+        ],
+        "identity": null,
+        "memory": [
+          {
+            "hash": "4ed715a3d9039c3d12191cef7a0aee72c332256581f1256f89515d2d986feb83",
+            "id": "215998e6d9254468956896bf4a1f2b13",
+            "version": 1
+          }
+        ],
+        "profile_version": 0,
+        "provider": {
+          "id": "legacy-stub",
+          "model": "local-only"
+        },
+        "session_version": null,
+        "user_version": 1
+      },
+      "blockers": [],
+      "call_ids": [
+        "analyst",
+        "challenger"
+      ],
+      "consent_scope": [
+        "问题",
+        "指标",
+        "选中证据片段、标识、企业范围、审阅/核验状态、来源类型与时间信息（当前展示与原始采集地址元数据保留本地；片段正文按预览发送）",
+        "装配后的已批准记忆",
+        "已选择的会话历史",
+        "企业目标与偏好"
+      ],
+      "context": {
+        "approved_memory": [
+          {
+            "id": "215998e6d9254468956896bf4a1f2b13",
+            "kind": "note",
+            "text": "旧格式隔离已批准研究记忆"
+          }
+        ],
+        "data_limits": [
+          "输入未经本系统独立核验；来源链接不等于真实性认证。",
+          "行业波动率由用户提供，不是实时拉取或历史校准结果。",
+          "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。"
+        ],
+        "evidence": [
+          {
+            "company_scope": "示例锂电企业（虚构）",
+            "excerpt": "毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。",
+            "fetched_at": null,
+            "id": "48d17c084527442cbe521bba1f29a383:0",
+            "published_at": null,
+            "retrieved_at": null,
+            "review_state": "unreviewed",
+            "source_kind": "user_provided",
+            "stale": true,
+            "stance": "context",
+            "verification": "unverified"
+          }
+        ],
+        "history": [],
+        "metrics": {
+          "asset_turnover": 0.4163265306122449,
+          "cash_ratio": 0.095,
+          "gross_margin": 0.185,
+          "inventory_turnover": 3.8665116279069767,
+          "leverage": 0.5459183673469388,
+          "margin_change": -0.04999999999999999,
+          "net_margin": 0.07,
+          "period": "2026-Q3",
+          "rd_ratio": 0.045,
+          "revenue_growth": 0.2142857142857142,
+          "roe": 0.06038054968287526,
+          "sales_production_ratio": 0.9016393442622951
+        },
+        "mode": "operational",
+        "objective": {
+          "cash_floor": null,
+          "company": "示例锂电企业（虚构）",
+          "focus": [
+            "margin",
+            "cash"
+          ],
+          "leverage_ceiling": null,
+          "margin_floor": null,
+          "objective": "",
+          "stale_after_days": 180
+        },
+        "preferences": {
+          "amount_unit": "wan",
+          "horizon": "long",
+          "interests": [],
+          "memory_enabled": true,
+          "risk_appetite": "medium",
+          "role": "enterprise",
+          "theme": "light",
+          "watchlist": []
+        },
+        "question": "毛利率现金流核查",
+        "research_scope": {
+          "available_periods": [
+            "2025-Q2",
+            "2025-Q3",
+            "2025-Q4",
+            "2026-Q1",
+            "2026-Q2",
+            "2026-Q3"
+          ],
+          "explicit": false,
+          "notice": "限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。",
+          "period": "2026-Q3",
+          "question_status": "supported",
+          "requested_comparison": null,
+          "status": "selected",
+          "topics": [
+            "gross_margin",
+            "cash_flow",
+            "cash_ratio"
+          ]
+        },
+        "service_identity": null
+      },
+      "created_at": "2026-10-05T01:52:57.141+00:00",
+      "excluded_memory": [],
+      "fingerprint": "41c3813af2892c29460748b578d1489d1184a4336dc8613544b6d32f6bcc95b6",
+      "max_calls": 2,
+      "nodes": [
+        {
+          "depends_on": [],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quality",
+          "name": "数据核验",
+          "purpose": "口径、缺失、期间与异常检查",
+          "skip_reason": null,
+          "tools": [
+            "quality_report"
+          ]
+        },
+        {
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quant",
+          "name": "量化分析",
+          "purpose": "财务指标、规则贡献与逐字段血缘",
+          "skip_reason": null,
+          "tools": [
+            "calculate",
+            "lineage"
+          ]
+        },
+        {
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "lexical",
+          "id": "evidence",
+          "name": "证据整理",
+          "purpose": "企业作用域过滤、来源核对与片段定位",
+          "skip_reason": null,
+          "tools": [
+            "scoped_retrieve"
+          ]
+        },
+        {
+          "depends_on": [
+            "quant",
+            "evidence"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "context",
+          "name": "上下文管理",
+          "purpose": "已批准记忆、目标与预算装配",
+          "skip_reason": null,
+          "tools": [
+            "pack_context"
+          ]
+        },
+        {
+          "depends_on": [
+            "context"
+          ],
+          "enabled": true,
+          "engine": "optional_llm",
+          "id": "analyst",
+          "name": "经营研究员",
+          "purpose": "提出与当前指标和证据绑定的解释假设",
+          "skip_reason": null,
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "context"
+          ],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "researcher",
+          "name": "行业证据员",
+          "purpose": "核查外部资料的业务适用性与时效条件",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "analyst"
+          ],
+          "enabled": true,
+          "engine": "optional_llm",
+          "id": "challenger",
+          "name": "反证审阅员",
+          "purpose": "审阅前序解释，指出替代原因及无法推出的结论",
+          "skip_reason": null,
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "quant",
+            "evidence",
+            "analyst",
+            "challenger"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "review",
+          "name": "结果门禁",
+          "purpose": "引用白名单、指标有效性及输出合同检查",
+          "skip_reason": null,
+          "tools": [
+            "verify_claims"
+          ]
+        },
+        {
+          "depends_on": [
+            "review"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "report",
+          "name": "报告归档",
+          "purpose": "冻结结论、证据、执行记录和待核查事项",
+          "skip_reason": null,
+          "tools": [
+            "archive_report"
+          ]
+        }
+      ],
+      "packing": {
+        "characters": 1710,
+        "dropped": [],
+        "included_citation_ids": [
+          "48d17c084527442cbe521bba1f29a383:0"
+        ],
+        "included_memory_ids": [
+          "215998e6d9254468956896bf4a1f2b13"
+        ],
+        "limit": 18000,
+        "reserved_for_review": 2400,
+        "token_count": "供应商响应usage才是实测token数",
+        "unit": "characters_not_tokens"
+      },
+      "quality": {
+        "as_of": "2026-10-05",
+        "closed_quarters": 6,
+        "field_coverage": {
+          "missing": [],
+          "period": "2026-Q3",
+          "present": 8,
+          "total": 8
+        },
+        "findings": [
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q2",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q3",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q4",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2026-Q1",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2026-Q2",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2026-Q3",
+            "severity": "warning"
+          },
+          {
+            "code": "MISSING_SOURCE",
+            "fields": [
+              "source_url"
+            ],
+            "message": "未填写原始来源地址，可在证据库关联文件并人工审阅",
+            "period": "2026-Q3",
+            "severity": "info"
+          }
+        ],
+        "input_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "source_state": "user_declared_not_verified",
+        "warning_count": 6
+      },
+      "request": {
+        "comparison": "year_over_year",
+        "comparison_artifact": null,
+        "dataset_id": "ad1e0721167d4467845bfd63d0d5496d",
+        "execution": null,
+        "experiment": null,
+        "identity_id": "",
+        "include_history": false,
+        "include_memory": true,
+        "max_calls": 2,
+        "mode": "operational",
+        "provider": "legacy-stub",
+        "query": "毛利率现金流核查",
+        "session_id": "78df3061d40941f98e5958b575f3a4aa",
+        "success_criteria": "",
+        "use_llm": true
+      },
+      "requested_max_calls": 2,
+      "run_id": null,
+      "snapshot": {
+        "analysis_as_of": "2026-10-05",
+        "citations": [
+          {
+            "age_days": null,
+            "company_scope": "示例锂电企业（虚构）",
+            "content_hash": "13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca",
+            "document_hash": "13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca",
+            "document_id": "48d17c084527442cbe521bba1f29a383",
+            "end": 136,
+            "excerpt": "毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。",
+            "fetched_at": null,
+            "id": "48d17c084527442cbe521bba1f29a383:0",
+            "matched_terms": [
+              "利率",
+              "核查",
+              "毛利",
+              "流核",
+              "率现",
+              "现金",
+              "金流"
+            ],
+            "original_source_url": "",
+            "published_at": null,
+            "retrieved_at": null,
+            "review_note": "",
+            "review_state": "unreviewed",
+            "review_version": 1,
+            "score": 3.8524,
+            "source_kind": "user_provided",
+            "stale": true,
+            "stance": "context",
+            "start": 0,
+            "title": "旧格式隔离合成证据",
+            "url": "",
+            "verification": "unverified"
+          }
+        ],
+        "comparison": "year_over_year",
+        "dataset": {
+          "amount_unit": "yuan",
+          "company": "示例锂电企业（虚构）",
+          "currency": "CNY",
+          "input_amount_unit": "yuan",
+          "name": "示例企业 · 六季度经营数据",
+          "notes": "完全合成的教学演示数据；不指向真实企业、行情或财报。按单季度而非累计口径。",
+          "period_basis": "standalone_quarter",
+          "periods": [
+            {
+              "assets": 40000000.0,
+              "cash_flow": 2240000.0,
+              "cost": 12320000.0,
+              "equity_begin": 22000000.0,
+              "equity_end": 22300000.0,
+              "industry_volatility": 0.22,
+              "inventory": 3000000.0,
+              "liabilities": 19000000.0,
+              "lithium_price": 82000.0,
+              "manufacturing_cost": 6529600.0,
+              "net_profit": 1440000.0,
+              "period": "2025-Q2",
+              "production_volume": 740.0,
+              "rd_expense": 720000.0,
+              "revenue": 16000000.0,
+              "sales_volume": 700.0
+            },
+            {
+              "assets": 41800000.0,
+              "cash_flow": 2200800.0,
+              "cost": 12852000.0,
+              "equity_begin": 22300000.0,
+              "equity_end": 22600000.0,
+              "industry_volatility": 0.235,
+              "inventory": 3260000.0,
+              "liabilities": 20550000.0,
+              "lithium_price": 85500.0,
+              "manufacturing_cost": 6811560.0,
+              "net_profit": 1444800.0,
+              "period": "2025-Q3",
+              "production_volume": 775.0,
+              "rd_expense": 756000.0,
+              "revenue": 16800000.0,
+              "sales_volume": 725.0
+            },
+            {
+              "assets": 43600000.0,
+              "cash_flow": 2135000.0,
+              "cost": 13562500.0,
+              "equity_begin": 22600000.0,
+              "equity_end": 22900000.0,
+              "industry_volatility": 0.25,
+              "inventory": 3520000.0,
+              "liabilities": 22100000.0,
+              "lithium_price": 89000.0,
+              "manufacturing_cost": 7188125.0,
+              "net_profit": 1435000.0,
+              "period": "2025-Q4",
+              "production_volume": 810.0,
+              "rd_expense": 787500.0,
+              "revenue": 17500000.0,
+              "sales_volume": 750.0
+            },
+            {
+              "assets": 45400000.0,
+              "cash_flow": 2045300.0,
+              "cost": 14299000.0,
+              "equity_begin": 22900000.0,
+              "equity_end": 23200000.0,
+              "industry_volatility": 0.265,
+              "inventory": 3780000.0,
+              "liabilities": 23650000.0,
+              "lithium_price": 92500.0,
+              "manufacturing_cost": 7578470.0,
+              "net_profit": 1411800.0,
+              "period": "2026-Q1",
+              "production_volume": 845.0,
+              "rd_expense": 814500.0,
+              "revenue": 18100000.0,
+              "sales_volume": 775.0
+            },
+            {
+              "assets": 47200000.0,
+              "cash_flow": 2007200.0,
+              "cost": 15440000.0,
+              "equity_begin": 23200000.0,
+              "equity_end": 23500000.0,
+              "industry_volatility": 0.28,
+              "inventory": 4040000.0,
+              "liabilities": 25200000.0,
+              "lithium_price": 96000.0,
+              "manufacturing_cost": 8183200.0,
+              "net_profit": 1428200.0,
+              "period": "2026-Q2",
+              "production_volume": 880.0,
+              "rd_expense": 868500.0,
+              "revenue": 19300000.0,
+              "sales_volume": 800.0
+            },
+            {
+              "assets": 49000000.0,
+              "cash_flow": 1938000.0,
+              "cost": 16626000.0,
+              "equity_begin": 23500000.0,
+              "equity_end": 23800000.0,
+              "industry_volatility": 0.295,
+              "inventory": 4300000.0,
+              "liabilities": 26750000.0,
+              "lithium_price": 99500.0,
+              "manufacturing_cost": 8811780.0,
+              "net_profit": 1428000.0,
+              "period": "2026-Q3",
+              "production_volume": 915.0,
+              "rd_expense": 918000.0,
+              "revenue": 20400000.0,
+              "sales_volume": 825.0
+            }
+          ],
+          "source_kind": "user_provided",
+          "source_url": "",
+          "verification": "unverified_user_input",
+          "volume_unit": "ton"
+        },
+        "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "dataset_version": 1,
+        "history": [],
+        "identity": null,
+        "input_source": {
+          "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+          "dataset_id": "ad1e0721167d4467845bfd63d0d5496d",
+          "dataset_version": 1,
+          "input_amount_unit": "yuan",
+          "input_basis": null,
+          "normalized_amount_unit": "yuan",
+          "normalized_basis": "standalone_quarter",
+          "notice": "本修订未保存可绑定到目标季度的原文件回执；不推测文件名或指纹。",
+          "period": "2026-Q3",
+          "schema_version": 1,
+          "status": "not_recorded",
+          "verification": "user_provided_not_independently_verified"
+        },
+        "memory": [
+          {
+            "id": "215998e6d9254468956896bf4a1f2b13",
+            "kind": "note",
+            "payload_hash": "4ed715a3d9039c3d12191cef7a0aee72c332256581f1256f89515d2d986feb83",
+            "text": "旧格式隔离已批准研究记忆",
+            "version": 1
+          }
+        ],
+        "preferences": {
+          "amount_unit": "wan",
+          "horizon": "long",
+          "interests": [],
+          "memory_enabled": true,
+          "risk_appetite": "medium",
+          "role": "enterprise",
+          "theme": "light",
+          "watchlist": []
+        },
+        "profile": {
+          "cash_floor": null,
+          "company": "示例锂电企业（虚构）",
+          "focus": [
+            "margin",
+            "cash"
+          ],
+          "leverage_ceiling": null,
+          "margin_floor": null,
+          "objective": "",
+          "stale_after_days": 180
+        },
+        "research_scope": {
+          "available_periods": [
+            "2025-Q2",
+            "2025-Q3",
+            "2025-Q4",
+            "2026-Q1",
+            "2026-Q2",
+            "2026-Q3"
+          ],
+          "explicit": false,
+          "notice": "限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。",
+          "period": "2026-Q3",
+          "question_status": "supported",
+          "requested_comparison": null,
+          "status": "selected",
+          "topics": [
+            "gross_margin",
+            "cash_flow",
+            "cash_ratio"
+          ]
+        }
+      },
+      "status": "draft"
+    },
+    "version": 1,
+    "created_at": "2026-10-05T01:52:57.141+00:00",
+    "updated_at": "2026-10-05T01:52:57.141+00:00"
+  },
+  "tables": {
+    "datasets": [
+      {
+        "id": "ad1e0721167d4467845bfd63d0d5496d",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "payload": "{\"amount_unit\":\"yuan\",\"company\":\"示例锂电企业（虚构）\",\"currency\":\"CNY\",\"input_amount_unit\":\"yuan\",\"name\":\"示例企业 · 六季度经营数据\",\"notes\":\"完全合成的教学演示数据；不指向真实企业、行情或财报。按单季度而非累计口径。\",\"period_basis\":\"standalone_quarter\",\"periods\":[{\"assets\":40000000.0,\"cash_flow\":2240000.0,\"cost\":12320000.0,\"equity_begin\":22000000.0,\"equity_end\":22300000.0,\"industry_volatility\":0.22,\"inventory\":3000000.0,\"liabilities\":19000000.0,\"lithium_price\":82000.0,\"manufacturing_cost\":6529600.0,\"net_profit\":1440000.0,\"period\":\"2025-Q2\",\"production_volume\":740.0,\"rd_expense\":720000.0,\"revenue\":16000000.0,\"sales_volume\":700.0},{\"assets\":41800000.0,\"cash_flow\":2200800.0,\"cost\":12852000.0,\"equity_begin\":22300000.0,\"equity_end\":22600000.0,\"industry_volatility\":0.235,\"inventory\":3260000.0,\"liabilities\":20550000.0,\"lithium_price\":85500.0,\"manufacturing_cost\":6811560.0,\"net_profit\":1444800.0,\"period\":\"2025-Q3\",\"production_volume\":775.0,\"rd_expense\":756000.0,\"revenue\":16800000.0,\"sales_volume\":725.0},{\"assets\":43600000.0,\"cash_flow\":2135000.0,\"cost\":13562500.0,\"equity_begin\":22600000.0,\"equity_end\":22900000.0,\"industry_volatility\":0.25,\"inventory\":3520000.0,\"liabilities\":22100000.0,\"lithium_price\":89000.0,\"manufacturing_cost\":7188125.0,\"net_profit\":1435000.0,\"period\":\"2025-Q4\",\"production_volume\":810.0,\"rd_expense\":787500.0,\"revenue\":17500000.0,\"sales_volume\":750.0},{\"assets\":45400000.0,\"cash_flow\":2045300.0,\"cost\":14299000.0,\"equity_begin\":22900000.0,\"equity_end\":23200000.0,\"industry_volatility\":0.265,\"inventory\":3780000.0,\"liabilities\":23650000.0,\"lithium_price\":92500.0,\"manufacturing_cost\":7578470.0,\"net_profit\":1411800.0,\"period\":\"2026-Q1\",\"production_volume\":845.0,\"rd_expense\":814500.0,\"revenue\":18100000.0,\"sales_volume\":775.0},{\"assets\":47200000.0,\"cash_flow\":2007200.0,\"cost\":15440000.0,\"equity_begin\":23200000.0,\"equity_end\":23500000.0,\"industry_volatility\":0.28,\"inventory\":4040000.0,\"liabilities\":25200000.0,\"lithium_price\":96000.0,\"manufacturing_cost\":8183200.0,\"net_profit\":1428200.0,\"period\":\"2026-Q2\",\"production_volume\":880.0,\"rd_expense\":868500.0,\"revenue\":19300000.0,\"sales_volume\":800.0},{\"assets\":49000000.0,\"cash_flow\":1938000.0,\"cost\":16626000.0,\"equity_begin\":23500000.0,\"equity_end\":23800000.0,\"industry_volatility\":0.295,\"inventory\":4300000.0,\"liabilities\":26750000.0,\"lithium_price\":99500.0,\"manufacturing_cost\":8811780.0,\"net_profit\":1428000.0,\"period\":\"2026-Q3\",\"production_volume\":915.0,\"rd_expense\":918000.0,\"revenue\":20400000.0,\"sales_volume\":825.0}],\"source_kind\":\"user_provided\",\"source_url\":\"\",\"verification\":\"unverified_user_input\",\"volume_unit\":\"ton\"}",
+        "version": 1,
+        "content_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "created_at": "2026-10-05T01:52:57.118+00:00",
+        "updated_at": "2026-10-05T01:52:57.118+00:00"
+      }
+    ],
+    "dataset_revisions": [
+      {
+        "dataset_id": "ad1e0721167d4467845bfd63d0d5496d",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "version": 1,
+        "payload": "{\"amount_unit\":\"yuan\",\"company\":\"示例锂电企业（虚构）\",\"currency\":\"CNY\",\"input_amount_unit\":\"yuan\",\"name\":\"示例企业 · 六季度经营数据\",\"notes\":\"完全合成的教学演示数据；不指向真实企业、行情或财报。按单季度而非累计口径。\",\"period_basis\":\"standalone_quarter\",\"periods\":[{\"assets\":40000000.0,\"cash_flow\":2240000.0,\"cost\":12320000.0,\"equity_begin\":22000000.0,\"equity_end\":22300000.0,\"industry_volatility\":0.22,\"inventory\":3000000.0,\"liabilities\":19000000.0,\"lithium_price\":82000.0,\"manufacturing_cost\":6529600.0,\"net_profit\":1440000.0,\"period\":\"2025-Q2\",\"production_volume\":740.0,\"rd_expense\":720000.0,\"revenue\":16000000.0,\"sales_volume\":700.0},{\"assets\":41800000.0,\"cash_flow\":2200800.0,\"cost\":12852000.0,\"equity_begin\":22300000.0,\"equity_end\":22600000.0,\"industry_volatility\":0.235,\"inventory\":3260000.0,\"liabilities\":20550000.0,\"lithium_price\":85500.0,\"manufacturing_cost\":6811560.0,\"net_profit\":1444800.0,\"period\":\"2025-Q3\",\"production_volume\":775.0,\"rd_expense\":756000.0,\"revenue\":16800000.0,\"sales_volume\":725.0},{\"assets\":43600000.0,\"cash_flow\":2135000.0,\"cost\":13562500.0,\"equity_begin\":22600000.0,\"equity_end\":22900000.0,\"industry_volatility\":0.25,\"inventory\":3520000.0,\"liabilities\":22100000.0,\"lithium_price\":89000.0,\"manufacturing_cost\":7188125.0,\"net_profit\":1435000.0,\"period\":\"2025-Q4\",\"production_volume\":810.0,\"rd_expense\":787500.0,\"revenue\":17500000.0,\"sales_volume\":750.0},{\"assets\":45400000.0,\"cash_flow\":2045300.0,\"cost\":14299000.0,\"equity_begin\":22900000.0,\"equity_end\":23200000.0,\"industry_volatility\":0.265,\"inventory\":3780000.0,\"liabilities\":23650000.0,\"lithium_price\":92500.0,\"manufacturing_cost\":7578470.0,\"net_profit\":1411800.0,\"period\":\"2026-Q1\",\"production_volume\":845.0,\"rd_expense\":814500.0,\"revenue\":18100000.0,\"sales_volume\":775.0},{\"assets\":47200000.0,\"cash_flow\":2007200.0,\"cost\":15440000.0,\"equity_begin\":23200000.0,\"equity_end\":23500000.0,\"industry_volatility\":0.28,\"inventory\":4040000.0,\"liabilities\":25200000.0,\"lithium_price\":96000.0,\"manufacturing_cost\":8183200.0,\"net_profit\":1428200.0,\"period\":\"2026-Q2\",\"production_volume\":880.0,\"rd_expense\":868500.0,\"revenue\":19300000.0,\"sales_volume\":800.0},{\"assets\":49000000.0,\"cash_flow\":1938000.0,\"cost\":16626000.0,\"equity_begin\":23500000.0,\"equity_end\":23800000.0,\"industry_volatility\":0.295,\"inventory\":4300000.0,\"liabilities\":26750000.0,\"lithium_price\":99500.0,\"manufacturing_cost\":8811780.0,\"net_profit\":1428000.0,\"period\":\"2026-Q3\",\"production_volume\":915.0,\"rd_expense\":918000.0,\"revenue\":20400000.0,\"sales_volume\":825.0}],\"source_kind\":\"user_provided\",\"source_url\":\"\",\"verification\":\"unverified_user_input\",\"volume_unit\":\"ton\"}",
+        "content_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "created_at": "2026-10-05T01:52:57.118+00:00"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "48d17c084527442cbe521bba1f29a383",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "payload": "{\"published_at\":null,\"source_kind\":\"user_provided\",\"source_url\":\"\",\"text\":\"毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。\",\"title\":\"旧格式隔离合成证据\",\"verification\":\"unverified\"}",
+        "version": 1,
+        "content_hash": "13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca",
+        "created_at": "2026-10-05T01:52:57.123+00:00",
+        "updated_at": "2026-10-05T01:52:57.123+00:00"
+      }
+    ],
+    "memories": [
+      {
+        "id": "215998e6d9254468956896bf4a1f2b13",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "payload": "{\"approved\":true,\"company\":\"示例锂电企业（虚构）\",\"expires_at\":null,\"identity_id\":\"\",\"kind\":\"note\",\"role\":\"all\",\"source\":\"user\",\"text\":\"旧格式隔离已批准研究记忆\"}",
+        "version": 1,
+        "created_at": "2026-10-05T01:52:57.127+00:00",
+        "updated_at": "2026-10-05T01:52:57.127+00:00"
+      }
+    ],
+    "workspace_objects": [
+      {
+        "id": "3841189bd784449daebe61282576328e",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "kind": "evidence_review",
+        "natural_key": "48d17c084527442cbe521bba1f29a383",
+        "payload": "{\"company\":\"示例锂电企业（虚构）\",\"expires_at\":null,\"global_scope\":false,\"note\":\"\",\"stance\":\"context\",\"status\":\"unreviewed\",\"tags\":[]}",
+        "version": 1,
+        "created_at": "2026-10-05T01:52:57.124+00:00",
+        "updated_at": "2026-10-05T01:52:57.124+00:00"
+      },
+      {
+        "id": "5acd84fe57944a638a78cfff5aa9cc50",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "kind": "plan",
+        "natural_key": "74411f5d52c54d118fcac329864e0ce8",
+        "payload": "{\"bindings\":{\"dataset_hash\":\"8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091\",\"dataset_id\":\"ad1e0721167d4467845bfd63d0d5496d\",\"dataset_version\":1,\"evidence\":[{\"hash\":\"13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca\",\"id\":\"48d17c084527442cbe521bba1f29a383\",\"review_version\":1}],\"identity\":null,\"memory\":[{\"hash\":\"4ed715a3d9039c3d12191cef7a0aee72c332256581f1256f89515d2d986feb83\",\"id\":\"215998e6d9254468956896bf4a1f2b13\",\"version\":1}],\"profile_version\":0,\"provider\":{\"id\":\"legacy-stub\",\"model\":\"local-only\"},\"session_version\":null,\"user_version\":1},\"blockers\":[],\"call_ids\":[\"analyst\",\"challenger\"],\"consent_scope\":[\"问题\",\"指标\",\"选中证据片段、标识、企业范围、审阅/核验状态、来源类型与时间信息（当前展示与原始采集地址元数据保留本地；片段正文按预览发送）\",\"装配后的已批准记忆\",\"已选择的会话历史\",\"企业目标与偏好\"],\"context\":{\"approved_memory\":[{\"id\":\"215998e6d9254468956896bf4a1f2b13\",\"kind\":\"note\",\"text\":\"旧格式隔离已批准研究记忆\"}],\"data_limits\":[\"输入未经本系统独立核验；来源链接不等于真实性认证。\",\"行业波动率由用户提供，不是实时拉取或历史校准结果。\",\"GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。\"],\"evidence\":[{\"company_scope\":\"示例锂电企业（虚构）\",\"excerpt\":\"毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。\",\"fetched_at\":null,\"id\":\"48d17c084527442cbe521bba1f29a383:0\",\"published_at\":null,\"retrieved_at\":null,\"review_state\":\"unreviewed\",\"source_kind\":\"user_provided\",\"stale\":true,\"stance\":\"context\",\"verification\":\"unverified\"}],\"history\":[],\"metrics\":{\"asset_turnover\":0.4163265306122449,\"cash_ratio\":0.095,\"gross_margin\":0.185,\"inventory_turnover\":3.8665116279069767,\"leverage\":0.5459183673469388,\"margin_change\":-0.04999999999999999,\"net_margin\":0.07,\"period\":\"2026-Q3\",\"rd_ratio\":0.045,\"revenue_growth\":0.2142857142857142,\"roe\":0.06038054968287526,\"sales_production_ratio\":0.9016393442622951},\"mode\":\"operational\",\"objective\":{\"cash_floor\":null,\"company\":\"示例锂电企业（虚构）\",\"focus\":[\"margin\",\"cash\"],\"leverage_ceiling\":null,\"margin_floor\":null,\"objective\":\"\",\"stale_after_days\":180},\"preferences\":{\"amount_unit\":\"wan\",\"horizon\":\"long\",\"interests\":[],\"memory_enabled\":true,\"risk_appetite\":\"medium\",\"role\":\"enterprise\",\"theme\":\"light\",\"watchlist\":[]},\"question\":\"毛利率现金流核查\",\"research_scope\":{\"available_periods\":[\"2025-Q2\",\"2025-Q3\",\"2025-Q4\",\"2026-Q1\",\"2026-Q2\",\"2026-Q3\"],\"explicit\":false,\"notice\":\"限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。\",\"period\":\"2026-Q3\",\"question_status\":\"supported\",\"requested_comparison\":null,\"status\":\"selected\",\"topics\":[\"gross_margin\",\"cash_flow\",\"cash_ratio\"]},\"service_identity\":null},\"created_at\":\"2026-10-05T01:52:57.141+00:00\",\"excluded_memory\":[],\"fingerprint\":\"41c3813af2892c29460748b578d1489d1184a4336dc8613544b6d32f6bcc95b6\",\"max_calls\":2,\"nodes\":[{\"depends_on\":[],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"quality\",\"name\":\"数据核验\",\"purpose\":\"口径、缺失、期间与异常检查\",\"skip_reason\":null,\"tools\":[\"quality_report\"]},{\"depends_on\":[\"quality\"],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"quant\",\"name\":\"量化分析\",\"purpose\":\"财务指标、规则贡献与逐字段血缘\",\"skip_reason\":null,\"tools\":[\"calculate\",\"lineage\"]},{\"depends_on\":[\"quality\"],\"enabled\":true,\"engine\":\"lexical\",\"id\":\"evidence\",\"name\":\"证据整理\",\"purpose\":\"企业作用域过滤、来源核对与片段定位\",\"skip_reason\":null,\"tools\":[\"scoped_retrieve\"]},{\"depends_on\":[\"quant\",\"evidence\"],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"context\",\"name\":\"上下文管理\",\"purpose\":\"已批准记忆、目标与预算装配\",\"skip_reason\":null,\"tools\":[\"pack_context\"]},{\"depends_on\":[\"context\"],\"enabled\":true,\"engine\":\"optional_llm\",\"id\":\"analyst\",\"name\":\"经营研究员\",\"purpose\":\"提出与当前指标和证据绑定的解释假设\",\"skip_reason\":null,\"tools\":[]},{\"depends_on\":[\"context\"],\"enabled\":false,\"engine\":\"optional_llm\",\"id\":\"researcher\",\"name\":\"行业证据员\",\"purpose\":\"核查外部资料的业务适用性与时效条件\",\"skip_reason\":\"任务不需要该专家或未授权模型调用\",\"tools\":[]},{\"depends_on\":[\"analyst\"],\"enabled\":true,\"engine\":\"optional_llm\",\"id\":\"challenger\",\"name\":\"反证审阅员\",\"purpose\":\"审阅前序解释，指出替代原因及无法推出的结论\",\"skip_reason\":null,\"tools\":[]},{\"depends_on\":[\"quant\",\"evidence\",\"analyst\",\"challenger\"],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"review\",\"name\":\"结果门禁\",\"purpose\":\"引用白名单、指标有效性及输出合同检查\",\"skip_reason\":null,\"tools\":[\"verify_claims\"]},{\"depends_on\":[\"review\"],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"report\",\"name\":\"报告归档\",\"purpose\":\"冻结结论、证据、执行记录和待核查事项\",\"skip_reason\":null,\"tools\":[\"archive_report\"]}],\"packing\":{\"characters\":1710,\"dropped\":[],\"included_citation_ids\":[\"48d17c084527442cbe521bba1f29a383:0\"],\"included_memory_ids\":[\"215998e6d9254468956896bf4a1f2b13\"],\"limit\":18000,\"reserved_for_review\":2400,\"token_count\":\"供应商响应usage才是实测token数\",\"unit\":\"characters_not_tokens\"},\"quality\":{\"as_of\":\"2026-10-05\",\"closed_quarters\":6,\"field_coverage\":{\"missing\":[],\"period\":\"2026-Q3\",\"present\":8,\"total\":8},\"findings\":[{\"code\":\"BALANCE_MISMATCH\",\"fields\":[\"assets\",\"liabilities\",\"equity_end\"],\"message\":\"资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题\",\"period\":\"2025-Q2\",\"severity\":\"warning\"},{\"code\":\"BALANCE_MISMATCH\",\"fields\":[\"assets\",\"liabilities\",\"equity_end\"],\"message\":\"资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题\",\"period\":\"2025-Q3\",\"severity\":\"warning\"},{\"code\":\"BALANCE_MISMATCH\",\"fields\":[\"assets\",\"liabilities\",\"equity_end\"],\"message\":\"资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题\",\"period\":\"2025-Q4\",\"severity\":\"warning\"},{\"code\":\"BALANCE_MISMATCH\",\"fields\":[\"assets\",\"liabilities\",\"equity_end\"],\"message\":\"资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题\",\"period\":\"2026-Q1\",\"severity\":\"warning\"},{\"code\":\"BALANCE_MISMATCH\",\"fields\":[\"assets\",\"liabilities\",\"equity_end\"],\"message\":\"资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题\",\"period\":\"2026-Q2\",\"severity\":\"warning\"},{\"code\":\"BALANCE_MISMATCH\",\"fields\":[\"assets\",\"liabilities\",\"equity_end\"],\"message\":\"资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题\",\"period\":\"2026-Q3\",\"severity\":\"warning\"},{\"code\":\"MISSING_SOURCE\",\"fields\":[\"source_url\"],\"message\":\"未填写原始来源地址，可在证据库关联文件并人工审阅\",\"period\":\"2026-Q3\",\"severity\":\"info\"}],\"input_hash\":\"8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091\",\"source_state\":\"user_declared_not_verified\",\"warning_count\":6},\"request\":{\"comparison\":\"year_over_year\",\"comparison_artifact\":null,\"dataset_id\":\"ad1e0721167d4467845bfd63d0d5496d\",\"execution\":null,\"experiment\":null,\"identity_id\":\"\",\"include_history\":false,\"include_memory\":true,\"max_calls\":2,\"mode\":\"operational\",\"provider\":\"legacy-stub\",\"query\":\"毛利率现金流核查\",\"session_id\":\"78df3061d40941f98e5958b575f3a4aa\",\"success_criteria\":\"\",\"use_llm\":true},\"requested_max_calls\":2,\"run_id\":\"134782cf4a3547a286b789c4a5a875ac\",\"snapshot\":{\"analysis_as_of\":\"2026-10-05\",\"citations\":[{\"age_days\":null,\"company_scope\":\"示例锂电企业（虚构）\",\"content_hash\":\"13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca\",\"document_hash\":\"13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca\",\"document_id\":\"48d17c084527442cbe521bba1f29a383\",\"end\":136,\"excerpt\":\"毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。\",\"fetched_at\":null,\"id\":\"48d17c084527442cbe521bba1f29a383:0\",\"matched_terms\":[\"利率\",\"核查\",\"毛利\",\"流核\",\"率现\",\"现金\",\"金流\"],\"original_source_url\":\"\",\"published_at\":null,\"retrieved_at\":null,\"review_note\":\"\",\"review_state\":\"unreviewed\",\"review_version\":1,\"score\":3.8524,\"source_kind\":\"user_provided\",\"stale\":true,\"stance\":\"context\",\"start\":0,\"title\":\"旧格式隔离合成证据\",\"url\":\"\",\"verification\":\"unverified\"}],\"comparison\":\"year_over_year\",\"dataset\":{\"amount_unit\":\"yuan\",\"company\":\"示例锂电企业（虚构）\",\"currency\":\"CNY\",\"input_amount_unit\":\"yuan\",\"name\":\"示例企业 · 六季度经营数据\",\"notes\":\"完全合成的教学演示数据；不指向真实企业、行情或财报。按单季度而非累计口径。\",\"period_basis\":\"standalone_quarter\",\"periods\":[{\"assets\":40000000.0,\"cash_flow\":2240000.0,\"cost\":12320000.0,\"equity_begin\":22000000.0,\"equity_end\":22300000.0,\"industry_volatility\":0.22,\"inventory\":3000000.0,\"liabilities\":19000000.0,\"lithium_price\":82000.0,\"manufacturing_cost\":6529600.0,\"net_profit\":1440000.0,\"period\":\"2025-Q2\",\"production_volume\":740.0,\"rd_expense\":720000.0,\"revenue\":16000000.0,\"sales_volume\":700.0},{\"assets\":41800000.0,\"cash_flow\":2200800.0,\"cost\":12852000.0,\"equity_begin\":22300000.0,\"equity_end\":22600000.0,\"industry_volatility\":0.235,\"inventory\":3260000.0,\"liabilities\":20550000.0,\"lithium_price\":85500.0,\"manufacturing_cost\":6811560.0,\"net_profit\":1444800.0,\"period\":\"2025-Q3\",\"production_volume\":775.0,\"rd_expense\":756000.0,\"revenue\":16800000.0,\"sales_volume\":725.0},{\"assets\":43600000.0,\"cash_flow\":2135000.0,\"cost\":13562500.0,\"equity_begin\":22600000.0,\"equity_end\":22900000.0,\"industry_volatility\":0.25,\"inventory\":3520000.0,\"liabilities\":22100000.0,\"lithium_price\":89000.0,\"manufacturing_cost\":7188125.0,\"net_profit\":1435000.0,\"period\":\"2025-Q4\",\"production_volume\":810.0,\"rd_expense\":787500.0,\"revenue\":17500000.0,\"sales_volume\":750.0},{\"assets\":45400000.0,\"cash_flow\":2045300.0,\"cost\":14299000.0,\"equity_begin\":22900000.0,\"equity_end\":23200000.0,\"industry_volatility\":0.265,\"inventory\":3780000.0,\"liabilities\":23650000.0,\"lithium_price\":92500.0,\"manufacturing_cost\":7578470.0,\"net_profit\":1411800.0,\"period\":\"2026-Q1\",\"production_volume\":845.0,\"rd_expense\":814500.0,\"revenue\":18100000.0,\"sales_volume\":775.0},{\"assets\":47200000.0,\"cash_flow\":2007200.0,\"cost\":15440000.0,\"equity_begin\":23200000.0,\"equity_end\":23500000.0,\"industry_volatility\":0.28,\"inventory\":4040000.0,\"liabilities\":25200000.0,\"lithium_price\":96000.0,\"manufacturing_cost\":8183200.0,\"net_profit\":1428200.0,\"period\":\"2026-Q2\",\"production_volume\":880.0,\"rd_expense\":868500.0,\"revenue\":19300000.0,\"sales_volume\":800.0},{\"assets\":49000000.0,\"cash_flow\":1938000.0,\"cost\":16626000.0,\"equity_begin\":23500000.0,\"equity_end\":23800000.0,\"industry_volatility\":0.295,\"inventory\":4300000.0,\"liabilities\":26750000.0,\"lithium_price\":99500.0,\"manufacturing_cost\":8811780.0,\"net_profit\":1428000.0,\"period\":\"2026-Q3\",\"production_volume\":915.0,\"rd_expense\":918000.0,\"revenue\":20400000.0,\"sales_volume\":825.0}],\"source_kind\":\"user_provided\",\"source_url\":\"\",\"verification\":\"unverified_user_input\",\"volume_unit\":\"ton\"},\"dataset_hash\":\"8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091\",\"dataset_version\":1,\"history\":[],\"identity\":null,\"input_source\":{\"dataset_hash\":\"8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091\",\"dataset_id\":\"ad1e0721167d4467845bfd63d0d5496d\",\"dataset_version\":1,\"input_amount_unit\":\"yuan\",\"input_basis\":null,\"normalized_amount_unit\":\"yuan\",\"normalized_basis\":\"standalone_quarter\",\"notice\":\"本修订未保存可绑定到目标季度的原文件回执；不推测文件名或指纹。\",\"period\":\"2026-Q3\",\"schema_version\":1,\"status\":\"not_recorded\",\"verification\":\"user_provided_not_independently_verified\"},\"memory\":[{\"id\":\"215998e6d9254468956896bf4a1f2b13\",\"kind\":\"note\",\"payload_hash\":\"4ed715a3d9039c3d12191cef7a0aee72c332256581f1256f89515d2d986feb83\",\"text\":\"旧格式隔离已批准研究记忆\",\"version\":1}],\"preferences\":{\"amount_unit\":\"wan\",\"horizon\":\"long\",\"interests\":[],\"memory_enabled\":true,\"risk_appetite\":\"medium\",\"role\":\"enterprise\",\"theme\":\"light\",\"watchlist\":[]},\"profile\":{\"cash_floor\":null,\"company\":\"示例锂电企业（虚构）\",\"focus\":[\"margin\",\"cash\"],\"leverage_ceiling\":null,\"margin_floor\":null,\"objective\":\"\",\"stale_after_days\":180},\"research_scope\":{\"available_periods\":[\"2025-Q2\",\"2025-Q3\",\"2025-Q4\",\"2026-Q1\",\"2026-Q2\",\"2026-Q3\"],\"explicit\":false,\"notice\":\"限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。\",\"period\":\"2026-Q3\",\"question_status\":\"supported\",\"requested_comparison\":null,\"status\":\"selected\",\"topics\":[\"gross_margin\",\"cash_flow\",\"cash_ratio\"]}},\"status\":\"dispatched\"}",
+        "version": 2,
+        "created_at": "2026-10-05T01:52:57.141+00:00",
+        "updated_at": "2026-10-05T01:52:57.146+00:00"
+      }
+    ],
+    "conversations": [
+      {
+        "id": "78df3061d40941f98e5958b575f3a4aa",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "payload": "{\"company\":\"示例锂电企业（虚构）\",\"mode\":\"operational\",\"title\":\"测试会话\"}",
+        "version": 2,
+        "created_at": "2026-10-05T01:52:57.121+00:00",
+        "updated_at": "2026-10-05T01:52:57.146+00:00"
+      }
+    ],
+    "runs": [
+      {
+        "id": "134782cf4a3547a286b789c4a5a875ac",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "session_id": "78df3061d40941f98e5958b575f3a4aa",
+        "dataset_id": "ad1e0721167d4467845bfd63d0d5496d",
+        "state": "queued",
+        "payload": "{\"comparison\":\"year_over_year\",\"dataset_id\":\"ad1e0721167d4467845bfd63d0d5496d\",\"include_memory\":true,\"mode\":\"operational\",\"provider\":\"legacy-stub\",\"query\":\"毛利率现金流核查\",\"session_id\":\"78df3061d40941f98e5958b575f3a4aa\",\"use_llm\":true}",
+        "snapshot": "{\"analysis_as_of\":\"2026-10-05\",\"citations\":[{\"age_days\":null,\"company_scope\":\"示例锂电企业（虚构）\",\"content_hash\":\"13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca\",\"document_hash\":\"13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca\",\"document_id\":\"48d17c084527442cbe521bba1f29a383\",\"end\":136,\"excerpt\":\"毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。\",\"fetched_at\":null,\"id\":\"48d17c084527442cbe521bba1f29a383:0\",\"matched_terms\":[\"利率\",\"核查\",\"毛利\",\"流核\",\"率现\",\"现金\",\"金流\"],\"original_source_url\":\"\",\"published_at\":null,\"retrieved_at\":null,\"review_note\":\"\",\"review_state\":\"unreviewed\",\"review_version\":1,\"score\":3.8524,\"source_kind\":\"user_provided\",\"stale\":true,\"stance\":\"context\",\"start\":0,\"title\":\"旧格式隔离合成证据\",\"url\":\"\",\"verification\":\"unverified\"}],\"comparison\":\"year_over_year\",\"dataset\":{\"amount_unit\":\"yuan\",\"company\":\"示例锂电企业（虚构）\",\"currency\":\"CNY\",\"input_amount_unit\":\"yuan\",\"name\":\"示例企业 · 六季度经营数据\",\"notes\":\"完全合成的教学演示数据；不指向真实企业、行情或财报。按单季度而非累计口径。\",\"period_basis\":\"standalone_quarter\",\"periods\":[{\"assets\":40000000.0,\"cash_flow\":2240000.0,\"cost\":12320000.0,\"equity_begin\":22000000.0,\"equity_end\":22300000.0,\"industry_volatility\":0.22,\"inventory\":3000000.0,\"liabilities\":19000000.0,\"lithium_price\":82000.0,\"manufacturing_cost\":6529600.0,\"net_profit\":1440000.0,\"period\":\"2025-Q2\",\"production_volume\":740.0,\"rd_expense\":720000.0,\"revenue\":16000000.0,\"sales_volume\":700.0},{\"assets\":41800000.0,\"cash_flow\":2200800.0,\"cost\":12852000.0,\"equity_begin\":22300000.0,\"equity_end\":22600000.0,\"industry_volatility\":0.235,\"inventory\":3260000.0,\"liabilities\":20550000.0,\"lithium_price\":85500.0,\"manufacturing_cost\":6811560.0,\"net_profit\":1444800.0,\"period\":\"2025-Q3\",\"production_volume\":775.0,\"rd_expense\":756000.0,\"revenue\":16800000.0,\"sales_volume\":725.0},{\"assets\":43600000.0,\"cash_flow\":2135000.0,\"cost\":13562500.0,\"equity_begin\":22600000.0,\"equity_end\":22900000.0,\"industry_volatility\":0.25,\"inventory\":3520000.0,\"liabilities\":22100000.0,\"lithium_price\":89000.0,\"manufacturing_cost\":7188125.0,\"net_profit\":1435000.0,\"period\":\"2025-Q4\",\"production_volume\":810.0,\"rd_expense\":787500.0,\"revenue\":17500000.0,\"sales_volume\":750.0},{\"assets\":45400000.0,\"cash_flow\":2045300.0,\"cost\":14299000.0,\"equity_begin\":22900000.0,\"equity_end\":23200000.0,\"industry_volatility\":0.265,\"inventory\":3780000.0,\"liabilities\":23650000.0,\"lithium_price\":92500.0,\"manufacturing_cost\":7578470.0,\"net_profit\":1411800.0,\"period\":\"2026-Q1\",\"production_volume\":845.0,\"rd_expense\":814500.0,\"revenue\":18100000.0,\"sales_volume\":775.0},{\"assets\":47200000.0,\"cash_flow\":2007200.0,\"cost\":15440000.0,\"equity_begin\":23200000.0,\"equity_end\":23500000.0,\"industry_volatility\":0.28,\"inventory\":4040000.0,\"liabilities\":25200000.0,\"lithium_price\":96000.0,\"manufacturing_cost\":8183200.0,\"net_profit\":1428200.0,\"period\":\"2026-Q2\",\"production_volume\":880.0,\"rd_expense\":868500.0,\"revenue\":19300000.0,\"sales_volume\":800.0},{\"assets\":49000000.0,\"cash_flow\":1938000.0,\"cost\":16626000.0,\"equity_begin\":23500000.0,\"equity_end\":23800000.0,\"industry_volatility\":0.295,\"inventory\":4300000.0,\"liabilities\":26750000.0,\"lithium_price\":99500.0,\"manufacturing_cost\":8811780.0,\"net_profit\":1428000.0,\"period\":\"2026-Q3\",\"production_volume\":915.0,\"rd_expense\":918000.0,\"revenue\":20400000.0,\"sales_volume\":825.0}],\"source_kind\":\"user_provided\",\"source_url\":\"\",\"verification\":\"unverified_user_input\",\"volume_unit\":\"ton\"},\"dataset_hash\":\"8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091\",\"dataset_version\":1,\"history\":[],\"identity\":null,\"input_source\":{\"dataset_hash\":\"8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091\",\"dataset_id\":\"ad1e0721167d4467845bfd63d0d5496d\",\"dataset_version\":1,\"input_amount_unit\":\"yuan\",\"input_basis\":null,\"normalized_amount_unit\":\"yuan\",\"normalized_basis\":\"standalone_quarter\",\"notice\":\"本修订未保存可绑定到目标季度的原文件回执；不推测文件名或指纹。\",\"period\":\"2026-Q3\",\"schema_version\":1,\"status\":\"not_recorded\",\"verification\":\"user_provided_not_independently_verified\"},\"memory\":[{\"id\":\"215998e6d9254468956896bf4a1f2b13\",\"kind\":\"note\",\"payload_hash\":\"4ed715a3d9039c3d12191cef7a0aee72c332256581f1256f89515d2d986feb83\",\"text\":\"旧格式隔离已批准研究记忆\",\"version\":1}],\"preferences\":{\"amount_unit\":\"wan\",\"horizon\":\"long\",\"interests\":[],\"memory_enabled\":true,\"risk_appetite\":\"medium\",\"role\":\"enterprise\",\"theme\":\"light\",\"watchlist\":[]},\"profile\":{\"cash_floor\":null,\"company\":\"示例锂电企业（虚构）\",\"focus\":[\"margin\",\"cash\"],\"leverage_ceiling\":null,\"margin_floor\":null,\"objective\":\"\",\"stale_after_days\":180},\"research_scope\":{\"available_periods\":[\"2025-Q2\",\"2025-Q3\",\"2025-Q4\",\"2026-Q1\",\"2026-Q2\",\"2026-Q3\"],\"explicit\":false,\"notice\":\"限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。\",\"period\":\"2026-Q3\",\"question_status\":\"supported\",\"requested_comparison\":null,\"status\":\"selected\",\"topics\":[\"gross_margin\",\"cash_flow\",\"cash_ratio\"]},\"studio\":{\"bindings\":{\"dataset_hash\":\"8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091\",\"dataset_id\":\"ad1e0721167d4467845bfd63d0d5496d\",\"dataset_version\":1,\"evidence\":[{\"hash\":\"13ce95f8948a87664ec3a8ffb56b799724e7e1b5c9cd49e9015efdabf715d4ca\",\"id\":\"48d17c084527442cbe521bba1f29a383\",\"review_version\":1}],\"identity\":null,\"memory\":[{\"hash\":\"4ed715a3d9039c3d12191cef7a0aee72c332256581f1256f89515d2d986feb83\",\"id\":\"215998e6d9254468956896bf4a1f2b13\",\"version\":1}],\"profile_version\":0,\"provider\":{\"id\":\"legacy-stub\",\"model\":\"local-only\"},\"session_version\":null,\"user_version\":1},\"call_ids\":[\"analyst\",\"challenger\"],\"consent\":true,\"context\":{\"approved_memory\":[{\"id\":\"215998e6d9254468956896bf4a1f2b13\",\"kind\":\"note\",\"text\":\"旧格式隔离已批准研究记忆\"}],\"data_limits\":[\"输入未经本系统独立核验；来源链接不等于真实性认证。\",\"行业波动率由用户提供，不是实时拉取或历史校准结果。\",\"GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。\"],\"evidence\":[{\"company_scope\":\"示例锂电企业（虚构）\",\"excerpt\":\"毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。毛利率现金流核查需要依据原始资料。\",\"fetched_at\":null,\"id\":\"48d17c084527442cbe521bba1f29a383:0\",\"published_at\":null,\"retrieved_at\":null,\"review_state\":\"unreviewed\",\"source_kind\":\"user_provided\",\"stale\":true,\"stance\":\"context\",\"verification\":\"unverified\"}],\"history\":[],\"metrics\":{\"asset_turnover\":0.4163265306122449,\"cash_ratio\":0.095,\"gross_margin\":0.185,\"inventory_turnover\":3.8665116279069767,\"leverage\":0.5459183673469388,\"margin_change\":-0.04999999999999999,\"net_margin\":0.07,\"period\":\"2026-Q3\",\"rd_ratio\":0.045,\"revenue_growth\":0.2142857142857142,\"roe\":0.06038054968287526,\"sales_production_ratio\":0.9016393442622951},\"mode\":\"operational\",\"objective\":{\"cash_floor\":null,\"company\":\"示例锂电企业（虚构）\",\"focus\":[\"margin\",\"cash\"],\"leverage_ceiling\":null,\"margin_floor\":null,\"objective\":\"\",\"stale_after_days\":180},\"preferences\":{\"amount_unit\":\"wan\",\"horizon\":\"long\",\"interests\":[],\"memory_enabled\":true,\"risk_appetite\":\"medium\",\"role\":\"enterprise\",\"theme\":\"light\",\"watchlist\":[]},\"question\":\"毛利率现金流核查\",\"research_scope\":{\"available_periods\":[\"2025-Q2\",\"2025-Q3\",\"2025-Q4\",\"2026-Q1\",\"2026-Q2\",\"2026-Q3\"],\"explicit\":false,\"notice\":\"限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。\",\"period\":\"2026-Q3\",\"question_status\":\"supported\",\"requested_comparison\":null,\"status\":\"selected\",\"topics\":[\"gross_margin\",\"cash_flow\",\"cash_ratio\"]},\"service_identity\":null},\"fingerprint\":\"41c3813af2892c29460748b578d1489d1184a4336dc8613544b6d32f6bcc95b6\",\"nodes\":[{\"depends_on\":[],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"quality\",\"name\":\"数据核验\",\"purpose\":\"口径、缺失、期间与异常检查\",\"skip_reason\":null,\"tools\":[\"quality_report\"]},{\"depends_on\":[\"quality\"],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"quant\",\"name\":\"量化分析\",\"purpose\":\"财务指标、规则贡献与逐字段血缘\",\"skip_reason\":null,\"tools\":[\"calculate\",\"lineage\"]},{\"depends_on\":[\"quality\"],\"enabled\":true,\"engine\":\"lexical\",\"id\":\"evidence\",\"name\":\"证据整理\",\"purpose\":\"企业作用域过滤、来源核对与片段定位\",\"skip_reason\":null,\"tools\":[\"scoped_retrieve\"]},{\"depends_on\":[\"quant\",\"evidence\"],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"context\",\"name\":\"上下文管理\",\"purpose\":\"已批准记忆、目标与预算装配\",\"skip_reason\":null,\"tools\":[\"pack_context\"]},{\"depends_on\":[\"context\"],\"enabled\":true,\"engine\":\"optional_llm\",\"id\":\"analyst\",\"name\":\"经营研究员\",\"purpose\":\"提出与当前指标和证据绑定的解释假设\",\"skip_reason\":null,\"tools\":[]},{\"depends_on\":[\"context\"],\"enabled\":false,\"engine\":\"optional_llm\",\"id\":\"researcher\",\"name\":\"行业证据员\",\"purpose\":\"核查外部资料的业务适用性与时效条件\",\"skip_reason\":\"任务不需要该专家或未授权模型调用\",\"tools\":[]},{\"depends_on\":[\"analyst\"],\"enabled\":true,\"engine\":\"optional_llm\",\"id\":\"challenger\",\"name\":\"反证审阅员\",\"purpose\":\"审阅前序解释，指出替代原因及无法推出的结论\",\"skip_reason\":null,\"tools\":[]},{\"depends_on\":[\"quant\",\"evidence\",\"analyst\",\"challenger\"],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"review\",\"name\":\"结果门禁\",\"purpose\":\"引用白名单、指标有效性及输出合同检查\",\"skip_reason\":null,\"tools\":[\"verify_claims\"]},{\"depends_on\":[\"review\"],\"enabled\":true,\"engine\":\"deterministic\",\"id\":\"report\",\"name\":\"报告归档\",\"purpose\":\"冻结结论、证据、执行记录和待核查事项\",\"skip_reason\":null,\"tools\":[\"archive_report\"]}],\"packing\":{\"characters\":1710,\"dropped\":[],\"included_citation_ids\":[\"48d17c084527442cbe521bba1f29a383:0\"],\"included_memory_ids\":[\"215998e6d9254468956896bf4a1f2b13\"],\"limit\":18000,\"reserved_for_review\":2400,\"token_count\":\"供应商响应usage才是实测token数\",\"unit\":\"characters_not_tokens\"},\"plan_id\":\"5acd84fe57944a638a78cfff5aa9cc50\",\"profile\":{\"cash_floor\":null,\"company\":\"示例锂电企业（虚构）\",\"focus\":[\"margin\",\"cash\"],\"leverage_ceiling\":null,\"margin_floor\":null,\"objective\":\"\",\"stale_after_days\":180},\"success_criteria\":\"\"}}",
+        "result": null,
+        "error": null,
+        "created_at": "2026-10-05T01:52:57.146+00:00",
+        "updated_at": "2026-10-05T01:52:57.146+00:00",
+        "idempotency_key": "plan_5acd84fe57944a638a78cfff5aa9cc50",
+        "request_hash": "9d69ecf6942c2be88aa2850873a2f87ef3459b6a067d6e972b937b99f4fb04d5"
+      }
+    ],
+    "messages": [
+      {
+        "id": "d9ba73c6a8c64989b9da5469dca3cda0",
+        "user_id": "ebda5b75769f4d7da7861890d00552fb",
+        "session_id": "78df3061d40941f98e5958b575f3a4aa",
+        "run_id": "134782cf4a3547a286b789c4a5a875ac",
+        "role": "user",
+        "payload": "{\"text\":\"毛利率现金流核查\"}",
+        "created_at": "2026-10-05T01:52:57.146+00:00"
+      }
+    ],
+    "run_events": [
+      {
+        "seq": 1,
+        "run_id": "134782cf4a3547a286b789c4a5a875ac",
+        "type": "queued",
+        "payload": "{\"dataset_version\":1,\"external_consent\":true,\"fingerprint\":\"41c3813af2892c29460748b578d1489d1184a4336dc8613544b6d32f6bcc95b6\",\"plan_id\":\"5acd84fe57944a638a78cfff5aa9cc50\"}",
+        "created_at": "2026-10-05T01:52:57.146+00:00"
+      }
+    ],
+    "event_integrity": [
+      {
+        "event_seq": 1,
+        "run_id": "134782cf4a3547a286b789c4a5a875ac",
+        "previous_hash": "",
+        "entry_hash": "85a03fc30a1be16b8fbd72ac446efa331b77d8541ed2d2e312e6737b9624b754"
+      }
+    ]
+  }
+}

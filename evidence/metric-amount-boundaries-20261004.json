@@ -1,0 +1,210 @@
+{
+  "recorded_at": "2026-10-04T13:01:24.427006+00:00",
+  "verification_completed_at": "2026-10-04T13:01:05.103734+00:00",
+  "base_commit": "042e5958558c581c22906784950e7fbc8b0b387a",
+  "base_tree": "e4bebd0c02148ed888013bc066faf22dae273e84",
+  "review_id": "4177595097",
+  "review_url": "https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2#discussion_r4177595097",
+  "scope": "Necessary premerge followup: explicit money requests must not be answered with ratios; no new monetary capability or financial formula",
+  "frozen_execution_files": {
+    "server/question_scope.py": "ec969f3648460ff681221e7e063a93879b8206df2a4ebe2dd80c731d4b1a3a1c",
+    "tests/test_ratio_amount_question_scope.py": "d84c13e46a713d95921413413c5a15f3a7bad86f749d5b3ee7fdc0a9c2247f31",
+    "scripts/service_browser_check.py": "6d27a427b1ea61e70691d981b7cad7dbebf80ce8a4af3576c34b0acd1d29db69",
+    "server/business_provenance.py": "3f6569457aceb6cb71fc4ec340b184f9fc6bf892270694dccb58a34e28ce5286"
+  },
+  "reproductions": {
+    "liability": "total liabilities and generic liabilities incorrectly returned leverage facts",
+    "inventory": "explicit inventory amount incorrectly returned turnover facts",
+    "rd": "explicit R&D expenses incorrectly returned expense ratio facts",
+    "gross_profit": "explicit how much money phrasing incorrectly returned gross margin facts",
+    "red_then_green": true
+  },
+  "focused": {
+    "dedicated_tests": 121,
+    "implementation_run_seconds": 24.19,
+    "independent_run_seconds": 22.74,
+    "independent_review": "passed; local ratio masking, mixed intent, followup isolation, financial definitions and native assertions reviewed",
+    "related_intermediate_tests": 268,
+    "overlap_notice": "Focused tests overlap aggregate and are not added to the total"
+  },
+  "aggregate": {
+    "stages": 7,
+    "backend": 1593,
+    "backend_failures": 0,
+    "backend_skipped": 0,
+    "frontend": 347,
+    "http_journeys": 18,
+    "all_passed": true,
+    "pytest_progress_complete": {
+      "event": "session_finished",
+      "utc": "2026-10-04T13:00:47.206981+00:00",
+      "elapsed_seconds": 284.08441,
+      "process_cpu_seconds": 271.289324,
+      "exit_code": 0,
+      "collected": 1593,
+      "started": 1593,
+      "completed": 1593,
+      "complete": true,
+      "phase_outcomes": {
+        "setup_passed": 1593,
+        "call_passed": 1593,
+        "teardown_passed": 1593
+      }
+    },
+    "checks": [
+      {
+        "check": "python-compile",
+        "command": [
+          "python",
+          "-m",
+          "compileall",
+          "-q",
+          "server",
+          "scripts"
+        ],
+        "exit_code": 0,
+        "seconds": 0.067,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "typecheck",
+        "command": [
+          "node",
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "-p",
+          "tsconfig.json"
+        ],
+        "exit_code": 0,
+        "seconds": 2.29,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "build",
+        "command": [
+          "node",
+          "node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.json"
+        ],
+        "exit_code": 0,
+        "seconds": 1.899,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "pytest",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "-p",
+          "no:faulthandler",
+          "-p",
+          "scripts.pytest_diagnostics",
+          "--diagnostics-output=evidence/pytest-progress.jsonl",
+          "--diagnostics-test-timeout=120",
+          "--durations=20",
+          "--junitxml=evidence/pytest.xml"
+        ],
+        "exit_code": 0,
+        "seconds": 294.578,
+        "timeout_seconds": 900
+      },
+      {
+        "check": "frontend-tests",
+        "command": [
+          "node",
+          "--test",
+          "tests/actions.frontend.test.mjs",
+          "tests/business-source.frontend.test.mjs",
+          "tests/comparison-cleanup.frontend.test.mjs",
+          "tests/copilot-message-trace.frontend.test.mjs",
+          "tests/copilot-research-inputs.frontend.test.mjs",
+          "tests/data-draft-continuation.frontend.test.mjs",
+          "tests/data-editor-isolation.frontend.test.mjs",
+          "tests/dataset-source.frontend.test.mjs",
+          "tests/evidence.frontend.test.mjs",
+          "tests/form-snapshot.frontend.test.mjs",
+          "tests/frontend.test.mjs",
+          "tests/import-navigation.frontend.test.mjs",
+          "tests/import.frontend.test.mjs",
+          "tests/math-results.frontend.test.mjs",
+          "tests/metric-comparison.frontend.test.mjs",
+          "tests/preferences-completion.frontend.test.mjs",
+          "tests/proposal-preview.frontend.test.mjs",
+          "tests/recovery.frontend.test.mjs",
+          "tests/report-integrity.frontend.test.mjs",
+          "tests/saved-comparisons.frontend.test.mjs",
+          "tests/saved-experiments.frontend.test.mjs",
+          "tests/saved-mutation.frontend.test.mjs",
+          "tests/service-completion.frontend.test.mjs",
+          "tests/services.frontend.test.mjs",
+          "tests/workflow-inputs.frontend.test.mjs"
+        ],
+        "exit_code": 0,
+        "seconds": 1.18,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "source-guard",
+        "command": [
+          "python",
+          "scripts/source_guard.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.283,
+        "timeout_seconds": 240
+      },
+      {
+        "check": "full-chain-http",
+        "command": [
+          "python",
+          "scripts/full_chain_check.py"
+        ],
+        "exit_code": 0,
+        "seconds": 6.871,
+        "timeout_seconds": 240
+      }
+    ]
+  },
+  "native": {
+    "added_journey": "Four explicit amount questions on the actual assistant UI must contain no ratio facts and explain the unsupported monetary scope",
+    "local_result": "Not rerun: earlier supported Chromium startup was denied by host socket policy; original zero-business-check failure retained",
+    "required": "New exact-SHA Linux and Windows CI with native network E2E, screenshot hashes and request/process diagnostics",
+    "not_substituted_by": "042e5958 native results or API/DOM fixtures"
+  },
+  "prior_ci": {
+    "head": "042e5958558c581c22906784950e7fbc8b0b387a",
+    "runs": [
+      37201791453,
+      37201794434
+    ],
+    "all_six_jobs_first_attempt_success": true,
+    "per_platform_report": {
+      "backend": 1472,
+      "frontend": 347,
+      "http": 18,
+      "native": 55
+    },
+    "note": "Prior source-integrity stage only; does not validate this followup"
+  },
+  "unchanged_brand_and_formula_sha256": {
+    "web/brand/logo.png": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+    "web/brand/loading-video.mp4": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd",
+    "server/models.py": "d4b98e8b0912dcbc18fa1f6f712b06afcef54d724435237f5095093107f15047",
+    "server/analytics.py": "39dbda87088fa49e4d6df282c796468e07c89a46dea3343f1ddc19980ca074d3"
+  },
+  "other_checks": {
+    "pip_check": "passed",
+    "diff_check": "passed"
+  },
+  "boundaries": [
+    "Bounded deterministic routing is not general natural-language understanding",
+    "No live DeepSeek, GLM, MiMo or Qwen calls or charges",
+    "Only isolated synthetic input and accounts; no real business record deletion",
+    "No public deployment, production load, real battery/company sample or Windows double-click acceptance",
+    "Software copyright identity, ownership, dates and final filing materials require factual user inputs",
+    "User performs merge; CI must finish on the new exact SHA"
+  ]
+}

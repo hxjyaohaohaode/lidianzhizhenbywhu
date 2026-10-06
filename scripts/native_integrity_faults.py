@@ -1,0 +1,307 @@
+"""Bounded corruption fixtures for a disposable native CI database only.
+
+No application endpoint exposes these functions. Browser actions must perform
+the actual rejection/recovery; these explicit writes are never UI evidence.
+"""
+from __future__ import annotations
+import hashlib
+import json
+import os
+from pathlib import Path
+import sqlite3
+
+
+def sha(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def canonical_hash(value):
+    return sha(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False))
+
+
+def connect_existing(database):
+    if not database.is_file() or database.is_symlink():raise RuntimeError('Existing native fixture database required.')
+    return sqlite3.connect(database.resolve().as_uri()+'?mode=rw',uri=True,timeout=5)
+
+
+class InjectedFault:
+    def __init__(self, probe, database, owner_id, table, record_id, before, after, kind, version, stored_hash):
+        self.probe,self.database,self.owner_id=probe,database,owner_id
+        self.table,self.record_id,self.before,self.after=table,record_id,before,after
+        self.kind,self.version=kind,version
+        self.stored_hash=stored_hash
+        self.restored=False
+        self.ordinal=len(probe.observations.setdefault('database_faults',[]))+1
+        self.receipt={'fixture':'temporary_native_database_corruption','kind':kind,'table':table,
+            'record_id':record_id,'owner_id':owner_id,'column':'payload','version_preserved':version,
+            'before_sha256':sha(before),'after_sha256':sha(after),'ui_mutation_claimed':False,
+            'application_endpoint_added':False,'restored':False}
+        probe.observations['database_faults'].append(self.receipt)
+
+    def _record(self,phase,receipt):
+        path=Path(self.probe.directory)/f'integrity-fault-{self.ordinal:02d}-{phase}.json'
+        with path.open('x',encoding='utf-8') as stream:
+            json.dump(receipt,stream,ensure_ascii=False,sort_keys=True,indent=2)
+        self.probe.record_artifact(path,kind='fault-injection')
+
+    def restore(self):
+        self._restore(record_receipt=True)
+
+    def _restore(self,*,record_receipt):
+        if self.restored:raise RuntimeError('Fixture restoration was already performed.')
+        with connect_existing(self.database) as db:
+            db.execute('BEGIN IMMEDIATE')
+            # Do not overwrite a newer application write, even in a test DB.
+            row=db.execute('SELECT payload FROM '+self.table+' WHERE id=?',(self.record_id,)).fetchone()
+            if row is None or row[0]!=self.after:raise RuntimeError('Faulted record changed; original bytes were not restored over it.')
+            if self.table=='agent_artifacts':
+                owned=db.execute('SELECT 1 FROM agent_artifacts a JOIN runs r ON r.id=a.run_id WHERE a.id=? AND r.user_id=?',(self.record_id,self.owner_id)).fetchone()
+            else:
+                owned=db.execute('SELECT 1 FROM '+self.table+' WHERE id=? AND user_id=? AND version=?',(self.record_id,self.owner_id,self.version)).fetchone()
+            if not owned:raise RuntimeError('Faulted record owner/version no longer matches.')
+            if self.table=='agent_artifacts':
+                changed=db.execute('UPDATE agent_artifacts SET payload=? WHERE id=? AND payload=? AND content_hash=? AND EXISTS(SELECT 1 FROM runs r WHERE r.id=agent_artifacts.run_id AND r.user_id=?)',(self.before,self.record_id,self.after,self.stored_hash,self.owner_id)).rowcount
+            elif self.table=='datasets':
+                changed=db.execute('UPDATE datasets SET payload=? WHERE id=? AND payload=? AND user_id=? AND version=? AND content_hash=?',(self.before,self.record_id,self.after,self.owner_id,self.version,self.stored_hash)).rowcount
+            else:
+                changed=db.execute('UPDATE '+self.table+' SET payload=? WHERE id=? AND payload=? AND user_id=? AND version=?',(self.before,self.record_id,self.after,self.owner_id,self.version)).rowcount
+            if changed!=1:raise RuntimeError('Exact original-record restoration failed.')
+        self.restored=True
+        self.receipt['restored']=True
+        if record_receipt:
+            self._record('restored',{'kind':self.kind,'record_id':self.record_id,'restored':True,
+                'restored_sha256':sha(self.before),'only_original_bytes_restored':True,'ui_recovery_claimed':False})
+
+
+def inject_fault(probe, *, data_dir, kind, record_id, committed_dataset_id=None, expected_payload_hash=None):
+    """Return a receipt-bearing lease with optional explicit restore().
+
+    kind: import_payload | import_fake_committed | report_artifact | memory_text | action_comparison | evidence_review_scope | dataset_payload
+    record_id: ID observed from the current user's actual UI/API, never a route.
+    The caller labels this as fixture setup and subsequently operates real UI.
+    """
+    try:
+        from .product_browser_audit import require_isolated_runner
+    except ImportError:
+        from product_browser_audit import require_isolated_runner
+    require_isolated_runner(probe.base_url,data_dir)
+    if 'fault-injection' not in getattr(probe,'artifact_kinds',()):raise RuntimeError('Probe must admit explicit fault receipts before any database write.')
+    root=Path(data_dir).resolve()
+    if root!=Path(os.environ.get('DATA_DIR','')).resolve():raise RuntimeError('Fault fixture DATA_DIR differs from the running isolated service.')
+    database=root/'lidian.sqlite3'
+    if not database.is_file() or database.is_symlink():raise RuntimeError('Existing native temporary database required.')
+    owner=probe.get('/api/auth/me')['user']['id']
+    if kind=='report_artifact':
+        audit=probe.get('/api/workspace/runs/'+record_id+'/audit')
+        if not audit['report_integrity']['valid']:raise RuntimeError('Original report must pass its actual audit before fault injection.')
+        originals=[r for r in audit['artifacts'] if r['node']=='report']
+        if len(originals)!=1:raise RuntimeError('Missing independently audited final artifact.')
+    elif kind=='action_comparison':
+        action=next((r for r in probe.get('/api/workspace/actions')['items'] if r['id']==record_id),None)
+        if not action or action.get('object_hash')!=expected_payload_hash or action['source_impact']['state']!='current':
+            raise RuntimeError('Original action must still be the exact viewed intact current source.')
+        origin=action['payload'].get('provenance',{});run_id=origin.get('run_id')
+        if not isinstance(run_id,str) or not run_id:raise RuntimeError('Action fixture requires its genuine original report.')
+        audit=probe.get('/api/workspace/runs/'+run_id+'/audit')
+        report=probe.get('/api/runs/'+run_id)
+        if not audit['report_integrity']['valid'] or canonical_hash(report['result'])!=origin.get('report_hash'):
+            raise RuntimeError('Original report must remain valid and match the action binding.')
+    with connect_existing(database) as db:
+        db.row_factory=sqlite3.Row
+        db.execute('BEGIN IMMEDIATE')
+        user=db.execute('SELECT email FROM users WHERE id=?',(owner,)).fetchone()
+        if not user or not user['email'].endswith('@test.example'):raise RuntimeError('Only an explicitly synthetic test owner may be faulted.')
+        if kind in ('import_payload','import_fake_committed'):
+            table='workspace_objects'
+            row=db.execute("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='import_stage'",(record_id,owner)).fetchone()
+        elif kind=='report_artifact':
+            table='agent_artifacts'
+            rows=db.execute("SELECT a.* FROM agent_artifacts a JOIN runs r ON r.id=a.run_id WHERE r.id=? AND r.user_id=? AND a.node='report' AND r.state IN ('succeeded','degraded')",(record_id,owner)).fetchall()
+            if len(rows)!=1:raise RuntimeError('Expected one final artifact for the current owner’s completed report.')
+            row=rows[0];record_id=row['id']
+        elif kind=='memory_text':
+            table='memories';row=db.execute('SELECT * FROM memories WHERE id=? AND user_id=?',(record_id,owner)).fetchone()
+        elif kind=='evidence_review_scope':
+            table='workspace_objects';row=db.execute("SELECT * FROM workspace_objects WHERE user_id=? AND kind='evidence_review' AND natural_key=?",(owner,record_id)).fetchone()
+            if row is not None:record_id=row['id']
+        elif kind=='dataset_payload':
+            table='datasets';row=db.execute('SELECT * FROM datasets WHERE id=? AND user_id=?',(record_id,owner)).fetchone()
+        elif kind=='action_comparison':
+            table='workspace_objects';row=db.execute("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='action'",(record_id,owner)).fetchone()
+        else:raise RuntimeError('Unsupported native fixture fault kind.')
+        if row is None:raise RuntimeError('Fault target is not owned by the active synthetic account.')
+        before=row['payload'];payload=json.loads(before)
+        if not isinstance(payload,dict):raise RuntimeError('Fault setup requires an intact original object.')
+        if kind.startswith('import_'):
+            if payload['status']!='preview':raise RuntimeError('Only an uncommitted actual preview may be faulted.')
+            if payload.get('fingerprint')!=canonical_hash({k:v for k,v in payload.items() if k!='fingerprint'}):raise RuntimeError('Original preview fingerprint was already inconsistent.')
+            if kind=='import_payload':payload['dataset']['periods'][0]['cost']+=1
+            else:
+                if not db.execute('SELECT 1 FROM datasets WHERE id=? AND user_id=?',(committed_dataset_id,owner)).fetchone():raise RuntimeError('Forged completion control must reference this same test owner’s dataset.')
+                payload.update(status='committed',committed_id=committed_dataset_id)
+        elif kind=='report_artifact':
+            if row['id']!=originals[0]['id'] or row['content_hash']!=originals[0]['content_hash'] or canonical_hash(payload)!=row['content_hash']:raise RuntimeError('Original artifact no longer matches its audited hash.')
+            payload['title']+='（仅隔离验收的产物损坏）'
+        elif kind=='memory_text':
+            if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash:raise RuntimeError('Live memory must still match the actual approved frozen hash before injection.')
+            payload['text']=payload['text'][:1400]+'（仅隔离验收：原版本号不变的临时内容）'
+        elif kind=='evidence_review_scope':
+            if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash:
+                raise RuntimeError('Original evidence review differs from the actual approved baseline.')
+            if payload.get('status') not in ('unreviewed','accepted') or not (payload.get('company') or payload.get('global_scope')):
+                raise RuntimeError('Original evidence review must be eligible before scope withdrawal.')
+            payload.update(company='另一家隔离企业',global_scope=False)
+        elif kind=='dataset_payload':
+            if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash or row['content_hash']!=expected_payload_hash:
+                raise RuntimeError('Original dataset must match the actual viewed payload fingerprint.')
+            revision=db.execute('SELECT payload,content_hash FROM dataset_revisions WHERE dataset_id=? AND user_id=? AND version=?',(record_id,owner,row['version'])).fetchone()
+            if not revision or revision['payload']!=before or revision['content_hash']!=expected_payload_hash:
+                raise RuntimeError('Original trusted revision must remain intact for real UI recovery.')
+            payload['periods'][-1]['cost']+=1
+        else:
+            if not isinstance(expected_payload_hash,str) or canonical_hash(payload)!=expected_payload_hash:
+                raise RuntimeError('Original action changed since its exact viewed hash; no fault was applied.')
+            reference=(payload.get('provenance') or {}).get('comparison_reference')
+            if not isinstance(reference,dict) or not isinstance(reference.get('payload'),dict) or canonical_hash(reference['payload'])!=reference.get('projection_hash'):
+                raise RuntimeError('Original archived comparison must have an intact projection hash.')
+            note=reference['payload'].get('comparability_note')
+            if not isinstance(note,str):raise RuntimeError('Original comparison note must be a recorded string.')
+            reference['payload']['comparability_note']=note+'（仅隔离验收：对照摘要被临时损坏）'
+        after=json.dumps(payload,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False)
+        if after==before:raise RuntimeError('Fault setup did not change the target.')
+        version=row['version'] if 'version' in row.keys() else None
+        stored_hash=row['content_hash'] if 'content_hash' in row.keys() else None
+        if table=='agent_artifacts':
+            changed=db.execute('UPDATE agent_artifacts SET payload=? WHERE id=? AND payload=? AND content_hash=? AND EXISTS(SELECT 1 FROM runs r WHERE r.id=agent_artifacts.run_id AND r.user_id=?)',(after,record_id,before,stored_hash,owner)).rowcount
+        elif table=='datasets':
+            changed=db.execute('UPDATE datasets SET payload=? WHERE id=? AND payload=? AND user_id=? AND version=? AND content_hash=?',(after,record_id,before,owner,version,stored_hash)).rowcount
+        else:
+            changed=db.execute('UPDATE '+table+' SET payload=? WHERE id=? AND payload=? AND user_id=? AND version=?',(after,record_id,before,owner,version)).rowcount
+        if changed!=1:raise RuntimeError('Target changed concurrently; no fixture retry is permitted.')
+    lease=InjectedFault(probe,database,owner,table,record_id,before,after,kind,version,stored_hash)
+    try:lease._record('injected',lease.receipt)
+    except Exception as exc:
+        lease._restore(record_receipt=False)
+        lease.receipt['harness_receipt_failure_original_restored']=True
+        raise RuntimeError('Fault receipt creation failed; original bytes restored; UI outcome was not exercised.') from exc
+    return lease
+
+
+COPILOT_BAD_VALUE = 987654321
+
+
+def _copilot_native_database(probe, data_dir):
+    """Same native gate as existing fixtures; never an application endpoint."""
+    try:
+        from .product_browser_audit import require_isolated_runner
+    except ImportError:
+        from product_browser_audit import require_isolated_runner
+    require_isolated_runner(probe.base_url, data_dir)
+    if 'fault-injection' not in getattr(probe, 'artifact_kinds', ()):
+        raise RuntimeError('Probe must admit explicit fault receipts before any database access.')
+    root = Path(data_dir).resolve()
+    if root != Path(os.environ.get('DATA_DIR', '')).resolve():
+        raise RuntimeError('Fault fixture DATA_DIR differs from the running isolated service.')
+    return root / 'lidian.sqlite3'
+
+
+def _read_copilot_records(db, owner, run_id, proposal_id):
+    """Only exact current-owner synthetic completed proposal/report records."""
+    db.row_factory = sqlite3.Row
+    user = db.execute('SELECT email FROM users WHERE id=?', (owner,)).fetchone()
+    if not user or not user['email'].endswith('@test.example'):
+        raise RuntimeError('Only an explicitly synthetic test owner may be inspected.')
+    run = db.execute('SELECT * FROM runs WHERE id=? AND user_id=?', (run_id, owner)).fetchone()
+    proposal = db.execute("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='assistant_proposal'", (proposal_id, owner)).fetchone()
+    if not run or not proposal or run['state'] not in ('succeeded', 'degraded'):
+        raise RuntimeError('Expected an owned completed report and its actual proposal.')
+    payload = json.loads(proposal['payload'])
+    if payload.get('kind') != 'research' or payload.get('status') != 'executed' or payload.get('result', {}).get('run_id') != run_id:
+        raise RuntimeError('Proposal does not bind the exact completed report.')
+    plan = db.execute("SELECT * FROM workspace_objects WHERE id=? AND user_id=? AND kind='plan'", (payload['plan_id'], owner)).fetchone()
+    if not plan or json.loads(plan['payload']).get('run_id') != run_id:
+        raise RuntimeError('Original plan does not bind the exact completed report.')
+    dataset = db.execute('SELECT * FROM datasets WHERE id=? AND user_id=?', (run['dataset_id'], owner)).fetchone()
+    return {'run': dict(run), 'proposal': dict(proposal), 'plan': dict(plan), 'dataset': dict(dataset),
+            'artifacts': [dict(row) for row in db.execute('SELECT * FROM agent_artifacts WHERE run_id=? ORDER BY id', (run_id,))],
+            'events': [dict(row) for row in db.execute('SELECT * FROM run_events WHERE run_id=? ORDER BY seq', (run_id,))],
+            'ledger': [dict(row) for row in db.execute('SELECT * FROM event_integrity WHERE run_id=? ORDER BY event_seq', (run_id,))]}
+
+
+def read_copilot_records(probe, *, data_dir, run_id, proposal_id):
+    database = _copilot_native_database(probe, data_dir)
+    owner = probe.get('/api/auth/me')['user']['id']
+    with connect_existing(database) as db:
+        db.execute('BEGIN')
+        return _read_copilot_records(db, owner, run_id, proposal_id)
+
+
+def damaged_copilot_result(raw):
+    """One semantic scalar and its exact bytes only; preserve every other byte."""
+    result = json.loads(raw)
+    canonical = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    if canonical != raw:
+        raise RuntimeError('Only the actual canonical saved-result representation is admitted.')
+    facts = result['readout']['facts']
+    if len(facts) != 1 or facts[0]['id'] != 'gross_margin' or facts[0]['value'] != .2 or facts[0]['unit'] != 'ratio':
+        raise RuntimeError('Expected exactly the viewed 20% gross-margin fact.')
+    original = json.dumps(facts[0], ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    start = raw.index(original, raw.index('"readout":'))
+    replacement = original.replace('"value":0.2', '"value":' + str(COPILOT_BAD_VALUE))
+    if replacement == original or replacement.count('"value":' + str(COPILOT_BAD_VALUE)) != 1:
+        raise RuntimeError('Cannot isolate one saved readout scalar.')
+    after = raw[:start] + replacement + raw[start + len(original):]
+    expected = json.loads(raw)
+    expected['readout']['facts'][0]['value'] = COPILOT_BAD_VALUE
+    if json.loads(after) != expected:
+        raise RuntimeError('Fault would change more than the declared scalar.')
+    return after
+
+
+def inject_copilot_report_result(probe, *, data_dir, run_id, proposal_id, expected_records):
+    """One unrepaired runs.result fault after all healthy UI readings.
+
+    This narrow extension is needed because report_artifact changes a different
+    stored object and cannot expose an altered saved result in raw disclosure.
+    All original rows, bytes, hashes and a precise delta are carried in a receipt.
+    Receipt failure rolls back the uncommitted transaction; no restore API exists.
+    """
+    database = _copilot_native_database(probe, data_dir)
+    if probe.observations.get('database_faults'):
+        raise RuntimeError('This scenario admits exactly one declared database fault.')
+    owner = probe.get('/api/auth/me')['user']['id']
+    audit = probe.get('/api/workspace/runs/' + run_id + '/audit')
+    if audit['report_integrity'] != {'valid': True, 'format': 'studio', 'failures': []} or audit['report_hash_valid'] is not True:
+        raise RuntimeError('The actually viewed original report must still pass its audit.')
+    with connect_existing(database) as db:
+        db.execute('BEGIN IMMEDIATE')
+        before = _read_copilot_records(db, owner, run_id, proposal_id)
+        if before != expected_records:
+            raise RuntimeError('Original report, proposal or protected source changed after healthy reading.')
+        old = before['run']['result']
+        after = damaged_copilot_result(old)
+        final = [row for row in before['artifacts'] if row['node'] == 'report']
+        if len(final) != 1 or final[0]['payload'] != old or final[0]['content_hash'] != sha(old):
+            raise RuntimeError('Original result must match its intact final artifact bytes and hash.')
+        changed = db.execute('UPDATE runs SET result=? WHERE id=? AND user_id=? AND result=? AND snapshot=? AND payload=? AND state=? AND updated_at=?',
+            (after, run_id, owner, old, before['run']['snapshot'], before['run']['payload'], before['run']['state'], before['run']['updated_at'])).rowcount
+        if changed != 1:
+            raise RuntimeError('Exact original report changed; no fixture retry is permitted.')
+        current = _read_copilot_records(db, owner, run_id, proposal_id)
+        expected = json.loads(json.dumps(before))
+        expected['run']['result'] = after
+        if current != expected:
+            raise RuntimeError('Fixture altered an undeclared record; transaction rolled back.')
+        receipt = {'fixture': 'temporary_native_database_corruption', 'kind': 'copilot_report_result',
+            'owner_id': owner, 'table': 'runs', 'record_id': run_id, 'proposal_id': proposal_id, 'column': 'result',
+            'changed_json_path': 'readout.facts[0].value', 'before_value': .2, 'after_value': COPILOT_BAD_VALUE,
+            'before_sha256': sha(old), 'after_sha256': sha(after), 'restored': False,
+            'ui_mutation_claimed': False, 'application_endpoint_added': False,
+            'original_records': before, 'damaged_records': current}
+        path = Path(probe.directory) / 'copilot-result-fault-original-and-damaged.json'
+        with path.open('x', encoding='utf-8') as stream:
+            json.dump(receipt, stream, ensure_ascii=False, sort_keys=True, indent=2)
+        probe.record_artifact(path, kind='fault-injection')
+    probe.observations.setdefault('database_faults', []).append({key: value for key, value in receipt.items()
+        if key not in ('original_records', 'damaged_records')})
+    return receipt

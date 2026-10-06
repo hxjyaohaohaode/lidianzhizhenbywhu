@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-30",
+  "base_commit": "2efcf387cdadcd41ed5c880a8f484049b92a07c5",
+  "scope": [
+    "mathematical_projection_and_per_call_reference_grounding",
+    "explicit_financial_period_and_comparison_handoff",
+    "date_stable_replay_and_effective_input_deduplication",
+    "actual_calculation_gap_planning"
+  ],
+  "backend_passed": 694,
+  "frontend_passed": 107,
+  "aggregate_verified_at": "2026-09-30T14:51:01.853512+00:00",
+  "independent_focused_review": {
+    "tests_passed": 73,
+    "status": "no_remaining_review_blocker"
+  },
+  "after_final_aggregate_native_script_wait_update": {
+    "python_compile": "passed",
+    "ci_evidence_tests_passed": 4,
+    "native_execution": "not_run_locally"
+  },
+  "native_browser": {
+    "status": "awaiting_current_commit_ci",
+    "new_scenarios": 3,
+    "no_policy_bypass": true
+  },
+  "live_provider_calls": 0,
+  "runtime_seed_data": false,
+  "formulas_changed": false,
+  "historical_reports_rewritten": false,
+  "merge_or_deploy": false
+}

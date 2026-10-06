@@ -1,0 +1,69 @@
+{
+  "head": "a9f71deffb0ef83d2bb472f3ecb2b6b31129dbf2",
+  "tree": "b5955954b336050f2f3ee2dda3edd583f66457a5",
+  "push_run": 37282239822,
+  "pr_run": 37282246543,
+  "pr_merge": "4f2a62ad5a04105d1758920f18c479720dbfcbc0",
+  "status": {
+    "push_success": 18,
+    "push_failure": 1,
+    "pr_success": 19
+  },
+  "native_L4": {
+    "scope": "direct watch lifecycle only, synthetic account, hosted Chromium 1520x1080, Linux and Windows",
+    "independent_raw_review": true,
+    "watch_writes": 6,
+    "tracking_responses": 14,
+    "immutable_alerts": 2,
+    "canonical_margin_thresholds": [
+      0.15,
+      0.25,
+      0.15
+    ],
+    "margin_value": 0.2,
+    "yuan_threshold": 15000.25,
+    "yuan_value": 12345.67,
+    "preferences_amount_unit": "wan",
+    "database_faults": 0,
+    "provider_calls": 0,
+    "remaining": [
+      "extra dirty-draft confirmation after cancel",
+      "native all-ratio coverage",
+      "native proposal approval coverage",
+      "narrow viewport coverage",
+      "full product acceptance"
+    ]
+  },
+  "windows_regression": [
+    {
+      "event": "push",
+      "pytest_seconds": 730.875,
+      "collected": 2207,
+      "started": 2207,
+      "completed": 2207,
+      "exit_code": 0,
+      "frontend_pass": 445,
+      "http_checks": 18,
+      "general_native_checks": 57,
+      "zip_sha256": "e9bca4a63bba80873366d540e715ecf28a4a856590de7eefef70405232b9a2a8"
+    },
+    {
+      "event": "pull_request",
+      "pytest_seconds": 927.126,
+      "collected": 2207,
+      "started": 2207,
+      "completed": 2207,
+      "exit_code": 0,
+      "frontend_pass": 445,
+      "http_checks": 18,
+      "general_native_checks": 57,
+      "zip_sha256": "1d15daeb2a0d214899f6be3f665d063a812a60b10cac5a63f30099542fa5430c"
+    }
+  ],
+  "retained_failure": {
+    "job": 111672762441,
+    "scope": "I7 Windows supplemental auth/me read failed after actual damaged tracking display; recovery phase not reached",
+    "status": "failure",
+    "mitigation_next_commit": "single-shot Connection: close; no replay or success claim before new native run"
+  }
+}

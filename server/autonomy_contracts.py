@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Literal
 from pydantic import Field, model_validator
-from .schemas import StrictModel
+from .schemas import StorageInteger, StrictModel
 
 Role = Literal['planner', 'analyst', 'researcher', 'challenger', 'revision']
 Focus = Literal['quality', 'margin', 'cash', 'forecast', 'sensitivity', 'evidence', 'counterevidence']
@@ -12,10 +12,12 @@ class ScenarioAssumptions(StrictModel):
     cost_change: float = Field(default=0.0, ge=-.8, le=1, strict=True)
     volume_change: float = Field(default=0.0, ge=-.8, le=1, strict=True)
     fixed_cost_share: float = Field(default=0.0, ge=0, le=1, strict=True)
-    note: str = Field(min_length=5, max_length=1000)
+    note: str = Field(min_length=5, max_length=2000)
 
 class ExecutionOptions(StrictModel):
-    depth: Literal['concise', 'balanced', 'deep'] = 'balanced'
+    # None means a planning default; every explicit choice, including balanced,
+    # must survive policy activation and replay unchanged.
+    depth: Literal['concise', 'balanced', 'deep'] | None = None
     model_planning: bool = False
     max_revisions: int = Field(default=1, ge=0, le=2)
     local_recovery: bool = True
@@ -50,15 +52,21 @@ class PlannerProposal(StrictModel):
         return self
 
 class RunControl(StrictModel):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     action: Literal['pause', 'resume']
 
 class RunAssessment(StrictModel):
+    review_context_hash: str | None = Field(default=None,pattern='^[a-f0-9]{64}$')
     verdict: Literal['useful', 'needs_revision', 'rejected']
     note: str = Field(min_length=5, max_length=2000)
-    expected_capabilities: list[Literal['quality', 'quant', 'evidence', 'counterevidence', 'forecast', 'sensitivity', 'gaps']] = Field(default_factory=list, max_length=7)
+    expected_capabilities: list[Literal['quality', 'quant', 'evidence', 'counterevidence', 'forecast', 'sensitivity', 'gaps', 'comparison']] = Field(default_factory=list, max_length=8)
     consent_replay: bool = False
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
+    @model_validator(mode='after')
+    def unique_rubric(self):
+        if len(set(self.expected_capabilities)) != len(self.expected_capabilities):
+            raise ValueError('人工验收能力不得重复')
+        return self
 
 class StrategySpec(StrictModel):
     name: str = Field(min_length=2, max_length=80)
@@ -69,7 +77,7 @@ class StrategySpec(StrictModel):
 
 class ActivateStrategy(StrictModel):
     evaluation_id: str = Field(min_length=1, max_length=80)
-    expected_active_version: int = Field(ge=0)
+    expected_active_version: StorageInteger = Field(ge=0)
 
 class RollbackStrategy(StrictModel):
-    expected_active_version: int = Field(ge=1)
+    expected_active_version: StorageInteger = Field(ge=1)

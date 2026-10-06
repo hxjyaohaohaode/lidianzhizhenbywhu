@@ -2,6 +2,7 @@ export type Json = any;
 let csrf = '';
 let authGeneration=0;
 export function invalidateContext(){authGeneration++;}
+export function contextGuard(){const started=authGeneration;return ()=>started===authGeneration;}
 export function setCsrf(value:string){if(value!==csrf)authGeneration++;csrf=value;}
 export class ApiError extends Error {
   constructor(message:string,public status:number,public code:string,public requestId:string){super(message);}
@@ -26,3 +27,14 @@ export async function api(path:string,method='GET',body?:Json,extra:Record<strin
   } finally {clearTimeout(timeout);}
 }
 export const workspace=(path:string,method='GET',body?:Json)=>api('/workspace'+path,method,body);
+
+// Page reads are fenced separately so navigation cannot corrupt page caches,
+// while the independent assistant can finish its already submitted question.
+let viewGeneration=0;
+export function invalidateView(){viewGeneration++;}
+export async function viewApi(path:string,method='GET',body?:Json,extra:Record<string,string>={}){
+ const generation=viewGeneration;const result=await api(path,method,body,extra);
+ if(generation!==viewGeneration)throw new ApiError('已前往新的工作区，忽略旧页面的迟到结果。',409,'STALE_VIEW','');
+ return result;
+}
+export const viewWorkspace=(path:string,method='GET',body?:Json)=>viewApi('/workspace'+path,method,body);

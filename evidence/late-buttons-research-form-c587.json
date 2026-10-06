@@ -1,0 +1,60 @@
+{
+  "repo": "/workspace/scratch/ace785cd6eaa/lidian-late-actions-fix",
+  "results": [
+    {
+      "interaction": "untouched",
+      "proposalPosts": 1,
+      "error": "",
+      "approvalShown": true,
+      "selectionDetails": "",
+      "selectionHorizonDisabled": false,
+      "submittedText": "{\"kind\":\"research\",\"text\":\"核查第二季度经营变化\",\"source_message_id\":\"\",\"request_id\":\"2f676ee9-5412-4489-b363-1a934e87c88b\",\"use_llm\":false,\"include_thread_history\":false,\"provider\":\"\",\"mode\":\"operational\",\"acceptance\":\"核对输入与可比范围\",\"max_calls\":0,\"execution\":{\"depth\":\"balanced\",\"model_planning\":false,\"forecast\":false,\"forecast_metric\":\"revenue\",\"horizon\":2}}",
+      "toasts": []
+    },
+    {
+      "interaction": "edit-question",
+      "proposalPosts": 0,
+      "error": "提案窗口或范围已变化，请重新打开后选择研究依据。",
+      "approvalShown": false,
+      "selectionDetails": "",
+      "selectionHorizonDisabled": false,
+      "toasts": []
+    },
+    {
+      "interaction": "change-depth",
+      "proposalPosts": 0,
+      "error": "提案窗口或范围已变化，请重新打开后选择研究依据。",
+      "approvalShown": false,
+      "selectionDetails": "",
+      "selectionHorizonDisabled": false,
+      "toasts": []
+    },
+    {
+      "interaction": "select-experiment-input-and-change",
+      "proposalPosts": 0,
+      "error": "提案窗口或范围已变化，请重新打开后选择研究依据。",
+      "approvalShown": false,
+      "selectionDetails": "",
+      "selectionHorizonDisabled": false,
+      "toasts": []
+    },
+    {
+      "interaction": "select-experiment-change-only",
+      "proposalPosts": 0,
+      "error": "提案窗口或范围已变化，请重新打开后选择研究依据。",
+      "approvalShown": false,
+      "selectionDetails": "<div class=\"notice neutral\"><svg class=\"icon\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v6m0-10v1\"/></svg><span>将复用此实验的原始参数和假设。研究问题须与下列目标季度一致；不会自动改写你的问题。</span></div><section class=\"subpanel\"><h3>已选数学实验 · 冻结现金预测</h3><p>经确认假设</p><p class=\"micro\">原始实验 v2 · 目标 2026-Q2 · 计算日期 2026-09-30</p><details><summary>实验来源与结果指纹</summary><pre class=\"json-view\">{\n  &quot;id&quot;: &quot;saved-forecast&quot;,\n  &quot;version&quot;: 2,\n  &quot;hash&quot;: &quot;cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc&quot;,\n  &quot;name&quot;: &quot;冻结现金预测&quot;,\n  &quot;kind&quot;: &quot;forecast&quot;,\n  &quot;assumptions&quot;: &quot;经确认假设&quot;,\n  &quot;target_period&quot;: &quot;2026-Q2&quot;,\n  &quot;analysis_as_of&quot;: &quot;2026-09-30&quot;,\n  &quot;dataset_id&quot;: &quot;dataset-a&quot;,\n  &quot;dataset_version&quot;: 3,\n  &quot;dataset_hash&quot;: &quot;aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&quot;\n}</pre></details></section><p class=\"micro\">冻结企业：主企业 · 数据修订 3</p><div class=\"table-scroll \" role=\"region\" tabindex=\"0\" aria-label=\"冻结预测目标、冻结步数\"><table><thead><tr><th scope=\"col\">冻结预测目标</th><th scope=\"col\">冻结步数</th></tr></thead><tbody><tr><td>经营现金流</td><td>4 个季度</td></tr></tbody></table></div>",
+      "selectionHorizonDisabled": true,
+      "toasts": []
+    },
+    {
+      "interaction": "close-and-submit",
+      "proposalPosts": 0,
+      "error": "提案窗口或范围已变化，请重新打开后选择研究依据。",
+      "approvalShown": false,
+      "selectionDetails": "",
+      "selectionHorizonDisabled": false,
+      "toasts": []
+    }
+  ]
+}

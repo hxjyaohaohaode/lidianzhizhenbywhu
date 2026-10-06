@@ -1,0 +1,164 @@
+{
+  "executed_at": "2026-10-05T10:28:18.509885+00:00",
+  "base_remote_commit": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+  "change_scope": "I9 descendant-relative table-row locator plus eight pure locator guards; no application change",
+  "all_seven_stages_passed": true,
+  "checks": [
+    {
+      "check": "python-compile",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.035,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "typecheck",
+      "command": [
+        "node",
+        "/workspace/scratch/ace785cd6eaa/lidian-provenance-eligibility/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 1.199,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "build",
+      "command": [
+        "node",
+        "/workspace/scratch/ace785cd6eaa/lidian-provenance-eligibility/node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 1.397,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "pytest",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:faulthandler",
+        "-p",
+        "scripts.pytest_diagnostics",
+        "--diagnostics-output=evidence/pytest-progress.jsonl",
+        "--diagnostics-test-timeout=120",
+        "--durations=20",
+        "--junitxml=evidence/pytest.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 353.806,
+      "timeout_seconds": 1200
+    },
+    {
+      "check": "frontend-tests",
+      "command": [
+        "node",
+        "--test",
+        "tests/actions.frontend.test.mjs",
+        "tests/assistant-handoff.frontend.test.mjs",
+        "tests/business-source.frontend.test.mjs",
+        "tests/claim-review-readout.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
+        "tests/copilot-message-trace.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
+        "tests/data-draft-continuation.frontend.test.mjs",
+        "tests/data-editor-isolation.frontend.test.mjs",
+        "tests/dataset-source.frontend.test.mjs",
+        "tests/evidence.frontend.test.mjs",
+        "tests/form-snapshot.frontend.test.mjs",
+        "tests/frontend.test.mjs",
+        "tests/import-navigation.frontend.test.mjs",
+        "tests/import-readability.frontend.test.mjs",
+        "tests/import.frontend.test.mjs",
+        "tests/math-results.frontend.test.mjs",
+        "tests/metric-comparison.frontend.test.mjs",
+        "tests/plan-history.frontend.test.mjs",
+        "tests/preferences-completion.frontend.test.mjs",
+        "tests/product-numeric-outcomes.frontend.test.mjs",
+        "tests/proposal-preview.frontend.test.mjs",
+        "tests/recovery.frontend.test.mjs",
+        "tests/report-integrity.frontend.test.mjs",
+        "tests/report-readout.frontend.test.mjs",
+        "tests/saved-comparisons.frontend.test.mjs",
+        "tests/saved-experiments.frontend.test.mjs",
+        "tests/saved-mutation.frontend.test.mjs",
+        "tests/service-completion.frontend.test.mjs",
+        "tests/services.frontend.test.mjs",
+        "tests/watch-units.frontend.test.mjs",
+        "tests/workflow-inputs.frontend.test.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 1.595,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "source-guard",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/source_guard.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.314,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/full_chain_check.py"
+      ],
+      "exit_code": 0,
+      "seconds": 5.924,
+      "timeout_seconds": 240
+    }
+  ],
+  "pytest_session": {
+    "event": "session_finished",
+    "utc": "2026-10-05T10:28:02.687032+00:00",
+    "elapsed_seconds": 345.137065,
+    "process_cpu_seconds": 333.858172,
+    "exit_code": 0,
+    "collected": 2383,
+    "started": 2383,
+    "completed": 2383,
+    "complete": true,
+    "phase_outcomes": {
+      "setup_passed": 2383,
+      "call_passed": 2386,
+      "teardown_passed": 2383
+    }
+  },
+  "frontend": {
+    "tests": 485,
+    "passed": 485,
+    "failed": 0,
+    "skipped": 0
+  },
+  "real_http_checks": 18,
+  "protected_tree_ids": {
+    "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+    "server": "6586116b744db2de3384956803e50325c96f73c1"
+  },
+  "independent_focused_tests": 84,
+  "pure_selector_scope": "Real Playwright Locator composition; explicit count inputs; no rendered browser/driver evidence",
+  "native_retry_added": false,
+  "timeout_changed": false,
+  "brand_or_formulas_changed": false,
+  "real_provider_calls": 0,
+  "merge_or_deployment_performed": false,
+  "native_status": "New exact SHA execution required; original759 I9 failed after43 steps and its recovery half is not passed"
+}

@@ -1,0 +1,26 @@
+✔ scenario Agent result exposes actual values and approved assumptions without opening JSON (13.352861ms)
+✔ blocked forecast explains missing input and never draws invented predictions (0.159269ms)
+✔ forecast table preserves missing error band and supplies readable backtest (1.19728ms)
+✔ every tool prose and data value is escaped and zero stays distinct from missing (0.716948ms)
+✔ readable citation keeps signed search-summary origin after display URL changes (0.386271ms)
+✔ citation provenance cannot introduce markup or executable source links (0.143736ms)
+✔ claims show frozen mathematical values, units and source hash without fabricating old-report references (0.442345ms)
+✔ mathematical reference rendering escapes all archived labels and identifiers (0.9145ms)
+✔ 8bd screenshot counterexample uses the actual report renderer and keeps original JSON intact (17.318631ms)
+✔ quarter findings name their saved fields and never replace a missing period with current context (1.328807ms)
+✔ legacy records cannot manufacture periods, definitions, reasons or a completed gap list (0.435995ms)
+✔ unknown keys stay explicitly unknown and all archived strings remain escaped (0.454474ms)
+✔ saved reasons win; missing, blocked and unknown outcomes never become execution failures (0.378489ms)
+✔ contradictory or incomplete saved output cannot supply an invented reason (0.299801ms)
+✔ original rule versions and saved DQI metric selection bound input descriptions (0.415644ms)
+✔ absent archived inputs stay unrecorded and explicit null stays missing (0.237658ms)
+✔ needs_input with complete numeric inputs and zero denominators does not invent missing data (0.334143ms)
+✔ saved small nonzero inputs never round into zero in the gap explanation (0.388033ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 113.293443

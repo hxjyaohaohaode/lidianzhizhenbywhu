@@ -1,0 +1,103 @@
+{
+  "status": "all_local_executed_checks_pass",
+  "started_at": "2026-10-05T19:01:01.337189+00:00",
+  "base_remote": "7e7ebe828b4653a02637fe79bdf9c235d1e067a3",
+  "base_local": "2e85ffac5e1ab76bd1d9dcfcd44605b314b5f3a7",
+  "integrated_source_head": "5791b391749db18539c524fa607b7b75e3d15ff7",
+  "protected_tree_ids": {
+    "server": "f6dbb3a3f3649574237cea12aecb43fd96d14283",
+    "web": "fc2d662decb35ad551cae0e39766d07f6b90ee92"
+  },
+  "complete_product_accepted": false,
+  "native_on_current_tree": "not executed; all original L9/L10 failures retained",
+  "new_reader_native_boundaries": "Action review detail, historical question warning and corrupted copilot card remain awaiting new native journeys.",
+  "executed_at": "2026-10-05T19:09:00.513077+00:00",
+  "checks": [
+    {
+      "check": "python-compile",
+      "exit_code": 0,
+      "seconds": 0.134,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "typecheck",
+      "exit_code": 0,
+      "seconds": 1.357,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "build",
+      "exit_code": 0,
+      "seconds": 1.694,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "pytest",
+      "exit_code": 0,
+      "seconds": 467.269,
+      "timeout_seconds": 1500
+    },
+    {
+      "check": "frontend-tests",
+      "exit_code": 0,
+      "seconds": 2.002,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "source-guard",
+      "exit_code": 0,
+      "seconds": 0.404,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "exit_code": 0,
+      "seconds": 6.261,
+      "timeout_seconds": 240
+    }
+  ],
+  "backend": {
+    "collected": 3386,
+    "started": 3386,
+    "completed": 3386,
+    "exit_code": 0
+  },
+  "frontend": {
+    "tests": 1034,
+    "passed": 1034,
+    "failed": 0,
+    "skipped": 0
+  },
+  "source_files_unchanged": 344,
+  "independent_review": "All bounded candidates and final manual read-snapshot, warning, source-display, scoped feedback and detail-route integration reviewed independently. Final route renderer controls passed against the merged app.",
+  "prior_ci": {
+    "head": "7e7ebe828b4653a02637fe79bdf9c235d1e067a3",
+    "push": {
+      "id": 37352812308,
+      "success": 29,
+      "failure": 4
+    },
+    "pull_request": {
+      "id": 37352821769,
+      "success": 29,
+      "failure": 4
+    },
+    "failures_preserved": [
+      "L9 all four first-row native geometry",
+      "L10 Push Windows audit/completion interleaving",
+      "L10 Push Linux and PR Windows full-card geometry",
+      "L10 PR Linux 601st API request correctly rate-limited"
+    ]
+  },
+  "not_exercised": [
+    "Live model API credentials",
+    "Live public sources",
+    "Public HTTPS deployment",
+    "Long-duration production load",
+    "Native browser navigation/Cookie/CSP integration",
+    "Cross-device browser compatibility",
+    "Future dependency advisories",
+    "Optional patched PDF integration"
+  ],
+  "native_note": "The previous L11 result was a scoped two-OS draft/proposal outcome with ambiguous earlier save feedback. New sources require new hosted native evidence; no success is inherited."
+}

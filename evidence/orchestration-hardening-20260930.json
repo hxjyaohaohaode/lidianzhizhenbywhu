@@ -1,0 +1,62 @@
+{
+  "recorded_at": "2026-09-30T06:09:53.390378+00:00",
+  "scope": "Bounded orchestration, dispatch authorization, checkpoint recovery and human-governed local policy replay",
+  "branch": "feat/research-workbench-hardening",
+  "base_commit": "cdca0052a23273efb4366ca204b0d9bac40da2a5",
+  "changes": [
+    "Dispatch revalidates owner-scoped approved plan fingerprints, immutable runtime inputs and current authorization",
+    "Provider selection and adaptive model calls use the account-scoped provider facade",
+    "Finished checkpoints cannot be overwritten or executed again; restore verifies graph anchors, event chains and call-reservation anchors",
+    "Unknown or orphaned external dispatch outcomes never retry automatically; pre-dispatch interruptions without a reservation may execute once after reauthorization",
+    "Legacy pending rows without fingerprint-bound approval produce local degraded reports and cannot initiate paid external calls",
+    "Every explicit research depth survives local policy defaults; null depth selects the approved default",
+    "Human replay accepts completed consented cases, deduplicates financial inputs and executes shared production local capabilities",
+    "Missing evidence stays unmet; candidate replay preserves original assumptions and archived mathematical hashes",
+    "Activation reruns current baseline and candidate gates before human-confirmed activation; automatic proposals exclude held-out requirements"
+  ],
+  "checks": [
+    {
+      "command": ".venv/bin/python -m pytest tests/test_adaptive.py tests/test_evolution.py tests/test_workflows.py tests/test_workspace_api.py -q",
+      "status": "passed",
+      "passed": 192,
+      "failed": 0,
+      "warnings": 2,
+      "seconds": 26.17
+    },
+    {
+      "command": ".venv/bin/python -m compileall -q server",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q",
+      "status": "failed_before_version_assertion_update",
+      "passed": 578,
+      "failed": 1,
+      "failure": "tests/test_research.py::test_local_current_api_reference expected old API version 4.0.0; running API is 4.1.0",
+      "note": "此历史整合运行在最后四项逆向用例加入前收集；API版本断言随后更新，最终完整结果见 verification.json。"
+    }
+  ],
+  "validation_limits": {
+    "live_external_provider_calls": 0,
+    "provider_evidence": "isolated test doubles; not live supplier or model-quality evidence",
+    "browser_or_http_acceptance": "not performed in this scoped record; separate parent validation",
+    "semantic_truth_or_profitability": "not evaluated or claimed"
+  },
+  "math_implementation_unchanged": true,
+  "source_sha256": {
+    "server/adaptive_runtime.py": "3a942103c62c827113ea2efba2fdc37298397119e001145934ec961612f5e99b",
+    "server/autonomy.py": "f36e13e555e28950edfe4f5989b65d08ba53157a7512524a0b31fbb4edf5d4d1",
+    "server/autonomy_api.py": "59ac8ebb49d9611b9fc71040838e13cafa1d6bc0384ef7413922afcee33cfba5",
+    "server/autonomy_contracts.py": "fdbb2d196f35bd53f751231392544ea8a7b044cc1d4062657b58d981fea63912",
+    "server/evolution.py": "eab4ca2f8d3227b7e266a40dc3356c692f5f0cbe0f63c43acade494c599d49fa",
+    "server/studio.py": "35a2eaf7a5dd5907c63e5420840448e038d7b7b0f8aecdaa9f11e95b9d689591",
+    "server/workflows.py": "ea445bae56a774d421d1cf0348257e82e84fee8586c2cf09df688ae24d649a77",
+    "tests/test_adaptive.py": "c84f5e7ba6c38d4ae297f4d96a93e5a661b1a87445c77dce779ee7d6ba2fd6cc",
+    "tests/test_evolution.py": "09cd25ffd6a72c81df9eb3e94d736ba8bc7d28c042ff8fb2df7b92810b664346",
+    "tests/test_workflows.py": "e122c885de1e3ef7bb78172f1de663cac6305e8378f8d39e0eface582ba96380"
+  }
+}

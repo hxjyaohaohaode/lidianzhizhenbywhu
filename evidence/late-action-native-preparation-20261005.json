@@ -1,0 +1,119 @@
+{
+  "prepared_at": "2026-10-05T16:55:30.195027+00:00",
+  "status": "prepared_only; native journey not executed",
+  "base_commit": "e8eaee74efc9340cc7b9924e6176e12f6e5a0778",
+  "protected_tree_ids": {
+    "web": "06cd1ac3a589c57b5085499e5de20690d2577364",
+    "server": "8621e57f92c821eccaf15fceed5a7bb0265bd31f"
+  },
+  "protected_source_files": 114,
+  "protected_diff": "",
+  "entrypoint": {
+    "suite": "late-actions",
+    "mode": "product-late-actions",
+    "scenario": "L11-late-actions",
+    "module": "scripts.product_late_action_journey",
+    "function": "late_action_journey",
+    "keywords": [
+      "repository_root",
+      "data_dir",
+      "expected_web_tree",
+      "expected_server_tree"
+    ]
+  },
+  "runner_contract": {
+    "host": "existing Probe/native_acceptance runner only",
+    "requires_github_actions": true,
+    "server_origin": "http://127.0.0.1:8000",
+    "requires_existing_native_temp_data_dir": true,
+    "new_server_started": false,
+    "new_browser_started": false,
+    "native_limit_seconds": 300,
+    "product_job_limit_minutes": 15,
+    "trace_video_screenshots": "owned and finalized by existing native runner",
+    "registry_changed": false,
+    "ci_changed": false
+  },
+  "prepared_outcomes": [
+    "A: native-created synthetic evidence DELETE is forwarded once and must actually return HTTP 200/ok before user navigates and types. Original successful response is later fulfilled; current input object/name/page and explicit earlier-deletion toast plus pending-refresh notice must survive. Independent GET checks real absence and unchanged dataset.",
+    "B: the ordinary four workspace refresh GET responses are each forwarded once and delayed. User types a new same-page draft before original responses are fulfilled. Original node/name/page and pending-refresh bar remain; no new mutation and exact saved dataset remains unchanged.",
+    "C: actual assistant message handoff; edit old research question then close/reopen before submit. Old node detaches and new request key owns edited question, deep depth, and an actual saved experiment selection. Submit exactly once to visible proposal review; independent GET checks draft proposal, frozen inputs, plan bindings, and zero execution."
+  ],
+  "fault_contract": {
+    "mechanism": "Playwright route.fetch then delayed route.fulfill(response=original)",
+    "max_retries": 0,
+    "max_redirects": 0,
+    "upstream_fetches_per_declared_request": 1,
+    "api_mutations": false,
+    "database_faults": false,
+    "synthetic_success_responses": false,
+    "force_clicks": false,
+    "auth_response_bodies_logged": false
+  },
+  "confirmation_contract": {
+    "default_allowlist_unchanged": true,
+    "opt_in_argument": "evidence_target",
+    "scope": "exact ID/version of this Probe native-created synthetic evidence; one unique visible enabled delete control; exact confirm wording/type; single-use binding and single dialog event"
+  },
+  "checks": {
+    "python": {
+      "passed": 167,
+      "new_journey_cases": 49,
+      "warnings": 3,
+      "transport_adapters": "doubles, not native",
+      "api_oracle": "real ASGI APIs through offline_test_client, guarded before app construction through shutdown",
+      "network_attempts": 0,
+      "supplier_calls": 0
+    },
+    "frontend": {
+      "passed": 381,
+      "failed": 0,
+      "evidence_kind": "compiled production listeners with DOM/transport doubles, not native"
+    },
+    "typecheck": {
+      "exit": 0
+    },
+    "typescript_build": {
+      "build_exit": 0,
+      "compiled_files": 30,
+      "all_byte_identical_to_committed_dist": true
+    },
+    "python_compile": {
+      "exit": 0
+    },
+    "git_diff_check": {
+      "exit": 0
+    }
+  },
+  "native_status": "not executed; local browser/server restriction preserved",
+  "boundaries": [
+    "No native detached-form submission was attempted. The old-form handler refusal remains independent DOM evidence.",
+    "No full backend suite, live HTTP/SSE/restart/backup or rendered native acceptance was performed for this prepared-only harness.",
+    "No CI registration, push, merge or deployment. Integration and original-budget native execution remain pending.",
+    "Original logo and opening video bytes preserved; synthetic local-only inputs and zero configured suppliers required."
+  ],
+  "source_sha256": {
+    "scripts/product_late_action_journey.py": "9df470f35be1ef728432780fa1f99c9cb219c86ecd9100f3ba79cd1814ee1a25",
+    "tests/test_product_late_action_journey.py": "5e595bd01cdcac56975b97f79a76d479b2ff1dfca0ef0d44ee335778d900a36f",
+    "scripts/product_browser_audit.py": "6baaaef5f879336c66d1bdb41d388adc8c077247311ca562a632167265b69211"
+  },
+  "dependency_sha256": {
+    "scripts/product_first_use_audit.py": "f6f2a82e49f12504d2c987296b4df2b4c9a0bbebf565888af5c23f2375ed734f",
+    "scripts/product_experiment_recovery.py": "88a6099bd6f5d88c4802edb99d0119923ec393f30271d8a5960df16c4d399126",
+    "scripts/product_readout_oracles.py": "6ad0b52919a9d9bab73520f2fc52f2d81432fa68fcc4fb794fe71da87da19861",
+    "scripts/service_browser_check.py": "7e9796ccd6ea39e7f876627d84c22d4cad7c3da5916402f974c1c5b1400b2563",
+    "tests/in_process_oracle.py": "eac688fbe69c53e308aca91a720b9a8beeec2bcbabd1b8dabf4fac493a30c49f"
+  },
+  "brand_sha256": {
+    "web/brand/logo.png": "ad25a12134433d1459a6f8777772ce40378b0e020305adcc8def8fa72994ab25",
+    "web/brand/loading-video.mp4": "8d1b22989c4a5593bfe9a9a50a87cf9176549f34e031111133a93ddf60fde3dd"
+  },
+  "verification_artifacts": {
+    "python_contracts.xml": "f9849b5f3763ecbf46b305ccf7fd9eaae5cb70abcf6f4fec5865114b2379033d",
+    "frontend_contracts.log": "02915b6a23081af594109c3dab9efc76ba908d3c7b5144073b7c2f260328231c",
+    "typescript_build.json": "88255ef0f24d99fde666f4ef4ad8d5f98310b3ddd6e35a5da6f11a923c34a1d1",
+    "probe-scoped-confirmation.patch": "e0acc9246cd034fe36531d4379a5309c99ab5715f0652f0063e2945353d4fd35",
+    "protected-source-sha256.json": "e75864a3baa16fda6c902c036918d6644e832599372e3333d7c71e64d1e74391"
+  },
+  "archive": "/workspace/shared/lidian-late-action-native-prepared-20261005"
+}

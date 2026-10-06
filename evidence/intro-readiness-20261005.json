@@ -1,0 +1,104 @@
+{
+  "checked_at": "2026-10-05T07:54:00Z",
+  "repository": "hxjyaohaohaode/lidianzhizhenbywhu",
+  "run_id": 37277881673,
+  "job_id": 111658890459,
+  "head": "8e3a5f19852e0e6fc60ce2a0228768b44a7ba9e7",
+  "full_tree": "cb9cac620330b305f297089ccf5fd754f5515a3d",
+  "verified": {
+    "artifact_zip_digests": 7,
+    "fragment_digests": 6,
+    "archive_bytes": 131230034,
+    "archive_sha256": "e11e684fd1f99474e5a2cfc7d7b3da421ce902dd242b52c4cc56b26f218c87a7",
+    "manifest_file_digests": 315,
+    "protected_web_and_server_unchanged": true
+  },
+  "finding": "F3 bootstrap observed transient skip button before evidence captures; original intro ended between viewport and full-page captures. Generic click then waited for removed button and timed out before sending any click.",
+  "pixel_comparison": {
+    "002-before.png": "Original intro, native skip button, background login obscured",
+    "002-before-full.png": "Intro gone, real unobscured login form",
+    "002-after-failure.png": "Byte-identical to full-page before screenshot, same unobscured login"
+  },
+  "pixel_hashes": {
+    "002-before.png": "e76d723830a1a61edef30e2e6559918805ea81a84a48bfb3565c475809798845",
+    "002-before-full.png": "5d7cff23211d8d7f26625c12ac50844cd1f26315477b10d3e8080dc9c747da60",
+    "002-after-failure.png": "5d7cff23211d8d7f26625c12ac50844cd1f26315477b10d3e8080dc9c747da60"
+  },
+  "raw_trace_sha256": "1011848189243e5c84ed4a2cadd42c39966dcbc6b70dd33c76247df000ee3eab",
+  "monotonic_timeline_ms": [
+    {
+      "call": "isVisible skip returned true",
+      "at": 75868.187
+    },
+    {
+      "call": "viewport-before screenshot",
+      "start": 75904.236,
+      "end": 77339.204
+    },
+    {
+      "call": "full-page-before screenshot",
+      "start": 77350.874,
+      "end": 77511.915
+    },
+    {
+      "call": "wait skip visible",
+      "start": 77550.702,
+      "end": 87582.297,
+      "outcome": "TimeoutError"
+    }
+  ],
+  "cause_precision": "Automatic app completion is supported by no click/keyboard operation in the trace, native screenshot disappearance and unmodified brand done() handlers. Trace does not distinguish video ended event from fallback timer; do not label the exact automatic mechanism as proven.",
+  "app_intro_contract": {
+    "video_duration_seconds": 5.041667,
+    "fallback_timer_ms": 6500,
+    "normal_done_removes_dialog": true
+  },
+  "local_fix": {
+    "files": [
+      "scripts/product_browser_audit.py",
+      "scripts/product_first_use_audit.py",
+      "tests/test_product_intro_readiness.py"
+    ],
+    "shared_helper": "Probe.await_registration_ready",
+    "behavior": "Within existing 10-second budgets, wait for original dialog detachment, require one visible auth form and one visible/actionable native registration toggle with trial=True. Both actual registration click steps unchanged. No exceptions caught, no app writes or skip clicks."
+  },
+  "validation": {
+    "pure_regressions_added": 13,
+    "focused_tests_passed": 66,
+    "subtests_passed": 3,
+    "py_compile": "passed",
+    "git_diff_check": "passed",
+    "native_changed_code": "Not run locally; requires authorized CI",
+    "remote_publication": "None",
+    "test_count_note": "66 passed tests and 3 passed subtests are separate pytest counters; 13 new intro tests are included in the 66, not additional.",
+    "focused_command": "../lidian-venv/bin/python -m pytest -q tests/test_product_intro_readiness.py tests/test_product_dialog_confirmation.py tests/test_product_first_use.py tests/test_product_audit_runner.py"
+  },
+  "scope_limit": "Original F3 result remains blocked_or_error; this diagnosis does not establish its financial report assertion passed.",
+  "artifact_names": [
+    "product-audit-windows-latest-summary",
+    "product-audit-windows-latest-part-01",
+    "product-audit-windows-latest-part-02",
+    "product-audit-windows-latest-part-03",
+    "product-audit-windows-latest-part-04",
+    "product-audit-windows-latest-part-05",
+    "product-audit-windows-latest-part-06"
+  ],
+  "protected_tree_ids": {
+    "web": "4d9127eff44785520d33efac0c9592e06f98a0c6",
+    "server": "51c91049a339c58c6263d5cf9333cd65d3a7212a"
+  },
+  "summary_zip_sha256": "0d80f5d134fab65142ca01648193cb708a55bb67860354db7fa5ed2c3fca70bf",
+  "original_result": {
+    "all_checks_passed": false,
+    "F1-trace-handoff": "passed",
+    "F2-forecast-units": "passed",
+    "F3-report-points": "blocked_or_error",
+    "historical_failure_preserved": true
+  },
+  "source_sha256": {
+    "scripts/product_browser_audit.py": "b4b9db6ec659a1bbca1495068ddfe4d9ad1fa64d4a04df672b1aec78f873e707",
+    "scripts/product_first_use_audit.py": "f6f2a82e49f12504d2c987296b4df2b4c9a0bbebf565888af5c23f2375ed734f",
+    "tests/test_product_intro_readiness.py": "2e4f3e7a7da244591925a11b6050b550daf97a051041afea57efa67df2520eee"
+  },
+  "evidence_scope": "Offline inspection of official GitHub CI artifacts and pure local protocol regressions only. No local browser, listener, application patch or external provider calls."
+}

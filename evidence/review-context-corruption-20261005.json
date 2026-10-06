@@ -1,0 +1,70 @@
+{
+  "date_utc": "2026-10-05",
+  "base_commit": "ead2012392b2fa0c7add6f6e019305d3e6ffcd3c",
+  "scope": "Current-review unavailability in replay governance, explicit consent withdrawal and scoped conversation cleanup",
+  "retained_failure": {
+    "original_sha256": "584891cb89f32215d00c11f693c0860401edbfdd8b24c3503e5ec7ec36f05337",
+    "healthy": {
+      "evolution": 200,
+      "affected_assessment": 200,
+      "neighbor_assessment": 200
+    },
+    "corrupt": {
+      "evolution": 500,
+      "affected_assessment": 500,
+      "neighbor_assessment": 500,
+      "strategy_evaluation": 500,
+      "consent_withdrawal": 500,
+      "neighbor_delete": 500,
+      "affected_delete": 500,
+      "foreign_evolution": 200
+    },
+    "business_writes": 0,
+    "frozen_rows_unchanged": true,
+    "network_attempts": []
+  },
+  "source_sha256": {
+    "server/evolution.py": "6133c3cc1bccdb4d56c63b75fc31d089c7f83f98ee1ce3f9cf641be3becb8594",
+    "server/store.py": "10577db2ec1df0578aed706e5a3ef27ade0384c8a609aba5f3b3b46640d4a03b",
+    "web/views-orchestrator.ts": "b9a00a7ee1a7db0323bbcb2032c49273f7acd42325dcc5794b5a2c81f4bc14b5",
+    "web/dist/views-orchestrator.js": "37e016429b10ea62a844397054cac51112ca24aecf29921e731e530ae9a7055d"
+  },
+  "checks": {
+    "focused_new_backend": {
+      "passed": 12
+    },
+    "related_backend": {
+      "passed": 284,
+      "warnings": 1,
+      "seconds": 67.99
+    },
+    "separate_strategy_backend": {
+      "passed": 45,
+      "warnings": 1,
+      "seconds": 6.94
+    },
+    "full_frontend": {
+      "passed": 563,
+      "failed": 0,
+      "skipped": 0
+    },
+    "new_frontend_included": 5,
+    "python_compile": "passed",
+    "typescript_typecheck": "passed",
+    "typescript_build": "passed",
+    "source_guard": "passed",
+    "git_diff_check": "passed"
+  },
+  "network_listener_attempts": 0,
+  "live_provider_calls": 0,
+  "not_run": [
+    "Native or rendered browser",
+    "Real Uvicorn HTTP/SSE/restart/backup",
+    "Live suppliers",
+    "Full backend acceptance",
+    "Publishing",
+    "Merge",
+    "Deployment"
+  ],
+  "counts_notice": "The 12 focused cases are included in 284; backend 284 and45 select distinct modules. Frontend5 are included in563."
+}

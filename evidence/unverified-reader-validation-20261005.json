@@ -1,0 +1,91 @@
+{
+  "executed_at": "2026-10-05T23:43:08.342055+00:00",
+  "base_commit": "971552845ac6eb4a7950ef9083d97b0e079fb418",
+  "scope": "Local candidate only; protected in-process API, compiled renderer/listener and explicit DOM doubles; no native browser claim",
+  "checks": [
+    {
+      "command": "python -m compileall -q server scripts",
+      "exit_code": 0
+    },
+    {
+      "command": "node_modules/.bin/tsc --noEmit -p tsconfig.json",
+      "exit_code": 0
+    },
+    {
+      "command": "node_modules/.bin/tsc -p tsconfig.json",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test tests/*.frontend.test.mjs tests/frontend.test.mjs",
+      "exit_code": 0,
+      "passed": 1076
+    },
+    {
+      "command": "python -m pytest -q tests/test_unverified_reader.py tests/test_product_copilot_integrity.py tests/test_copilot_integrity_journey_api.py tests/test_copilot_report_integrity.py tests/test_report_export_integrity.py tests/test_report_source_integrity.py tests/test_persisted_review_integrity.py tests/test_product_audit_runner.py",
+      "exit_code": 0,
+      "passed": 314,
+      "warnings": [
+        "Existing Starlette/httpx deprecation warning"
+      ],
+      "stage": "Before Unicode-only excerpt boundary correction; backend code unchanged afterward"
+    },
+    {
+      "command": "python scripts/source_guard.py",
+      "exit_code": 0,
+      "findings": []
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "python -m pytest -q tests/test_unverified_reader.py tests/test_product_copilot_integrity.py",
+      "exit_code": 0,
+      "passed": 45,
+      "stage": "After Unicode boundary correction; real API -> final compiled reader/listeners"
+    }
+  ],
+  "contracts": [
+    "exact original UTF-8 download including CRLF, escapes, large numbers, malformed JSON and empty strings",
+    "unknown raw type does not create serialized substitute",
+    "owner-bound audit/report raw snapshot and foreign-owner denial",
+    "normal report export and actions remain blocked",
+    "visible literal keyword search, ordered matches, context, no-result and 23k single-line text",
+    "same-source repaint preserves newest search; changed report, scope and detached reader cannot cross-bind",
+    "read-only search does not set dirty or erase existing real editable draft",
+    "Context excerpt boundaries preserve complete Unicode characters; search never highlights half a surrogate pair"
+  ],
+  "not_run": [
+    "native browser/actual download UI",
+    "current screenshot/video acceptance",
+    "mobile/native keyboard acceptance",
+    "full backend collection",
+    "HTTP/SSE/restart/backup chain",
+    "provider calls",
+    "CI or publication"
+  ],
+  "sources": {
+    "docs/COPILOT_REPORT_INTEGRITY_NATIVE_20261005.md": "a392c102029fe9ff5bdd07f4e825431fe4d056833881ecb17e7b9b96564b0455",
+    "docs/UNVERIFIED_TEXT_READER_20261005.md": "3f50cf482c6b6b01231bac8dee3e93c0f0f3fdadc23d33d792f948c0aea678aa",
+    "scripts/product_audit_config.py": "65073bdca58d8ae8458b1586b583f3ce27dbf53112e2c8ac63d162dfd928f575",
+    "scripts/product_copilot_integrity.py": "1de94a99a1a2502e20cc3eb3333a5ff42599e9e43b097ef869881b801b7e34df",
+    "server/app.py": "1855f43edeea98fb2b22f2b4cc3238878d19919fcb4bb690e5ecf116bac96088",
+    "server/copilot_reports.py": "7d19eef9a1ba8b24d3449fc3a84ffd76c8f5c4e240ecebe15bb87898bfcb8139",
+    "server/unverified_report.py": "f83e38ab301dbf4bd95fc1d157ab7bded46820738ba59a2ebeff23def6c25506",
+    "server/workspace_api.py": "3ac8ebb03873ed1d5b945636a66e940e119e41f32705da6882d65ba38eae4c0c",
+    "tests/claim-review-readout.frontend.test.mjs": "7dbb3163bfad48bdefaea6bdb6ed030964e11a5ecfe96ce04a9ae0a1263f2cd5",
+    "tests/test_product_copilot_integrity.py": "ed8e8a702a9b9e58b0e563fe8ab8b0aa6bf0ae3305473420649e0d9d41df5e9d",
+    "tests/test_unverified_reader.py": "9047eae38ed36aff3ca1bd7a1f417639f5938675d986cc8117b7466dcfaedbde",
+    "tests/unverified-reader-harness.mjs": "36b770345a9195002cc6aed01c090cf8753bc113e7c64b85a008eb410adf3c68",
+    "tests/unverified-reader.frontend.test.mjs": "65877c1c2fb1c13a9d862af710f9a4aef2c80b8f53d4aafa7a0437a6942858a5",
+    "web/app.ts": "6db18d505c94d289916b288c4276cd6043494f66404c37c4bd7da7ef9331ee0a",
+    "web/copilot-ui.ts": "059616112d23de86a3122c03b6f0298ca91be3f7af2e238ca4e1f847009a55e5",
+    "web/dist/app.js": "11127bda271ac209856c157bd69894b0d0e802aa4f0b785428e24aef4a9d0c80",
+    "web/dist/copilot-ui.js": "79d7056e7c23cdbe914522db4ab9c37693d83428f82a0ebd341c9b3c4711ef73",
+    "web/dist/unverified-reader.js": "8d566c8255dfff1823cfd154240a67d2f20a848feecba7a45db356471b4ddc5e",
+    "web/dist/views-studio.js": "831b495e17b79bc87fe7762f523c6fd024bdb7f29ab4b4275acb2114e29abf9c",
+    "web/unverified-reader.ts": "35038bf0dcfda796c0319565972594d958dff32fcac01f3b4ef0a0814aa975af",
+    "web/views-studio.ts": "5f09bbebc3eeefb13f5104766dd5f95b6bf8539f5af6888a4438b1934a1c7f34",
+    "web/workbench.css": "e262b5fa691c310fde91fc03348aa82cec69f383d95736c468c5addf79f50d9d"
+  }
+}

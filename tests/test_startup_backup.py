@@ -157,3 +157,52 @@ def test_extended_database_is_marked_incompatible_with_old_writers(tmp_path):
     p=tmp_path/'db';s=Store(p);assert s.one('SELECT MAX(version) AS v FROM schema_version')['v']==3;s.close()
     with closing(sqlite3.connect(p)) as c:c.execute('INSERT INTO schema_version VALUES(999)');c.commit()
     with pytest.raises(RuntimeError,match='拒绝降级'):Store(p)
+
+
+def test_backup_rejects_valid_but_nonmatching_key_and_cleans_outputs(actor,tmp_path):
+    from cryptography.fernet import Fernet
+    vault=actor.client.app.state.providers.vault
+    vault.save(actor.user['id'],PrivateConnection(name='x',base_url='https://models.test.example/v1',model='x',api_key='TEST_ONLY',password=actor.password))
+    vault.path.write_bytes(Fernet.generate_key())
+    target=tmp_path/'mismatched.sqlite3'
+    with pytest.raises(ValueError,match='不匹配'):
+        back.backup(actor.client.app.state.store.path,target,include_key=True)
+    assert not target.exists()
+    assert not target.with_name(target.name+'.credentials.key').exists()
+    assert not target.with_name(target.name+'.backup.json').exists()
+
+
+@pytest.mark.parametrize('product_audit', [False, True])
+def test_native_acceptance_invalidates_stale_success_before_launch(tmp_path,monkeypatch,product_audit):
+    native=module('native_acceptance')
+    monkeypatch.setattr(native,'ROOT',tmp_path)
+    monkeypatch.setattr(sys,'argv',['native_acceptance.py']+(['--product-audit'] if product_audit else []))
+    monkeypatch.setenv('GITHUB_ACTIONS','true')
+    out=tmp_path/'evidence';out.mkdir()
+    report=out/('product-browser-audit.json' if product_audit else 'native-service-browser.json')
+    report.write_text(json.dumps({'all_checks_passed':True,'screenshots':['old.png']}))
+    class UnavailableSocket:
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def bind(self,*args):raise OSError('test-only occupied port')
+    monkeypatch.setattr(native.socket,'socket',UnavailableSocket)
+    with pytest.raises(SystemExit):native.main()
+    current=json.loads(report.read_text())
+    assert current['all_checks_passed'] is False and current['screenshots']==[]
+    assert current['status']=='not_completed' and current['attempted_at']
+
+
+def test_product_audit_does_not_start_local_server_or_browser(tmp_path,monkeypatch):
+    native=module('native_acceptance')
+    monkeypatch.setattr(native,'ROOT',tmp_path)
+    monkeypatch.setattr(sys,'argv',['native_acceptance.py','--product-audit'])
+    monkeypatch.delenv('GITHUB_ACTIONS',raising=False)
+    def prohibited(*args,**kwargs):
+        pytest.fail('Local product audit must stop before a socket, server or browser is started')
+    monkeypatch.setattr(native.socket,'socket',prohibited)
+    monkeypatch.setattr(native.subprocess,'Popen',prohibited)
+    with pytest.raises(SystemExit,match='GitHub runner'):
+        native.main()
+    report=json.loads((tmp_path/'evidence/product-browser-audit.json').read_text())
+    assert report['all_checks_passed'] is False and report['native_network_e2e'] is False
+    assert report['status']=='not_completed'

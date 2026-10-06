@@ -1,0 +1,50 @@
+{
+  "date_utc": "2026-10-05",
+  "base_commit": "80defc9b54159155000ac7564fbdd1247c0f0403",
+  "scope": "Review corruption isolation and finite percentage transformation admission",
+  "source_sha256": {
+    "server/app.py": "94372d89654c955f3b98317f43da61bf1a57188ae8ef8a716c11e1cad9fc5575",
+    "server/business_provenance.py": "2b250ee1c9448b109f945246bf5677325d5a316af405da806d3f5dc815b02403",
+    "server/execution_scope.py": "65a4b0357ac80f2952e4342d4efa3df265f8f5380346d753296eddf16d0840a4",
+    "server/question_scope.py": "b2333a0476cb36fb8e219e826fbf70907b21c4da675f4100d0ba974b3010d012",
+    "server/report_export.py": "1f9d044007e4e3278b6095fcaecd077708f736749ab90c453211977677bd6917"
+  },
+  "checks": {
+    "initial_new_cases": {
+      "passed": 60
+    },
+    "related_backend_before_final_field_order_preservation": {
+      "passed": 1129,
+      "warnings": 1,
+      "seconds": 169.07
+    },
+    "final_affected_backend": {
+      "passed": 123,
+      "warnings": 1,
+      "seconds": 22.8
+    },
+    "frontend": {
+      "passed": 558,
+      "failed": 0,
+      "skipped": 0
+    },
+    "python_compile": "passed",
+    "typescript_typecheck": "passed",
+    "typescript_build": "passed",
+    "source_guard": "passed",
+    "git_diff_check": "passed"
+  },
+  "network_listener_attempts": 0,
+  "live_provider_calls": 0,
+  "captured_old_cases": 11,
+  "fixture_sha256": "4c69e0787c384443cd31eebb425d90cb90d60333a2524175b8496690080382fc",
+  "fixture_raw_tables_verified": 14,
+  "not_run": [
+    "Full backend acceptance",
+    "Real Uvicorn HTTP/SSE/restart/backup chain",
+    "Native or rendered browser",
+    "Live suppliers",
+    "Deployment"
+  ],
+  "counts_notice": "Focused checks overlap broader coverage; do not add counts. New tests total 61. Final affected rerun covers the final field-order preservation change."
+}

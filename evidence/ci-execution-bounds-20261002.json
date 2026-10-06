@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-02T11:09:01.986701+00:00",
+  "verification_completed_at": "2026-10-02T11:00:07.032409+00:00",
+  "kind": "Executed local seven-stage aggregate; not a new Windows or native-browser result",
+  "base_commit": "7dcb0bdd46b6382af032fdf5799e5580c546e3e1",
+  "base_tree": "2542d4913de632c6805fae727dc41e0f8275355b",
+  "normalized_entrypoint": "python scripts/verify.py --full-chain",
+  "runtime": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41"
+  },
+  "frozen_files_at_execution": {
+    ".github/workflows/ci.yml": "fad0cd7dcb9d0bd86e4937504d76f6f63ffdf1bbce834d1e27fb9c77d76ece0d",
+    "scripts/prepare_evidence.py": "457aa9f2bc9ab6bf61e00f381f74a5abe533a2776adb133889da4fd36611bfb5",
+    "scripts/verify.py": "318ac84fc87355c484beec4a603ff9121363a4900f6d3b8468ce68dd2e629461",
+    "scripts/pytest_diagnostics.py": "def3f74795fc5fc2b9a6c863d320883026f65389025ee2f03b10304ebd0a694c",
+    "tests/test_ci_evidence.py": "5aa54f618bf7c30e26f059db301536c01b38851799c01423bd3ddfaec7cf244b",
+    "tests/test_pytest_diagnostics.py": "d249ed1d6ae443dac8d52dacb5660745f0f58f65522c284b2a6c6ccb506d57d2",
+    "docs/CI_EXECUTION_BOUNDS_20261002.md": "1c7b68469498fdb0fd3bd8965c54a40fe9fe8b256b8a93471cc9f592850e465e"
+  },
+  "freeze_verified_before_post_execution_documentation": true,
+  "post_execution_changes": "Only this receipt and its linked documentation aggregate addendum; executable source unchanged. Publication manifest records final file hashes.",
+  "checks": [
+    {
+      "check": "python-compile",
+      "exit_code": 0,
+      "seconds": 0.029,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "typecheck",
+      "exit_code": 0,
+      "seconds": 1.125,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "build",
+      "exit_code": 0,
+      "seconds": 1.308,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "pytest",
+      "exit_code": 0,
+      "seconds": 213.633,
+      "timeout_seconds": 900
+    },
+    {
+      "check": "frontend-tests",
+      "exit_code": 0,
+      "seconds": 1.042,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "source-guard",
+      "exit_code": 0,
+      "seconds": 0.252,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "exit_code": 0,
+      "seconds": 5.643,
+      "timeout_seconds": 240
+    }
+  ],
+  "backend": {
+    "tests": 1442,
+    "passed": 1442,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "warnings": 1,
+    "warning": "Existing upstream Starlette TestClient/httpx deprecation",
+    "pytest_summary_seconds": 205.94,
+    "junit_suite_seconds": 205.906,
+    "verification_process_seconds": 213.633,
+    "journal": {
+      "first_event_utc": "2026-10-02T10:56:27.117502+00:00",
+      "last_event_utc": "2026-10-02T10:59:53.065068+00:00",
+      "collected": 1442,
+      "started": 1442,
+      "completed": 1442,
+      "identical_node_multisets": true,
+      "all_nodes_unique": true,
+      "setup_passed": 1442,
+      "call_passed": 1442,
+      "teardown_passed": 1442,
+      "exit_code": 0,
+      "complete": true,
+      "stack_log_bytes": 0
+    }
+  },
+  "frontend": {
+    "tests": 347,
+    "passed": 347,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "real_http": {
+    "check_groups": 17,
+    "passed": true,
+    "real_external_supplier_calls": 0,
+    "read_probe_requests": 64,
+    "read_probe_concurrency": 4,
+    "boundary": "real loopback TCP/HTTP; actual Uvicorn process + SQLite; NOT native browser E2E"
+  },
+  "source_guard": {
+    "files_scanned": 91,
+    "findings": [],
+    "scope": "AST and pattern guard only; not a vulnerability certification"
+  },
+  "all_executed_checks_pass": true,
+  "not_exercised_by_this_run": [
+    "Live model API credentials",
+    "Live public sources",
+    "Public HTTPS deployment",
+    "Long-duration production load",
+    "Native browser navigation/Cookie/CSP integration",
+    "Cross-device browser compatibility",
+    "Future dependency advisories",
+    "Optional patched PDF integration",
+    "Windows execution of this revision",
+    "scripts/native_acceptance.py",
+    "scripts/bootstrap.py",
+    "New remote CI / merge / deployment"
+  ],
+  "raw_artifact_hashes": [
+    {
+      "name": "verification.json",
+      "bytes": 3944,
+      "sha256": "86a863f4c01248f2457aab7308e8dbff64947700d8c5df2667320c59ab5bcca2"
+    },
+    {
+      "name": "full-chain-http.json",
+      "bytes": 2299,
+      "sha256": "3d93c40109b0b0f827fbd9e7cd13b72b6ffd6c0d31c59edcbbecf1b75770997d"
+    },
+    {
+      "name": "source-guard.json",
+      "bytes": 2709,
+      "sha256": "2b63bcef6aa04a2f3c16440933fbbd1332ce4a8003c6154d1e3563c6bb8a390a"
+    },
+    {
+      "name": "pytest.xml",
+      "bytes": 220400,
+      "sha256": "3d7a773cc9fb63111d85df7009cdc9ae69b727586ae42b3e29d633bc2028c835"
+    },
+    {
+      "name": "pytest.log",
+      "bytes": 4820,
+      "sha256": "fd1ebe5c088429da288efaf915c2b4963b5190878240d2a3806274800fa77183"
+    },
+    {
+      "name": "pytest-progress.jsonl",
+      "bytes": 3825944,
+      "sha256": "a1daa0a732fe0b7194bf68f75e41dc5b0331ca4cf0561878c53157be7098d248"
+    },
+    {
+      "name": "pytest-progress.stacks.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "frontend-tests.log",
+      "bytes": 32778,
+      "sha256": "1b9fe1d36e29a35631b469f4e141d0bc1728ae63cc3d14fea7d9457ded75e88f"
+    },
+    {
+      "name": "python-compile.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "typecheck.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "source-guard.log",
+      "bytes": 2710,
+      "sha256": "4f8fa69fdcfe5ed0b3320cf18e16490e4e4f5057f6c9d5f65d5be8dfbc515554"
+    },
+    {
+      "name": "full-chain-http.log",
+      "bytes": 1848,
+      "sha256": "349b4891e1c6b29281b5d0ebfe1e4744f69e57c304548d6f9fde2baa9733e4c4"
+    }
+  ],
+  "evidence_policy": "Raw diagnostic JSONL, stack/log files and JUnit are run artifacts, excluded from source publication. Prior Windows failure artifacts and historical receipts remain unchanged."
+}

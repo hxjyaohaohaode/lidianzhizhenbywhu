@@ -5,7 +5,7 @@ provider failure integration uses explicitly injected test-only provider classes
 not real supplier credentials. Native browser Cookie/CSP behavior is a separate gate.
 """
 from __future__ import annotations
-import concurrent.futures,contextlib,copy,hashlib,json,os,socket,sqlite3,subprocess,sys,tempfile,time,uuid
+import concurrent.futures,contextlib,copy,hashlib,json,os,shutil,socket,sqlite3,subprocess,sys,tempfile,time,uuid
 from pathlib import Path
 import httpx
 ROOT=Path(__file__).resolve().parents[1]
@@ -90,7 +90,7 @@ def main():
                 raw=c.get(path).content;assert hashlib.sha256(raw).digest()==hashlib.sha256((ROOT/'web/brand'/file).read_bytes()).digest()
             partial=c.get('/loading-video.mp4',headers={'Range':'bytes=0-99'});assert partial.status_code==206 and len(partial.content)==100
             record('原始PNG/MP4实际HTTP散列一致、视频Range分段与安全响应头')
-            a=register(c);register(other)
+            a=register(c);b=register(other)
             me=require(c.get('/api/auth/me'));assert me['user']['id']==a['user']['id']
             for cookie in c.cookies.jar:assert cookie.has_nonstandard_attr('HttpOnly') and cookie.get_nonstandard_attr('SameSite').lower()=='strict'
             assert require(c.get('/api/datasets'))['items']==[]
@@ -109,8 +109,9 @@ def main():
             assert d.get('id'),commit
             assert other.get('/api/datasets/'+d['id']).status_code==404
             record('multipart实际解析→暂存预览→明确事务提交→企业跨账户隔离')
-            e=require(c.post('/api/evidence',json={'title':'全链路合成验收资料','text':'此为验收用合成资料，并非真实财务信息。毛利变化与现金回流需要原始报表核验。'*15}),201)
-            require(c.put('/api/workspace/evidence/'+e['id']+'/review',json={'version':0,'company':d['payload']['company'],'status':'accepted','stance':'contradicts','note':'合成资料用于验证引用链，不能认作真实财报'}))
+            e=require(c.post('/api/evidence',json={'company':d['payload']['company'],'title':'全链路合成验收资料','text':'此为验收用合成资料，并非真实财务信息。毛利变化与现金回流需要原始报表核验。'*15}),201)
+            evidence_review=next(row for row in require(c.get('/api/workspace/evidence'))['items'] if row['id']==e['id'])
+            require(c.put('/api/workspace/evidence/'+e['id']+'/review',json={'version':evidence_review['review_version'],'company':d['payload']['company'],'status':'accepted','stance':'contradicts','note':'合成资料用于验证引用链，不能认作真实财报'}))
             m=require(c.post('/api/memories',json={'text':'优先列出反证与不足，不填充缺失值','approved':True,'company':d['payload']['company']}),201)
             assert require(c.get('/api/workspace/retrieval',params={'q':'毛利现金回流','company':d['payload']['company']}))['items']
             record('证据范围、反向标签、批准记忆与真实全文检索联动')
@@ -127,6 +128,76 @@ def main():
             assert c.get('/api/runs/'+run['id']+'/export',params={'format':'md'}).status_code==200
             assert other.get('/api/workspace/runs/'+run['id']+'/runtime').status_code==404
             record('报告字段血缘、节点产物、事件锚点、完整工作区导出和跨账户隔离')
+            # Explicitly synthetic peer; frozen common-quarter comparison is approved
+            # as extra input, never silently added to ordinary single-company plans.
+            peer_data=copy.deepcopy(d['payload']);peer_data.pop('verification',None);peer_data.pop('input_amount_unit',None)
+            peer_data['company']='同季度对照合成企业';peer_data['name']='HTTP 对照独立合成样本'
+            peer=require(c.post('/api/datasets',json=peer_data),201)
+            comparison=require(c.post('/api/workspace/comparisons',json={
+                'name':'HTTP 冻结企业对照','identity_id':'',
+                'datasets':[{'id':x['id'],'version':x['version'],'hash':x['content_hash']} for x in (d,peer)],
+                'comparison':'year_over_year','comparability_note':'仅用独立合成数据验证共同季度和来源链，不作行业排名'}),201)
+            ref={'id':comparison['id'],'version':comparison['version'],'hash':comparison['comparison_hash']}
+            comparison_plan=plan(c,d,query='核对'+comparison['payload']['period']+'企业对照的毛利率及可比性边界',comparison_artifact=ref)
+            comparison_run=wait_run(c,approve(c,comparison_plan)['id']);assert comparison_run['result'],comparison_run
+            frozen_comparison=copy.deepcopy(comparison_run['result']['comparison_artifact'])
+            assert comparison_run['snapshot']['comparison_artifact']['hash']==ref['hash']
+            assert comparison_run['result']['comparison_provenance']['hash']==ref['hash']
+            assert ref['hash'] in c.get('/api/runs/'+comparison_run['id']+'/export',params={'format':'md'}).text
+            assert other.get('/api/workspace/comparisons/'+ref['id']+'?identity_id=').status_code==404
+            comparison_action=require(c.post('/api/workspace/actions',json={
+                'title':'核查对照口径','acceptance':'确认共同季度与两家企业来源的实际可比性',
+                'dataset_id':d['id'],'source_ref':{'kind':'report','run_id':comparison_run['id']}}),201)
+            experiment=require(c.post('/api/workspace/experiments',json={'dataset_id':d['id'],
+                'dataset_version':d['version'],'dataset_hash':d['content_hash'],'name':'助手冻结情景（合成验收）',
+                'kind':'scenario','price_change':.05,'cost_change':.02,'volume_change':0.,'fixed_cost_share':.3,
+                'assumptions':'只验证已保存假设与同会话批准链，不代表实际企业预测'}),201)
+            assistant_thread=require(c.post('/api/services/threads',json={'dataset_id':d['id']}),201)
+            for version,text in enumerate([comparison['payload']['period']+'毛利率同比核查','继续展开刚才的原因','继续展开','继续展开'],1):
+                msg=require(c.post('/api/services/threads/'+assistant_thread['id']+'/messages',json={
+                    'version':version,'text':text,'request_id':'http-followup-'+str(version)}),201)['message']
+                assert msg['payload']['response']['context']['question_scope']['period']==comparison['payload']['period']
+                assert msg['payload']['response']['facts']
+            draft={'kind':'research','text':'','source_message_id':msg['id'],'request_id':'http-saved-inputs',
+                'experiment':{'id':experiment['id'],'version':experiment['version'],'hash':experiment['experiment_hash']},
+                'comparison_artifact':ref}
+            proposal=require(c.post('/api/services/threads/'+assistant_thread['id']+'/proposals',json=draft),201)
+            assert other.get('/api/services/proposals/'+proposal['id']).status_code==404
+            srv.stop(hard=True);srv.start()
+            assert require(c.post('/api/services/threads/'+assistant_thread['id']+'/proposals',json=draft),201)['id']==proposal['id']
+            confirmation={'version':proposal['version'],'fingerprint':proposal['payload']['fingerprint']}
+            confirmed=require(c.post('/api/services/proposals/'+proposal['id']+'/confirm',json=confirmation))
+            assistant_run=wait_run(c,confirmed['payload']['result']['run_id'])
+            assert assistant_run['result']['analysis']['current_period']==comparison['payload']['period']
+            assert assistant_run['result']['adaptive']['mathematical_outputs']['sensitivity']['result']==experiment['payload']['result']['result']
+            assert assistant_run['result']['comparison_provenance']['hash']==ref['hash']
+            assert require(c.post('/api/services/proposals/'+proposal['id']+'/confirm',json=confirmation))['payload']['result']['run_id']==assistant_run['id']
+            conversation=require(c.get('/api/services/threads/'+assistant_thread['id']))
+            assert conversation['runs'][0]['result']==assistant_run['result']
+            assert conversation['runs'][0]['source_impact']['state']=='current'
+            record('连续追问→原季度/基期→明确保存实验与全部对照成员→硬重启后幂等批准→数学和报告回到同会话')
+            peer_update=copy.deepcopy(peer_data);peer_update['version']=peer['version'];peer_update['periods'][-1]['revenue']+=1
+            require(c.put('/api/datasets/'+peer['id'],json=peer_update))
+            assert c.post('/api/workspace/plans',json={'dataset_id':d['id'],'query':'核对'+comparison['payload']['period']+'企业对照',
+                'execution':{},'comparison_artifact':ref}).status_code==409
+            old_comparison_run=require(c.get('/api/runs/'+comparison_run['id']))
+            assert old_comparison_run['result']['comparison_artifact']==frozen_comparison
+            action_rows=require(c.get('/api/workspace/actions'))['items']
+            impacted=next(x for x in action_rows if x['id']==comparison_action['id'])
+            assert impacted['payload']==comparison_action['payload']
+            assert any(r['code'].startswith('comparison_') for r in impacted['source_impact']['reasons'])
+            conversation=require(c.get('/api/services/threads/'+assistant_thread['id']))
+            assert conversation['runs'][0]['result']==assistant_run['result']
+            assert any(r['code']=='comparison_member_changed' for r in conversation['runs'][0]['source_impact']['reasons'])
+            require(c.delete('/api/workspace/comparisons/'+ref['id'],params={'identity_id':'','version':ref['version']}))
+            assert require(c.get('/api/runs/'+comparison_run['id']))['result']['comparison_artifact']==frozen_comparison
+            assert c.get('/api/workspace/comparisons/'+ref['id']).status_code==404
+            assert not any(row['id']==ref['id'] for row in require(c.get('/api/workspace/comparisons'))['items'])
+            conversation=require(c.get('/api/services/threads/'+assistant_thread['id']))
+            assert conversation['runs'][0]['result']==assistant_run['result']
+            assert conversation['runs'][0]['source_impact']['state']=='unavailable'
+            assert any(reason['code']=='comparison_removed' for reason in conversation['runs'][0]['source_impact']['reasons'])
+            record('双企业共同季度对照→版本冻结→明确批准Agent→报告引用→另一企业修订/清理→行动适用性变化且历史不改写')
             with c.stream('GET','/api/runs/'+run['id']+'/events') as response:
                 assert response.status_code==200 and response.headers['content-type'].startswith('text/event-stream')
                 text='\n'.join(response.iter_lines())
@@ -137,6 +208,20 @@ def main():
             resumed=[int(l.split(':',1)[1]) for l in tail.splitlines() if l.startswith('id:')];assert resumed==[i for i in ids if i>mid]
             assert c.get('/api/runs/'+run['id']+'/events',headers={'Last-Event-ID':'bad'}).status_code==422
             record('真实HTTP流式SSE、单调事件ID、Last-Event-ID精确续读与非法游标拒绝')
+            # Invalid cursors must fail before SSE headers commit; a 200 empty
+            # stream would otherwise look like another transient disconnect.
+            for bad in [str(2**53),str(2**63),'9'*100]:
+                for path in ['/api/sync?after=','/api/runs?offset=',
+                             '/api/runs/'+run['id']+'/events?after=',
+                             '/api/workspace/datasets/'+d['id']+'/lineage?revision=']:
+                    response=c.get(path+bad)
+                    assert response.status_code==422 and response.headers['content-type'].startswith('application/json')
+                response=c.get('/api/runs/'+run['id']+'/events',headers={'Last-Event-ID':bad})
+                assert response.status_code==422 and response.json()['error']['code']=='INVALID_CURSOR'
+            with c.stream('GET','/api/runs/'+run['id']+'/events',headers={'Last-Event-ID':str(2**53-1)}) as response:
+                assert response.status_code==200 and 'event: end' in '\n'.join(response.iter_lines())
+            require(c.get('/api/sync?after='+str(2**53-1)))
+            record('真实HTTP超界整数在查询/续读头/修订入口提前422拒绝，合法上界SSE仍返回终态，无空200断流')
             # Explicitly pause while queued, hard-kill, restart, then resume from the durable state.
             paused=None
             for attempt in range(8):
@@ -168,18 +253,106 @@ def main():
             assert not any(n['id']=='counterevidence' for n in plan(c,d)['payload']['nodes'])
             assert require(c.get('/api/runs/'+runs[0]['id']))['result']==runs[0]['result']
             record('真实报告验收→自动提出策略→逐例回放与保留组→明确激活→旧计划失效→回滚；历史结果不变')
+            # Cross-workspace source lifecycle over real HTTP, not only direct TestClient calls.
+            experiment=require(c.post('/api/workspace/experiments',json={'dataset_id':d['id'],'dataset_version':d['version'],'dataset_hash':d['content_hash'],
+                'name':'真实HTTP链路隔离情景','kind':'scenario','price_change':.05,'fixed_cost_share':.2,'assumptions':'仅用于隔离验收的明确情景假设'}),201)
+            selected=plan(c,d,experiment={'id':experiment['id'],'version':experiment['version'],'hash':experiment['experiment_hash']},execution={})
+            linked_run=wait_run(c,approve(c,selected)['id']);assert linked_run['result']['adaptive']['mathematical_outputs']['sensitivity']['experiment']['id']==experiment['id']
+            body={'request_id':'http-lifecycle-action','dataset_id':d['id'],'run_id':linked_run['id'],'source_ref':{'kind':'report','run_id':linked_run['id']},
+                'title':'真实HTTP报告跟进行动','acceptance':'保存原始依据并记录人工核验说明'}
+            action=require(c.post('/api/workspace/actions',json=body),201)
+            assert require(c.post('/api/workspace/actions',json=body),201)['id']==action['id']
+            watch=require(c.post('/api/services/watches',json={'request_id':'http-lifecycle-watch','title':'行动关联指标跟踪','dataset_id':d['id'],
+                'metric':'gross_margin','operator':'lt','threshold':.99,'stale_after_days':1460,'source_ref':{'kind':'action','action_id':action['id'],'action_version':action['version'],'action_hash':action['object_hash']}}),201)
+            tracking=require(c.get('/api/services/tracking'));assert any(a['payload']['rule_id']==watch['id'] for a in tracking['alerts'])
+            linked_alert=next(a for a in tracking['alerts'] if a['payload']['rule_id']==watch['id'])
+            spec={k:watch['payload'][k] for k in ('title','identity_id','dataset_id','metric','operator','threshold','active','stale_after_days','expires_at')}
+            unchanged=require(c.put('/api/services/watches/'+watch['id'],json={**spec,'version':watch['version']}));assert unchanged['version']==watch['version']
+            assert len(require(c.get('/api/services/tracking'))['alerts'])==len(tracking['alerts'])
+            action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={'version':action['version'],'status':'in_progress'}))
+            evidence_selection=next(row for row in require(c.get('/api/workspace/evidence'))['items'] if row['id']==e['id'])
+            proof={key:evidence_selection[key] for key in ('id','version','content_hash','review_version','review_hash')}
+            completion={'version':action['version'],'status':'done','note':'已核对隔离测试凭证并明确其局限','evidence_ids':[e['id']]}
+            assert c.put('/api/workspace/actions/'+action['id']+'/status',json=completion).status_code==422
+            action=require(c.put('/api/workspace/actions/'+action['id']+'/status',json={**completion,'evidence_refs':[proof]}))
+            assert action['payload']['history'][-1]['evidence_snapshots'][0]['content_hash']==e['content_hash']
+            feedback=require(c.get('/api/workspace/runs/'+linked_run['id']+'/assessment'))['review_context'];assert feedback['related_actions'][0]['status']=='done'
+            require(c.post('/api/workspace/runs/'+linked_run['id']+'/assessment',json={'verdict':'useful','note':'已参考关联行动的实际验收记录','expected_capabilities':['quant','sensitivity'],'consent_replay':True,'review_context_hash':feedback['hash']}))
+            original_report=linked_run['result'];original_action=copy.deepcopy(action['payload'])
+            revised=copy.deepcopy(d['payload']);revised.pop('verification',None);revised.pop('input_amount_unit',None);revised.update(version=d['version'],notes='真实HTTP跨工作区修订核验')
+            require(c.put('/api/datasets/'+d['id'],json=revised))
+            stale={**body,'request_id':'http-historical-action'}
+            assert c.post('/api/workspace/actions',json=stale).status_code==409
+            stale['source_ref']={**stale['source_ref'],'allow_historical':True}
+            historical=require(c.post('/api/workspace/actions',json=stale),201);assert historical['payload']['provenance']['dataset_version']==1
+            current_action=next(x for x in require(c.get('/api/workspace/actions'))['items'] if x['id']==action['id'])
+            assert current_action['payload']==original_action and current_action['source_impact']['state']=='changed'
+            assert require(c.get('/api/runs/'+linked_run['id']))['result']==original_report
+            require(c.delete('/api/workspace/archive/import_stage/'+stage['id'],params={'version':2}))
+            revision=require(c.get('/api/workspace/datasets/'+d['id']+'/revisions'))['items'][0]
+            assert revision['import_receipt']['payload']['import_context']['source_file_sha256']
+            require(c.delete('/api/evidence/'+e['id'],params={'version':e['version']}))
+            after=next(x for x in require(c.get('/api/workspace/actions'))['items'] if x['id']==action['id'])
+            assert after['payload']==original_action and after['acceptance_impact']['state']=='changed'
+            assert require(c.get('/api/account/export'))['data']['dataset_import_receipts']
+            record('真实HTTP来源→保存实验→批准Agent→报告→行动→指标跟踪→证据验收→人工反馈；修订/清理后历史冻结与当前失效分离')
             # Short read-load probe, not an SLA or capacity claim.
             def get_one(i):
                 t=time.perf_counter();res=c.get(['/api/datasets','/api/workspace/evolution','/api/ops','/api/workspace/runs/'+run['id']+'/runtime'][i%4]);assert res.status_code==200;return (time.perf_counter()-t)*1000
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:latencies=list(pool.map(get_one,range(64)))
             ys=sorted(latencies);timings={'read_requests':len(ys),'concurrency':4,'p50_ms':round(ys[len(ys)//2],2),'p95_ms':round(ys[int(len(ys)*.95)-1],2),'max_ms':round(max(ys),2)}
             record('实际本机四并发64次跨工作区读取全部成功；单独保留延迟样本')
+            expected_backup=require(c.get('/api/account/export'))['data']
             dbpath=Path(temp)/'product'/'lidian.sqlite3'
             target=Path(temp)/'backup.sqlite';proc=subprocess.run([sys.executable,'scripts/backup.py','--source',str(dbpath),'--output',str(target)],cwd=ROOT,env={**os.environ,'DATA_DIR':str(srv.dir)},capture_output=True,text=True)
             # backup CLI contract is checked below, not inferred from a file name.
             if proc.returncode!=0:raise AssertionError(proc.stdout+proc.stderr)
-            with contextlib.closing(sqlite3.connect(target)) as db:assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
-            record('运行中的SQLite一致性备份与副本完整性检查')
+            receipt=json.loads(proc.stdout)
+            assert receipt['integrity']=='ok' and receipt['foreign_key_check']=='ok'
+            assert receipt['sha256']==hashlib.sha256(target.read_bytes()).hexdigest()
+            with contextlib.closing(sqlite3.connect(target)) as db:
+                assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+                assert db.execute('PRAGMA foreign_key_check').fetchall()==[]
+            record('运行中的SQLite一致性备份、副本结构及外键检查、回执散列核对')
+            # Follow the documented independent-directory recovery procedure.
+            # Starting a second HTTP service against this copy proves more than
+            # checking that a backup file exists or opens in sqlite3.
+            restored_dir=Path(temp)/'restored';restored_dir.mkdir()
+            shutil.copyfile(target,restored_dir/'lidian.sqlite3')
+            restored=ProductServer(restored_dir)
+            try:
+                restored.start()
+                with httpx.Client(base_url=restored.base,trust_env=False,timeout=10) as recovered, httpx.Client(base_url=restored.base,trust_env=False,timeout=10) as outsider:
+                    for client,account in ((recovered,a),(outsider,b)):
+                        login=require(client.post('/api/auth/login',json={'email':account['user']['email'],'password':'Real-HTTP-acceptance-password'}))
+                        client.headers.update({'X-CSRF-Token':login['csrf']})
+                    actual=require(recovered.get('/api/account/export'))['data']
+                    for table in ('datasets','dataset_revisions','dataset_import_receipts','runs','workspace_objects','agent_artifacts','event_integrity'):
+                        assert actual[table]==expected_backup[table],table
+                    assert outsider.get('/api/runs/'+linked_run['id']).status_code==404
+                    assert outsider.get('/api/datasets/'+d['id']).status_code==404
+                    recovered_audit=require(recovered.get('/api/workspace/runs/'+linked_run['id']+'/audit'))
+                    assert recovered_audit['ledger']['valid'] and recovered_audit['report_hash_valid']
+                    recovered_data=require(recovered.get('/api/datasets/'+d['id']))
+                    new_revision=require(recovered.post('/api/workspace/datasets/'+d['id']+'/restore',json={'version':recovered_data['version'],'target_revision':1}))
+                    assert new_revision['version']==recovered_data['version']+1 and new_revision['payload']==d['payload']
+                    assert require(recovered.get('/api/runs/'+linked_run['id']))['result']==original_report
+                    assert require(c.get('/api/datasets/'+d['id']))['version']==recovered_data['version']
+                    record('备份→全新DATA_DIR实际Uvicorn重启→重新登录→完整来源/报告核对→跨账户拒绝→历史恢复新修订且原库/报告不变')
+                    # Inject corruption only into the disposable restored copy.
+                    # The original service and all frozen numerical alerts stay intact.
+                    before_objects=require(recovered.get('/api/account/export'))['data']['workspace_objects']
+                    with contextlib.closing(sqlite3.connect(restored.dir/'lidian.sqlite3')) as db:
+                        db.execute("UPDATE agent_artifacts SET content_hash=? WHERE run_id=? AND node='report'",('0'*64,linked_run['id']))
+                        db.commit()
+                    rejected=recovered.post('/api/workspace/actions',json={'dataset_id':d['id'],
+                        'title':'复核提醒继承的原报告来源','acceptance':'核对原始报告完整性后才能建立后续行动',
+                        'source_ref':{'kind':'alert','alert_id':linked_alert['id'],'allow_historical':True}})
+                    assert rejected.status_code==409 and rejected.json()['error']['code']=='REPORT_INTEGRITY',rejected.text
+                    assert require(recovered.get('/api/account/export'))['data']['workspace_objects']==before_objects
+                    assert require(c.get('/api/workspace/runs/'+linked_run['id']+'/audit'))['report_integrity']['valid']
+                    record('实际HTTP报告→行动→规则→提醒的来源链不可借历史确认绕过损坏报告；只损坏隔离副本且原库/数值记录不变')
+            finally:restored.stop()
         finally:srv.stop()
       evidence.update({'passed':True,'checks':checks,'load_probe':timings,'elapsed_seconds':round(time.time()-start,2)})
     except Exception as exc:

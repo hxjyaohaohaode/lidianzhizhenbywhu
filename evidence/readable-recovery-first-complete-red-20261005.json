@@ -1,0 +1,82 @@
+{
+  "head": "bdde00061cb9d27d2bce66927b5fcdee5fd82ec4",
+  "command": "python scripts/verify.py --full-chain",
+  "process_exit_code": 1,
+  "complete_collection_started_finished": 3980,
+  "failed_test": "tests/test_audit_read_consistency.py::test_audit_keeps_one_snapshot_when_real_worker_publishes[run]",
+  "failure": "assert fired was False: old SELECT-* instrumentation did not match the new owner-bound raw result SELECT",
+  "six_other_stages_exit0": true,
+  "source_hashes_unchanged": 394,
+  "session_finished": {
+    "event": "session_finished",
+    "utc": "2026-10-05T23:54:02.323168+00:00",
+    "elapsed_seconds": 460.956989,
+    "process_cpu_seconds": 442.314887,
+    "exit_code": 1,
+    "collected": 3980,
+    "started": 3980,
+    "completed": 3980,
+    "complete": true,
+    "phase_outcomes": {
+      "setup_passed": 3980,
+      "call_passed": 3982,
+      "teardown_passed": 3980,
+      "call_failed": 1
+    }
+  },
+  "artifacts": {
+    "python-compile.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "typecheck.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "pytest.log": {
+      "sha256": "97884450a6f88c5b7d1249ae88de6ec4d1ea9fb0bff1ad7dc93066a29d980236",
+      "bytes": 12235
+    },
+    "pytest.xml": {
+      "sha256": "13d261ba31a93d4fdd920e312bc97c8a2a53023f314740bfd6bafba417215c0d",
+      "bytes": 668274
+    },
+    "pytest-progress.jsonl": {
+      "sha256": "a3bb5a9ac845e2e2ad7363e8c9eeeb52e6d3f8278c9506e13d10368e6daa9ae0",
+      "bytes": 11123229
+    },
+    "pytest-progress.stacks.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "frontend-tests.log": {
+      "sha256": "01eec93b8bb54297b236754eb13c92954c3c3635531b2c30c220c7273842df2a",
+      "bytes": 101541
+    },
+    "source-guard.log": {
+      "sha256": "38b167a4c904d611961efdfd26814c9fee7efa4c623bbca4f4c01f7261a0e8e4",
+      "bytes": 4348
+    },
+    "source-guard.json": {
+      "sha256": "f35505ed3f8d394893351074ce6489f9c2e43ddf9bf3bb39813cddc64e673b69",
+      "bytes": 4347
+    },
+    "full-chain-http.log": {
+      "sha256": "4707ee1fca0537a4b454a34adb675e937fee5da9b37aa90a790292edc79d0a89",
+      "bytes": 2000
+    },
+    "full-chain-http.json": {
+      "sha256": "05be0a67d38ff6c64ab91d1023a09c62fea4883035bac16c0686ec9e5c8ba365",
+      "bytes": 2452
+    },
+    "verification.json": {
+      "sha256": "fb9bd8450a734786583ab4fd41b7d8393cf0faea9de37301d932b0cf4faa3974",
+      "bytes": 5348
+    }
+  },
+  "boundary": "This attempt failed and is not relabeled passed. The narrowly reviewed test hook repair requires a new complete frozen run."
+}

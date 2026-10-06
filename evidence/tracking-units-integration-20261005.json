@@ -1,0 +1,172 @@
+{
+  "executed_at": "2026-10-05T08:00:12.165554+00:00",
+  "base_commit": "8e3a5f19852e0e6fc60ce2a0228768b44a7ba9e7",
+  "checks": [
+    {
+      "check": "python-compile",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.056,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "typecheck",
+      "command": [
+        "node",
+        "/workspace/scratch/ace785cd6eaa/lidian-tracking-units/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 1.281,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "build",
+      "command": [
+        "node",
+        "/workspace/scratch/ace785cd6eaa/lidian-tracking-units/node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 1.46,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "pytest",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:faulthandler",
+        "-p",
+        "scripts.pytest_diagnostics",
+        "--diagnostics-output=evidence/pytest-progress.jsonl",
+        "--diagnostics-test-timeout=120",
+        "--durations=20",
+        "--junitxml=evidence/pytest.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 345.338,
+      "timeout_seconds": 1200
+    },
+    {
+      "check": "frontend-tests",
+      "command": [
+        "node",
+        "--test",
+        "tests/actions.frontend.test.mjs",
+        "tests/assistant-handoff.frontend.test.mjs",
+        "tests/business-source.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
+        "tests/copilot-message-trace.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
+        "tests/data-draft-continuation.frontend.test.mjs",
+        "tests/data-editor-isolation.frontend.test.mjs",
+        "tests/dataset-source.frontend.test.mjs",
+        "tests/evidence.frontend.test.mjs",
+        "tests/form-snapshot.frontend.test.mjs",
+        "tests/frontend.test.mjs",
+        "tests/import-navigation.frontend.test.mjs",
+        "tests/import-readability.frontend.test.mjs",
+        "tests/import.frontend.test.mjs",
+        "tests/math-results.frontend.test.mjs",
+        "tests/metric-comparison.frontend.test.mjs",
+        "tests/plan-history.frontend.test.mjs",
+        "tests/preferences-completion.frontend.test.mjs",
+        "tests/product-numeric-outcomes.frontend.test.mjs",
+        "tests/proposal-preview.frontend.test.mjs",
+        "tests/recovery.frontend.test.mjs",
+        "tests/report-integrity.frontend.test.mjs",
+        "tests/report-readout.frontend.test.mjs",
+        "tests/saved-comparisons.frontend.test.mjs",
+        "tests/saved-experiments.frontend.test.mjs",
+        "tests/saved-mutation.frontend.test.mjs",
+        "tests/service-completion.frontend.test.mjs",
+        "tests/services.frontend.test.mjs",
+        "tests/watch-units.frontend.test.mjs",
+        "tests/workflow-inputs.frontend.test.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 1.828,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "source-guard",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/source_guard.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.389,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/full_chain_check.py"
+      ],
+      "exit_code": 0,
+      "seconds": 6.129,
+      "timeout_seconds": 240
+    }
+  ],
+  "pytest_session": {
+    "event": "session_finished",
+    "utc": "2026-10-05T07:59:54.490770+00:00",
+    "elapsed_seconds": 335.338657,
+    "process_cpu_seconds": 323.046034,
+    "exit_code": 0,
+    "collected": 2207,
+    "started": 2207,
+    "completed": 2207,
+    "complete": true,
+    "phase_outcomes": {
+      "setup_passed": 2207,
+      "call_passed": 2210,
+      "teardown_passed": 2207
+    }
+  },
+  "frontend": {
+    "tests": 445,
+    "pass": 445,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "http_checks": 18,
+  "protected_trees": {
+    "web": "901916ec8557dd23a38cd24a8a1ea03b10fe7ed1",
+    "server": "51c91049a339c58c6263d5cf9333cd65d3a7212a"
+  },
+  "source_sha256": {
+    "web/watch-units.ts": "645d7ca40818c5bd5c642bbd64140a9a0a6fba254b8e8040a1b36f9573efa952",
+    "web/dist/watch-units.js": "df785100bea4741b925894d53a7bef789111232fe9a6e7d11c4e966fc0c046dd",
+    "web/experience.ts": "9387146ed00f1b0a8358c1c40f693d256fc09b5a6a5aada0ef0c85061a37514c",
+    "web/copilot-ui.ts": "740e8cae68f489bdaa485abe7dfd1c22fe66de897d9b0092f43498cd3b237356",
+    "web/views-services.ts": "49ae1845ae996d6f836ea16bd38660435fc1d49a29d5d7b4fb157194f017f77f",
+    "scripts/product_tracking_units.py": "1650c5fd4d854de5b654160c12c3a36770dc72cbae5eebe2ef824bab67f1031d",
+    "scripts/product_browser_audit.py": "b4b9db6ec659a1bbca1495068ddfe4d9ad1fa64d4a04df672b1aec78f873e707",
+    "scripts/product_first_use_audit.py": "f6f2a82e49f12504d2c987296b4df2b4c9a0bbebf565888af5c23f2375ed734f",
+    "scripts/native_acceptance.py": "0d7beed3d892182a1bc08f676383d7ad0cb152cbf831759028c88a7d2f965075",
+    "scripts/product_audit_config.py": "840abf171e0a2c47340f268c75c8bdec23dbcd5e8d97f6dca0db075e875375da",
+    ".github/workflows/ci.yml": "43de46e71a7aadd0a2002f1bfc628e3194e5320621f60b0d1653f7f207871639",
+    "tests/test_product_tracking_units.py": "3b4251eccbf9d386f0aed3328cc272f4fad37b375999e3f74a39a6f89ffc64f3",
+    "tests/test_product_intro_readiness.py": "2e4f3e7a7da244591925a11b6050b550daf97a051041afea57efa67df2520eee",
+    "tests/test_product_audit_runner.py": "060158ee4a32120e84ef1cc8731d18c8f5fbff9b5743a7ee506b8fb02bb92e0d"
+  },
+  "native_status": "Not run locally; next exact-SHA CI and independent raw pixels/trace review required",
+  "scope": "L4 direct percent/yuan rule lifecycle plus original timed-intro natural readiness. Module coverage is not native assistant proposal/all-metric coverage. Existing cancelled modal may still require one dirty-draft exit confirmation. No server/formula/brand changes, providers, merge or deployment."
+}

@@ -1,0 +1,13 @@
+{
+  "recorded_at_utc": "2026-10-05T21:52:23Z",
+  "producer_commit": "b69a68a7941c89fdf36bdc20a5dfeb2e075a5235",
+  "scope": "Isolated synthetic company data through authenticated production FastAPI TestClient, real unconfigured ProviderService; not native browser evidence. No real company data or live provider calls.",
+  "network_attempts": 0,
+  "provider_transport_calls": 0,
+  "business_reports_created": 0,
+  "files": {
+    "missing-api.json": "759622d77c5339acc9834d5269e9e6c0b2bfd0b5f6174bba74a117748640f9ac",
+    "zero-quantity-api.json": "3d93e04d51011edf5d1406322428638f4e682df5bc4b36d2a313b6ebdaa4601e",
+    "zero-revenue-api.json": "7ef99b93790b5f9f42571a1acfeda7bd2736eb91a191d05e4e17aaef37209085"
+  }
+}

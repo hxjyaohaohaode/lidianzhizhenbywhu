@@ -1,5 +1,6 @@
 const defaults = { collapsed: false, assistant: false, width: 390 };
 let saved = { ...defaults }, owner = '', restoreFocus = null;
+let mobile = window.innerWidth <= 900;
 export function normalizeLayout(value, viewport = window.innerWidth) {
     return { collapsed: value.collapsed === true, assistant: value.assistant === true, width: Math.max(320, Math.min(560, Number.isFinite(value.width) ? Number(value.width) : 390, Math.max(320, viewport - 620))) };
 }
@@ -15,88 +16,115 @@ function remember() { try {
 }
 catch { /* storage is optional */ } }
 export function layoutState() { return { ...saved }; }
-export function clearLayout() { owner = ''; saved = { ...defaults }; restoreFocus = null; }
+export function clearLayout() { owner = ''; saved = { ...defaults }; restoreFocus = null; document.body.classList.remove('drawer-active', 'resizing-rail'); }
+function setUnavailable(el, unavailable) { if (!el)
+    return; el.inert = unavailable; el.setAttribute('aria-hidden', String(unavailable)); }
+function restoreTrigger() { if (restoreFocus?.isConnected)
+    restoreFocus.focus(); restoreFocus = null; }
+function focusFirst(id) { document.querySelector(id + ' button, ' + id + ' textarea, ' + id + ' a[href]')?.focus(); }
 export function applyLayout() {
     const shell = document.querySelector('.workspace-shell');
     if (!shell)
         return;
-    saved = normalizeLayout(saved);
-    shell.dataset.nav = saved.collapsed ? 'compact' : 'expanded';
-    shell.dataset.assistant = saved.assistant ? 'visible' : 'hidden';
-    shell.style.setProperty('--assistant-width', saved.width + 'px');
-    const full = location.hash.startsWith('#copilot');
-    shell.dataset.copilot = full ? 'full' : 'rail';
-    const rail = document.querySelector('#assistant-rail');
-    if (rail) {
-        rail.hidden = full || (!saved.assistant && innerWidth > 900);
-        if (full || !saved.assistant)
-            rail.classList.remove('open');
+    const small = innerWidth <= 900, full = location.hash.split(':')[0] === '#copilot';
+    const sidebar = document.querySelector('#sidebar'), rail = document.querySelector('#assistant-rail');
+    // Drawer state never survives replacement of its DOM or a breakpoint change.
+    if (small !== mobile) {
+        sidebar?.classList.remove('open');
+        rail?.classList.remove('open');
+        restoreFocus = null;
     }
-    document.querySelectorAll('[data-action="menu"]').forEach(b => { b.setAttribute('aria-expanded', String(innerWidth > 900 ? !saved.collapsed : document.querySelector('#sidebar')?.classList.contains('open'))); b.setAttribute('title', saved.collapsed ? '展开导航' : '收起导航'); });
-    document.querySelectorAll('[data-action="show-assistant"]').forEach(b => { b.setAttribute('aria-expanded', String(saved.assistant && !full)); b.setAttribute('title', full ? '助手已在主工作区' : saved.assistant ? '收起研究助手' : '打开研究助手'); });
+    mobile = small;
+    if (full || !saved.assistant)
+        rail?.classList.remove('open');
+    const navOpen = small && !!sidebar?.classList.contains('open'), railOpen = small && !!rail?.classList.contains('open');
+    const compact = !small && (saved.collapsed || (saved.assistant && !full && innerWidth <= 1100));
+    const width = normalizeLayout(saved).width;
+    shell.dataset.nav = compact ? 'compact' : 'expanded';
+    shell.dataset.assistant = saved.assistant ? 'visible' : 'hidden';
+    shell.dataset.copilot = full ? 'full' : 'rail';
+    shell.style.setProperty('--assistant-width', width + 'px');
+    if (rail)
+        rail.hidden = full || (!small && !saved.assistant);
+    setUnavailable(sidebar, small && !navOpen);
+    setUnavailable(rail, full || (small ? !railOpen : !saved.assistant));
+    setUnavailable(document.querySelector('.main-shell'), small && (navOpen || railOpen));
+    const back = document.querySelector('#drawer-backdrop');
+    if (back)
+        back.hidden = !(navOpen || railOpen);
+    document.body.classList.toggle('drawer-active', navOpen || railOpen);
+    document.querySelectorAll('[data-action="menu"]').forEach(b => { const expanded = small ? navOpen : !compact; const label = expanded ? '收起导航' : '展开导航'; b.setAttribute('aria-expanded', String(expanded)); b.setAttribute('aria-controls', 'sidebar'); b.setAttribute('title', label); b.setAttribute('aria-label', label); });
+    document.querySelectorAll('[data-action="show-assistant"]').forEach(b => { const expanded = !full && (small ? railOpen : saved.assistant); const label = full ? '助手已在主工作区' : expanded ? '收起研究助手' : '打开研究助手'; b.setAttribute('aria-expanded', String(expanded)); b.setAttribute('aria-controls', full ? 'copilot-full' : 'assistant-rail'); b.setAttribute('title', label); b.setAttribute('aria-label', label); });
     const handle = document.querySelector('#assistant-resize');
     if (handle) {
-        handle.setAttribute('aria-valuenow', String(saved.width));
+        handle.setAttribute('aria-valuenow', String(width));
         handle.setAttribute('aria-valuemin', '320');
-        handle.setAttribute('aria-valuemax', '560');
+        handle.setAttribute('aria-valuemax', String(normalizeLayout({ width: 560 }).width));
     }
-    syncBackdrop();
 }
-function syncBackdrop() { const back = document.querySelector('#drawer-backdrop'); if (!back)
-    return; const open = innerWidth <= 900 && !!document.querySelector('#sidebar.open, #assistant-rail.open'); back.hidden = !open; document.body.classList.toggle('drawer-active', open); }
-function focusFirst(id) { restoreFocus = document.activeElement; document.querySelector(id + ' button, ' + id + ' textarea')?.focus(); }
 export function toggleNav(force) {
     const el = document.querySelector('#sidebar');
     if (!el)
         return;
     if (innerWidth > 900) {
-        saved.collapsed = force === undefined ? !saved.collapsed : !force;
+        const compact = document.querySelector('.workspace-shell')?.dataset.nav === 'compact';
+        saved.collapsed = force === undefined ? !compact : !force;
+        if (!saved.collapsed && saved.assistant && innerWidth <= 1100)
+            saved.assistant = false;
         remember();
         applyLayout();
         return;
     }
     const opened = force ?? !el.classList.contains('open');
+    if (opened && !document.body.classList.contains('drawer-active'))
+        restoreFocus = document.activeElement;
     document.querySelector('#assistant-rail')?.classList.remove('open');
     el.classList.toggle('open', opened);
+    applyLayout();
     if (opened)
         focusFirst('#sidebar');
     else
-        restoreFocus?.focus();
-    syncBackdrop();
-    applyLayout();
+        restoreTrigger();
 }
 export function toggleAssistant(force) {
-    if (location.hash.startsWith('#copilot'))
+    if (location.hash.split(':')[0] === '#copilot')
         return;
     const el = document.querySelector('#assistant-rail');
     if (!el)
         return;
-    saved.assistant = force ?? !saved.assistant;
+    const opened = force ?? (innerWidth <= 900 ? !el.classList.contains('open') : !saved.assistant);
+    saved.assistant = opened;
     remember();
     el.hidden = false;
     if (innerWidth <= 900) {
+        if (opened && !document.body.classList.contains('drawer-active'))
+            restoreFocus = document.activeElement;
         document.querySelector('#sidebar')?.classList.remove('open');
-        el.classList.toggle('open', saved.assistant);
-        if (saved.assistant)
-            focusFirst('#assistant-rail');
-        else
-            restoreFocus?.focus();
+        el.classList.toggle('open', opened);
     }
     applyLayout();
+    if (innerWidth <= 900) {
+        if (opened)
+            focusFirst('#assistant-rail');
+        else
+            restoreTrigger();
+    }
 }
-export function closeDrawers() { document.querySelectorAll('.sidebar.open,.assistant-rail.open').forEach(x => x.classList.remove('open')); if (innerWidth <= 900) {
+export function closeDrawers() { if (innerWidth <= 900 && document.querySelector('#assistant-rail.open')) {
     saved.assistant = false;
     remember();
-} syncBackdrop(); restoreFocus?.focus(); }
+} const opened = !!document.querySelector('.sidebar.open,.assistant-rail.open'); document.querySelectorAll('.sidebar.open,.assistant-rail.open').forEach(x => x.classList.remove('open')); applyLayout(); if (opened)
+    restoreTrigger(); }
 let dragging = false;
-document.addEventListener('pointerdown', e => { if (!e.target.closest('#assistant-resize') || innerWidth <= 1100)
-    return; e.preventDefault(); dragging = true; e.target.setPointerCapture(e.pointerId); document.body.classList.add('resizing-rail'); });
+document.addEventListener('pointerdown', e => { const handle = e.target.closest('#assistant-resize'); if (!handle || innerWidth <= 1100)
+    return; e.preventDefault(); dragging = true; handle.setPointerCapture(e.pointerId); document.body.classList.add('resizing-rail'); });
 document.addEventListener('pointermove', e => { if (!dragging)
-    return; saved.width = normalizeLayout({ width: innerWidth - e.clientX, ...{ collapsed: saved.collapsed, assistant: saved.assistant } }).width; applyLayout(); });
+    return; saved.width = normalizeLayout({ ...saved, width: innerWidth - e.clientX }).width; applyLayout(); });
 function endResize() { if (!dragging)
     return; dragging = false; document.body.classList.remove('resizing-rail'); remember(); }
 document.addEventListener('pointerup', endResize);
 document.addEventListener('pointercancel', endResize);
+document.addEventListener('lostpointercapture', endResize);
 document.addEventListener('keydown', e => {
     if (e.target.id === 'assistant-resize' && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
         e.preventDefault();
@@ -111,11 +139,15 @@ document.addEventListener('keydown', e => {
         const drawer = document.querySelector('#sidebar.open,#assistant-rail.open');
         if (!drawer)
             return;
-        const controls = [...drawer.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select,textarea,[tabindex="0"]')].filter(x => !x.hidden && x.getClientRects().length);
+        const controls = [...drawer.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]')].filter(x => !x.hidden && !x.inert && x.getClientRects().length);
         if (!controls.length)
             return;
         const first = controls[0], last = controls.at(-1);
-        if (e.shiftKey && document.activeElement === first) {
+        if (!drawer.contains(document.activeElement)) {
+            e.preventDefault();
+            (e.shiftKey ? last : first).focus();
+        }
+        else if (e.shiftKey && document.activeElement === first) {
             e.preventDefault();
             last.focus();
         }
@@ -125,8 +157,6 @@ document.addEventListener('keydown', e => {
         }
     }
 });
-window.addEventListener('resize', () => { if (innerWidth > 900) {
-    document.querySelectorAll('.sidebar.open,.assistant-rail.open').forEach(x => x.classList.remove('open'));
-} applyLayout(); });
+window.addEventListener('resize', () => { endResize(); applyLayout(); });
 document.addEventListener('click', e => { if (e.target.id === 'drawer-backdrop')
     closeDrawers(); });

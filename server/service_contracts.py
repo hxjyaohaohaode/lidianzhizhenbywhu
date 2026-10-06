@@ -7,8 +7,10 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 from pydantic import Field, model_validator, field_validator
-from .schemas import StrictModel
+from .schemas import StorageInteger, StrictModel
 from .autonomy_contracts import ExecutionOptions
+from .business_provenance import SourceRef
+from .contracts import ExperimentReference
 
 
 class IdentitySpec(StrictModel):
@@ -21,7 +23,7 @@ class IdentitySpec(StrictModel):
     allow_external: bool = False
     max_calls: int = Field(default=3, ge=0, le=8)
     include_shared_memory: bool = True
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
 
     @field_validator('dataset_ids')
     @classmethod
@@ -35,12 +37,20 @@ class ThreadCreate(StrictModel):
     identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(default='', max_length=80)
     title: str = Field(default='新的研究', min_length=1, max_length=100)
+    request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
 
 
 class CopilotMessage(StrictModel):
     text: str = Field(min_length=1, max_length=3000)
     request_id: str = Field(pattern=r'^[a-zA-Z0-9_-]{8,80}$')
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
+
+    @field_validator('text')
+    @classmethod
+    def nonempty_text(cls, value):
+        if not value.strip():
+            raise ValueError('问题不能为空白')
+        return value
 
 
 class ProposalRequest(StrictModel):
@@ -54,27 +64,36 @@ class ProposalRequest(StrictModel):
     provider: str = Field(default='', max_length=40)
     max_calls: int = Field(default=3, ge=0, le=8)
     execution: ExecutionOptions = Field(default_factory=ExecutionOptions)
+    experiment: ExperimentReference | None = None
+    comparison_artifact: ExperimentReference | None = None
     mode: Literal['operational', 'margin', 'industry', 'investment', 'deep_dive'] = 'operational'
     metric: Literal['gross_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'cash_flow', 'revenue'] = 'gross_margin'
     operator: Literal['lt', 'gt'] = 'lt'
     threshold: float = Field(default=0.0, strict=True, ge=-1e15, le=1e15)
     due_at: date | None = None
+    expires_at: date | None = None
     acceptance: str = Field(default='', max_length=2000)
 
     @model_validator(mode='after')
     def no_irrelevant_external(self):
         if self.kind != 'research' and self.use_llm:
             raise ValueError('此类操作不需要外部模型')
+        if self.kind != 'research' and (self.experiment or self.comparison_artifact):
+            raise ValueError('数学实验和企业对照只能明确加入研究提案')
+        if self.kind == 'research' and len(self.acceptance) > 1000:
+            raise ValueError('研究验收标准最多1000个字符')
         return self
 
 
 class ProposalConfirm(StrictModel):
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
     fingerprint: str = Field(pattern=r'^[a-f0-9]{64}$')
     external_consent: bool = False
 
 
 class WatchSpec(StrictModel):
+    request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
+    source_ref: SourceRef | None = Field(default=None, description='新建必须提供完整的数据修订引用或可核验的原始来源。更新必须省略此不可变来源，并使用跟踪记录自身版本。')
     title: str = Field(min_length=1, max_length=200)
     identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(min_length=1, max_length=80)
@@ -83,12 +102,21 @@ class WatchSpec(StrictModel):
     threshold: float = Field(strict=True, ge=-1e15, le=1e15)
     active: bool = True
     stale_after_days: int = Field(default=180, ge=30, le=1460)
-    version: int = Field(default=0, ge=0)
+    expires_at: date | None = None
+    version: StorageInteger = Field(default=0, ge=0)
+
+    @model_validator(mode='after')
+    def request_id_create_only(self):
+        if self.version and self.request_id is not None:
+            raise ValueError('提交标识只用于新建跟踪；更新应使用记录版本')
+        if not self.version and self.source_ref is None:
+            raise ValueError('新跟踪必须提供已查看的数据版本和内容指纹，或指定可核验的原始来源')
+        return self
 
 
 class AlertAck(StrictModel):
     note: str = Field(default='已核对', min_length=2, max_length=1000)
-    version: int = Field(ge=1)
+    version: StorageInteger = Field(ge=1)
 
 
 class PrivateConnection(StrictModel):
@@ -97,11 +125,15 @@ class PrivateConnection(StrictModel):
     model: str = Field(min_length=1, max_length=150)
     api_key: str = Field(default='', max_length=1000)
     password: str = Field(min_length=1, max_length=128)
-    version: int = Field(default=0, ge=0)
+    version: StorageInteger = Field(default=0, ge=0)
 
 
 class Reauthenticate(StrictModel):
     password: str = Field(min_length=1, max_length=128)
+
+
+class ConnectionRemove(Reauthenticate):
+    version: StorageInteger = Field(ge=1)
 
 
 class SessionRevoke(Reauthenticate):

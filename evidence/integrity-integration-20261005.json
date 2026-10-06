@@ -1,0 +1,216 @@
+{
+  "executed_at": "2026-10-05T09:48:51.793552+00:00",
+  "base_commit": "a9f71deffb0ef83d2bb472f3ecb2b6b31129dbf2",
+  "all_seven_stages_passed": true,
+  "checks": [
+    {
+      "check": "python-compile",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "server",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "seconds": 0.031,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "typecheck",
+      "command": [
+        "node",
+        "/workspace/scratch/ace785cd6eaa/lidian-provenance-eligibility/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 1.243,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "build",
+      "command": [
+        "node",
+        "/workspace/scratch/ace785cd6eaa/lidian-provenance-eligibility/node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.json"
+      ],
+      "exit_code": 0,
+      "seconds": 1.46,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "pytest",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:faulthandler",
+        "-p",
+        "scripts.pytest_diagnostics",
+        "--diagnostics-output=evidence/pytest-progress.jsonl",
+        "--diagnostics-test-timeout=120",
+        "--durations=20",
+        "--junitxml=evidence/pytest.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 351.962,
+      "timeout_seconds": 1200
+    },
+    {
+      "check": "frontend-tests",
+      "command": [
+        "node",
+        "--test",
+        "tests/actions.frontend.test.mjs",
+        "tests/assistant-handoff.frontend.test.mjs",
+        "tests/business-source.frontend.test.mjs",
+        "tests/claim-review-readout.frontend.test.mjs",
+        "tests/comparison-cleanup.frontend.test.mjs",
+        "tests/copilot-message-trace.frontend.test.mjs",
+        "tests/copilot-research-inputs.frontend.test.mjs",
+        "tests/data-draft-continuation.frontend.test.mjs",
+        "tests/data-editor-isolation.frontend.test.mjs",
+        "tests/dataset-source.frontend.test.mjs",
+        "tests/evidence.frontend.test.mjs",
+        "tests/form-snapshot.frontend.test.mjs",
+        "tests/frontend.test.mjs",
+        "tests/import-navigation.frontend.test.mjs",
+        "tests/import-readability.frontend.test.mjs",
+        "tests/import.frontend.test.mjs",
+        "tests/math-results.frontend.test.mjs",
+        "tests/metric-comparison.frontend.test.mjs",
+        "tests/plan-history.frontend.test.mjs",
+        "tests/preferences-completion.frontend.test.mjs",
+        "tests/product-numeric-outcomes.frontend.test.mjs",
+        "tests/proposal-preview.frontend.test.mjs",
+        "tests/recovery.frontend.test.mjs",
+        "tests/report-integrity.frontend.test.mjs",
+        "tests/report-readout.frontend.test.mjs",
+        "tests/saved-comparisons.frontend.test.mjs",
+        "tests/saved-experiments.frontend.test.mjs",
+        "tests/saved-mutation.frontend.test.mjs",
+        "tests/service-completion.frontend.test.mjs",
+        "tests/services.frontend.test.mjs",
+        "tests/watch-units.frontend.test.mjs",
+        "tests/workflow-inputs.frontend.test.mjs"
+      ],
+      "exit_code": 0,
+      "seconds": 1.487,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "source-guard",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/source_guard.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.321,
+      "timeout_seconds": 240
+    },
+    {
+      "check": "full-chain-http",
+      "command": [
+        "/workspace/scratch/ace785cd6eaa/lidian-venv/bin/python",
+        "scripts/full_chain_check.py"
+      ],
+      "exit_code": 0,
+      "seconds": 5.925,
+      "timeout_seconds": 240
+    }
+  ],
+  "pytest_session": {
+    "event": "session_finished",
+    "utc": "2026-10-05T09:48:36.004850+00:00",
+    "elapsed_seconds": 343.191622,
+    "process_cpu_seconds": 331.734576,
+    "exit_code": 0,
+    "collected": 2375,
+    "started": 2375,
+    "completed": 2375,
+    "complete": true,
+    "phase_outcomes": {
+      "setup_passed": 2375,
+      "call_passed": 2378,
+      "teardown_passed": 2375
+    }
+  },
+  "frontend": {
+    "tests": 485,
+    "passed": 485,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "real_http_checks": 18,
+  "protected_tree_ids": {
+    "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+    "server": "6586116b744db2de3384956803e50325c96f73c1"
+  },
+  "source_sha256": {
+    "server/app.py": "33e2c99835c52e31a586bb55dee45009d27a46dd4e573320225b1833b4b16afc",
+    "server/business_provenance.py": "8bd6691c921d16bbbe1b2479378c3801b6c43b9b9b5af12b0af233d1af053e3e",
+    "server/source_bindings.py": "abd864575646a95422c7be43ec87abbe09e68b11e5c065a0b8cea49afc8d7f5e",
+    "server/workspace_api.py": "8549e9d5a4e4341d2ee26f612756ec6403018740012f0219ca2111abee310d87",
+    "web/app.ts": "daad0a5b17039bd49f75bff0d71b4fab9370f40a508d631a1a0dc782f9b9b618",
+    "web/views-studio.ts": "604e2ab0fbe4e09ba94af114eabd37e3191a45c2b88ad19bacdc07745a72a1fc",
+    "web/views-analysis.ts": "b8cbbb53ec431312a14c45400ed125ffdcef3c1be4fa742392999f0ed07a07a2",
+    "web/dist/app.js": "6c6198daf7006693fd318d26a8a73f8b875802b03c22a5d87b9121ccb0b6780f",
+    "web/dist/views-studio.js": "d9ec0ec8f05aa956533356d7431cb179400864a894bdfdaae55192627bcbbfa0",
+    "web/dist/views-analysis.js": "d814b76766a2b240b5674f83103308a898142153ec637ed546b7b67adee04618",
+    "scripts/product_memory_eligibility.py": "2b636c9c1c93c3daa00ead5621d9e75c3237da31f2ec424d62d8e27d34af2630",
+    "scripts/product_report_export.py": "00f578f8b3466f353879b69e47cc8ee990d7a4bc8802e85abab2b10aae198cc1",
+    "scripts/product_browser_audit.py": "8f2217b5b69fdceb04b49c8104c8f947c64100cfb472d52c84888f5969f12a4d",
+    "scripts/product_audit_config.py": "c71eaa404a63b1ec68b229afea00a24d2ac9268e418f0d38b5904ec92a8902ff",
+    "scripts/native_acceptance.py": "4d45663fb2b1b8fc60881e0832c5d1e85dee52657c7c6a21e19c87d4f1353dbf",
+    "scripts/prepare_evidence.py": "1dde704254828392af55ee84c28996bb18fbada204db64d88737d823930adf6b",
+    ".github/workflows/ci.yml": "043a77f45d5e22915da575110762a642fc6b4ecd7505689adb5f8ac16d7010b0"
+  },
+  "independent_review": {
+    "source_context": "Malformed current preferences/identity are unavailable without inventing authorization; valid-context equivalence and dispatch controls passed",
+    "export": "Corrupt readable exports rejected; healthy/current-source-changed/genuine-legacy bytes and owner isolation preserved",
+    "review_projection": "Unknown or conflicting reviews are not unreviewed version0; healthy independent claim stays separate; valid max counter is read-only; stored invalid zero rejected, absent slot zero creates1",
+    "concurrency": "Eight same-version recovery posts yielded one success and seven conflicts",
+    "unverified_content": "Known-invalid saved result is quarantined from ordinary answer/charts/actions/exports; original bytes retained in explicitly unverified folded view",
+    "I9_contract": "Both actual synthetic staged-CSV query runs and MD/JSON exports independently matched the oracle in-process"
+  },
+  "native_boundary": {
+    "executed_locally": false,
+    "new_scenarios": [
+      "I8-memory-preference",
+      "I9-report-export"
+    ],
+    "next_ci_jobs": 46,
+    "I8_database_faults": false,
+    "I9_database_faults": "one owner-bound temporary final-artifact fault; no fixture restore",
+    "status": "New exact commit, hosted Chromium execution and independent raw pixel/trace review pending"
+  },
+  "transport": {
+    "single_attempt": true,
+    "timeout_ms": 30000,
+    "success_status": 200,
+    "headers": {
+      "Connection": "close"
+    },
+    "retry_added": false,
+    "scope": "Prevents this helper leaving sockets idle with Uvicorn; not force-new-socket if a different caller preseeded the global agent"
+  },
+  "historical_result_preserved": true,
+  "brand_and_formulas_changed": false,
+  "real_provider_calls": 0,
+  "merge_or_deployment_performed": false,
+  "not_claimed": [
+    "Complete product acceptance",
+    "Real supplier validation",
+    "Every corruption or every legacy shape",
+    "Native rereview controls for model-claim records",
+    "Narrow viewport acceptance",
+    "Software copyright filing"
+  ]
+}

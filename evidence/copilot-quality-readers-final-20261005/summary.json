@@ -1,0 +1,39 @@
+{
+  "source_commit": "754352ec84c8bf16260bd04d239c013fff9b5131",
+  "implementation_commits": [
+    "4a5ce5cc8465ae3fb21289e78c6456ce3b598b42",
+    "754352ec84c8bf16260bd04d239c013fff9b5131"
+  ],
+  "inherited_transport_commit": "a90acbf9775c518565033877a63f071caed47dfc",
+  "upstream_transport_commit": "35ca6c899dfc3a358058761d137f7c5f9d0d7bcd",
+  "independent_review": {
+    "scope": "source and compiled reader contracts",
+    "quality_tests_passed": 11,
+    "new_semantic_blockers": false,
+    "native_browser_clearance": false
+  },
+  "full_verify_completed_at": "2026-10-05T22:27:05.539718+00:00",
+  "full_verify_initial_exit_code": 1,
+  "full_verify_all_checks_passed": false,
+  "backend_passed": 3643,
+  "backend_failed": 0,
+  "frontend_initial_failed_entrypoints": 8,
+  "frontend_initial_failure": "Typescript was available to the explicit --tsc path, but the candidate node_modules symlink was absent for test imports.",
+  "frontend_recovery_completed_at": "2026-10-05T22:28:13.258437+00:00",
+  "frontend_recovery_passed": 1063,
+  "frontend_recovery_failed": 0,
+  "source_or_test_changes_during_recovery": false,
+  "all_required_local_stages_satisfied_after_frontend_recovery": true,
+  "original_3638_pass_1_fail_record_preserved_byte_for_byte": true,
+  "native_browser_run": false,
+  "live_provider_run": false,
+  "pushed": false,
+  "files_sha256": {
+    "frontend-recovery.json": "010eadc0cdcdff39cee0baccd332b2234119be30dbe167a8c65c1b76b9665744",
+    "full-chain-http.json": "d895b27118c58616f4e89e8f268734e4eeacc7bb6b4824e10c5f429d8a1cea42",
+    "post-transport-focused.json": "15351a66e59d8ebc0c84ddf36cbcd9ff24d8bc129f9fce2ba0ea046604b1ae81",
+    "renderer-summary.json": "52a20247fdf6c2311fbe713f4ece554f779ce2b32390c470a69592614b4eb079",
+    "source-guard.json": "d293f8d09f4d11da487aaf424dcc3bd7f99720aa620ba319765c15416c85b57d",
+    "verification.json": "cf274b42e21d408c047e7e4a5df6146c9144d6fef658749514089bc4151e891d"
+  }
+}

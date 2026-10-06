@@ -1,0 +1,112 @@
+{
+  "reviewed_date_utc": "2026-10-01",
+  "source_commit": "4c35c300491bb34d8fbc9cacc8ae3dfd90ec0163",
+  "source_tree": "08a467e26e7734fab6d0b3101af21a2e1ad4abe6",
+  "scope": "Supplemental isolated local acceptance; no product defects reproduced in exercised paths. Does not replace aggregate or exact-revision CI.",
+  "full_chain": {
+    "transport": "real loopback TCP/HTTP; actual Uvicorn process + SQLite; NOT native browser E2E",
+    "real_external_supplier_calls": 0,
+    "test_data": "explicitly synthetic; temporary isolated database; never bundled",
+    "passed": true,
+    "checks": [
+      "原始PNG/MP4实际HTTP散列一致、视频Range分段与安全响应头",
+      "真实Cookie登录与全新工作区零业务数据（非浏览器SameSite验收）",
+      "跨源写入、缺失CSRF与伪造内部身份的真实HTTP拒绝链",
+      "multipart实际解析→暂存预览→明确事务提交→企业跨账户隔离",
+      "证据范围、反向标签、批准记忆与真实全文检索联动",
+      "问题→计划指纹→明确批准→动态DAG→预测/情景/反向证据→冻结报告",
+      "报告字段血缘、节点产物、事件锚点、完整工作区导出和跨账户隔离",
+      "双企业共同季度对照→版本冻结→明确批准Agent→报告引用→另一企业修订/清理→行动适用性变化且历史不改写",
+      "真实HTTP流式SSE、单调事件ID、Last-Event-ID精确续读与非法游标拒绝",
+      "真实HTTP超界整数在查询/续读头/修订入口提前422拒绝，合法上界SSE仍返回终态，无空200断流",
+      "安全暂停→真实SIGKILL进程退出→重启持久状态→显式继续→无重复节点产物",
+      "真实报告验收→自动提出策略→逐例回放与保留组→明确激活→旧计划失效→回滚；历史结果不变",
+      "真实HTTP来源→保存实验→批准Agent→报告→行动→指标跟踪→证据验收→人工反馈；修订/清理后历史冻结与当前失效分离",
+      "实际本机四并发64次跨工作区读取全部成功；单独保留延迟样本",
+      "运行中的SQLite一致性备份、副本结构及外键检查、回执散列核对",
+      "备份→全新DATA_DIR实际Uvicorn重启→重新登录→完整来源/报告核对→跨账户拒绝→历史恢复新修订且原库/报告不变"
+    ],
+    "load_probe": {
+      "read_requests": 64,
+      "concurrency": 4,
+      "p50_ms": 19.02,
+      "p95_ms": 74.91,
+      "max_ms": 81.36
+    },
+    "elapsed_seconds": 7.18
+  },
+  "restart_replay": {
+    "synthetic_only": true,
+    "real_external_supplier_calls": 0,
+    "transport": "real loopback HTTP to actual Uvicorn + SQLite",
+    "checks": [
+      "Uncommitted preview survives SIGKILL without business write; committed import replay after restart/concurrent retries creates one dataset revision",
+      "Preview made stale by a concurrent dataset revision remains rejected after SIGKILL/restart without overwriting correction",
+      "Report→action→watch survives SIGKILL; POST replay and concurrent tracking reads keep original IDs and one alert; report ledger/hash stay intact",
+      "Stale action completion returns 409 and remains uncommitted after restart"
+    ],
+    "passed": true
+  },
+  "import_boundary_checks": [
+    {
+      "target_version": "9007199254740991",
+      "status": 404,
+      "error_code": "NOT_FOUND"
+    },
+    {
+      "target_version": "9007199254740992",
+      "status": 422,
+      "error_code": "INVALID_VALUE"
+    },
+    {
+      "target_version": "9223372036854775808",
+      "status": 422,
+      "error_code": "INVALID_VALUE"
+    },
+    {
+      "target_version": "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "status": 422,
+      "error_code": "INVALID_VALUE"
+    }
+  ],
+  "focused_tests": {
+    "passed": 121,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "overlap_with_953_suite": true,
+    "count_not_additive": true,
+    "warning": "One upstream Starlette TestClient deprecation warning",
+    "files": [
+      "tests/test_execution_services.py",
+      "tests/test_transport_lifecycle.py",
+      "tests/test_recovery_admission.py",
+      "tests/test_financial_import_workflow.py",
+      "tests/test_action_lifecycle.py"
+    ]
+  },
+  "reproduction": [
+    "python scripts/full_chain_check.py",
+    "python scripts/restart_replay_probe.py --output evidence/restart-replay-probe-local.json",
+    "python -m pytest -q tests/test_execution_services.py tests/test_transport_lifecycle.py tests/test_recovery_admission.py tests/test_financial_import_workflow.py tests/test_action_lifecycle.py"
+  ],
+  "probe_source_note": "Repository copy changes root discovery, explicit output CLI and UTF-8 output only; its four HTTP restart/replay groups were then executed successfully from the repository path.",
+  "probe_sha256": "4125cef7e5244b615b12fafb50c6396fb44d2921a2389abb610c0e51f7e18eb2",
+  "limits": [
+    "Hard restarts occurred after persisted boundaries, not power failure midway through disk commit.",
+    "Unknown supplier outcomes/cancellation used isolated provider/DNS/socket doubles, not a live supplier or SIGKILL during its real response.",
+    "Native browser not rerun locally; existing host socket restriction was not bypassed.",
+    "No real company files, supplier calls, public deployment, multi-worker scaling, prolonged scheduler/soak, or production load certification.",
+    "Four-concurrent-reader latency values are a small local probe, not production performance."
+  ],
+  "repository_probe_reexecution": {
+    "recorded_at_utc": "2026-10-01T04:18:28.182430+00:00",
+    "command": "python scripts/restart_replay_probe.py --output <temporary-report.json>",
+    "passed": true,
+    "groups": 4,
+    "synthetic_only": true,
+    "real_external_supplier_calls": 0,
+    "overlaps_original_probe": true,
+    "source_sha256": "4125cef7e5244b615b12fafb50c6396fb44d2921a2389abb610c0e51f7e18eb2"
+  }
+}

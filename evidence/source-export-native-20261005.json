@@ -1,0 +1,308 @@
+{
+  "recorded_at": "2026-10-05T10:38:00Z",
+  "head": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+  "tree": "8fad62a33eb8cbb8c0b129f7362fa568210cbb0b",
+  "pr_merge": "5a72a4fc9e120fdb434df7900b9863cf9bceb46d",
+  "pr_merge_same_tree": true,
+  "push_run": 37294732857,
+  "pr_run": 37294741167,
+  "ci_each": {
+    "success": 21,
+    "failed": 2,
+    "failed_suites": [
+      "report-export-ubuntu-latest",
+      "report-export-windows-latest"
+    ]
+  },
+  "verified_native_receipts": [
+    {
+      "suite": "memory-eligibility",
+      "os": "ubuntu-latest",
+      "run_id": "37294732857",
+      "attempt": "1",
+      "head": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+      "tree": "8fad62a33eb8cbb8c0b129f7362fa568210cbb0b",
+      "protected_tree_ids": {
+        "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+        "server": "6586116b744db2de3384956803e50325c96f73c1"
+      },
+      "archive_sha256": "e847cceb9d8a5a77a3b195d08e220dc48241a848039d0af4ea48ed41eaa4a28b",
+      "source_report_sha256": "44bd83a53a0c08e63eadd8d7b509263220cfba5649558e6841660b17c3fd9ba8",
+      "file_count": 348,
+      "part_count": 8,
+      "mechanical_pass": true,
+      "steps": 84,
+      "png_count": 338,
+      "trace": {
+        "file": "I8-memory-preference/trace.zip",
+        "sha256": "3550b49a9bf709e6b83505af8914ee64cd1ba5cf539bdf8d209f930524d6e857"
+      },
+      "video": {
+        "file": "I8-memory-preference/video/013c9367005b8436b8f10ce5d2cb9885.webm",
+        "sha256": "6b4a4ef88189d2bf8a2acafc547cc64d186d0276ba9dcd3595a7f6e7c40121fe"
+      },
+      "actual_download_count": 0
+    },
+    {
+      "suite": "memory-eligibility",
+      "os": "windows-latest",
+      "run_id": "37294732857",
+      "attempt": "1",
+      "head": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+      "tree": "8fad62a33eb8cbb8c0b129f7362fa568210cbb0b",
+      "protected_tree_ids": {
+        "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+        "server": "6586116b744db2de3384956803e50325c96f73c1"
+      },
+      "archive_sha256": "fa58574538be398bb64adedff07d579598e57fb55852de45b93886811698888a",
+      "source_report_sha256": "2ff4b8a2f49071fd858edc65f7aa7e0774a2ba2abb1cb1134f10fa2ab79c7536",
+      "file_count": 348,
+      "part_count": 7,
+      "mechanical_pass": true,
+      "steps": 84,
+      "png_count": 338,
+      "trace": {
+        "file": "I8-memory-preference\\trace.zip",
+        "sha256": "844b0522cf4750763876cb5ef503e0d7fc4d68afe14838ff6cb92bb50647264b"
+      },
+      "video": {
+        "file": "I8-memory-preference\\video\\8036605aad30f4698098ab541247da23.webm",
+        "sha256": "69320e5c70bf79fedb9848ebb106cee112aaf59ad54eb952b930d6e95d150de2"
+      },
+      "actual_download_count": 0
+    },
+    {
+      "suite": "report-export",
+      "os": "ubuntu-latest",
+      "run_id": "37294732857",
+      "attempt": "1",
+      "head": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+      "tree": "8fad62a33eb8cbb8c0b129f7362fa568210cbb0b",
+      "protected_tree_ids": {
+        "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+        "server": "6586116b744db2de3384956803e50325c96f73c1"
+      },
+      "archive_sha256": "0a3badd005602e9ceaffa87ae5beacc805a1851d238bca8cd3c48fde04d3bf84",
+      "source_report_sha256": "27a89ec52e477402c3c829d3d5d7e2fe943c95524491c7c44618cfb0f5f2bf5f",
+      "file_count": 187,
+      "part_count": 4,
+      "mechanical_pass": false,
+      "steps": 43,
+      "png_count": 174,
+      "trace": {
+        "file": "I9-report-export/trace.zip",
+        "sha256": "532965a3f2d890fb961a3238f6640bab75af9362ad425b292cbaacf53cebbc3e"
+      },
+      "video": {
+        "file": "I9-report-export/video/abb1428b9b6b31dfd79c984b4fc2bb0c.webm",
+        "sha256": "e3696b2318e5b0d936279932e3c7d493be79459210418ab7b7dce1b02872d380"
+      },
+      "actual_download_count": 2
+    },
+    {
+      "suite": "report-export",
+      "os": "windows-latest",
+      "run_id": "37294732857",
+      "attempt": "1",
+      "head": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+      "tree": "8fad62a33eb8cbb8c0b129f7362fa568210cbb0b",
+      "protected_tree_ids": {
+        "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+        "server": "6586116b744db2de3384956803e50325c96f73c1"
+      },
+      "archive_sha256": "98c3200d4d5dffd008a0a72d0309bbfb8f12e0c4a4137dd362502d4def99168c",
+      "source_report_sha256": "a7a4110926d46221cd9a4543326907e1c391d4c9cf23da86961b3a23ef0b39de",
+      "file_count": 187,
+      "part_count": 4,
+      "mechanical_pass": false,
+      "steps": 43,
+      "png_count": 174,
+      "trace": {
+        "file": "I9-report-export\\trace.zip",
+        "sha256": "55d6d37ce0e13beced672215d2864951b02e4050c31916eb83ef66989e8dc26c"
+      },
+      "video": {
+        "file": "I9-report-export\\video\\fd64cf1b094829b2f10f2550d56ee2fa.webm",
+        "sha256": "854c0ca2c5477e03acfd97cfd6797826e46a49a9a6dd307af64ee8c8977c2a34"
+      },
+      "actual_download_count": 2
+    },
+    {
+      "suite": "tracking-integrity",
+      "os": "windows-latest",
+      "run_id": "37294732857",
+      "attempt": "1",
+      "head": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+      "tree": "8fad62a33eb8cbb8c0b129f7362fa568210cbb0b",
+      "protected_tree_ids": {
+        "web": "df96647d9c483a5af748f3ffb9a9a57102af979d",
+        "server": "6586116b744db2de3384956803e50325c96f73c1"
+      },
+      "archive_sha256": "fa6a5799e4018e0c6998f477d14eea6bfadee2e47bab0738d3fe9c8eec8e5b5b",
+      "source_report_sha256": "04e8e6832fe51bc811ca425fd6949ba3105d15acb85e212cb8f43b107144dbad",
+      "file_count": 377,
+      "part_count": 7,
+      "mechanical_pass": true,
+      "steps": 91,
+      "png_count": 366,
+      "trace": {
+        "file": "I7-tracking-source\\trace.zip",
+        "sha256": "35b38f883d900bb4d2b14b31816d5c58bdcfbfbdce87839ec7423ab375ac5484"
+      },
+      "video": {
+        "file": "I7-tracking-source\\video\\44467b4dbd9804de10484d34fd8c9018.webm",
+        "sha256": "b197b4b3af6a988e9a60b469e1c67cd4afc2a79dcb5464c475402babf81baefe"
+      },
+      "actual_download_count": 0
+    }
+  ],
+  "I8_independent": "Linux and Windows scoped pass: ordinary memory preference withdrawal, unchanged frozen original entities and explicit historical reuse; 1520x1080 synthetic-only",
+  "I7_independent": "Exact759 Push37294732857 attempt1 Windows Chromium143.0.7499.4 at1520x1080 scoped pass after original pixels/video/trace review; no acceptance of laterquestion-source changes",
+  "I9_failure": "Original exact-question button and old-run route were correct; nested row has locator incorrectly contained #main ancestor and returned zero. Healthy first two actual downloads passed, visible old report list blocks export; downstream detail/new report/download remains unexecuted. Original failures preserved.",
+  "I9_scope_limit": "Collapsed unverified stored-text view is not expanded by this journey.",
+  "aggregate": [
+    {
+      "run_id": "37294732857",
+      "commit": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+      "pytest": {
+        "event": "session_finished",
+        "utc": "2026-10-05T10:16:40.418699+00:00",
+        "elapsed_seconds": 413.034811,
+        "process_cpu_seconds": 387.917376,
+        "exit_code": 0,
+        "collected": 2375,
+        "started": 2375,
+        "completed": 2375,
+        "complete": true,
+        "phase_outcomes": {
+          "setup_passed": 2375,
+          "call_passed": 2378,
+          "teardown_passed": 2375
+        }
+      },
+      "pytest_seconds": 419.163,
+      "all_stages_passed": true,
+      "frontend_count": 485,
+      "http_count": 18,
+      "native_checks": 57,
+      "native_all_passed": true
+    },
+    {
+      "run_id": "37294732857",
+      "commit": "759e041f2e9f749dfe793e87e92fa0dda3cb3b57",
+      "platform": "Windows-2025Server-10.0.26100-SP0",
+      "pytest": {
+        "event": "session_finished",
+        "utc": "2026-10-05T10:28:41.772743+00:00",
+        "elapsed_seconds": 1086.876466,
+        "process_cpu_seconds": 471.25,
+        "exit_code": 0,
+        "collected": 2375,
+        "started": 2375,
+        "completed": 2375,
+        "complete": true,
+        "phase_outcomes": {
+          "setup_passed": 2375,
+          "call_passed": 2378,
+          "teardown_passed": 2375
+        }
+      },
+      "pytest_seconds": 1095.595,
+      "all_stages_passed": true,
+      "frontend_count": 485,
+      "http_count": 18,
+      "native_checks": 57,
+      "native_all_passed": true
+    },
+    {
+      "run_id": "37294741167",
+      "commit": "5a72a4fc9e120fdb434df7900b9863cf9bceb46d",
+      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+      "pytest": {
+        "event": "session_finished",
+        "utc": "2026-10-05T10:21:08.640317+00:00",
+        "elapsed_seconds": 259.369889,
+        "process_cpu_seconds": 233.974661,
+        "exit_code": 0,
+        "collected": 2375,
+        "started": 2375,
+        "completed": 2375,
+        "complete": true,
+        "phase_outcomes": {
+          "setup_passed": 2375,
+          "call_passed": 2378,
+          "teardown_passed": 2375
+        }
+      },
+      "pytest_seconds": 266.465,
+      "all_stages_passed": true,
+      "frontend_count": 485,
+      "http_count": 18,
+      "native_checks": 57,
+      "native_all_passed": true
+    },
+    {
+      "run_id": "37294741167",
+      "commit": "5a72a4fc9e120fdb434df7900b9863cf9bceb46d",
+      "platform": "Windows-2025Server-10.0.26100-SP0",
+      "pytest": {
+        "event": "session_finished",
+        "utc": "2026-10-05T10:30:07.486666+00:00",
+        "elapsed_seconds": 754.387575,
+        "process_cpu_seconds": 354.734375,
+        "exit_code": 0,
+        "collected": 2375,
+        "started": 2375,
+        "completed": 2375,
+        "complete": true,
+        "phase_outcomes": {
+          "setup_passed": 2375,
+          "call_passed": 2378,
+          "teardown_passed": 2375
+        }
+      },
+      "pytest_seconds": 761.957,
+      "all_stages_passed": true,
+      "frontend_count": 485,
+      "http_count": 18,
+      "native_checks": 57,
+      "native_all_passed": true
+    }
+  ],
+  "provider_calls": 0,
+  "full_product_pass": false,
+  "I7_observations": {
+    "protected_file_hashes_checked": 109,
+    "tracking_responses": 3,
+    "states": [
+      "clear",
+      "unknown",
+      "clear"
+    ],
+    "all_alert_arrays_empty": true,
+    "bad_evaluation_value_period_metric_absent": true,
+    "rule_records_unchanged_excluding_derived_source_impact": true,
+    "identical_original_run_reads": 9,
+    "original_report_revision": 1,
+    "restored_current_revision": 2,
+    "same_dataset_id": true,
+    "restored_payload_equals_trusted_original": true,
+    "original_revision_api_unchanged": true,
+    "recorded_receipt_snapshots_equal_empty": 3,
+    "supplemental_receipt_scope": "Recorded exact-owner/rule read-only SQLite evidence, not browser evidence or a new reviewer database read",
+    "video_seconds": 115.6,
+    "video_decode_errors": 0,
+    "readable_text_evidence": "Viewport PNGs; some full-page-capture video frames scale",
+    "supplemental_gets": 35,
+    "supplemental_responses_200": 35,
+    "request_response_connection_close": true,
+    "timeout_ms": 30000,
+    "retry_added": false,
+    "not_proven": [
+      "Universal fresh TCP socket for all callers",
+      "Absolute absence of duplicate server delivery"
+    ],
+    "real_provider_calls": 0
+  }
+}
