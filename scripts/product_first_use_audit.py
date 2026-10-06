@@ -226,7 +226,14 @@ def open_detail(p, scope, summary, label):
     return detail
 
 
-def register_empty_workspace(p):
+def register_empty_workspace(p, *, observe_registration=None):
+    """Keep registration evidence intact; optionally observe only its submit.
+
+    The response observer starts inside the existing submit step, after its
+    before-screenshot and visible-form check. Opening, typing and screenshots
+    must not consume the response's original timeout. Ordinary callers retain
+    the original Probe.submit path and return value.
+    """
     def landing():
         response = p.page.goto(p.base_url, wait_until='domcontentloaded')
         assert response is not None and response.status == 200
@@ -240,13 +247,23 @@ def register_empty_workspace(p):
     p.fill('#auth-form [name="email"]', 'l1-' + uuid.uuid4().hex + '@test.example', '填写隔离合成账号邮箱')
     p.fill('#auth-form [name="password"]', 'Synthetic-only-L1-password-2026', '填写仅此隔离测试使用的密码')
     p.fill('#auth-form [name="name"]', 'L1独立合成用户')
-    p.submit('#auth-form', after='#main[data-page="brief"]')
+    registration = None
+    if observe_registration is None:
+        p.submit('#auth-form', after='#main[data-page="brief"]')
+    else:
+        def submit():
+            p.visible('#auth-form')
+            result = observe_registration(lambda: p.submit_form(p.page, '#auth-form'))
+            p.page.locator('#main[data-page="brief"]').wait_for(state='visible', timeout=RUN_MS)
+            return result
+        registration = p.step('提交当前可见表单 #auth-form', submit)
     assert p.get('/api/datasets')['items'] == []
     assert p.get('/api/runs')['items'] == []
     assert not any(x['configured'] for x in p.get('/api/capabilities')['providers'])
     text = p.visible('#main').inner_text()
     assert '建立你的研究底稿' in text and '准备企业经营数据' in text
     p.step('核对真实空工作台，不展示样例数值或完成结论', lambda: None)
+    return registration
 
 
 def inspect_import_preview(p, corrected):

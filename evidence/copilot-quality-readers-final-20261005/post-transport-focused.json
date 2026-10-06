@@ -1,0 +1,22 @@
+{
+  "checked_commit": "a90acbf9775c518565033877a63f071caed47dfc",
+  "inherited_fix_commit": "35ca6c899dfc3a358058761d137f7c5f9d0d7bcd",
+  "completed_at_utc": "2026-10-05T22:15:55Z",
+  "commands": [
+    {
+      "command": "python -m pytest -q tests/test_product_read_transport.py",
+      "passed": 25,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "node --test tests/copilot-quality.frontend.test.mjs tests/copilot-message-trace.frontend.test.mjs tests/frontend.test.mjs",
+      "passed": 63,
+      "failed": 0,
+      "exit_code": 0
+    }
+  ],
+  "frontend_changed_since_4a5ce5c": false,
+  "original_full_red_preserved": true,
+  "new_full_verification": "pending independent reader review clear"
+}

@@ -26,7 +26,7 @@ const source=[
 ].join('\n');
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
-const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json'}});
+const response=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json',...headers}});
 const success=()=>response({ok:true});
 const failure=()=>response({error:{message:'旧动作版本冲突',code:'VERSION_CONFLICT'}},409);
 const dataset={id:'dataset-old',version:9,payload:{company:'测试企业',name:'测试数据',periods:[]}};
@@ -35,11 +35,12 @@ const dataHTML='<form id="dataset-editor"><input id="draft" name="company" value
 const actionRoutes={'delete-dataset':'data','delete-evidence':'evidence','toggle-memory':'memory','delete-memory':'memory','pause-run':'agents:run-old','resume-run':'agents:run-old','delete-strategy':'evolution','delete-evaluation':'evolution','cancel-plan':'agents:plan-old','cancel-run':'agents:run-old','delete-template':'agents','delete-conversation':'ops','archive-delete':'settings','refresh':'ops','sync-refresh':'ops','data-quality':'data','data-lineage':'data','data-revisions':'data','assessment-dialog':'agents:run-old','node-details':'agents:run-old','archive-dialog':'settings','action-detail':'actions','restore-revision':'data','strategy-propose':'evolution','identity-delete':'services','watch-toggle':'tracking','watch-delete':'tracking','alert-archive':'tracking'};
 const serviceActions=new Set(['identity-delete','watch-toggle','watch-delete','alert-archive']);
 
-function harness(action,{holdRefresh=false,holdArchive=false,holdRead=false,syncPending=false,confirmResult=true,bootstrapRetry=false}={}){
+function harness(action,{holdRefresh=false,holdArchive=false,holdRead=false,syncPending=false,confirmResult=true,bootstrapRetry=false,initialRoute,viewReadPath}={}){
  invalidateContext();invalidateInteractions();setCsrf('late-actions-test-csrf');
  const write=deferred(),writeStarted=deferred(),preflight=deferred(),preflightStarted=deferred(),refresh=deferred(),refreshStarted=deferred(),archive=deferred(),archiveStarted=deferred(),read=deferred(),readStarted=deferred();
  const calls={requests:[],renders:0,toasts:[],notices:0,confirms:0,dialogs:0,resets:0};
- const state={user:structuredClone(user),datasets:[structuredClone(dataset)],identities:[],identity:action==='identity-delete'?'record-old':'',active:dataset.id,dirty:false,route:actionRoutes[action].split(':')[0],id:actionRoutes[action].split(':').slice(1).join(':'),cache:{memories:[{id:'record-old',version:8,payload:{text:'旧记忆',approved:false}}],run:{id:'record-old'},actions:[{id:'record-old'}],nodes:[{id:'record-old',label:'节点',purpose:'说明',engine:'local'}],evolution:{active:{version:7}}}};
+ const startRoute=initialRoute??actionRoutes[action];
+ const state={user:structuredClone(user),datasets:[structuredClone(dataset)],identities:[],identity:action==='identity-delete'?'record-old':'',active:dataset.id,dirty:false,route:startRoute.split(':')[0],id:startRoute.split(':').slice(1).join(':'),cache:{memories:[{id:'record-old',version:8,payload:{text:'旧记忆',approved:false}}],run:{id:'record-old'},actions:[{id:'record-old'}],nodes:[{id:'record-old',label:'节点',purpose:'说明',engine:'local'}],evolution:{active:{version:7}}}};
  class Node{
   constructor(id=''){this.id=id;this.dataset={};this.open=false;this.disabled=false;this.isConnected=true;this.textContent='';this._html='';this.attributes={};this.events={};this.classList={toggle(){}};}
   set innerHTML(html){
@@ -69,8 +70,9 @@ function harness(action,{holdRefresh=false,holdArchive=false,holdRead=false,sync
  const document={documentElement:{dataset:{}},title:'',addEventListener:(name,fn)=>listeners[name]=fn,querySelector:selector=>({'#app':root,'#main':main,'#modal':modal,'#inspector':inspector,'#plan-form':main.form,'#plan-form [name="query"]':main.field}[selector]??null),querySelectorAll:()=>[]};
  const confirm=()=>{calls.confirms++;return confirmResult;};
  const window={confirm,addEventListener:(name,fn)=>windowListeners[name]=fn};
- let hash='#'+actionRoutes[action];const location={get hash(){return hash;},set hash(v){hash=v.startsWith('#')?v:'#'+v;}};
+ let hash='#'+startRoute;const location={get hash(){return hash;},set hash(v){hash=v.startsWith('#')?v:'#'+v;}};
  const noop=()=>{},view=async()=>dataHTML;
+ const readView=async()=>{if(viewReadPath)await api(viewReadPath);return dataHTML;};
  const routes=Object.fromEntries(['brief','copilot','services','tracking','agents','data','evidence','lab','compare','reports','actions','memory','ops','settings','evolution'].map(id=>[id,{label:id,icon:'database',section:'工作区'}]));
  const env={...components,document,root,modal,inspector,window,location,state,routes,roleNames:{enterprise:'企业分析'},HTMLButtonElement:Button,
   api,workspace,ApiError,setCsrf,contextGuard,invalidateContext,invalidateView,interactionGuard,invalidateInteractions,continuationGuard,invalidateInputs,finishMutation,
@@ -78,7 +80,7 @@ function harness(action,{holdRefresh=false,holdArchive=false,holdRead=false,sync
   setupExperience:hooks=>{productionHooks=hooks;},restoreIdentity:noop,navigateRendered:noop,periodRow:()=>'<div data-period-row></div>',
   loadLayout:noop,applyLayout:noop,closeDrawers:noop,assistantShell:()=>'',mountCopilot:async()=>{},setupLive:noop,appearancePanel:()=>'',workflowGuide:()=>'',
   syncExperimentControls:noop,syncComparisonControls:noop,
-  briefPage:view,copilotPage:view,servicesPage:view,trackingPage:view,agentsPage:view,dataPage:view,evidencePage:view,labPage:view,comparePage:view,reportsPage:view,actionsPage:view,memoryPage:view,opsPage:view,settingsPage:view,evolutionPage:view,
+  briefPage:view,copilotPage:view,servicesPage:view,trackingPage:view,agentsPage:readView,dataPage:view,evidencePage:view,labPage:view,comparePage:view,reportsPage:readView,actionsPage:view,memoryPage:view,opsPage:view,settingsPage:view,evolutionPage:view,
   datasetEditor:()=>dataHTML,strategyForm:()=>dataHTML,qualityPanel:()=>'<p>质量信息</p>',revisionHistory:()=>'<p>修订信息</p>',assessmentForm:()=>'<p>验收信息</p>',actionDetail:()=>'<p>行动详情</p>',
   toast:(...args)=>calls.toasts.push(args),showSyncNotice:()=>calls.notices++,auth:()=>{root.innerHTML='<main>登录</main>';},resetAuth:()=>{calls.resets++;invalidateContext();state.user=null;}
  };
@@ -92,7 +94,7 @@ function harness(action,{holdRefresh=false,holdArchive=false,holdRead=false,sync
   if(url==='/api/workspace/archive'){archiveStarted.resolve();return holdArchive?archive.promise:Promise.resolve(response({notice:'测试归档',collections:{}}));}
   if(['/api/datasets','/api/capabilities','/api/services/identities','/api/auth/me'].includes(url)){
    refreshStarted.resolve();const value=url==='/api/auth/me'?{user:{...structuredClone(user),version:6},csrf:'late-actions-test-csrf'}:url==='/api/datasets'?{items:[{...structuredClone(dataset),version:10}]}:{items:[]};
-   return holdRefresh?refresh.promise.then(()=>response(value)):Promise.resolve(response(value));
+   return holdRefresh?refresh.promise.then(result=>result instanceof Response?result.clone():response(value)):Promise.resolve(response(value));
   }
   readStarted.resolve();return holdRead?read.promise:Promise.resolve(response({items:[],review_context:{},control:{version:4},trace:[],artifacts:[]}));
  };
@@ -108,8 +110,8 @@ function harness(action,{holdRefresh=false,holdArchive=false,holdRead=false,sync
  }
  const edit=async(field,event='input')=>{field.value='新的未保存草稿';await listeners[event]({target:field});return field;};
  return {state,calls,write,writeStarted,preflight,preflightStarted,refresh,refreshStarted,archive,archiveStarted,read,readStarted,button,modal,inspector,control,
-  get main(){return main;},get draft(){return main.field;},restore:()=>globalThis.fetch=oldFetch,
-  click:doClick,action:a=>click(new Button({action:a})),allowRefresh:()=>{holdRefresh=false;},
+  get main(){return main;},get draft(){return main.field;},get hash(){return location.hash;},restore:()=>globalThis.fetch=oldFetch,
+  click:doClick,action:a=>click(new Button({action:a})),allowRefresh:()=>{holdRefresh=false;},allowRead:()=>{holdRead=false;},
   async programmaticEdit(action){
    state.cache.templates=[{id:'template-old',payload:{query:'程序填入的草稿',mode:'balanced',success_criteria:'可核对'}}];
    const form=main.form,field=main.field;await click(new Button({action,id:'template-old',query:'程序填入的草稿'},form,form.rows[0]));return {form,field};
@@ -128,12 +130,56 @@ function harness(action,{holdRefresh=false,holdArchive=false,holdRead=false,sync
 }
 const writes=h=>h.calls.requests.filter(r=>r.method!=='GET');
 const reads=h=>h.calls.requests.filter(r=>r.method==='GET');
+const rateMessage='请求过于频繁，本次请求已被暂时拒绝。请等待 2 秒后再手动重试；期间其他请求可能占用可用名额。';
+const rateFailure=()=>response({error:{code:'RATE_LIMITED',message:rateMessage,retry_after_seconds:2},request_id:'rate-test'},429,{'Retry-After':'2'});
 const register=(name,fn)=>test(name,{timeout:5000},fn);
 const withHarness=(action,options,fn)=>async()=>{const h=harness(action,options);try{await fn(h);}finally{h.restore();}};
 function assertDraft(h,draft){assert.equal(draft.isConnected,true);assert.equal(draft.value,'新的未保存草稿');assert.equal(h.state.dirty,true);}
 function assertLateError(h){assert.equal(h.calls.toasts.length,1);assert.match(h.calls.toasts[0][0],/^先前的.+未确认完成：/);assert.equal(h.calls.toasts[0][1],true);assert.doesNotMatch(h.calls.toasts[0][0],/已保存|已删除|已完成/);}
 function assertReleased(h){assert.equal(h.button.dataset.pending,undefined);assert.equal(h.button.attributes['aria-busy'],undefined);}
 function assertSavedNotice(h){assert.equal(h.control.readSync(),true);assert.match(h.calls.toasts.map(t=>t[0]).join('\n'),/已.*(?:完成|删除|保存|暂停|继续|取消|更新|恢复|批准|撤回).*|已完成/);assert.match(h.calls.toasts.map(t=>t[0]).join('\n'),/保留|同步|刷新|核对/);}
+
+for(const [route,path] of [['agents:run-original','/workspace/runs/original/reviews'],['reports:20','/workspace/reports?offset=20&limit=20']])register(`429: complete production render retains ${route} and manual reread uses GET only`,withHarness('refresh',{initialRoute:route,viewReadPath:path,holdRead:true},async h=>{
+ const pending=h.control.render();await h.readStarted.promise;h.read.resolve(rateFailure());await pending;
+ assert.equal(h.hash,'#'+route);assert.equal(h.state.id,route.split(':')[1]);
+ assert(h.main.innerHTML.includes('读取未完成'));assert(h.main.innerHTML.includes(rateMessage));
+ assert(h.main.innerHTML.includes('data-action="refresh"'));assert(h.main.innerHTML.includes('重新读取'));
+ assert.equal(reads(h).length,1);assert.equal(writes(h).length,0);assert.equal(h.calls.resets,0);
+ await tick();assert.equal(h.calls.requests.length,1,'429 never schedules a transport replay');
+ h.allowRead();await h.click();
+ assert.equal(h.hash,'#'+route);assert.equal(h.state.id,route.split(':')[1]);
+ assert.equal(writes(h).length,0);assert.equal(reads(h).length,6);
+ assert.deepEqual(reads(h).map(r=>r.url),['/api'+path,'/api/datasets','/api/capabilities','/api/services/identities','/api/auth/me','/api'+path]);
+ assert.equal(h.main.innerHTML,dataHTML);assert(!h.main.innerHTML.includes('读取未完成'));assertReleased(h);
+}));
+
+register('429: earlier render rejection cannot replace a newer page or draft',withHarness('refresh',{initialRoute:'agents:run-original',viewReadPath:'/workspace/runs/original/reviews',holdRead:true},async h=>{
+ const pending=h.control.render();await h.readStarted.promise;const draft=await h.transition('navigation'),html=h.main.innerHTML,renders=h.calls.renders;
+ h.read.resolve(rateFailure());await pending;
+ assert.equal(h.hash,'#data');assert.equal(h.main.innerHTML,html);assert.equal(h.calls.renders,renders);assertDraft(h,draft);
+ assert.equal(h.calls.requests.length,1);assert.equal(writes(h).length,0);assert.deepEqual(h.calls.toasts,[]);
+}));
+
+for(const action of ['refresh','sync-refresh'])for(const transition of ['current','navigation','new-dialog','input','change','context'])register(`${action}: 429 preserves current or newer draft after ${transition}`,withHarness(action,{holdRefresh:true,syncPending:true},async h=>{
+ const original=h.draft;original.value='未保存原草稿';h.state.dirty=true;
+ const pending=h.click();await h.refreshStarted.promise;const draft=transition==='current'?original:await h.transition(transition),renders=h.calls.renders,metadata=h.state.datasets,owner=h.state.user;
+ h.refresh.resolve(rateFailure());await pending;await tick();
+ assert.equal(writes(h).length,0);assert.equal(reads(h).length,4);assert.equal(h.calls.renders,renders);
+ assert.equal(h.state.datasets,metadata);assert.equal(h.state.user,owner);assert.equal(h.control.readSync(),true);assert.equal(h.calls.resets,0);
+ if(transition==='current'){assert.equal(original.isConnected,true);assert.equal(original.value,'未保存原草稿');assert.equal(h.state.dirty,true);}
+ else if(draft)assertDraft(h,draft);
+ if(transition==='context')assert.deepEqual(h.calls.toasts,[]);else assert(h.calls.toasts[0][0].includes(rateMessage));
+ assertReleased(h);
+}));
+
+for(const [action,method] of [['strategy-propose','POST'],['toggle-memory','PUT'],['delete-memory','DELETE']])for(const transition of ['current','input','navigation','context'])register(`${method}: 429 is refused once and never becomes saved success after ${transition}`,withHarness(action,{},async h=>{
+ const {pending}=await h.startWrite();await h.click();const draft=transition==='current'?null:await h.transition(transition),renders=h.calls.renders;
+ h.write.resolve(rateFailure());await pending;await tick();
+ assert.equal(writes(h).length,1);assert.equal(writes(h)[0].method,method);assert.equal(h.calls.renders,renders);assert.equal(h.control.readSync(),false);
+ if(draft)assertDraft(h,draft);
+ if(transition==='context')assert.deepEqual(h.calls.toasts,[]);else{assert(h.calls.toasts[0][0].includes(rateMessage));assert.doesNotMatch(h.calls.toasts[0][0],/已保存|已删除|已完成/);}
+ assertReleased(h);
+}));
 const expectedWrites={
  'delete-dataset':['DELETE','/api/datasets/record-old?version=8',null],
  'delete-evidence':['DELETE','/api/evidence/record-old?version=8',null],

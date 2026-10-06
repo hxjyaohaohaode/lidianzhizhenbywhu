@@ -16,6 +16,7 @@ from .schemas import Dataset
 from .contracts import (CompanyProfile,PlanDraft,PlanConsent,EvidenceReview,ActionCreate,ActionEdit,ActionTransition,
     ExperimentRequest,SavedComparisonRequest,ImportPreview,RevisionRestore,ClaimReview,TaskTemplate,AssistantRequest,StageCommit,DismissInsight)
 from .store import encode,digest,uid,now
+from .unverified_report import read_result_record,unverified_text
 from .models import normalize,calculate
 from .analytics import quality_report,from_cumulative,dataset_diff,extended_scenario,forecast_baselines,lineage
 from .imports import import_dataset,MalformedWorkbook
@@ -600,9 +601,12 @@ def run_audit(id:str,request:Request,user=Depends(require_user)):
     # Publication can advance between any two SELECTs. Bind the shown run and
     # every integrity input to the same read transaction, including ownership.
     with store.read_snapshot():
-        run=owned(store,user,'runs',id)
+        run,raw,unreadable=read_result_record(store,user['id'],id)
         audit=inspect_report_integrity(store,run)
-        return {**audit,'run':run,'question_compatibility':report_question_warning(store,run,audit['report_integrity']),
+        if unreadable:
+            audit['report_integrity']['valid']=False
+            audit['report_integrity']['failures'].append('report_record_unreadable')
+        return {**audit,'run':run,'unverified_report':unverified_text(raw) if raw is not None and not audit['report_integrity']['valid'] else None,'question_compatibility':report_question_warning(store,run,audit['report_integrity']),
             'source_impact':report_impact(store,user['id'],run,integrity=audit['report_integrity'])
             if run['result'] or run['state'] in {'succeeded','degraded'} else None}
 
@@ -610,7 +614,7 @@ def run_audit(id:str,request:Request,user=Depends(require_user)):
 
 @router.get('/runs/{id}/reviews')
 def claim_reviews(id:str,request:Request,user=Depends(require_user)):
-    store=dbof(request);run=owned(store,user,'runs',id)
+    store=dbof(request);run,_,_=read_result_record(store,user['id'],id)
     # A corrupt payload must not erase the versioned record from this read model.
     # Scope by the owned live report first, then consider both saved bindings.
     # Alias raw JSON so Store.unpack cannot abort on one malformed row.

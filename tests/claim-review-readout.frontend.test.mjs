@@ -115,7 +115,8 @@ for(const kind of ['healthy','changed-source','unavailable-review','legacy-parti
  if(kind==='bad-report')audit.report_integrity={valid:false,failures:['report_hash']};
  if(kind==='bad-artifact')audit.artifacts=[{integrity_valid:false,event_anchor_valid:true}];
  if(kind==='bad-ledger')audit.ledger.valid=false;
- const html=await render(run,audit,{items:[]}),blocked=kind.startsWith('bad-');
+ if(kind.startsWith('bad-'))audit.unverified_report={raw:JSON.stringify(run.result)};
+const html=await render(run,audit,{items:[]}),blocked=kind.startsWith('bad-');
  assert.equal(html.includes('data-report-export-unavailable'),blocked);assert.equal(html.includes('/api/runs/synthetic-run/export?format=md" download'),!blocked);assert.equal(html.includes('/api/runs/synthetic-run/export?format=json" download'),!blocked);assert(html.includes('原报告保存的确定性结论'));if(blocked)assert(html.includes('新建研判'));
 });
 for(const kind of ['healthy','changed-source','unavailable-review','legacy-partial','bad-report'])test('report list export boundary: '+kind,async()=>{
@@ -174,9 +175,9 @@ function addReadout(run){
 }
 test('known-corrupt report values are only available as collapsed unverified raw data, never main answers or actions',async()=>{
  const {run,audit}=reset({items:[]});addReadout(run);run.result.readout.facts[0].value=9876.5432;run.result.analysis.metrics.gross_margin=9876.5432;run.result.findings=['987654.32% 被篡改的结论'];
- audit.report_integrity={valid:false,failures:['report_hash']};audit.report_hash_valid=false;audit.source_impact={state:'unavailable',reasons:[{code:'report_integrity_failed',message:'冻结报告校验失败'}]};const before=structuredClone(run);
+ audit.report_integrity={valid:false,failures:['report_hash']};audit.report_hash_valid=false;audit.unverified_report={raw:JSON.stringify(run.result)};audit.source_impact={state:'unavailable',reasons:[{code:'report_integrity_failed',message:'冻结报告校验失败'}]};const before=structuredClone(run);
  const html=await render(run,audit,{items:[]});assert(html.includes('data-report-unverified'));assert(html.includes('data-report-export-unavailable'));assert(html.includes(run.payload.query));assert(html.includes('未核验的已保存报告原文'));assert(html.includes('9876.5432'));
- const raw=html.match(/<details data-unverified-report-raw>[\s\S]*?<\/details>/);assert(raw);assert(!raw[0].includes(' open'));const main=html.replace(raw[0],'');
+ const start=html.indexOf('<details class="unverified-reader"'),end=html.indexOf('</details></section>',start)+10;assert(start>=0&&end>start);const raw=html.slice(start,end);assert(!raw.includes(' open'));const main=html.replace(raw,'');
  for(const text of ['987654.32%','987,654.32%','data-report-readout','可核验的计算结论','经营变化','action-from-report','watch-from-report','指标血缘','以下报告与计算仍是原始冻结内容'])assert(!main.includes(text),text);
  assert.deepEqual(run,before);assert.deepEqual(state.cache.run,before);
 });

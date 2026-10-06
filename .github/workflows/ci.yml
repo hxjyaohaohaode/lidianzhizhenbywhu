@@ -71,7 +71,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Bind every native audit to the explicitly reviewed application revision.
       # Every probe must pass; failed or incomplete evidence remains a failure.
-      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-audit --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py
         if: always()
       - uses: actions/upload-artifact@v4
@@ -218,7 +218,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # L1 alone, with an independent account, native lifecycle and evidence.
       # The runner retains its existing 300-second bound; no L6 heavy setup.
-      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-first-use --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite first-use
         if: always()
       - uses: actions/upload-artifact@v4
@@ -365,7 +365,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Explicit temporary-database faults followed by actual UI rejection/recovery.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-integrity --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -512,7 +512,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # One separate comparison-receipt rejection/reconstruction task.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-comparison-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-comparison-integrity --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite comparison-integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -659,7 +659,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Two separate source-integrity refusal and real application recovery tasks.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-source-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-source-integrity --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite source-integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -806,7 +806,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # One separate existing-watch integrity and real revision recovery task.
       # Separate synthetic accounts, 300-second bound, no production fault endpoint.
-      - run: python scripts/native_acceptance.py --product-tracking-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-tracking-integrity --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite tracking-integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -953,7 +953,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Seven plans via visible controls, paging, browser Back and same-account login.
       # Separate synthetic account, unchanged 300-second bound, no database faults.
-      - run: python scripts/native_acceptance.py --product-plan-history --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-plan-history --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite plan-history
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1100,7 +1100,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Explicit percentage and yuan thresholds, cancellation, frozen alerts, pause and resume.
       # Separate synthetic account, unchanged 300-second bound, no database faults.
-      - run: python scripts/native_acceptance.py --product-tracking-units --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-tracking-units --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite tracking-units
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1247,7 +1247,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Normal memory preference withdrawal, preserved records and explicit historical choice.
       # Separate synthetic account, unchanged 300-second bound, no database faults.
-      - run: python scripts/native_acceptance.py --product-memory-eligibility --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-memory-eligibility --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite memory-eligibility
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1394,7 +1394,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Real exports, one declared artifact fault, blocked exports and a distinct new report.
       # Separate synthetic account, unchanged 300-second bound, no fixture restore or providers.
-      - run: python scripts/native_acceptance.py --product-report-export --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-report-export --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite report-export
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1541,7 +1541,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Four real questions, explicit metrics/comparison units and a real service identity.
       # Actual reload and re-login preservation; synthetic account, no database faults or providers.
-      - run: python scripts/native_acceptance.py --product-question-scope --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-question-scope --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite question-scope
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1688,7 +1688,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Three committed POST response losses and three explicit UI recoveries: six POSTs, three experiments/audits.
       # Preserve v1 history after v2 and the newer draft; no database faults or providers; orphan manager is outside this suite.
-      - run: python scripts/native_acceptance.py --product-experiment-recovery --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-experiment-recovery --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite experiment-recovery
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1835,7 +1835,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # One synthetic input/report; visible human feedback and explicit replay consent 0 to 1 to 0.
       # Read the blocked saved case in Chinese and preserve history; no successful activation, database faults or providers.
-      - run: python scripts/native_acceptance.py --product-strategy-consent --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-strategy-consent --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite strategy-consent
         if: always()
       - uses: actions/upload-artifact@v4
@@ -1982,7 +1982,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Create21 actual reports via visible forms; read complete source rows and compare frozen results.
       # Preserve originals across Back/reload/relogin; no database faults or providers.
-      - run: python scripts/native_acceptance.py --product-report-history --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-report-history --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite report-history
         if: always()
       - uses: actions/upload-artifact@v4
@@ -2129,7 +2129,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Delay delivery of one actual successful deletion and four actual refresh reads.
       # Preserve new drafts and the current research proposal; no database faults or providers.
-      - run: python scripts/native_acceptance.py --product-late-actions --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-late-actions --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite late-actions
         if: always()
       - uses: actions/upload-artifact@v4
@@ -2276,7 +2276,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Read long review/source content with native scrolling; preserve explicit selection and action drafts.
       # Complete with one reviewed source, then preserve original history after later review changes; no database faults or providers.
-      - run: python scripts/native_acceptance.py --product-action-evidence --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-action-evidence --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite action-evidence
         if: always()
       - uses: actions/upload-artifact@v4
@@ -2423,7 +2423,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # After a healthy native report, declare one owner-bound saved-result scalar fault in the disposable database.
       # Read the unavailable card/raw disclosure, create a distinct healthy report and preserve the old fault; no restore or providers.
-      - run: python scripts/native_acceptance.py --product-copilot-integrity --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-copilot-integrity --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite copilot-integrity
         if: always()
       - uses: actions/upload-artifact@v4
@@ -2570,7 +2570,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       # Genuine old completed-report closure: 49 declared fixture rows, only owner mapping; no old queue.
       # This is separate legacy-history-preparation admission, not a damaged-row fault or a UI creation claim.
-      - run: python scripts/native_acceptance.py --product-historical-warning --expected-web-tree 9c648d7a80064f0ddd6548724fb06bf1af93c83b --expected-server-tree 2b8695ac5c17d2dd947b434a54e7fdfa1aa31978
+      - run: python scripts/native_acceptance.py --product-historical-warning --expected-web-tree e2c04fef1051d098b653435903e2ce101477c199 --expected-server-tree 53bde360fb8692a426b23e1bff425a69248bb930
       - run: python scripts/pack_product_audit.py --suite historical-warning
         if: always()
       - uses: actions/upload-artifact@v4

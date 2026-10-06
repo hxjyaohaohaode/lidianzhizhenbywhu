@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-05",
+  "scope": "Registration-response observation only; deterministic instrumentation is not native evidence",
+  "base_commit": "971552845ac6eb4a7950ef9083d97b0e079fb418",
+  "unchanged_native_failure": {
+    "run_id": "37383460564",
+    "attempt": 1,
+    "commit": "abb2d5b09c3b0dcb7d6e1daf6ce487c2a8126506",
+    "platform": "windows-latest",
+    "scenario_status": "blocked_or_error",
+    "scenario_error": {
+      "type": "TimeoutError",
+      "message": "Timeout 10000ms exceeded while waiting for event \"response\""
+    },
+    "legacy_preparation_used": false,
+    "source_audit_sha256": "54673e73fdee4e2c6adc4b37f6e2f166e61442c5197b8cabdab95eae9f16d967"
+  },
+  "old_outer_observation": {
+    "virtual_time_only": true,
+    "result": "TimeoutError",
+    "response_window_starts_ms": 0,
+    "response_timeout_ms": 10000,
+    "submit_click_ms": 18600,
+    "submit_clicks": 1,
+    "empty_workspace_step_completed": true
+  },
+  "submit_only_observations": [
+    {
+      "virtual_time_only": true,
+      "response_delay_ms": 140,
+      "response_timeout_ms": 10000,
+      "response_window_starts_ms": 18600,
+      "submit_click_ms": 18600,
+      "workspace_check_finished_ms": 22340,
+      "status": 201,
+      "submit_clicks": 1,
+      "completed_steps": 8,
+      "before_and_after_captures_per_step": 2
+    },
+    {
+      "virtual_time_only": true,
+      "response_delay_ms": 9999,
+      "response_timeout_ms": 10000,
+      "response_window_starts_ms": 18600,
+      "submit_click_ms": 18600,
+      "workspace_check_finished_ms": 32199,
+      "status": 201,
+      "submit_clicks": 1,
+      "completed_steps": 8,
+      "before_and_after_captures_per_step": 2
+    }
+  ],
+  "focused_pytest": {
+    "tests": "186",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "4.177"
+  },
+  "compile_changed_python": "passed",
+  "git_diff_check": "passed",
+  "protected_paths_unchanged": [
+    "web",
+    "server",
+    ".github/workflows",
+    "scripts/native_historical_fixture.py",
+    "scripts/product_audit_config.py",
+    "scripts/native_acceptance.py",
+    "scripts/product_integrity_outcomes.py",
+    "scripts/product_browser_audit.py",
+    "scripts/service_browser_check.py",
+    "tests/fixtures"
+  ],
+  "source_sha256": {
+    "scripts/product_first_use_audit.py": "eccea8d57bfb14ab90156f84ece60a46d159f8f134b326dffd6171e8adce5558",
+    "scripts/product_historical_warning_journey.py": "a4c1a6fb2ac4f96beba66b100b46698b6496f3b0bdd99faf58f5f5d9777f14ca",
+    "tests/test_historical_registration_observation.py": "4fc751ba0dea9bb3f148e4260ae8fc78b83583d07104ca647649df4926513444"
+  },
+  "native_browser_run": false,
+  "new_native_pass_claimed": false,
+  "published": false,
+  "ci_triggered": false,
+  "remaining_validation": "Full aggregate checks and a separately authorized hosted native run remain outside this focused execution."
+}

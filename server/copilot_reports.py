@@ -8,6 +8,7 @@ import json
 from .business_provenance import report_impact
 from .historical_question_scope import report_question_warning
 from .report_integrity import inspect_report_integrity
+from .unverified_report import unverified_text
 
 UNAVAILABLE = '报告完整性校验未通过或记录无法读取；已暂停展示主答案、数学结果与衍生入口。原记录保留，请核对可信记录后再使用。'
 
@@ -39,6 +40,8 @@ def _read_proposal_run(store, owner, proposal, current_version):
     try:
         for field in ('payload','snapshot','result'):
             raw = row['saved_'+field]
+            if field == 'result' and raw is not None and not isinstance(raw, str):
+                raise ValueError('stored result is not text')
             run[field] = json.loads(raw) if raw is not None else None
         if not isinstance(run['payload'],dict) or not isinstance(run['snapshot'],dict):
             raise ValueError('unreadable run scope')
@@ -71,7 +74,7 @@ def _read_proposal_run(store, owner, proposal, current_version):
     question = request.get('query') if isinstance(request.get('query'),str) else proposal['payload'].get('text','')
     return {'id':row['id'],'state':row['state'],'error':row['error'],'query':question,
         'result':run['result'] if available else None,
-        'unverified_report':{'raw':row['saved_result'],'notice':'未核验的已保存报告原文，仅供排查；不是可用结论。'}
+        'unverified_report':unverified_text(row['saved_result'])
             if availability['status']=='unavailable' and row['saved_result'] is not None else None,
         'report_availability':availability,'report_integrity':integrity,
         'report_hash_valid':audit['report_hash_valid'] if audit else None,

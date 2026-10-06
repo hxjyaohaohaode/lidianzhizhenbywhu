@@ -209,8 +209,10 @@ def historical_warning_journey(p, *, repository_root, data_dir, expected_web_tre
             mutations.append((request.method, path))
     p.page.on('request', observe_request)
     try:
-        status, registration = _capture_response(p, 'POST', '/api/auth/register', lambda: register_empty_workspace(p))
+        status, registration = register_empty_workspace(p, observe_registration=lambda submit:
+            _capture_response(p, 'POST', '/api/auth/register', submit))
         assert status == 201
+        assert mutations == [('POST', '/api/auth/register')], 'Expected exactly one registration write before historical preparation.'
         owner = registration['user']['id']
         p.observations['historical_native_registration_owner'] = owner
         receipt = p.step('声明测试准备：仅恢复真实旧合成完成报告49行，外层owner映射，0旧队列',

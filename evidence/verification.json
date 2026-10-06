@@ -1,5 +1,5 @@
 {
-  "executed_at": "2026-10-05T22:23:01.821073+00:00",
+  "executed_at": "2026-10-06T00:03:08.981076+00:00",
   "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
   "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
   "checks": [
@@ -14,32 +14,32 @@
         "scripts"
       ],
       "exit_code": 0,
-      "seconds": 0.032,
+      "seconds": 0.034,
       "timeout_seconds": 240
     },
     {
       "check": "typecheck",
       "command": [
         "node",
-        "/workspace/scratch/ace785cd6eaa/lidian-readable-field-integration/node_modules/typescript/bin/tsc",
+        "/workspace/scratch/ace785cd6eaa/lidian-readable-recovery-integration/node_modules/typescript/bin/tsc",
         "--noEmit",
         "-p",
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 1.246,
+      "seconds": 1.185,
       "timeout_seconds": 240
     },
     {
       "check": "build",
       "command": [
         "node",
-        "/workspace/scratch/ace785cd6eaa/lidian-readable-field-integration/node_modules/typescript/bin/tsc",
+        "/workspace/scratch/ace785cd6eaa/lidian-readable-recovery-integration/node_modules/typescript/bin/tsc",
         "-p",
         "tsconfig.json"
       ],
       "exit_code": 0,
-      "seconds": 1.432,
+      "seconds": 1.325,
       "timeout_seconds": 240
     },
     {
@@ -59,7 +59,7 @@
         "--junitxml=evidence/pytest.xml"
       ],
       "exit_code": 0,
-      "seconds": 463.702,
+      "seconds": 462.699,
       "timeout_seconds": 1500
     },
     {
@@ -76,6 +76,7 @@
         "tests/claim-review-readout.frontend.test.mjs",
         "tests/comparison-cleanup.frontend.test.mjs",
         "tests/copilot-message-trace.frontend.test.mjs",
+        "tests/copilot-quality.frontend.test.mjs",
         "tests/copilot-report-integrity.frontend.test.mjs",
         "tests/copilot-research-inputs.frontend.test.mjs",
         "tests/counterevidence-coverage.frontend.test.mjs",
@@ -113,11 +114,12 @@
         "tests/service-completion.frontend.test.mjs",
         "tests/services.frontend.test.mjs",
         "tests/strategy-actions.frontend.test.mjs",
+        "tests/unverified-reader.frontend.test.mjs",
         "tests/watch-units.frontend.test.mjs",
         "tests/workflow-inputs.frontend.test.mjs"
       ],
       "exit_code": 0,
-      "seconds": 2.058,
+      "seconds": 2.001,
       "timeout_seconds": 240
     },
     {
@@ -127,7 +129,7 @@
         "scripts/source_guard.py"
       ],
       "exit_code": 0,
-      "seconds": 0.437,
+      "seconds": 0.442,
       "timeout_seconds": 240
     },
     {
@@ -137,7 +139,7 @@
         "scripts/full_chain_check.py"
       ],
       "exit_code": 0,
-      "seconds": 6.23,
+      "seconds": 6.08,
       "timeout_seconds": 240
     }
   ],

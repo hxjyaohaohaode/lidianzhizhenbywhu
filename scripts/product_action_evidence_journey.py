@@ -110,7 +110,8 @@ def expect_catalog(items, *, later=False):
     company, global_doc = by_title[COMPANY_TITLE], by_title[GLOBAL_TITLE]
     for row, text, url in [(company, COMPANY_TEXT, COMPANY_URL), (global_doc, GLOBAL_TEXT, GLOBAL_URL)]:
         assert row['version'] == 1 and row['payload']['text'] == text
-        assert row['content_hash'] == canonical_hash(text)
+        # Evidence binds raw UTF-8 text; review/object/history hashes bind JSON.
+        assert row['content_hash'] == hashlib.sha256(text.encode('utf-8')).hexdigest()
         assert row['payload']['source_url'] == url and row['payload']['published_at'] == PUBLISHED
         assert row['payload']['source_kind'] == 'user_provided' and row['payload']['verification'] == 'unverified'
         assert 'original_source_url' not in row['payload'], 'No independent original address was captured.'

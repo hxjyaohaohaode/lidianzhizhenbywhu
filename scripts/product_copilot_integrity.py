@@ -10,18 +10,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
 try:
-    from .product_first_use_audit import require_native_contract, canonical_hash, expect_integrity
+    from .product_first_use_audit import require_native_contract, canonical_hash, expect_integrity, download_visible
     from .product_report_export import expect_saved_report, one
     from .product_browser_audit import percentage_display
     from .product_integrity_outcomes import _capture_response
     from .product_readout_oracles import observe_text_by_normal_scroll
     from .native_integrity_faults import (COPILOT_BAD_VALUE, read_copilot_records, inject_copilot_report_result)
 except ImportError:
-    from product_first_use_audit import require_native_contract, canonical_hash, expect_integrity
+    from product_first_use_audit import require_native_contract, canonical_hash, expect_integrity, download_visible
     from product_report_export import expect_saved_report, one
     from product_browser_audit import percentage_display
     from product_integrity_outcomes import _capture_response
@@ -159,66 +160,55 @@ def _create_assistant_report(p, dataset, question, source_file, expected_previou
     return current['thread']['id'], saved, run, audit
 
 
-_RAW_GEOMETRY = r'''(element, target) => {
- const node=element.firstChild;if(!node||node.nodeType!==Node.TEXT_NODE||node.textContent.slice(target.start,target.end)!==target.text)return {found:false};
- const range=document.createRange();range.setStart(node,target.start);range.setEnd(node,target.end);
- const r=range.getBoundingClientRect(),root=element.closest('#assistant-answer').getBoundingClientRect();
- let clip={left:0,top:0,right:innerWidth,bottom:innerHeight};
- for(let p=element;p;p=p.parentElement){const s=getComputedStyle(p),q=p.getBoundingClientRect();
- if(s.overflowX!=='visible'){clip.left=Math.max(clip.left,q.left);clip.right=Math.min(clip.right,q.right);}
- if(s.overflowY!=='visible'){clip.top=Math.max(clip.top,q.top);clip.bottom=Math.min(clip.bottom,q.bottom);}}
- const bar=document.querySelector('.topbar');if(bar)clip.top=Math.max(clip.top,bar.getBoundingClientRect().bottom);
- return {found:true,left:r.left,right:r.right,top:r.top,bottom:r.bottom,clip,
- root:{left:Math.max(root.left,clip.left),right:Math.min(root.right,clip.right),top:Math.max(root.top,clip.top),bottom:Math.min(root.bottom,clip.bottom)},
- visible:r.width>0&&r.height>0&&r.left>=clip.left-1&&r.right<=clip.right+1&&r.top>=clip.top-1&&r.bottom<=clip.bottom+1};
-}'''
-
-
-def raw_fact_readings(raw):
-    """Offsets bind visible reads to the damaged readout fact, not another copy."""
-    parsed = json.loads(raw)
-    fact = parsed['readout']['facts'][0]
-    assert len(parsed['readout']['facts']) == 1 and fact['id'] == 'gross_margin'
-    assert fact['label'] == '毛利率' and fact['value'] == COPILOT_BAD_VALUE
-    serialized = json.dumps(fact, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
-    start = raw.index(serialized, raw.index('"readout":'))
-    readings = []
-    for needle in ('"id":"gross_margin"', '"label":"毛利率"', '"value":' + str(COPILOT_BAD_VALUE)):
-        offset = start + serialized.index(needle)
-        readings.append({'start': len(raw[:offset].encode('utf-16-le')) // 2,
-                         'end': len(raw[:offset + len(needle)].encode('utf-16-le')) // 2, 'text': needle})
-    return readings
-
-
-def _read_raw(p, raw_control, raw):
-    assert raw_control.inner_text() == raw, 'Disclosure must be exact saved unverified bytes.'
-    for target in raw_fact_readings(raw):
-        p.step('真实滚动定位未核验原文区域', lambda: raw_control.scroll_into_view_if_needed())
-        frames = []
-        for _ in range(8):
-            geometry = raw_control.evaluate(_RAW_GEOMETRY, target)
-            frames.append(geometry)
-            assert geometry.get('found'), 'Damaged fact is absent from exact raw disclosure.'
-            if geometry['visible']:
-                p.step('实际阅读未核验原文事实字段：' + target['text'], lambda: None)
-                p.observations.setdefault('I10_raw_visible_ranges', []).append({
-                    **target, 'geometry': frames, 'raw_sha256': hashlib.sha256(raw.encode()).hexdigest(),
-                    'manual_pixel_review': 'pending'})
-                break
-            box, clip = geometry['root'], geometry['clip']
-            assert box['right'] > box['left'] and box['bottom'] > box['top'], 'No real visible scroll target.'
-            # Native wheel only, including horizontal movement for the actual
-            # unwrapped saved JSON. Never set scrollLeft, styles, DOM or app state.
-            dx = (geometry['left'] + geometry['right'] - clip['left'] - clip['right']) / 2
-            dy = (geometry['top'] + geometry['bottom'] - clip['top'] - clip['bottom']) / 2
-            def wheel():
-                p.page.mouse.move((box['left'] + box['right']) / 2, (box['top'] + box['bottom']) / 2)
-                p.page.mouse.wheel(dx if geometry['left'] < clip['left'] or geometry['right'] > clip['right'] else 0,
-                                   dy if geometry['top'] < clip['top'] or geometry['bottom'] > clip['bottom'] else 0)
-                p.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
-            p.step('用实际横纵滚轮读取保存原文，不重排或替换内容', wheel)
-        else:
-            raise AssertionError('Unverified raw fact remains unreadable after bounded actual scrolling.')
+def _read_raw(p, disclosure, raw):
+    # Discover through the product's ordinary visible search. No raw offsets,
+    # target ranges, horizontal jumps or implementation-state manipulation.
+    query = disclosure.get_by_role('searchbox', name='查找原文字段或值')
+    p.step('在未核验原文查找框输入普通字段名：毛利率', lambda: query.fill('毛利率'))
+    p.step('用可见查找按钮定位字段', lambda: disclosure.get_by_role('button', name='查找', exact=True).click())
+    status = disclosure.locator('[data-raw-status]')
+    match = disclosure.locator('[data-raw-match]')
+    excerpt = match.locator('[data-raw-excerpt]')
+    label = '"label":"毛利率"'
+    value = '"value":' + str(COPILOT_BAD_VALUE)
+    seen = []
+    # The total and every candidate come from the reader's displayed search.
+    total = int(re.search(r'第 1 / (\d+) 处', status.inner_text()).group(1))
+    assert total == raw.count('毛利率') and 0 < total <= 40
+    for index in range(total):
+        _read(p, status, f'第 {index + 1} / {total} 处', '读原文查找命中顺序和总数')
+        _read(p, excerpt.locator('mark'), '毛利率', '读可见的字段名命中')
+        shown = excerpt.inner_text()
+        # Expand only through the user-facing control; inspect actual nearby
+        # text before choosing the next result, never known target geometry.
+        if '"id":"gross_margin"' in shown:
+            for _ in range(2):
+                if value in shown or match.get_by_role('button', name='更多后文').is_disabled():
+                    break
+                p.step('用更多后文展开该字段附近的保存内容', lambda: match.get_by_role('button', name='更多后文').click())
+                shown = excerpt.inner_text()
+        seen.append({'position': status.inner_text(), 'context': shown})
+        if label in shown and value in shown and '"id":"gross_margin"' in shown:
+            for needle in ('"id":"gross_margin"', label, value):
+                _read(p, excerpt, needle, '用普通纵向滚轮阅读未核验字段及原始值：' + needle)
+            break
+        assert index + 1 < total, 'The ordinary search did not expose the damaged fact and its context.'
+        p.step('按下一处检查原字符串中的后续同名字段', lambda: disclosure.get_by_role('button', name='下一处', exact=True).click())
+    boundary = match.locator('strong')
+    _read(p, boundary, '未核验 · 命中与前后文', '字段和原值仍属于未核验原文')
+    complete = disclosure.locator('[data-raw-full]')
+    p.step('用完整原文入口核对自动换行阅读区', lambda: complete.locator('summary').click())
+    dimensions = complete.locator('[data-raw-content]').evaluate('(el)=>({width:el.clientWidth,scrollWidth:el.scrollWidth,wrap:getComputedStyle(el).whiteSpace})')
+    assert dimensions['width'] > 0 and dimensions['scrollWidth'] <= dimensions['width'] + 1
+    assert dimensions['wrap'] == 'pre-wrap'
+    p.step('收起完整原文，返回字段查找和原文下载', lambda: complete.locator('summary').click())
+    button = disclosure.get_by_role('button', name='下载未核验原始文本（.txt）', exact=True)
+    downloaded = download_visible(p, button, 'I10-unverified-saved-report.txt', '真实点击并打开未核验原始文本下载')
+    assert downloaded == raw.encode('utf-8'), 'Downloaded UTF-8 must equal the saved raw string byte for byte.'
+    p.observations['I10_raw_reader'] = {'query': '毛利率', 'displayed_matches': total,
+        'visited_contexts': seen, 'download_sha256': hashlib.sha256(downloaded).hexdigest(),
+        'download_bytes': len(downloaded), 'full_text_dimensions': dimensions,
+        'manual_pixel_review': 'pending', 'discovery': 'visible keyword search and ordinary vertical scrolling'}
 
 
 def _observe_blocked(p, proposal, run, raw, *, open_raw):
@@ -231,22 +221,22 @@ def _observe_blocked(p, proposal, run, raw, *, open_raw):
     assert '仍是原始冻结内容' not in shown and '本次问题的回答' not in shown
     _read(p, unavailable.get_by_text('原问题：' + run['payload']['query'], exact=True),
           '原问题：' + run['payload']['query'], '坏助手卡仍保留原问题')
-    reason = unavailable.locator('.notice')
+    reason = unavailable.locator(':scope > .notice')
     assert all(part in reason.inner_text() for part in ('完整性', '暂停展示主答案', '数学结果', '衍生入口', '原记录保留'))
     _read(p, reason, reason.inner_text(), '阅读坏助手卡不可用原因与暂停范围')
     disclosure = unavailable.locator(RAW)
     assert disclosure.count() == 1
     if disclosure.get_attribute('open') is not None:
-        p.step('收起原文，确认未核验数字不出现在普通答案', lambda: disclosure.locator('summary').click())
+        p.step('收起原文，确认未核验数字不出现在普通答案', lambda: disclosure.locator(':scope > summary').click())
     assert str(COPILOT_BAD_VALUE) not in card.inner_text()
     if open_raw:
         summary = '未核验的已保存报告原文（仅供排查）'
-        _read(p, disclosure.locator('summary'), summary, '先读原文披露的未核验标题')
-        p.step('明确展开真实未核验原文披露', lambda: disclosure.locator('summary').click())
-        notice = '未核验的已保存报告原文，仅供排查；不是可用结论。'
-        _read(p, disclosure.locator('p'), notice, '阅读原文仅供排查而非可用结论的边界')
-        _read_raw(p, disclosure.locator('pre'), raw)
-        p.step('读完后收起未核验原文，保留坏卡状态', lambda: disclosure.locator('summary').click())
+        _read(p, disclosure.locator(':scope > summary'), summary, '先读原文披露的未核验标题')
+        p.step('明确展开真实未核验原文披露', lambda: disclosure.locator(':scope > summary').click())
+        notice = '未核验原文，不是可用结论。'
+        _read(p, disclosure.locator('[data-unverified-warning]'), notice, '阅读原文仅供排查而非可用结论的边界')
+        _read_raw(p, disclosure, raw)
+        p.step('读完后收起未核验原文，保留坏卡状态', lambda: disclosure.locator(':scope > summary').click())
     p.observations.setdefault('I10_blocked_visits', []).append({'proposal_id': proposal['id'], 'run_id': run['id'],
         'approved_query': run['payload']['query'], 'normal_answer_count': 0, 'derived_routes': 0, 'raw_opened': open_raw})
 

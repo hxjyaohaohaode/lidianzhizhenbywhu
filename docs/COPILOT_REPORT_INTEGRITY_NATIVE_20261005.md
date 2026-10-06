@@ -1,5 +1,7 @@
 # Current copilot damaged-report reader preparation · 2026-10-05
 
+Update: the current candidate replaces the original single-line scrolling stage with the shared unverified-text reader, visible Chinese keyword search, ordinary vertical reading and an exact original-text download. See [UNVERIFIED_TEXT_READER_20261005.md](UNVERIFIED_TEXT_READER_20261005.md) for the current product contract and pending native journey. The preparation record below describes the earlier baseline; its prior results do not validate the new reader.
+
 This preparation adds a bounded native reader journey, a narrow synthetic saved-result fault, and independent adverse contracts. It does not change the application or register/run a native suite. It is based on commit `5791b391749db18539c524fa607b7b75e3d15ff7` with web tree `fc2d662decb35ad551cae0e39766d07f6b90ee92` and server tree `f6dbb3a3f3649574237cea12aecb43fd96d14283`.
 
 ## Native entry and expected integration

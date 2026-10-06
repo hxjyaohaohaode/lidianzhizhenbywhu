@@ -1,0 +1,23 @@
+{
+  "implementation_commit": "4a5ce5cc8465ae3fb21289e78c6456ce3b598b42",
+  "baseline_commit": "b69a68a7941c89fdf36bdc20a5dfeb2e075a5235",
+  "executed_at_utc": "2026-10-05T22:10:19.098599+00:00",
+  "focused_tests_passed": 63,
+  "new_quality_tests": 11,
+  "frontend_tests_passed": 1063,
+  "backend_tests_passed": 3638,
+  "backend_tests_failed": 1,
+  "failed_test": "tests/test_product_read_transport.py::test_probe_is_the_only_direct_product_api_request_entrypoint",
+  "failure_also_present_in_baseline": true,
+  "full_chain_http_passed": true,
+  "native_browser_run": false,
+  "live_provider_run": false,
+  "all_checks_passed": false,
+  "files_sha256": {
+    "baseline-transport-guard.json": "1fba036fdd0a3eb0dc6e773c0b29f88d9ad65ed960508b7a30de56b2f646da56",
+    "full-chain-http.json": "95c878b9127b1fc2a2d810716cef9605e6982b7efc8084386d3f331d66ccd4cb",
+    "renderer-summary.json": "e527c19737614e3194eab7539a22b959f1e8eed755deb8d54f687be09814b2f1",
+    "unchanged-producer-checks.json": "9627a4cddbd750118ec61d5cc56fad6d1ae72333085445e71383cae3d558c8f8",
+    "verification.json": "f0fc38770746b03697e64903849265da0eefccabb85654fc69f84dff4024e3f2"
+  }
+}

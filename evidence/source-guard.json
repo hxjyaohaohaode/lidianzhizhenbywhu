@@ -1,5 +1,5 @@
 {
-  "files_scanned": 128,
+  "files_scanned": 132,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -46,6 +46,7 @@
     "server/source_bindings.py",
     "server/store.py",
     "server/studio.py",
+    "server/unverified_report.py",
     "server/workflows.py",
     "server/workspace_api.py",
     "server/workspace_store.py",
@@ -58,6 +59,7 @@
     "web/brand.ts",
     "web/business-source.ts",
     "web/components.ts",
+    "web/copilot-quality.ts",
     "web/copilot-research-inputs.ts",
     "web/copilot-ui.ts",
     "web/docs.ts",
@@ -78,6 +80,7 @@
     "web/saved-experiments.ts",
     "web/state.ts",
     "web/styles.css",
+    "web/unverified-reader.ts",
     "web/views-analysis.ts",
     "web/views-data.ts",
     "web/views-orchestrator.ts",
@@ -124,6 +127,7 @@
     "scripts/product_tracking_units.py",
     "scripts/publish.py",
     "scripts/pytest_diagnostics.py",
+    "scripts/recorded_balance_reading.py",
     "scripts/restart_replay_probe.py",
     "scripts/service_browser_check.py",
     "scripts/source_guard.py",

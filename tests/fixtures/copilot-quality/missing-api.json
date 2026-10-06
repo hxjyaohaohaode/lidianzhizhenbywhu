@@ -1,0 +1,1705 @@
+{
+  "case": "missing",
+  "input_request": {
+    "name": "缺字段读者复现",
+    "company": "缺字段读者复现（隔离合成数据，非真实财报）",
+    "source_kind": "user_provided",
+    "source_url": "",
+    "currency": "CNY",
+    "amount_unit": "yuan",
+    "volume_unit": "ton",
+    "period_basis": "standalone_quarter",
+    "notes": "仅用于隔离真实 API/compiled renderer 读者核查。",
+    "periods": [
+      {
+        "period": "2022-Q1",
+        "revenue": 100000,
+        "cost": 70000,
+        "cash_flow": 12000,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2022-Q2",
+        "revenue": 101200,
+        "cost": 70600,
+        "cash_flow": 12100,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2022-Q3",
+        "revenue": 102400,
+        "cost": 71200,
+        "cash_flow": 12200,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2022-Q4",
+        "revenue": 103600,
+        "cost": 71800,
+        "cash_flow": 12300,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2023-Q1",
+        "revenue": 104800,
+        "cost": 72400,
+        "cash_flow": 12400,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2023-Q2",
+        "revenue": 106000,
+        "cost": 73000,
+        "cash_flow": 12500,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2023-Q3",
+        "revenue": 107200,
+        "cost": 73600,
+        "cash_flow": 12600,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2023-Q4",
+        "revenue": 108400,
+        "cost": 74200,
+        "cash_flow": 12700,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2024-Q1",
+        "revenue": 109600,
+        "cost": 74800,
+        "cash_flow": 12800,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2024-Q2",
+        "revenue": 110800,
+        "cost": 75400,
+        "cash_flow": 12900,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2024-Q3",
+        "revenue": 112000,
+        "cost": 76000,
+        "cash_flow": 13000,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      },
+      {
+        "period": "2024-Q4",
+        "revenue": 113200,
+        "cost": 76600,
+        "cash_flow": 13100,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000
+      }
+    ]
+  },
+  "dataset": {
+    "id": "211ebf0344a144bfbb1cb69651713b8c",
+    "user_id": "eb7a5a3e732e4e589f48473711e55811",
+    "payload": {
+      "amount_unit": "yuan",
+      "company": "缺字段读者复现（隔离合成数据，非真实财报）",
+      "currency": "CNY",
+      "input_amount_unit": "yuan",
+      "name": "缺字段读者复现",
+      "notes": "仅用于隔离真实 API/compiled renderer 读者核查。",
+      "period_basis": "standalone_quarter",
+      "periods": [
+        {
+          "assets": 500000.0,
+          "cash_flow": 12000.0,
+          "cost": 70000.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2022-Q1",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 100000.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12100.0,
+          "cost": 70600.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2022-Q2",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 101200.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12200.0,
+          "cost": 71200.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2022-Q3",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 102400.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12300.0,
+          "cost": 71800.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2022-Q4",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 103600.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12400.0,
+          "cost": 72400.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2023-Q1",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 104800.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12500.0,
+          "cost": 73000.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2023-Q2",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 106000.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12600.0,
+          "cost": 73600.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2023-Q3",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 107200.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12700.0,
+          "cost": 74200.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2023-Q4",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 108400.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12800.0,
+          "cost": 74800.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2024-Q1",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 109600.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12900.0,
+          "cost": 75400.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2024-Q2",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 110800.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 13000.0,
+          "cost": 76000.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2024-Q3",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 112000.0,
+          "sales_volume": null
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 13100.0,
+          "cost": 76600.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": null,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": null,
+          "manufacturing_cost": null,
+          "net_profit": 9000.0,
+          "period": "2024-Q4",
+          "production_volume": null,
+          "rd_expense": 3000.0,
+          "revenue": 113200.0,
+          "sales_volume": null
+        }
+      ],
+      "source_kind": "user_provided",
+      "source_url": "",
+      "verification": "unverified_user_input",
+      "volume_unit": "ton"
+    },
+    "version": 1,
+    "content_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+    "created_at": "2026-10-05T21:52:22.832+00:00",
+    "updated_at": "2026-10-05T21:52:22.832+00:00"
+  },
+  "message_post_response": {
+    "message": {
+      "id": "317d311001414c2aba4e3f4ef29ef7c2",
+      "thread_id": "77e6446d04c84105bb70b79970d14505",
+      "user_id": "eb7a5a3e732e4e589f48473711e55811",
+      "request_key": "quality-review-missing",
+      "request_hash": "b3358fc001aaf43919193028bd0823dfc87a2e33102a14598455368fc55677c1",
+      "payload": {
+        "question": "2024-Q2收入环比",
+        "response": {
+          "actions": [
+            {
+              "kind": "navigate",
+              "label": "补充或审阅资料",
+              "route": "evidence"
+            },
+            {
+              "kind": "proposal",
+              "label": "交给 Agent 深入研判",
+              "type": "research"
+            },
+            {
+              "kind": "proposal",
+              "label": "整理为跟进行动",
+              "type": "action"
+            },
+            {
+              "kind": "proposal",
+              "label": "建立指标跟踪",
+              "type": "watch"
+            },
+            {
+              "kind": "proposal",
+              "label": "确认后保存为记忆",
+              "type": "memory"
+            }
+          ],
+          "answer": "缺字段读者复现（隔离合成数据，非真实财报） 2024-Q2：收入增速为1.09%（环比，基期2024-Q1）；营业收入为110,800.00元，较2024-Q1增加1,200.00元。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "cards": [
+            {
+              "data": {
+                "as_of": "2026-10-05",
+                "closed_quarters": 10,
+                "field_coverage": {
+                  "missing": [
+                    "sales_volume",
+                    "production_volume"
+                  ],
+                  "period": "2024-Q2",
+                  "present": 6,
+                  "total": 8
+                },
+                "findings": [
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2022-Q1",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2022-Q2",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2022-Q3",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2022-Q4",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2023-Q1",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2023-Q2",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2023-Q3",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2023-Q4",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2024-Q1",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_FIELDS",
+                    "fields": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                    "period": "2024-Q2",
+                    "severity": "info"
+                  },
+                  {
+                    "code": "MISSING_SOURCE",
+                    "fields": [
+                      "source_url"
+                    ],
+                    "message": "未填写原始来源地址，可在证据库关联文件并人工审阅",
+                    "period": "2024-Q2",
+                    "severity": "info"
+                  }
+                ],
+                "input_hash": "5ccffcd601ee49d7e89849a1324f14f5228c10e695c8f8c145c1e0257d576ca2",
+                "source_state": "user_declared_not_verified",
+                "warning_count": 0
+              },
+              "kind": "quality",
+              "title": "输入质量与缺口"
+            }
+          ],
+          "citations": [],
+          "context": {
+            "dataset_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+            "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+            "dataset_version": 1,
+            "history_message_ids": [],
+            "history_used_for_topics": false,
+            "identity": null,
+            "identity_binding": null,
+            "question_scope": {
+              "available_periods": [
+                "2022-Q1",
+                "2022-Q2",
+                "2022-Q3",
+                "2022-Q4",
+                "2023-Q1",
+                "2023-Q2",
+                "2023-Q3",
+                "2023-Q4",
+                "2024-Q1",
+                "2024-Q2",
+                "2024-Q3",
+                "2024-Q4"
+              ],
+              "can_calculate": true,
+              "comparison": "previous",
+              "comparison_explicit": true,
+              "default_overview": false,
+              "notice": "",
+              "period": "2024-Q2",
+              "period_basis": "single_quarter",
+              "period_explicit": true,
+              "status": "supported",
+              "topics": [
+                "revenue_growth",
+                "revenue"
+              ],
+              "unsupported_currency": false
+            }
+          },
+          "engine": "local_tool_copilot",
+          "external_calls": 0,
+          "facts": [
+            {
+              "comparison": {
+                "baseline_input": {
+                  "metric": "revenue",
+                  "period": "2024-Q1",
+                  "unit": "CNY",
+                  "value": 109600.0
+                },
+                "change": 0.010948905109489093,
+                "change_unit": "ratio",
+                "kind": "previous",
+                "operation": "growth_rate",
+                "period": "2024-Q1",
+                "reason": "",
+                "status": "available",
+                "value": null
+              },
+              "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+              "dataset_version": 1,
+              "display_value": "1.09%",
+              "formula": "本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0",
+              "id": "revenue_growth",
+              "input_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+              "inputs": [
+                {
+                  "field": "revenue",
+                  "path": "periods/2024-Q2/revenue",
+                  "unit": "CNY",
+                  "value": 110800.0
+                },
+                {
+                  "field": "revenue",
+                  "path": "periods/2024-Q1/revenue",
+                  "unit": "CNY",
+                  "value": 109600.0
+                }
+              ],
+              "label": "收入增速",
+              "period": "2024-Q2",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2022-Q3",
+                  "value": 0.011857707509881354
+                },
+                {
+                  "period": "2022-Q4",
+                  "value": 0.01171875
+                },
+                {
+                  "period": "2023-Q1",
+                  "value": 0.01158301158301156
+                },
+                {
+                  "period": "2023-Q2",
+                  "value": 0.011450381679389388
+                },
+                {
+                  "period": "2023-Q3",
+                  "value": 0.01132075471698113
+                },
+                {
+                  "period": "2023-Q4",
+                  "value": 0.011194029850746245
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 0.011070110701107083
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.010948905109489093
+                }
+              ],
+              "unit": "ratio",
+              "value": 0.010948905109489093,
+              "verification": "unverified_user_input"
+            },
+            {
+              "comparison": {
+                "change": 1200.0,
+                "change_unit": "CNY",
+                "kind": "previous",
+                "operation": "difference",
+                "period": "2024-Q1",
+                "reason": "",
+                "status": "available",
+                "value": 109600.0
+              },
+              "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+              "dataset_version": 1,
+              "display_value": "110,800.00元",
+              "formula": "已保存的单季度原始输入（标准化为元）",
+              "id": "revenue",
+              "input_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+              "inputs": [
+                {
+                  "field": "revenue",
+                  "path": "periods/2024-Q2/revenue",
+                  "unit": "CNY",
+                  "value": 110800.0
+                }
+              ],
+              "label": "营业收入",
+              "period": "2024-Q2",
+              "source_url": "",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2022-Q3",
+                  "value": 102400.0
+                },
+                {
+                  "period": "2022-Q4",
+                  "value": 103600.0
+                },
+                {
+                  "period": "2023-Q1",
+                  "value": 104800.0
+                },
+                {
+                  "period": "2023-Q2",
+                  "value": 106000.0
+                },
+                {
+                  "period": "2023-Q3",
+                  "value": 107200.0
+                },
+                {
+                  "period": "2023-Q4",
+                  "value": 108400.0
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 109600.0
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 110800.0
+                }
+              ],
+              "unit": "CNY",
+              "value": 110800.0,
+              "verification": "unverified_user_input"
+            }
+          ],
+          "milliseconds": 75.547,
+          "next_steps": [
+            {
+              "acceptance": "补充同企业、同期间原始资料，记录来源与支持/反向关系，并人工审阅",
+              "reason": "当前检索没有适用资料",
+              "route": "evidence",
+              "title": "补齐本问题的原始证据"
+            }
+          ],
+          "receipts": [
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "comparison": "previous",
+                "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+                "version": 1
+              },
+              "milliseconds": 0.451,
+              "output_hash": "3dfffac4dab4c8422a8805316ca1250cc688c3dadd918f5c7ff770712537ad6b",
+              "state": "succeeded",
+              "tool": "financial_calculation"
+            },
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "metric_ids": [
+                  "revenue_growth",
+                  "revenue"
+                ]
+              },
+              "milliseconds": 0.036,
+              "output_hash": "81e0fa2786a5d82854385bfca168f72993b882423d7daa0dada1aecc35506b67",
+              "state": "succeeded",
+              "tool": "metric_lineage"
+            },
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+                "version": 1
+              },
+              "milliseconds": 0.208,
+              "output_hash": "e670fb9566acce53838737f1362d1ca996d87cd9fd4d6a918b08e46ce0871659",
+              "state": "succeeded",
+              "tool": "data_quality"
+            },
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "company": "缺字段读者复现（隔离合成数据，非真实财报）",
+                "query": "2024-Q2收入环比"
+              },
+              "milliseconds": 1.031,
+              "output_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "state": "succeeded",
+              "tool": "scoped_evidence_search"
+            },
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "dataset_id": "211ebf0344a144bfbb1cb69651713b8c"
+              },
+              "milliseconds": 0.952,
+              "output_hash": "ccd3bdd19fbf8f90512ee2aca3a83c35120c64c115d18a82658f202c03a569a0",
+              "state": "succeeded",
+              "tool": "proactive_findings"
+            }
+          ],
+          "research_brief": {
+            "causal_claims_supported": false,
+            "evidence_state": "no_matching_saved_evidence",
+            "intent": "grounded_review",
+            "matched_document_count": 0,
+            "missing_metric_ids": [],
+            "objective": "",
+            "retrieval_method": "owner_and_company_scoped_lexical_search",
+            "scope": {
+              "baseline_period": "2024-Q1",
+              "company": "缺字段读者复现（隔离合成数据，非真实财报）",
+              "comparison": "previous",
+              "dataset_version": 1,
+              "depth": "balanced",
+              "period": "2024-Q2",
+              "question_scope": {
+                "available_periods": [
+                  "2022-Q1",
+                  "2022-Q2",
+                  "2022-Q3",
+                  "2022-Q4",
+                  "2023-Q1",
+                  "2023-Q2",
+                  "2023-Q3",
+                  "2023-Q4",
+                  "2024-Q1",
+                  "2024-Q2",
+                  "2024-Q3",
+                  "2024-Q4"
+                ],
+                "can_calculate": true,
+                "comparison": "previous",
+                "comparison_explicit": true,
+                "default_overview": false,
+                "notice": "",
+                "period": "2024-Q2",
+                "period_basis": "single_quarter",
+                "period_explicit": true,
+                "status": "supported",
+                "topics": [
+                  "revenue_growth",
+                  "revenue"
+                ],
+                "unsupported_currency": false
+              }
+            },
+            "source_verification": "user_declared_not_verified",
+            "stance_counts": {
+              "context": 0,
+              "contradicts": 0,
+              "supports": 0
+            }
+          },
+          "warnings": [
+            "输入未经本系统独立核验；来源链接不等于真实性认证。",
+            "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。",
+            "存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。",
+            "当前问题未检索到适用的已保存资料；不能把未查到当成事实不存在。"
+          ]
+        }
+      },
+      "created_at": "2026-10-05T21:52:22.922+00:00"
+    },
+    "thread": {
+      "id": "77e6446d04c84105bb70b79970d14505",
+      "user_id": "eb7a5a3e732e4e589f48473711e55811",
+      "kind": "assistant_thread",
+      "natural_key": "6eb0f784a22b402e9f61d6caaef0da19",
+      "payload": {
+        "creation_request_hash": "bc5e8f3fe29cb9c55f340a4e14137e95476d0ddd3479faf8f944c5a7f85ceb33",
+        "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+        "identity_id": "",
+        "identity_snapshot": null,
+        "title": "2024-Q2收入环比"
+      },
+      "version": 2,
+      "created_at": "2026-10-05T21:52:22.842+00:00",
+      "updated_at": "2026-10-05T21:52:22.922+00:00"
+    },
+    "replayed": false
+  },
+  "thread_read_response": {
+    "thread": {
+      "id": "77e6446d04c84105bb70b79970d14505",
+      "user_id": "eb7a5a3e732e4e589f48473711e55811",
+      "kind": "assistant_thread",
+      "natural_key": "6eb0f784a22b402e9f61d6caaef0da19",
+      "payload": {
+        "creation_request_hash": "bc5e8f3fe29cb9c55f340a4e14137e95476d0ddd3479faf8f944c5a7f85ceb33",
+        "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+        "identity_id": "",
+        "identity_snapshot": null,
+        "title": "2024-Q2收入环比"
+      },
+      "version": 2,
+      "created_at": "2026-10-05T21:52:22.842+00:00",
+      "updated_at": "2026-10-05T21:52:22.922+00:00"
+    },
+    "identity": null,
+    "messages": [
+      {
+        "id": "317d311001414c2aba4e3f4ef29ef7c2",
+        "payload": {
+          "question": "2024-Q2收入环比",
+          "response": {
+            "actions": [
+              {
+                "kind": "navigate",
+                "label": "补充或审阅资料",
+                "route": "evidence"
+              },
+              {
+                "kind": "proposal",
+                "label": "交给 Agent 深入研判",
+                "type": "research"
+              },
+              {
+                "kind": "proposal",
+                "label": "整理为跟进行动",
+                "type": "action"
+              },
+              {
+                "kind": "proposal",
+                "label": "建立指标跟踪",
+                "type": "watch"
+              },
+              {
+                "kind": "proposal",
+                "label": "确认后保存为记忆",
+                "type": "memory"
+              }
+            ],
+            "answer": "缺字段读者复现（隔离合成数据，非真实财报） 2024-Q2：收入增速为1.09%（环比，基期2024-Q1）；营业收入为110,800.00元，较2024-Q1增加1,200.00元。这些数值来自当前已保存输入，未经独立真实性核验。",
+            "cards": [
+              {
+                "data": {
+                  "as_of": "2026-10-05",
+                  "closed_quarters": 10,
+                  "field_coverage": {
+                    "missing": [
+                      "sales_volume",
+                      "production_volume"
+                    ],
+                    "period": "2024-Q2",
+                    "present": 6,
+                    "total": 8
+                  },
+                  "findings": [
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2022-Q1",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2022-Q2",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2022-Q3",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2022-Q4",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2023-Q1",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2023-Q2",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2023-Q3",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2023-Q4",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2024-Q1",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_FIELDS",
+                      "fields": [
+                        "sales_volume",
+                        "production_volume"
+                      ],
+                      "message": "该季度缺失字段保持空值；不会以零或行业均值填补",
+                      "period": "2024-Q2",
+                      "severity": "info"
+                    },
+                    {
+                      "code": "MISSING_SOURCE",
+                      "fields": [
+                        "source_url"
+                      ],
+                      "message": "未填写原始来源地址，可在证据库关联文件并人工审阅",
+                      "period": "2024-Q2",
+                      "severity": "info"
+                    }
+                  ],
+                  "input_hash": "5ccffcd601ee49d7e89849a1324f14f5228c10e695c8f8c145c1e0257d576ca2",
+                  "source_state": "user_declared_not_verified",
+                  "warning_count": 0
+                },
+                "kind": "quality",
+                "title": "输入质量与缺口"
+              }
+            ],
+            "citations": [],
+            "context": {
+              "dataset_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+              "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+              "dataset_version": 1,
+              "history_message_ids": [],
+              "history_used_for_topics": false,
+              "identity": null,
+              "identity_binding": null,
+              "question_scope": {
+                "available_periods": [
+                  "2022-Q1",
+                  "2022-Q2",
+                  "2022-Q3",
+                  "2022-Q4",
+                  "2023-Q1",
+                  "2023-Q2",
+                  "2023-Q3",
+                  "2023-Q4",
+                  "2024-Q1",
+                  "2024-Q2",
+                  "2024-Q3",
+                  "2024-Q4"
+                ],
+                "can_calculate": true,
+                "comparison": "previous",
+                "comparison_explicit": true,
+                "default_overview": false,
+                "notice": "",
+                "period": "2024-Q2",
+                "period_basis": "single_quarter",
+                "period_explicit": true,
+                "status": "supported",
+                "topics": [
+                  "revenue_growth",
+                  "revenue"
+                ],
+                "unsupported_currency": false
+              }
+            },
+            "engine": "local_tool_copilot",
+            "external_calls": 0,
+            "facts": [
+              {
+                "comparison": {
+                  "baseline_input": {
+                    "metric": "revenue",
+                    "period": "2024-Q1",
+                    "unit": "CNY",
+                    "value": 109600.0
+                  },
+                  "change": 0.010948905109489093,
+                  "change_unit": "ratio",
+                  "kind": "previous",
+                  "operation": "growth_rate",
+                  "period": "2024-Q1",
+                  "reason": "",
+                  "status": "available",
+                  "value": null
+                },
+                "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+                "dataset_version": 1,
+                "display_value": "1.09%",
+                "formula": "本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0",
+                "id": "revenue_growth",
+                "input_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+                "inputs": [
+                  {
+                    "field": "revenue",
+                    "path": "periods/2024-Q2/revenue",
+                    "unit": "CNY",
+                    "value": 110800.0
+                  },
+                  {
+                    "field": "revenue",
+                    "path": "periods/2024-Q1/revenue",
+                    "unit": "CNY",
+                    "value": 109600.0
+                  }
+                ],
+                "label": "收入增速",
+                "period": "2024-Q2",
+                "source_url": "",
+                "status": "available",
+                "trend": [
+                  {
+                    "period": "2022-Q3",
+                    "value": 0.011857707509881354
+                  },
+                  {
+                    "period": "2022-Q4",
+                    "value": 0.01171875
+                  },
+                  {
+                    "period": "2023-Q1",
+                    "value": 0.01158301158301156
+                  },
+                  {
+                    "period": "2023-Q2",
+                    "value": 0.011450381679389388
+                  },
+                  {
+                    "period": "2023-Q3",
+                    "value": 0.01132075471698113
+                  },
+                  {
+                    "period": "2023-Q4",
+                    "value": 0.011194029850746245
+                  },
+                  {
+                    "period": "2024-Q1",
+                    "value": 0.011070110701107083
+                  },
+                  {
+                    "period": "2024-Q2",
+                    "value": 0.010948905109489093
+                  }
+                ],
+                "unit": "ratio",
+                "value": 0.010948905109489093,
+                "verification": "unverified_user_input"
+              },
+              {
+                "comparison": {
+                  "change": 1200.0,
+                  "change_unit": "CNY",
+                  "kind": "previous",
+                  "operation": "difference",
+                  "period": "2024-Q1",
+                  "reason": "",
+                  "status": "available",
+                  "value": 109600.0
+                },
+                "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+                "dataset_version": 1,
+                "display_value": "110,800.00元",
+                "formula": "已保存的单季度原始输入（标准化为元）",
+                "id": "revenue",
+                "input_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+                "inputs": [
+                  {
+                    "field": "revenue",
+                    "path": "periods/2024-Q2/revenue",
+                    "unit": "CNY",
+                    "value": 110800.0
+                  }
+                ],
+                "label": "营业收入",
+                "period": "2024-Q2",
+                "source_url": "",
+                "status": "available",
+                "trend": [
+                  {
+                    "period": "2022-Q3",
+                    "value": 102400.0
+                  },
+                  {
+                    "period": "2022-Q4",
+                    "value": 103600.0
+                  },
+                  {
+                    "period": "2023-Q1",
+                    "value": 104800.0
+                  },
+                  {
+                    "period": "2023-Q2",
+                    "value": 106000.0
+                  },
+                  {
+                    "period": "2023-Q3",
+                    "value": 107200.0
+                  },
+                  {
+                    "period": "2023-Q4",
+                    "value": 108400.0
+                  },
+                  {
+                    "period": "2024-Q1",
+                    "value": 109600.0
+                  },
+                  {
+                    "period": "2024-Q2",
+                    "value": 110800.0
+                  }
+                ],
+                "unit": "CNY",
+                "value": 110800.0,
+                "verification": "unverified_user_input"
+              }
+            ],
+            "milliseconds": 75.547,
+            "next_steps": [
+              {
+                "acceptance": "补充同企业、同期间原始资料，记录来源与支持/反向关系，并人工审阅",
+                "reason": "当前检索没有适用资料",
+                "route": "evidence",
+                "title": "补齐本问题的原始证据"
+              }
+            ],
+            "receipts": [
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "comparison": "previous",
+                  "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+                  "version": 1
+                },
+                "milliseconds": 0.451,
+                "output_hash": "3dfffac4dab4c8422a8805316ca1250cc688c3dadd918f5c7ff770712537ad6b",
+                "state": "succeeded",
+                "tool": "financial_calculation"
+              },
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "metric_ids": [
+                    "revenue_growth",
+                    "revenue"
+                  ]
+                },
+                "milliseconds": 0.036,
+                "output_hash": "81e0fa2786a5d82854385bfca168f72993b882423d7daa0dada1aecc35506b67",
+                "state": "succeeded",
+                "tool": "metric_lineage"
+              },
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+                  "version": 1
+                },
+                "milliseconds": 0.208,
+                "output_hash": "e670fb9566acce53838737f1362d1ca996d87cd9fd4d6a918b08e46ce0871659",
+                "state": "succeeded",
+                "tool": "data_quality"
+              },
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "company": "缺字段读者复现（隔离合成数据，非真实财报）",
+                  "query": "2024-Q2收入环比"
+                },
+                "milliseconds": 1.031,
+                "output_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "state": "succeeded",
+                "tool": "scoped_evidence_search"
+              },
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "dataset_id": "211ebf0344a144bfbb1cb69651713b8c"
+                },
+                "milliseconds": 0.952,
+                "output_hash": "ccd3bdd19fbf8f90512ee2aca3a83c35120c64c115d18a82658f202c03a569a0",
+                "state": "succeeded",
+                "tool": "proactive_findings"
+              }
+            ],
+            "research_brief": {
+              "causal_claims_supported": false,
+              "evidence_state": "no_matching_saved_evidence",
+              "intent": "grounded_review",
+              "matched_document_count": 0,
+              "missing_metric_ids": [],
+              "objective": "",
+              "retrieval_method": "owner_and_company_scoped_lexical_search",
+              "scope": {
+                "baseline_period": "2024-Q1",
+                "company": "缺字段读者复现（隔离合成数据，非真实财报）",
+                "comparison": "previous",
+                "dataset_version": 1,
+                "depth": "balanced",
+                "period": "2024-Q2",
+                "question_scope": {
+                  "available_periods": [
+                    "2022-Q1",
+                    "2022-Q2",
+                    "2022-Q3",
+                    "2022-Q4",
+                    "2023-Q1",
+                    "2023-Q2",
+                    "2023-Q3",
+                    "2023-Q4",
+                    "2024-Q1",
+                    "2024-Q2",
+                    "2024-Q3",
+                    "2024-Q4"
+                  ],
+                  "can_calculate": true,
+                  "comparison": "previous",
+                  "comparison_explicit": true,
+                  "default_overview": false,
+                  "notice": "",
+                  "period": "2024-Q2",
+                  "period_basis": "single_quarter",
+                  "period_explicit": true,
+                  "status": "supported",
+                  "topics": [
+                    "revenue_growth",
+                    "revenue"
+                  ],
+                  "unsupported_currency": false
+                }
+              },
+              "source_verification": "user_declared_not_verified",
+              "stance_counts": {
+                "context": 0,
+                "contradicts": 0,
+                "supports": 0
+              }
+            },
+            "warnings": [
+              "输入未经本系统独立核验；来源链接不等于真实性认证。",
+              "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。",
+              "存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。",
+              "当前问题未检索到适用的已保存资料；不能把未查到当成事实不存在。"
+            ]
+          }
+        },
+        "created_at": "2026-10-05T21:52:22.922+00:00"
+      }
+    ],
+    "proposals": [],
+    "runs": [],
+    "archived_mode": false,
+    "read_only": false,
+    "context": {
+      "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+      "dataset_version": 1,
+      "writable": true,
+      "unavailable_reason": ""
+    }
+  },
+  "trace_response": {
+    "question_scope": {
+      "available_periods": [
+        "2022-Q1",
+        "2022-Q2",
+        "2022-Q3",
+        "2022-Q4",
+        "2023-Q1",
+        "2023-Q2",
+        "2023-Q3",
+        "2023-Q4",
+        "2024-Q1",
+        "2024-Q2",
+        "2024-Q3",
+        "2024-Q4"
+      ],
+      "can_calculate": true,
+      "comparison": "previous",
+      "comparison_explicit": true,
+      "default_overview": false,
+      "notice": "",
+      "period": "2024-Q2",
+      "period_basis": "single_quarter",
+      "period_explicit": true,
+      "status": "supported",
+      "topics": [
+        "revenue_growth",
+        "revenue"
+      ],
+      "unsupported_currency": false
+    },
+    "engine": "local_grounded_router",
+    "answer": "已核对缺字段读者复现（隔离合成数据，非真实财报）的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+    "scope": {
+      "company": "缺字段读者复现（隔离合成数据，非真实财报）",
+      "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+      "dataset_version": 1,
+      "input_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+      "period": "2024-Q2",
+      "source_state": "user_declared_not_verified",
+      "role": "enterprise",
+      "objective": ""
+    },
+    "facts": [
+      {
+        "id": "revenue_growth",
+        "label": "收入增速",
+        "value": 0.010948905109489093,
+        "period": "2024-Q2",
+        "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+        "dataset_version": 1,
+        "input_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+        "formula": "本期收入 ÷ 指定同/环比基期收入 − 1；基期收入必须大于0",
+        "inputs": [
+          {
+            "path": "periods/2024-Q2/revenue",
+            "value": 110800.0
+          },
+          {
+            "path": "periods/2024-Q1/revenue",
+            "value": 109600.0
+          }
+        ],
+        "trend": [
+          {
+            "period": "2022-Q3",
+            "value": 0.011857707509881354
+          },
+          {
+            "period": "2022-Q4",
+            "value": 0.01171875
+          },
+          {
+            "period": "2023-Q1",
+            "value": 0.01158301158301156
+          },
+          {
+            "period": "2023-Q2",
+            "value": 0.011450381679389388
+          },
+          {
+            "period": "2023-Q3",
+            "value": 0.01132075471698113
+          },
+          {
+            "period": "2023-Q4",
+            "value": 0.011194029850746245
+          },
+          {
+            "period": "2024-Q1",
+            "value": 0.011070110701107083
+          },
+          {
+            "period": "2024-Q2",
+            "value": 0.010948905109489093
+          }
+        ],
+        "source_url": "",
+        "verification": "unverified_user_input",
+        "comparison": {
+          "kind": "previous",
+          "period": "2024-Q1",
+          "operation": "growth_rate",
+          "value": null,
+          "change": 0.010948905109489093,
+          "change_unit": "ratio",
+          "baseline_input": {
+            "metric": "revenue",
+            "period": "2024-Q1",
+            "value": 109600.0,
+            "unit": "CNY"
+          },
+          "status": "available",
+          "reason": ""
+        }
+      },
+      {
+        "id": "revenue",
+        "label": "营业收入",
+        "value": 110800.0,
+        "period": "2024-Q2",
+        "dataset_id": "211ebf0344a144bfbb1cb69651713b8c",
+        "dataset_version": 1,
+        "input_hash": "1a7f6c9d0841397056320156746f9d89900334e928c30f3eaa600fa3bfa4a7b6",
+        "formula": "原始季度录入值",
+        "inputs": [
+          {
+            "path": "periods/2024-Q2/revenue",
+            "value": 110800.0
+          }
+        ],
+        "trend": [
+          {
+            "period": "2022-Q3",
+            "value": 102400.0
+          },
+          {
+            "period": "2022-Q4",
+            "value": 103600.0
+          },
+          {
+            "period": "2023-Q1",
+            "value": 104800.0
+          },
+          {
+            "period": "2023-Q2",
+            "value": 106000.0
+          },
+          {
+            "period": "2023-Q3",
+            "value": 107200.0
+          },
+          {
+            "period": "2023-Q4",
+            "value": 108400.0
+          },
+          {
+            "period": "2024-Q1",
+            "value": 109600.0
+          },
+          {
+            "period": "2024-Q2",
+            "value": 110800.0
+          }
+        ],
+        "source_url": "",
+        "verification": "unverified_user_input",
+        "comparison": {
+          "kind": "previous",
+          "period": "2024-Q1",
+          "operation": "difference",
+          "value": 109600.0,
+          "change": 1200.0,
+          "change_unit": "CNY",
+          "status": "available",
+          "reason": ""
+        }
+      }
+    ],
+    "insights": [],
+    "evidence_matches": [],
+    "quality": [
+      {
+        "code": "MISSING_FIELDS",
+        "severity": "info",
+        "period": "2022-Q1",
+        "fields": [
+          "sales_volume",
+          "production_volume"
+        ],
+        "message": "该季度缺失字段保持空值；不会以零或行业均值填补"
+      },
+      {
+        "code": "MISSING_FIELDS",
+        "severity": "info",
+        "period": "2022-Q2",
+        "fields": [
+          "sales_volume",
+          "production_volume"
+        ],
+        "message": "该季度缺失字段保持空值；不会以零或行业均值填补"
+      },
+      {
+        "code": "MISSING_FIELDS",
+        "severity": "info",
+        "period": "2022-Q3",
+        "fields": [
+          "sales_volume",
+          "production_volume"
+        ],
+        "message": "该季度缺失字段保持空值；不会以零或行业均值填补"
+      },
+      {
+        "code": "MISSING_FIELDS",
+        "severity": "info",
+        "period": "2022-Q4",
+        "fields": [
+          "sales_volume",
+          "production_volume"
+        ],
+        "message": "该季度缺失字段保持空值；不会以零或行业均值填补"
+      },
+      {
+        "code": "MISSING_FIELDS",
+        "severity": "info",
+        "period": "2023-Q1",
+        "fields": [
+          "sales_volume",
+          "production_volume"
+        ],
+        "message": "该季度缺失字段保持空值；不会以零或行业均值填补"
+      }
+    ],
+    "quality_total": 11,
+    "followups": [
+      "哪些经营指标偏离自定目标？",
+      "现金流和毛利的变化依据是什么？"
+    ],
+    "actions": [
+      {
+        "label": "按此问题创建诊断计划",
+        "route": "agents",
+        "query": "核查范围：2024-Q2，环比，收入增速、营业收入。\n当前目标：2024-Q2收入环比",
+        "dataset_id": "211ebf0344a144bfbb1cb69651713b8c"
+      },
+      {
+        "label": "核对原始数据与公式",
+        "route": "data",
+        "dataset_id": "211ebf0344a144bfbb1cb69651713b8c"
+      },
+      {
+        "label": "审阅资料及来源",
+        "route": "evidence",
+        "dataset_id": "211ebf0344a144bfbb1cb69651713b8c"
+      },
+      {
+        "label": "设定情景假设",
+        "route": "lab",
+        "dataset_id": "211ebf0344a144bfbb1cb69651713b8c"
+      }
+    ],
+    "external_calls": 0,
+    "source_message_id": "317d311001414c2aba4e3f4ef29ef7c2",
+    "source_thread_id": "77e6446d04c84105bb70b79970d14505"
+  },
+  "trace_preserved_saved_thread": true
+}

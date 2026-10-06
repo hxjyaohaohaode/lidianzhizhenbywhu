@@ -7,13 +7,14 @@ changed page size, hidden activation, business retry or expanded timeout.
 from copy import deepcopy
 import math
 import re
+import time
 from urllib.parse import urlsplit
 try:
-    from .product_first_use_audit import require_native_contract
+    from .product_first_use_audit import FORM_MS, require_native_contract
     from .product_integrity_outcomes import _capture_response
     from .product_readout_oracles import observe_text_by_normal_scroll
 except ImportError:
-    from product_first_use_audit import require_native_contract
+    from product_first_use_audit import FORM_MS, require_native_contract
     from product_integrity_outcomes import _capture_response
     from product_readout_oracles import observe_text_by_normal_scroll
 
@@ -118,7 +119,118 @@ def read_answer(p,number):
     read_group(p,selected,[PERIOD+' / 1'],'阅读原目标季度与数据修订')
 
 
-def create_report(p,dataset,number):
+def record_rate_limit(p,response,failures):
+    """Retain actual rejections, including ones that cannot justify a reread."""
+    if response.status!=429:return
+    row={'method':response.request.method,'url':response.url,
+         'path':urlsplit(response.url).path,'status':response.status,
+         'retry_after':response.headers.get('retry-after'),
+         'received_monotonic':time.monotonic()}
+    failures.append(row)
+    p.observations.setdefault('report_read_rate_limits',[]).append(row)
+    try:row['body']=response.json()
+    except Exception as exc:row['body_parse_error']=type(exc).__name__
+
+
+def is_current_run_read(row,base_url,run_id):
+    url,base=urlsplit(row['url']),urlsplit(base_url)
+    return (row['method']=='GET' and (url.scheme,url.netloc)==(base.scheme,base.netloc)
+        and not url.query and not url.fragment and url.path in {
+            '/api/workspace/runs/'+run_id+'/'+part for part in ('audit','reviews','runtime')})
+
+
+def expect_read_rate_limit(row,base_url,run_id):
+    """Only a current-run GET and its complete server contract allow recovery."""
+    assert row['status']==429 and is_current_run_read(row,base_url,run_id)
+    header=row.get('retry_after')
+    assert isinstance(header,str) and re.fullmatch(r'[1-9][0-9]*',header)
+    seconds=int(header)
+    assert 1<=seconds<=60, 'Retry-After must fit the unchanged 60-second window.'
+    body=row.get('body');assert isinstance(body,dict)
+    error=body.get('error');assert isinstance(error,dict) and error.get('code')=='RATE_LIMITED'
+    assert type(error.get('retry_after_seconds')) is int and error['retry_after_seconds']==seconds
+    assert error.get('message')==('请求过于频繁，本次请求已被暂时拒绝。请等待 '+str(seconds)
+        +' 秒后再手动重试；期间其他请求可能占用可用名额。')
+    assert isinstance(row['received_monotonic'],(int,float)) and math.isfinite(row['received_monotonic'])
+    return seconds
+
+
+def expect_current_run(p,run_id):
+    current,base=urlsplit(p.page.url),urlsplit(p.base_url)
+    assert (current.scheme,current.netloc)==(base.scheme,base.netloc) and current.fragment=='agents:run-'+run_id, 'Reread must stay on the accepted run.'
+
+
+def read_created_report(p,run_id,number,failures,mutations):
+    """Follow the existing visible reread only after a genuine same-run GET429.
+
+    Each new rejection needs its own response-derived boundary and visible
+    explanation. No helper GET, mutation replay, forced429 or timeout expansion.
+    The caller's original 300-second process budget remains authoritative.
+    """
+    readout=p.page.locator('#run-tab-summary [data-report-readout]')
+    heading=p.page.locator('#main > .page-heading h1').filter(has_text=re.compile(r'^读取未完成$'))
+    original_mutations=deepcopy(mutations)
+    consumed=0;attempt=None
+    while True:
+        readout.or_(heading).first.wait_for(state='visible',timeout=FORM_MS)
+        expect_current_run(p,run_id)
+        assert mutations==original_mutations, 'Read recovery must not produce any mutation.'
+        fresh=failures[consumed:];consumed=len(failures)
+        assert all(row['method']=='GET' for row in fresh), 'A write rejection cannot be recovered by replay.'
+        matched=[row for row in fresh if is_current_run_read(row,p.base_url,run_id)]
+        if readout.is_visible():
+            assert not matched, 'A rejected current read must not be treated as a successful report.'
+            assert readout.count()==1
+            if attempt:attempt.update(outcome='readout_restored',recovery_exercised=True)
+            return
+        assert matched, 'The rendered failure has no fresh same-run GET429 recovery authority.'
+        boundaries=[row['received_monotonic']+expect_read_rate_limit(row,p.base_url,run_id) for row in matched]
+        message=p.visible('#main > .notice.danger > span')
+        actual_message=message.inner_text().strip()
+        assert actual_message in [row['body']['error']['message'] for row in matched]
+        subtitle=p.visible('#main > .page-heading p')
+        assert subtitle.inner_text().strip()=='没有使用缓存或模拟数据替代失败的结果。'
+        retry=p.visible('#main > button[data-action="refresh"]')
+        assert retry.inner_text().strip()=='重新读取' and retry.is_enabled()
+        assert p.page.locator('#run-tab-summary, [data-report-unverified]').count()==0
+        if attempt:attempt['outcome']='another_read_rejected'
+        attempt={'report_number':number,'run_id':run_id,'failures':deepcopy(matched),
+                 'rendered_message':actual_message,'retry_after_boundary_monotonic':max(boundaries),
+                 'outcome':'read_failed','recovery_exercised':False,'manual_pixel_review':'pending'}
+        p.observations.setdefault('report_read_recoveries',[]).append(attempt)
+        for target,text,label in ((heading,'读取未完成','失败标题'),
+                (subtitle,subtitle.inner_text().strip(),'失败说明'),(message,actual_message,'实际限流原因与等待说明'),
+                (retry,'重新读取','现有手动重新读取按钮')):
+            read_group(p,target,[text],'阅读第'+str(number)+'份报告'+label)
+
+        def reread():
+            nonlocal consumed
+            # Time spent reading and taking evidence counts towards the boundary.
+            attempt['wait_milliseconds']=[]
+            while True:
+                late=failures[consumed:];consumed=len(failures)
+                assert all(row['method']=='GET' for row in late), 'A write rejection cannot be recovered by replay.'
+                for row in late:
+                    if is_current_run_read(row,p.base_url,run_id):
+                        boundary=row['received_monotonic']+expect_read_rate_limit(row,p.base_url,run_id)
+                        attempt['retry_after_boundary_monotonic']=max(attempt['retry_after_boundary_monotonic'],boundary)
+                        attempt['failures'].append(deepcopy(row))
+                remaining=max(0,attempt['retry_after_boundary_monotonic']-time.monotonic())
+                if not remaining:break
+                attempt['wait_milliseconds'].append(remaining*1000)
+                p.page.wait_for_timeout(remaining*1000)
+            expect_current_run(p,run_id)
+            assert mutations==original_mutations
+            assert heading.is_visible() and message.inner_text().strip()==actual_message
+            assert retry.is_visible() and retry.is_enabled()
+            with p.page.expect_response(lambda r:is_current_run_read(
+                    {'method':r.request.method,'url':r.url},p.base_url,run_id),timeout=FORM_MS):
+                retry.click()
+            attempt['outcome']='reread_clicked'
+        p.step('等待实际Retry-After边界后手动重新读取同一份已保存报告',reread)
+
+
+def create_report(p,dataset,number,mutations):
     """Group only repeated native controls; raw trace/video preserve all actions."""
     def action():
         p.visible('#sidebar button[data-route="agents"]').click()
@@ -131,9 +243,14 @@ def create_report(p,dataset,number):
         assert approval.locator('[name="external_consent"]').count()==0
         assert '本计划不会调用外部模型' in approval.inner_text()
         p.screenshot('approval-'+str(number))
-        status,accepted=_capture_response(p,'POST','/api/workspace/plans/'+plan['id']+'/execute',lambda:p.submit_form(p.page,'#execute-plan-form'))
-        assert status==202
-        p.visible('#run-tab-summary [data-report-readout]')
+        failures=[]
+        def rejected(response):record_rate_limit(p,response,failures)
+        p.page.on('response',rejected)
+        try:
+            status,accepted=_capture_response(p,'POST','/api/workspace/plans/'+plan['id']+'/execute',lambda:p.submit_form(p.page,'#execute-plan-form'))
+            assert status==202
+            read_created_report(p,accepted['id'],number,failures,mutations)
+        finally:p.page.remove_listener('response',rejected)
         run=p.get('/api/runs/'+accepted['id']);frozen=p.get('/api/workspace/plans/'+plan['id'])
         expect_saved(run,frozen,dataset,number)
         assert p.get('/api/workspace/runs/'+run['id']+'/audit')['report_integrity']['valid']
@@ -159,7 +276,7 @@ def report_history_journey(p,*,repository_root,data_dir,expected_web_tree,expect
     try:
         p.bootstrap();owner=p.get('/api/auth/me')['user'];dataset=p.get('/api/datasets/'+p.dataset_id)
         assert p.get('/api/runs')['items']==[]
-        originals=[create_report(p,dataset,number) for number in range(1,COUNT+1)]
+        originals=[create_report(p,dataset,number,mutations) for number in range(1,COUNT+1)]
         assert len({r['run']['id'] for r in originals})==len({r['plan']['id'] for r in originals})==COUNT
         read_answer(p,COUNT)
         p.navigate('reports');p.page.get_by_text('1–20 / 21 份',exact=True).wait_for()
@@ -205,6 +322,7 @@ def report_history_journey(p,*,repository_root,data_dir,expected_web_tree,expect
         assert p.get('/api/datasets/'+dataset['id'])==dataset
         assert sum(x['method']=='POST' and x['path']=='/api/workspace/plans' for x in mutations)==COUNT
         assert sum(x['method']=='POST' and x['path'].endswith('/execute') for x in mutations)==COUNT
-        p.observations['report_history']={'original_ids':[x['run']['id'] for x in originals],'all21_complete_objects_unchanged':True,'actual_report_creations':COUNT,'native_boundary':'20 visible rows to21 actual reports; 201 API storage boundary separate','oldest_opened':True,'back_and_reload_keep_page':True,'cross_page_comparison':'same quarter,20%versus20%,0percentage points','same_owner_relogin':True}
+        p.observations['report_history']={'original_ids':[x['run']['id'] for x in originals],'all21_complete_objects_unchanged':True,'actual_report_creations':COUNT,'native_boundary':'20 visible rows to21 actual reports; 201 API storage boundary separate','oldest_opened':True,'back_and_reload_keep_page':True,'cross_page_comparison':'same quarter,20%versus20%,0percentage points','same_owner_relogin':True,
+            'rate_limit_recovery_exercised':any(row['recovery_exercised'] for row in p.observations.get('report_read_recoveries',[]))}
         p.no_external()
     finally:p.page.remove_listener('request',record)

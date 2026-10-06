@@ -1,3 +1,4 @@
+import { unverifiedReader } from './unverified-reader.js';
 import { reportReadout } from './report-readout.js';
 import { comparisonSelection, comparisonArtifactView, comparisonProblem, currentComparisonRead } from './saved-comparisons.js';
 import { claimMathReferences } from './math-results.js';
@@ -81,7 +82,7 @@ export async function runPage(id) {
     if (run?.id !== id)
         throw new Error('报告与校验记录尚未同步，请刷新后重试。');
     const plan = run.snapshot.studio;
-    const runtime = plan?.adaptive ? await workspace('/runs/' + id + '/runtime') : null;
+    const runtime = plan?.adaptive && !audit.report_integrity?.failures?.includes('report_record_unreadable') ? await workspace('/runs/' + id + '/runtime') : null;
     // A newer runtime may announce publication after this coherent snapshot was
     // read. Refresh the bound pair once; never attach an older audit to a new run.
     if (runNeedsReconcile(run, runtime)) {
@@ -100,7 +101,7 @@ export async function runPage(id) {
     state.cache.runtime = runtime;
     state.cache.nodes = nodes;
     const complete = !['queued', 'running'].includes(run.state), r = run.result;
-    const reportExpected = Boolean(r) || ['succeeded', 'degraded'].includes(run.state);
+    const reportExpected = Boolean(r) || Boolean(audit.unverified_report) || ['succeeded', 'degraded'].includes(run.state);
     const evidenceValid = audit.ledger.valid && audit.data_hash_valid && audit.snapshot_hash_valid !== false && audit.report_hash_valid !== false && (!reportExpected || audit.artifacts.every((a) => a.integrity_valid && a.event_anchor_valid));
     const integrityValid = evidenceValid && (!reportExpected || audit.report_integrity?.valid !== false), integrityPending = !reportExpected && integrityValid;
     const legacyPartial = reportExpected && audit.report_integrity?.format === 'legacy' && audit.report_hash_valid === null;
@@ -109,13 +110,13 @@ export async function runPage(id) {
     const head = heading(reportUnavailable ? '研判报告待核验' : r?.title ?? '执行中的研判', run.payload.query, routeButton('新建研判', 'agents', 'secondary') + (reportUnavailable ? `<div data-report-export-unavailable>${notice('导出已停用：冻结报告完整性校验未通过。请核对原始记录与可信备份，或新建研判；原报告不会被改写。', 'danger')}</div>` : r ? `<a class="secondary" href="/api/runs/${esc(id)}/export?format=md" download>${icon('download')} 导出报告</a> <a class="secondary" href="/api/runs/${esc(id)}/export?format=json" download>完整 JSON</a>` : ''));
     return head + (runtime ? `<div id="runtime-ribbon">${runtimeRibbon(runtime)}</div>` : '') + `<div class="run-strip" id="run-strip">${status(run.state)}<span>${esc(run.snapshot.dataset.company)}</span><span>开始 ${timeText(run.created_at)}</span>${run.state === 'running' || run.state === 'queued' ? button('取消执行', 'cancel-run', 'text-button danger-text', `data-id="${esc(id)}"`) : ''}${badge(integrityText, integrityValid ? (integrityPending || legacyPartial ? 'neutral' : 'good') : 'danger')}</div>
  ${legacyPartial ? notice('旧版报告没有完整输出的独立散列证据；仅核对已有输入快照、数据和事件记录。', 'warm') : ''}${audit.source_impact?.state !== 'current' && audit.source_impact ? notice('当前适用性需复核：' + audit.source_impact.reasons.map((r) => r.message).join('；') + (reportUnavailable ? '。当前保存内容未通过核验，不能作为可核验结论。' : '。以下报告与计算仍是原始冻结内容。'), 'warm') : ''}<div class="tabs" role="tablist" aria-label="研判结果标签"><button role="tab" aria-selected="true" class="active" data-action="run-tab" data-tab="summary">结果摘要</button><button role="tab" aria-selected="false" data-action="run-tab" data-tab="agents">Agent 执行链</button><button role="tab" aria-selected="false" data-action="run-tab" data-tab="sources">证据与上下文</button><button role="tab" aria-selected="false" data-action="run-tab" data-tab="rules">计算与血缘</button></div>
- <div id="run-tab-summary" class="run-tab">${reportUnavailable ? unverifiedReport(r) : r ? reportSummary(run, reviews.items, reviews.unavailable ?? [], reviews.read_only ?? [], audit.question_compatibility) + (r.comparison_artifact || run.snapshot.comparison_artifact ? `<div data-comparison-stage="report">${comparisonArtifactView(r.comparison_artifact ?? run.snapshot.comparison_artifact, '报告冻结的企业对照')}</div>` : '') + adaptiveReport(r) : `<section class="panel">${complete ? notice(run.error ?? '任务未产生报告，未伪造完成内容。', 'warm') : notice('任务状态来自服务端持久记录。完成后显示报告，关闭页面不会伪造或抹除执行。')}${runtime ? `<div data-live-graph>${graphCanvas(nodes, audit.trace, runtime.state)}</div>` : nodeFlow(nodes, audit.trace, run.state)}<div id="live-run-status" aria-live="polite">${complete ? '' : `<p class="muted">正在等待真实执行结果…</p>`}</div></section>`}</div>
+ <div id="run-tab-summary" class="run-tab">${reportUnavailable ? unverifiedReport(audit, run.id) : r ? reportSummary(run, reviews.items, reviews.unavailable ?? [], reviews.read_only ?? [], audit.question_compatibility) + (r.comparison_artifact || run.snapshot.comparison_artifact ? `<div data-comparison-stage="report">${comparisonArtifactView(r.comparison_artifact ?? run.snapshot.comparison_artifact, '报告冻结的企业对照')}</div>` : '') + adaptiveReport(r) : `<section class="panel">${complete ? notice(run.error ?? '任务未产生报告，未伪造完成内容。', 'warm') : notice('任务状态来自服务端持久记录。完成后显示报告，关闭页面不会伪造或抹除执行。')}${runtime ? `<div data-live-graph>${graphCanvas(nodes, audit.trace, runtime.state)}</div>` : nodeFlow(nodes, audit.trace, run.state)}<div id="live-run-status" aria-live="polite">${complete ? '' : `<p class="muted">正在等待真实执行结果…</p>`}</div></section>`}</div>
  <div id="run-tab-agents" class="run-tab" hidden><section class="panel"><div class="section-heading row-between"><h2>协同执行轨迹</h2>${button('导出审计数据', 'export-audit')}</div>${runtime ? `<div data-live-graph>${graphCanvas(nodes, audit.trace, runtime.state)}</div>` : nodeFlow(nodes, audit.trace, run.state)}${table(['时间', '事件', '节点 / 内容'], audit.trace.map((e) => [timeText(e.created_at), esc(e.type), `${esc(e.payload.node ?? e.payload.agent ?? '')}${e.payload.duration_ms !== undefined ? ' · ' + num(e.payload.duration_ms) + ' ms' : ''}${e.payload.reason ? '<p class="micro">' + esc(e.payload.reason) + '</p>' : ''}`]))}<details><summary>数据与事件完整性</summary>${jsonView({ report_integrity: audit.report_integrity, ledger: audit.ledger, data_hash_valid: audit.data_hash_valid, snapshot_hash_valid: audit.snapshot_hash_valid, report_hash_valid: audit.report_hash_valid, artifacts: audit.artifacts.map((a) => ({ node: a.node, integrity: a.integrity_valid, event_anchor: a.event_anchor_valid })) })}</details></section></div>
  <div id="run-tab-sources" class="run-tab" hidden><section class="panel"><h2>冻结证据与上下文</h2>${run.snapshot.citations.length ? run.snapshot.citations.map(citationCard).join('') : empty('本次没有匹配证据', '无来源的事实不因模型输出而变得可信。')}<details><summary>实际发送与选中记忆</summary>${jsonView({ selected: run.snapshot.memory, actually_sent: r?.memory_used ?? null, packing: plan?.packing ?? null })}</details><details><summary>完整任务快照（包含个人业务数据）</summary>${jsonView(run.snapshot)}</details></section></div>
  <div id="run-tab-rules" class="run-tab" hidden>${reportUnavailable ? notice('保存的计算与血缘尚未通过报告完整性核验，已暂停正常结果展示；可在结果摘要中核对标明未核验的已保存原文。', 'warm') : r ? rulesView(r) : notice('计算结果尚未保存。')}</div>`;
 }
-function unverifiedReport(result) {
-    return `<section class="panel" data-report-unverified><h2>报告内容待核验</h2>${notice('报告完整性校验未通过，已暂停展示主结论、图表和报告行动入口。请核对可信记录或下方未核验的已保存原文，也可以新建研判；没有改写原记录。', 'danger')}<details data-unverified-report-raw><summary>未核验的已保存报告原文（仅供排查）</summary>${jsonView(result)}</details></section>`;
+function unverifiedReport(audit, runId) {
+    return `<section class="panel" data-report-unverified><h2>报告内容待核验</h2>${notice('报告完整性校验未通过，已暂停展示主结论、图表和报告行动入口。请核对可信记录或下方未核验的已保存原文，也可以新建研判；没有改写原记录。', 'danger')}${unverifiedReader(audit.unverified_report?.raw, runId)}</section>`;
 }
 function reportSummary(run, reviews, unavailable, readonly, warning) {
     const r = run.result, a = r.analysis, m = a.metrics, unit = state.user.preferences.amount_unit;

@@ -1,0 +1,90 @@
+{
+  "recorded_at": "2026-10-05T23:08:13.785465+00:00",
+  "source_commit": "9246f01922d0167f6b0c4e6815c51ed85452ac2c",
+  "source_tree": "4a9d8f1fc5ad9a4b7e596b7a6fede4e21f5beeb2",
+  "baseline_commit": "971552845ac6eb4a7950ef9083d97b0e079fb418",
+  "limits_unchanged": {
+    "non_auth_per_client_per_60_seconds": 600,
+    "auth_per_client_per_60_seconds": 30,
+    "rejected_requests_extend_window": false
+  },
+  "source_change_scope": [
+    "RateLimiter admission-bound Retry-After calculation",
+    "Guard429 header/body/plain Chinese explanation",
+    "L10 visible same-run manual read recovery observation"
+  ],
+  "frontend_source_changed": false,
+  "focused_final": {
+    "backend_protocol_security_history_and_auth_races_passed": 142,
+    "production_listener_contracts_passed": 391,
+    "new_429_listener_contracts": 27
+  },
+  "earlier_unfrozen_attempt": {
+    "passed": 137,
+    "failed": 3,
+    "scope": "new synthetic journey fixture reused one list for two independent response destinations; stable fixture separates the lists with deepcopy",
+    "original_log_preserved": {
+      "path": "rate-limit-focused-initial.log",
+      "sha256": "f65ee67d1ced4ffc849eb44be2270cc57fec1efce1680042b6bb137e83952506"
+    },
+    "does_not_change_original_native_failure": true
+  },
+  "aggregate": {
+    "all_seven_stages_passed": true,
+    "pytest_passed": 3911,
+    "pytest_subtests_passed_not_added": 3,
+    "frontend_passed": 1095,
+    "real_http_sse_restart_backup_groups_passed": 18,
+    "real_http_result": true,
+    "real_external_supplier_calls": 0
+  },
+  "native_limit": {
+    "new_native_browser_run": false,
+    "new_native_recovery_exercised": false,
+    "original_windows_read_failure_retained": true,
+    "original_history_compare_logout_tail_not_completed": true,
+    "new_l10_recovery_requires_actual_429_and_visible_same_run_manual_reread": true
+  },
+  "publication": {
+    "pushed": false,
+    "ci_triggered": false,
+    "deployed": false
+  },
+  "logs": {
+    "focused_initial": {
+      "path": "rate-limit-focused-initial.log",
+      "sha256": "f65ee67d1ced4ffc849eb44be2270cc57fec1efce1680042b6bb137e83952506"
+    },
+    "focused_final": {
+      "path": "rate-limit-focused-final.log",
+      "sha256": "8ddb5b99a108bf1cf8261dcf1e0c65ea4f667990472d7e2fe5198530d4abb366"
+    },
+    "production_listener": {
+      "path": "rate-limit-production-listener.log",
+      "sha256": "74b51d9e9e52047cc1130f93218ba913e0f1612c7fd5b4f4a3fd5449e2b0d8e3"
+    },
+    "aggregate_console": {
+      "path": "rate-limit-aggregate-console.log",
+      "sha256": "fc74f1c214d325b5a51aa8526303d97b313229a52831c2912b596544e792e667"
+    },
+    "format_final": {
+      "path": "rate-limit-format-final.log",
+      "sha256": "d66d5d32807a8a99a8e20448fbe66103a3aa2ba2fe01bf22a59852d7908bb181"
+    }
+  },
+  "remaining_separate_candidate": "88 empty assistant-list reads were observed in the original601-request window; no assistant caching or event scheduling change is included.",
+  "independent_review": {
+    "status": "cleared for the narrow source and L10 contract scope",
+    "reviewed_source_commit": "9246f01922d0167f6b0c4e6815c51ed85452ac2c",
+    "guarded_python_passed": 102,
+    "read_and_draft_frontend_contracts_passed": 22,
+    "native_browser_or_network_execution": false,
+    "remaining_limit": "If the four preliminary refresh reads are themselves rate-limited, the journey must remain failed. No natural429 means recovery_exercised=false.",
+    "formatting_followup": "Removed one trailing blank line from the new protocol test; no executable application source changed."
+  },
+  "final_format_validation": {
+    "protocol_tests_passed": 12,
+    "git_diff_check_against_baseline_passed": true,
+    "executable_application_sources_identical_to_frozen_commit": true
+  }
+}

@@ -70,17 +70,14 @@ def test_scalar_fixture_rejects_unviewed_or_ambiguous_original(damage):
         faults.damaged_copilot_result(raw)
 
 
-def test_raw_offsets_bind_readout_not_lineage_and_support_utf16():
-    result = saved_result()
-    result['earlier_emoji'] = '🔬 synthetic'
-    result['lineage'][0]['value'] = faults.COPILOT_BAD_VALUE
-    raw = faults.damaged_copilot_result(encode(result))
-    readings = scenario.raw_fact_readings(raw)
-    encoded = raw.encode('utf-16-le')
-    assert [encoded[r['start']*2:r['end']*2].decode('utf-16-le') for r in readings] == [
-        '"id":"gross_margin"', '"label":"毛利率"', '"value":987654321']
-    assert all(r['start'] > len(raw[:raw.index('"readout":')].encode('utf-16-le')) // 2 for r in readings)
-    with pytest.raises(AssertionError): scenario.raw_fact_readings(encode(saved_result()))
+def test_raw_reader_recipe_uses_visible_search_and_exact_download_without_offsets():
+    source = Path(scenario.__file__).read_text()
+    reader = source[source.index('def _read_raw('):source.index('def _observe_blocked(')]
+    assert "query.fill('毛利率')" in reader
+    assert "name='查找', exact=True" in reader and "name='下一处', exact=True" in reader
+    assert 'download_visible(p, button' in reader and "downloaded == raw.encode('utf-8')" in reader
+    for forbidden in ('createRange', 'target.start', '_RAW_GEOMETRY', 'scrollLeft', 'mouse.wheel'):
+        assert forbidden not in reader
 
 
 def card_fixture():
@@ -236,5 +233,5 @@ def test_contract_preserves_runner_registration_and_forbids_runtime_shortcuts():
     for forbidden in ('force=True', 'route.fulfill', 'set_content(', 'request.post(', 'request.put(', '.restore(', 'sync_playwright(', 'Popen('):
         assert forbidden not in text
     assert 'require_native_contract(p,' in text and 'p.page.reload(' in text
-    assert 'p.page.mouse.wheel(' in text and 'data-unverified-report-raw' in text
+    assert 'observe_text_by_normal_scroll' in text and 'data-unverified-report-raw' in text
     assert 'expect_fault_audit(healthy_audit, damaged_audit)' in text

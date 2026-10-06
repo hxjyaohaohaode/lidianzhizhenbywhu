@@ -87,7 +87,7 @@ AUDIT_SUITES = {
         'mode': 'product-copilot-integrity',
         'report': 'product-copilot-integrity-audit.json',
         'scenarios': (('I10-copilot-report-integrity', '真实助手报告→声明单值损坏→历史卡拒绝正常展示与原文阅读→独立新报告→旧坏历史保持'),),
-        'precondition': 'Fresh synthetic account; actual assistant message/proposal and explicit zero-call approvals; one declared owner-bound saved-result scalar fault after healthy native reading; real raw disclosure and same-thread fresh report preserve every old damaged row; no fixture restoration or providers',
+        'precondition': 'Fresh synthetic account; actual assistant message/proposal and explicit zero-call approvals; one declared owner-bound saved-result scalar fault after healthy native reading; visible raw keyword search, ordinary vertical reading, byte-exact unverified text download and same-thread fresh report preserve every old damaged row; no fixture restoration or providers',
         'database_fault_injection': True,
     },
     'historical-warning': {

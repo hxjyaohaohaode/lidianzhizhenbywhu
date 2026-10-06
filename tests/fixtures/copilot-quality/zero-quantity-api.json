@@ -1,0 +1,1269 @@
+{
+  "case": "zero-quantity",
+  "input_request": {
+    "name": "零数量分母边界",
+    "company": "零数量分母边界（隔离合成数据，非真实财报）",
+    "source_kind": "user_provided",
+    "source_url": "https://example.test/synthetic-source",
+    "currency": "CNY",
+    "amount_unit": "yuan",
+    "volume_unit": "ton",
+    "period_basis": "standalone_quarter",
+    "notes": "仅用于隔离真实 API/compiled renderer 读者核查。",
+    "periods": [
+      {
+        "period": "2022-Q1",
+        "revenue": 100000,
+        "cost": 70000,
+        "cash_flow": 12000,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2022-Q2",
+        "revenue": 101200,
+        "cost": 70600,
+        "cash_flow": 12100,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2022-Q3",
+        "revenue": 102400,
+        "cost": 71200,
+        "cash_flow": 12200,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2022-Q4",
+        "revenue": 103600,
+        "cost": 71800,
+        "cash_flow": 12300,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2023-Q1",
+        "revenue": 104800,
+        "cost": 72400,
+        "cash_flow": 12400,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2023-Q2",
+        "revenue": 106000,
+        "cost": 73000,
+        "cash_flow": 12500,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2023-Q3",
+        "revenue": 107200,
+        "cost": 73600,
+        "cash_flow": 12600,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2023-Q4",
+        "revenue": 108400,
+        "cost": 74200,
+        "cash_flow": 12700,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2024-Q1",
+        "revenue": 109600,
+        "cost": 74800,
+        "cash_flow": 12800,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2024-Q2",
+        "revenue": 110800,
+        "cost": 75400,
+        "cash_flow": 12900,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 0,
+        "production_volume": 0,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2024-Q3",
+        "revenue": 112000,
+        "cost": 76000,
+        "cash_flow": 13000,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      },
+      {
+        "period": "2024-Q4",
+        "revenue": 113200,
+        "cost": 76600,
+        "cash_flow": 13100,
+        "net_profit": 9000,
+        "assets": 500000,
+        "liabilities": 200000,
+        "equity_end": 300000,
+        "equity_begin": 290000,
+        "inventory": 20000,
+        "rd_expense": 3000,
+        "sales_volume": 100,
+        "production_volume": 100,
+        "manufacturing_cost": 40000,
+        "lithium_price": 80000,
+        "industry_volatility": 0.2
+      }
+    ]
+  },
+  "dataset": {
+    "id": "fcf7930cbfb84d388e60593af9f95877",
+    "user_id": "eb7a5a3e732e4e589f48473711e55811",
+    "payload": {
+      "amount_unit": "yuan",
+      "company": "零数量分母边界（隔离合成数据，非真实财报）",
+      "currency": "CNY",
+      "input_amount_unit": "yuan",
+      "name": "零数量分母边界",
+      "notes": "仅用于隔离真实 API/compiled renderer 读者核查。",
+      "period_basis": "standalone_quarter",
+      "periods": [
+        {
+          "assets": 500000.0,
+          "cash_flow": 12000.0,
+          "cost": 70000.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2022-Q1",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 100000.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12100.0,
+          "cost": 70600.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2022-Q2",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 101200.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12200.0,
+          "cost": 71200.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2022-Q3",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 102400.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12300.0,
+          "cost": 71800.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2022-Q4",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 103600.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12400.0,
+          "cost": 72400.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2023-Q1",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 104800.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12500.0,
+          "cost": 73000.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2023-Q2",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 106000.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12600.0,
+          "cost": 73600.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2023-Q3",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 107200.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12700.0,
+          "cost": 74200.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2023-Q4",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 108400.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12800.0,
+          "cost": 74800.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2024-Q1",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 109600.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 12900.0,
+          "cost": 75400.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2024-Q2",
+          "production_volume": 0.0,
+          "rd_expense": 3000.0,
+          "revenue": 110800.0,
+          "sales_volume": 0.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 13000.0,
+          "cost": 76000.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2024-Q3",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 112000.0,
+          "sales_volume": 100.0
+        },
+        {
+          "assets": 500000.0,
+          "cash_flow": 13100.0,
+          "cost": 76600.0,
+          "equity_begin": 290000.0,
+          "equity_end": 300000.0,
+          "industry_volatility": 0.2,
+          "inventory": 20000.0,
+          "liabilities": 200000.0,
+          "lithium_price": 80000.0,
+          "manufacturing_cost": 40000.0,
+          "net_profit": 9000.0,
+          "period": "2024-Q4",
+          "production_volume": 100.0,
+          "rd_expense": 3000.0,
+          "revenue": 113200.0,
+          "sales_volume": 100.0
+        }
+      ],
+      "source_kind": "user_provided",
+      "source_url": "https://example.test/synthetic-source",
+      "verification": "unverified_user_input",
+      "volume_unit": "ton"
+    },
+    "version": 1,
+    "content_hash": "41257182465d03d463ab99548031852c3fed0d6a263aaf389d2de1efc0d6e040",
+    "created_at": "2026-10-05T21:52:23.028+00:00",
+    "updated_at": "2026-10-05T21:52:23.028+00:00"
+  },
+  "message_post_response": {
+    "message": {
+      "id": "98f85abc5c274142b2ca972f86f251e7",
+      "thread_id": "21af0600920341ef970dcffe0a3c3f2c",
+      "user_id": "eb7a5a3e732e4e589f48473711e55811",
+      "request_key": "quality-review-zero-quantity",
+      "request_hash": "e91bfc1846043430a07d9921d9137bb0ef3914270da3ed120bde925da5574404",
+      "payload": {
+        "question": "2024-Q2毛利率环比",
+        "response": {
+          "actions": [
+            {
+              "kind": "navigate",
+              "label": "补充或审阅资料",
+              "route": "evidence"
+            },
+            {
+              "kind": "proposal",
+              "label": "交给 Agent 深入研判",
+              "type": "research"
+            },
+            {
+              "kind": "proposal",
+              "label": "整理为跟进行动",
+              "type": "action"
+            },
+            {
+              "kind": "proposal",
+              "label": "建立指标跟踪",
+              "type": "watch"
+            },
+            {
+              "kind": "proposal",
+              "label": "确认后保存为记忆",
+              "type": "memory"
+            }
+          ],
+          "answer": "零数量分母边界（隔离合成数据，非真实财报） 2024-Q2：毛利率为31.95%，较2024-Q1增加0.20个百分点。这些数值来自当前已保存输入，未经独立真实性核验。",
+          "cards": [
+            {
+              "data": {
+                "as_of": "2026-10-05",
+                "closed_quarters": 10,
+                "field_coverage": {
+                  "missing": [],
+                  "period": "2024-Q2",
+                  "present": 8,
+                  "total": 8
+                },
+                "findings": [],
+                "input_hash": "0b7f774d4c3e133b1ac07cd9a463e25de7f0d4bbd8e2c67f5a580c2bedcdbb8d",
+                "source_state": "user_declared_not_verified",
+                "warning_count": 0
+              },
+              "kind": "quality",
+              "title": "输入质量与缺口"
+            }
+          ],
+          "citations": [],
+          "context": {
+            "dataset_hash": "41257182465d03d463ab99548031852c3fed0d6a263aaf389d2de1efc0d6e040",
+            "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+            "dataset_version": 1,
+            "history_message_ids": [],
+            "history_used_for_topics": false,
+            "identity": null,
+            "identity_binding": null,
+            "question_scope": {
+              "available_periods": [
+                "2022-Q1",
+                "2022-Q2",
+                "2022-Q3",
+                "2022-Q4",
+                "2023-Q1",
+                "2023-Q2",
+                "2023-Q3",
+                "2023-Q4",
+                "2024-Q1",
+                "2024-Q2",
+                "2024-Q3",
+                "2024-Q4"
+              ],
+              "can_calculate": true,
+              "comparison": "previous",
+              "comparison_explicit": true,
+              "default_overview": false,
+              "notice": "",
+              "period": "2024-Q2",
+              "period_basis": "single_quarter",
+              "period_explicit": true,
+              "status": "supported",
+              "topics": [
+                "gross_margin"
+              ],
+              "unsupported_currency": false
+            }
+          },
+          "engine": "local_tool_copilot",
+          "external_calls": 0,
+          "facts": [
+            {
+              "comparison": {
+                "change": 0.001976336662362632,
+                "change_unit": "ratio_points",
+                "kind": "previous",
+                "operation": "difference",
+                "period": "2024-Q1",
+                "reason": "",
+                "status": "available",
+                "value": 0.3175182481751825
+              },
+              "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+              "dataset_version": 1,
+              "display_value": "31.95%",
+              "formula": "(收入−成本)/收入",
+              "id": "gross_margin",
+              "input_hash": "41257182465d03d463ab99548031852c3fed0d6a263aaf389d2de1efc0d6e040",
+              "inputs": [
+                {
+                  "field": "revenue",
+                  "path": "periods/2024-Q2/revenue",
+                  "unit": "CNY",
+                  "value": 110800.0
+                },
+                {
+                  "field": "cost",
+                  "path": "periods/2024-Q2/cost",
+                  "unit": "CNY",
+                  "value": 75400.0
+                }
+              ],
+              "label": "毛利率",
+              "period": "2024-Q2",
+              "source_url": "https://example.test/synthetic-source",
+              "status": "available",
+              "trend": [
+                {
+                  "period": "2022-Q3",
+                  "value": 0.3046875
+                },
+                {
+                  "period": "2022-Q4",
+                  "value": 0.30694980694980695
+                },
+                {
+                  "period": "2023-Q1",
+                  "value": 0.30916030534351147
+                },
+                {
+                  "period": "2023-Q2",
+                  "value": 0.3113207547169811
+                },
+                {
+                  "period": "2023-Q3",
+                  "value": 0.31343283582089554
+                },
+                {
+                  "period": "2023-Q4",
+                  "value": 0.3154981549815498
+                },
+                {
+                  "period": "2024-Q1",
+                  "value": 0.3175182481751825
+                },
+                {
+                  "period": "2024-Q2",
+                  "value": 0.3194945848375451
+                }
+              ],
+              "unit": "ratio",
+              "value": 0.3194945848375451,
+              "verification": "unverified_user_input"
+            }
+          ],
+          "milliseconds": 2.756,
+          "next_steps": [
+            {
+              "acceptance": "补充同企业、同期间原始资料，记录来源与支持/反向关系，并人工审阅",
+              "reason": "当前检索没有适用资料",
+              "route": "evidence",
+              "title": "补齐本问题的原始证据"
+            }
+          ],
+          "receipts": [
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "comparison": "previous",
+                "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+                "version": 1
+              },
+              "milliseconds": 0.377,
+              "output_hash": "8ef66c28421cc95e83850ba608d92931e1c120a864d28b94293fab0c48a5c99c",
+              "state": "succeeded",
+              "tool": "financial_calculation"
+            },
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "metric_ids": [
+                  "gross_margin"
+                ]
+              },
+              "milliseconds": 0.03,
+              "output_hash": "e082bfa6b3c142bbbb1887b707373f85386a6b39b37a64913ab501b9b4d550eb",
+              "state": "succeeded",
+              "tool": "metric_lineage"
+            },
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+                "version": 1
+              },
+              "milliseconds": 0.201,
+              "output_hash": "d15a052f0561948d845ba2246479b2f40935158dd639702c7511077461a99fa3",
+              "state": "succeeded",
+              "tool": "data_quality"
+            },
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "company": "零数量分母边界（隔离合成数据，非真实财报）",
+                "query": "2024-Q2毛利率环比"
+              },
+              "milliseconds": 0.119,
+              "output_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "state": "succeeded",
+              "tool": "scoped_evidence_search"
+            },
+            {
+              "engine": "local_deterministic",
+              "input": {
+                "dataset_id": "fcf7930cbfb84d388e60593af9f95877"
+              },
+              "milliseconds": 0.896,
+              "output_hash": "65f06d3a28f9540eff9af5d5103752503bbd960c3fe8602d9aa3cafa83b129ea",
+              "state": "succeeded",
+              "tool": "proactive_findings"
+            }
+          ],
+          "research_brief": {
+            "causal_claims_supported": false,
+            "evidence_state": "no_matching_saved_evidence",
+            "intent": "grounded_review",
+            "matched_document_count": 0,
+            "missing_metric_ids": [],
+            "objective": "",
+            "retrieval_method": "owner_and_company_scoped_lexical_search",
+            "scope": {
+              "baseline_period": "2024-Q1",
+              "company": "零数量分母边界（隔离合成数据，非真实财报）",
+              "comparison": "previous",
+              "dataset_version": 1,
+              "depth": "balanced",
+              "period": "2024-Q2",
+              "question_scope": {
+                "available_periods": [
+                  "2022-Q1",
+                  "2022-Q2",
+                  "2022-Q3",
+                  "2022-Q4",
+                  "2023-Q1",
+                  "2023-Q2",
+                  "2023-Q3",
+                  "2023-Q4",
+                  "2024-Q1",
+                  "2024-Q2",
+                  "2024-Q3",
+                  "2024-Q4"
+                ],
+                "can_calculate": true,
+                "comparison": "previous",
+                "comparison_explicit": true,
+                "default_overview": false,
+                "notice": "",
+                "period": "2024-Q2",
+                "period_basis": "single_quarter",
+                "period_explicit": true,
+                "status": "supported",
+                "topics": [
+                  "gross_margin"
+                ],
+                "unsupported_currency": false
+              }
+            },
+            "source_verification": "user_declared_not_verified",
+            "stance_counts": {
+              "context": 0,
+              "contradicts": 0,
+              "supports": 0
+            }
+          },
+          "warnings": [
+            "输入未经本系统独立核验；来源链接不等于真实性认证。",
+            "行业波动率由用户提供，不是实时拉取或历史校准结果。",
+            "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。",
+            "存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。",
+            "当前问题未检索到适用的已保存资料；不能把未查到当成事实不存在。"
+          ]
+        }
+      },
+      "created_at": "2026-10-05T21:52:23.041+00:00"
+    },
+    "thread": {
+      "id": "21af0600920341ef970dcffe0a3c3f2c",
+      "user_id": "eb7a5a3e732e4e589f48473711e55811",
+      "kind": "assistant_thread",
+      "natural_key": "a6eba200d7264261ab239bb6adc26ac3",
+      "payload": {
+        "creation_request_hash": "2dfb75eeb3d1b5b892be36ccc43a3f9a8fcb1cd4e33489fdc92bda32f75e7d89",
+        "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+        "identity_id": "",
+        "identity_snapshot": null,
+        "title": "2024-Q2毛利率环比"
+      },
+      "version": 2,
+      "created_at": "2026-10-05T21:52:23.034+00:00",
+      "updated_at": "2026-10-05T21:52:23.041+00:00"
+    },
+    "replayed": false
+  },
+  "thread_read_response": {
+    "thread": {
+      "id": "21af0600920341ef970dcffe0a3c3f2c",
+      "user_id": "eb7a5a3e732e4e589f48473711e55811",
+      "kind": "assistant_thread",
+      "natural_key": "a6eba200d7264261ab239bb6adc26ac3",
+      "payload": {
+        "creation_request_hash": "2dfb75eeb3d1b5b892be36ccc43a3f9a8fcb1cd4e33489fdc92bda32f75e7d89",
+        "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+        "identity_id": "",
+        "identity_snapshot": null,
+        "title": "2024-Q2毛利率环比"
+      },
+      "version": 2,
+      "created_at": "2026-10-05T21:52:23.034+00:00",
+      "updated_at": "2026-10-05T21:52:23.041+00:00"
+    },
+    "identity": null,
+    "messages": [
+      {
+        "id": "98f85abc5c274142b2ca972f86f251e7",
+        "payload": {
+          "question": "2024-Q2毛利率环比",
+          "response": {
+            "actions": [
+              {
+                "kind": "navigate",
+                "label": "补充或审阅资料",
+                "route": "evidence"
+              },
+              {
+                "kind": "proposal",
+                "label": "交给 Agent 深入研判",
+                "type": "research"
+              },
+              {
+                "kind": "proposal",
+                "label": "整理为跟进行动",
+                "type": "action"
+              },
+              {
+                "kind": "proposal",
+                "label": "建立指标跟踪",
+                "type": "watch"
+              },
+              {
+                "kind": "proposal",
+                "label": "确认后保存为记忆",
+                "type": "memory"
+              }
+            ],
+            "answer": "零数量分母边界（隔离合成数据，非真实财报） 2024-Q2：毛利率为31.95%，较2024-Q1增加0.20个百分点。这些数值来自当前已保存输入，未经独立真实性核验。",
+            "cards": [
+              {
+                "data": {
+                  "as_of": "2026-10-05",
+                  "closed_quarters": 10,
+                  "field_coverage": {
+                    "missing": [],
+                    "period": "2024-Q2",
+                    "present": 8,
+                    "total": 8
+                  },
+                  "findings": [],
+                  "input_hash": "0b7f774d4c3e133b1ac07cd9a463e25de7f0d4bbd8e2c67f5a580c2bedcdbb8d",
+                  "source_state": "user_declared_not_verified",
+                  "warning_count": 0
+                },
+                "kind": "quality",
+                "title": "输入质量与缺口"
+              }
+            ],
+            "citations": [],
+            "context": {
+              "dataset_hash": "41257182465d03d463ab99548031852c3fed0d6a263aaf389d2de1efc0d6e040",
+              "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+              "dataset_version": 1,
+              "history_message_ids": [],
+              "history_used_for_topics": false,
+              "identity": null,
+              "identity_binding": null,
+              "question_scope": {
+                "available_periods": [
+                  "2022-Q1",
+                  "2022-Q2",
+                  "2022-Q3",
+                  "2022-Q4",
+                  "2023-Q1",
+                  "2023-Q2",
+                  "2023-Q3",
+                  "2023-Q4",
+                  "2024-Q1",
+                  "2024-Q2",
+                  "2024-Q3",
+                  "2024-Q4"
+                ],
+                "can_calculate": true,
+                "comparison": "previous",
+                "comparison_explicit": true,
+                "default_overview": false,
+                "notice": "",
+                "period": "2024-Q2",
+                "period_basis": "single_quarter",
+                "period_explicit": true,
+                "status": "supported",
+                "topics": [
+                  "gross_margin"
+                ],
+                "unsupported_currency": false
+              }
+            },
+            "engine": "local_tool_copilot",
+            "external_calls": 0,
+            "facts": [
+              {
+                "comparison": {
+                  "change": 0.001976336662362632,
+                  "change_unit": "ratio_points",
+                  "kind": "previous",
+                  "operation": "difference",
+                  "period": "2024-Q1",
+                  "reason": "",
+                  "status": "available",
+                  "value": 0.3175182481751825
+                },
+                "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+                "dataset_version": 1,
+                "display_value": "31.95%",
+                "formula": "(收入−成本)/收入",
+                "id": "gross_margin",
+                "input_hash": "41257182465d03d463ab99548031852c3fed0d6a263aaf389d2de1efc0d6e040",
+                "inputs": [
+                  {
+                    "field": "revenue",
+                    "path": "periods/2024-Q2/revenue",
+                    "unit": "CNY",
+                    "value": 110800.0
+                  },
+                  {
+                    "field": "cost",
+                    "path": "periods/2024-Q2/cost",
+                    "unit": "CNY",
+                    "value": 75400.0
+                  }
+                ],
+                "label": "毛利率",
+                "period": "2024-Q2",
+                "source_url": "https://example.test/synthetic-source",
+                "status": "available",
+                "trend": [
+                  {
+                    "period": "2022-Q3",
+                    "value": 0.3046875
+                  },
+                  {
+                    "period": "2022-Q4",
+                    "value": 0.30694980694980695
+                  },
+                  {
+                    "period": "2023-Q1",
+                    "value": 0.30916030534351147
+                  },
+                  {
+                    "period": "2023-Q2",
+                    "value": 0.3113207547169811
+                  },
+                  {
+                    "period": "2023-Q3",
+                    "value": 0.31343283582089554
+                  },
+                  {
+                    "period": "2023-Q4",
+                    "value": 0.3154981549815498
+                  },
+                  {
+                    "period": "2024-Q1",
+                    "value": 0.3175182481751825
+                  },
+                  {
+                    "period": "2024-Q2",
+                    "value": 0.3194945848375451
+                  }
+                ],
+                "unit": "ratio",
+                "value": 0.3194945848375451,
+                "verification": "unverified_user_input"
+              }
+            ],
+            "milliseconds": 2.756,
+            "next_steps": [
+              {
+                "acceptance": "补充同企业、同期间原始资料，记录来源与支持/反向关系，并人工审阅",
+                "reason": "当前检索没有适用资料",
+                "route": "evidence",
+                "title": "补齐本问题的原始证据"
+              }
+            ],
+            "receipts": [
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "comparison": "previous",
+                  "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+                  "version": 1
+                },
+                "milliseconds": 0.377,
+                "output_hash": "8ef66c28421cc95e83850ba608d92931e1c120a864d28b94293fab0c48a5c99c",
+                "state": "succeeded",
+                "tool": "financial_calculation"
+              },
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "metric_ids": [
+                    "gross_margin"
+                  ]
+                },
+                "milliseconds": 0.03,
+                "output_hash": "e082bfa6b3c142bbbb1887b707373f85386a6b39b37a64913ab501b9b4d550eb",
+                "state": "succeeded",
+                "tool": "metric_lineage"
+              },
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+                  "version": 1
+                },
+                "milliseconds": 0.201,
+                "output_hash": "d15a052f0561948d845ba2246479b2f40935158dd639702c7511077461a99fa3",
+                "state": "succeeded",
+                "tool": "data_quality"
+              },
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "company": "零数量分母边界（隔离合成数据，非真实财报）",
+                  "query": "2024-Q2毛利率环比"
+                },
+                "milliseconds": 0.119,
+                "output_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "state": "succeeded",
+                "tool": "scoped_evidence_search"
+              },
+              {
+                "engine": "local_deterministic",
+                "input": {
+                  "dataset_id": "fcf7930cbfb84d388e60593af9f95877"
+                },
+                "milliseconds": 0.896,
+                "output_hash": "65f06d3a28f9540eff9af5d5103752503bbd960c3fe8602d9aa3cafa83b129ea",
+                "state": "succeeded",
+                "tool": "proactive_findings"
+              }
+            ],
+            "research_brief": {
+              "causal_claims_supported": false,
+              "evidence_state": "no_matching_saved_evidence",
+              "intent": "grounded_review",
+              "matched_document_count": 0,
+              "missing_metric_ids": [],
+              "objective": "",
+              "retrieval_method": "owner_and_company_scoped_lexical_search",
+              "scope": {
+                "baseline_period": "2024-Q1",
+                "company": "零数量分母边界（隔离合成数据，非真实财报）",
+                "comparison": "previous",
+                "dataset_version": 1,
+                "depth": "balanced",
+                "period": "2024-Q2",
+                "question_scope": {
+                  "available_periods": [
+                    "2022-Q1",
+                    "2022-Q2",
+                    "2022-Q3",
+                    "2022-Q4",
+                    "2023-Q1",
+                    "2023-Q2",
+                    "2023-Q3",
+                    "2023-Q4",
+                    "2024-Q1",
+                    "2024-Q2",
+                    "2024-Q3",
+                    "2024-Q4"
+                  ],
+                  "can_calculate": true,
+                  "comparison": "previous",
+                  "comparison_explicit": true,
+                  "default_overview": false,
+                  "notice": "",
+                  "period": "2024-Q2",
+                  "period_basis": "single_quarter",
+                  "period_explicit": true,
+                  "status": "supported",
+                  "topics": [
+                    "gross_margin"
+                  ],
+                  "unsupported_currency": false
+                }
+              },
+              "source_verification": "user_declared_not_verified",
+              "stance_counts": {
+                "context": 0,
+                "contradicts": 0,
+                "supports": 0
+              }
+            },
+            "warnings": [
+              "输入未经本系统独立核验；来源链接不等于真实性认证。",
+              "行业波动率由用户提供，不是实时拉取或历史校准结果。",
+              "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。",
+              "存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。",
+              "当前问题未检索到适用的已保存资料；不能把未查到当成事实不存在。"
+            ]
+          }
+        },
+        "created_at": "2026-10-05T21:52:23.041+00:00"
+      }
+    ],
+    "proposals": [],
+    "runs": [],
+    "archived_mode": false,
+    "read_only": false,
+    "context": {
+      "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+      "dataset_version": 1,
+      "writable": true,
+      "unavailable_reason": ""
+    }
+  },
+  "trace_response": {
+    "question_scope": {
+      "available_periods": [
+        "2022-Q1",
+        "2022-Q2",
+        "2022-Q3",
+        "2022-Q4",
+        "2023-Q1",
+        "2023-Q2",
+        "2023-Q3",
+        "2023-Q4",
+        "2024-Q1",
+        "2024-Q2",
+        "2024-Q3",
+        "2024-Q4"
+      ],
+      "can_calculate": true,
+      "comparison": "previous",
+      "comparison_explicit": true,
+      "default_overview": false,
+      "notice": "",
+      "period": "2024-Q2",
+      "period_basis": "single_quarter",
+      "period_explicit": true,
+      "status": "supported",
+      "topics": [
+        "gross_margin"
+      ],
+      "unsupported_currency": false
+    },
+    "engine": "local_grounded_router",
+    "answer": "已核对零数量分母边界（隔离合成数据，非真实财报）的2024-Q2已保存输入与计算口径。 指标来自用户录入，资料片段仅是待核实候选。",
+    "scope": {
+      "company": "零数量分母边界（隔离合成数据，非真实财报）",
+      "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+      "dataset_version": 1,
+      "input_hash": "41257182465d03d463ab99548031852c3fed0d6a263aaf389d2de1efc0d6e040",
+      "period": "2024-Q2",
+      "source_state": "user_declared_not_verified",
+      "role": "enterprise",
+      "objective": ""
+    },
+    "facts": [
+      {
+        "id": "gross_margin",
+        "label": "毛利率",
+        "value": 0.3194945848375451,
+        "period": "2024-Q2",
+        "dataset_id": "fcf7930cbfb84d388e60593af9f95877",
+        "dataset_version": 1,
+        "input_hash": "41257182465d03d463ab99548031852c3fed0d6a263aaf389d2de1efc0d6e040",
+        "formula": "(收入−成本)/收入",
+        "inputs": [
+          {
+            "path": "periods/2024-Q2/revenue",
+            "value": 110800.0
+          },
+          {
+            "path": "periods/2024-Q2/cost",
+            "value": 75400.0
+          }
+        ],
+        "trend": [
+          {
+            "period": "2022-Q3",
+            "value": 0.3046875
+          },
+          {
+            "period": "2022-Q4",
+            "value": 0.30694980694980695
+          },
+          {
+            "period": "2023-Q1",
+            "value": 0.30916030534351147
+          },
+          {
+            "period": "2023-Q2",
+            "value": 0.3113207547169811
+          },
+          {
+            "period": "2023-Q3",
+            "value": 0.31343283582089554
+          },
+          {
+            "period": "2023-Q4",
+            "value": 0.3154981549815498
+          },
+          {
+            "period": "2024-Q1",
+            "value": 0.3175182481751825
+          },
+          {
+            "period": "2024-Q2",
+            "value": 0.3194945848375451
+          }
+        ],
+        "source_url": "https://example.test/synthetic-source",
+        "verification": "unverified_user_input",
+        "comparison": {
+          "kind": "previous",
+          "period": "2024-Q1",
+          "operation": "difference",
+          "value": 0.3175182481751825,
+          "change": 0.001976336662362632,
+          "change_unit": "ratio_points",
+          "status": "available",
+          "reason": ""
+        }
+      }
+    ],
+    "insights": [],
+    "evidence_matches": [],
+    "quality": [],
+    "quality_total": 0,
+    "followups": [
+      "哪些经营指标偏离自定目标？",
+      "现金流和毛利的变化依据是什么？"
+    ],
+    "actions": [
+      {
+        "label": "按此问题创建诊断计划",
+        "route": "agents",
+        "query": "核查范围：2024-Q2，环比，毛利率。\n当前目标：2024-Q2毛利率环比",
+        "dataset_id": "fcf7930cbfb84d388e60593af9f95877"
+      },
+      {
+        "label": "核对原始数据与公式",
+        "route": "data",
+        "dataset_id": "fcf7930cbfb84d388e60593af9f95877"
+      },
+      {
+        "label": "审阅资料及来源",
+        "route": "evidence",
+        "dataset_id": "fcf7930cbfb84d388e60593af9f95877"
+      },
+      {
+        "label": "设定情景假设",
+        "route": "lab",
+        "dataset_id": "fcf7930cbfb84d388e60593af9f95877"
+      }
+    ],
+    "external_calls": 0,
+    "source_message_id": "98f85abc5c274142b2ca972f86f251e7",
+    "source_thread_id": "21af0600920341ef970dcffe0a3c3f2c"
+  },
+  "trace_preserved_saved_thread": true
+}

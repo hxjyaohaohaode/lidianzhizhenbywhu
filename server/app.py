@@ -57,13 +57,16 @@ class Guard:
         if scope['type']!='http':return await self.app(scope,receive,send)
         header_items=[(k.lower(),v) for k,v in scope['headers']]
         headers=dict(header_items);path=scope['path'];request_id=uid();method=scope['method']
-        async def reject(status,code,message):
+        async def reject(status,code,message,*,retry_after=None):
             # Early admission errors receive the same privacy/security defaults.
             h={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY',
                'Referrer-Policy':'no-referrer','X-Request-ID':request_id,
                'Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'"}
             if self.settings.production:h['Strict-Transport-Security']='max-age=31536000'
-            return await JSONResponse({'error':{'code':code,'message':message},'request_id':request_id},status_code=status,headers=h)(scope,receive,send)
+            error={'code':code,'message':message}
+            if retry_after is not None:
+                h['Retry-After']=str(retry_after);error['retry_after_seconds']=retry_after
+            return await JSONResponse({'error':error,'request_id':request_id},status_code=status,headers=h)(scope,receive,send)
         # Reject ambiguous authorities and Windows UNC/drive paths before routing,
         # URL construction, filesystem resolution, or credential-bearing network I/O.
         hosts=[v for k,v in header_items if k==b'host']
@@ -80,7 +83,9 @@ class Guard:
             return await reject(400,'AMBIGUOUS_FRAMING','请求长度与传输编码不能同时提供。')
         if path.startswith('/api/'):
             ip=(scope.get('client') or ('unknown',))[0];auth=path.startswith('/api/auth/');key=ip+(':login' if auth else ':api')
-            if not self.limiter.allow(key,30 if auth else 600):return await reject(429,'RATE_LIMITED','请求过于频繁，请稍后重试。')
+            admission=self.limiter.check(key,30 if auth else 600)
+            if not admission.allowed:
+                return await reject(429,'RATE_LIMITED',f'请求过于频繁，本次请求已被暂时拒绝。请等待 {admission.retry_after} 秒后再手动重试；期间其他请求可能占用可用名额。',retry_after=admission.retry_after)
             if method not in ('GET','HEAD','OPTIONS'):
                 origin=headers.get(b'origin',b'').decode(errors='replace')
                 if origin and origin!=self.settings.origin:return await reject(403,'ORIGIN_REJECTED','请求来源不受信任。')
@@ -418,12 +423,14 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     @app.get('/api/runs/{id}/export')
     def export_report(id: str,request: Request,format: str=Query('json',pattern='^(json|md)$'),user=Depends(require_user)):
         from .report_export import report_payload, markdown_report
+        from .unverified_report import read_result_record
         from .report_integrity import inspect_report_integrity
         from .business_provenance import report_reviews_for_export
         db=store(request)
         # The archived report and export-time reviews are read consistently.
         with db.transaction():
-            run=owned(db,'runs',user,id)
+            run,_,unreadable=read_result_record(db,user['id'],id)
+            if unreadable:fail('REPORT_INTEGRITY','已保存报告原文无法核验，正常报告导出已停用。',409)
             if not run['result']:fail('NOT_READY','任务尚无可导出结果。',409)
             # Validate frozen evidence, not whether current sources have changed.
             if not inspect_report_integrity(db,run)['report_integrity']['valid']:

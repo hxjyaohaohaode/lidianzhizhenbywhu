@@ -4,7 +4,9 @@ import hmac
 import secrets
 import time
 import threading
+import math
 from collections import OrderedDict,deque
+from typing import NamedTuple
 from fastapi import HTTPException,Request,Response
 from .store import digest, uid, now
 
@@ -65,13 +67,22 @@ def require_user(request: Request):
     request.state.user_id=user['id'];request.state.csrf=session['csrf']
     return user
 
+class RateLimitDecision(NamedTuple):
+    allowed: bool
+    retry_after: int
+
 class RateLimiter:
-    def __init__(self,maximum_keys=10000):self.keys=OrderedDict();self.maximum_keys=maximum_keys;self._lock=threading.Lock()
-    def allow(self,key,limit,window=60):
+    def __init__(self,maximum_keys=10000,*,clock=None):
+        self.keys=OrderedDict();self.maximum_keys=maximum_keys;self._lock=threading.Lock();self._clock=clock or time.monotonic
+    def check(self,key,limit,window=60):
         with self._lock:
-            at=time.monotonic();q=self.keys.setdefault(key,deque());self.keys.move_to_end(key)
+            at=self._clock();q=self.keys.setdefault(key,deque());self.keys.move_to_end(key)
             while q and q[0]<=at-window:q.popleft()
             allowed=len(q)<limit
+            # Compute the next admission boundary from this same locked snapshot.
+            # Round up for HTTP delay-seconds; a rejected request never adds time.
+            retry_after=0 if allowed else max(1,math.ceil((q[-limit] if q and limit>0 else at)+window-at))
             if allowed:q.append(at)
             while len(self.keys)>self.maximum_keys:self.keys.popitem(last=False)
-            return allowed
+            return RateLimitDecision(allowed,retry_after)
+    def allow(self,key,limit,window=60):return self.check(key,limit,window).allowed

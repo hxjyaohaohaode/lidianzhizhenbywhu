@@ -5,6 +5,7 @@ UI evidence and do not establish application eligibility or human readability.
 """
 from copy import deepcopy
 import csv
+import hashlib
 import io
 from types import SimpleNamespace
 
@@ -24,7 +25,7 @@ def catalog(later=False):
             'note': '' if global_scope else journey.LATER_NOTE if later else journey.ORIGINAL_NOTE,
             'tags': [], 'expires_at': None}
         rows.append({'id': 'global' if global_scope else 'company', 'version': 1,
-            'content_hash': journey.canonical_hash(text), 'review_version': 1 if global_scope else 3 if later else 2,
+            'content_hash': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'review_version': 1 if global_scope else 3 if later else 2,
             'review': review, 'review_hash': journey.canonical_hash(review), 'eligible': True, 'excluded_reason': None,
             'payload': {'title': journey.GLOBAL_TITLE if global_scope else journey.COMPANY_TITLE,
                 'text': text, 'source_url': journey.GLOBAL_URL if global_scope else journey.COMPANY_URL,

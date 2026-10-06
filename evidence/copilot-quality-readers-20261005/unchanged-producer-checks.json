@@ -1,0 +1,16 @@
+{
+  "baseline_commit": "b69a68a7941c89fdf36bdc20a5dfeb2e075a5235",
+  "producer_files_match_baseline": {
+    "server/copilot.py": true,
+    "server/analytics.py": true,
+    "server/intelligence.py": true,
+    "server/service_api.py": true,
+    "server/question_scope.py": true,
+    "server/models.py": true,
+    "scripts/service_browser_check.py": true,
+    "server/providers.py": true,
+    "server/app.py": true,
+    "server/config.py": true,
+    "server/schemas.py": true
+  }
+}

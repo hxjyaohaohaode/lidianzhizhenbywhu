@@ -42,7 +42,8 @@ for(const [name,render] of Object.entries(renderers)){
   const before=structuredClone(f),html=render([f]);
   assert(html.includes('<strong>0.0000004 万元</strong>'));assert(html.includes('0.004 元'));
   assert(html.includes('+0.0000001 万元'));assert(!html.includes('<strong>0 万元</strong>'));
-  if(name==='legacy')assert.equal((html.match(/0\.0000004 万元/g)||[]).length,2);
+  // Count the two visible fact/trend values; the quality disclosure also preserves the full raw response.
+  if(name==='legacy')assert.equal((html.match(/<strong>0\.0000004 万元<\/strong>/g)||[]).length,2);
   assert.deepEqual(f,before);
  });
  test(`${name} shows nonzero balance inputs in a mixed ratio fact`,()=>{

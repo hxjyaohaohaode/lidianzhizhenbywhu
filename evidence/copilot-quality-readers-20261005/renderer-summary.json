@@ -1,0 +1,55 @@
+{
+  "executed_at_utc": "2026-10-05T22:02:58.327Z",
+  "mode": "Actual compiled messageView and assistantView with isolated production API captures; DOM/API evidence, no native browser",
+  "cases": [
+    {
+      "name": "missing",
+      "fixture_sha256": "759622d77c5339acc9834d5269e9e6c0b2bfd0b5f6174bba74a117748640f9ac",
+      "original_bytes_preserved": true,
+      "render_did_not_mutate_response": true,
+      "saved_initial_count": 6,
+      "saved_expanded_count": 11,
+      "current_returned_count": 5,
+      "current_reported_total": 11
+    },
+    {
+      "name": "zero-revenue",
+      "fixture_sha256": "7ef99b93790b5f9f42571a1acfeda7bd2736eb91a191d05e4e17aaef37209085",
+      "original_bytes_preserved": true,
+      "render_did_not_mutate_response": true,
+      "saved_initial_count": 1,
+      "saved_expanded_count": 1,
+      "current_returned_count": 1,
+      "current_reported_total": 1
+    },
+    {
+      "name": "zero-quantity",
+      "fixture_sha256": "3d93e04d51011edf5d1406322428638f4e682df5bc4b36d2a313b6ebdaa4601e",
+      "original_bytes_preserved": true,
+      "render_did_not_mutate_response": true,
+      "saved_initial_count": 0,
+      "saved_expanded_count": 0,
+      "current_returned_count": 0,
+      "current_reported_total": 0
+    }
+  ],
+  "hashes": {
+    "web/copilot-quality.ts": "cb7ed7c887865054485b572a854da1a5446d91620eaa513ed074f3f7434a471d",
+    "web/copilot-ui.ts": "cd026258dffb0104d9f99b4dab7bae9e9730c80f540a4f1c10c14c855a65b237",
+    "web/assistant.ts": "9d78f34d5ba6960bd94e697fb3f0597aa408274f026a76ad4d73384bbe600503",
+    "web/dist/copilot-quality.js": "17b03dda6087651466ce8b246a6ddf76ecbb12d54ca5a0ee85aebf3fe1231460",
+    "web/dist/copilot-ui.js": "2084094df5ba48d489d474b8444f153d668e8043091859837ca74ba675d9ebe6",
+    "web/dist/assistant.js": "2fb8ace0acca924850326e193965252888ee2908ca4635d11ea66ce5d92f62c1",
+    "missing-message.html": "571d21b3d7dbf1301dd5474d2ecf15475c81a1da6ff7bdd137e155180df74fa6",
+    "missing-quality.html": "12cb50d2d250bca902d716d8eaef6bd04d10e5d9d90c92f49e92d8651ac3f779",
+    "missing-trace.html": "19b78a6e5a6adc074ae70e7f9acda5ff9840e6d6ded1e3ca20580ed82ac45d37",
+    "zero-quantity-message.html": "8bd63ad12153cf14f7f2090a3f85cc71d843cb74eb7c78aca547d897a89f400e",
+    "zero-quantity-quality.html": "30028b6f5934042deb5c49612128286262ade1019780aadacbb145ac5f546983",
+    "zero-quantity-trace.html": "ed76d939aaf78fff80e7861185d5f61b8f31278976b261f98496bb9385b17fed",
+    "zero-revenue-message.html": "26b31b68f9d5ab02541da6bbeec96ba1d5a9b865e097e0707125054adebe865e",
+    "zero-revenue-quality.html": "7f94318e2738c1048931c5276bb584357924c43f8273594ef1611934f932c7c3",
+    "zero-revenue-trace.html": "6547ba76cba8d457820a2a2ff6b2d88e43499c3c9fbc0c5daba7ea0401eee85b"
+  },
+  "native_browser": false,
+  "live_providers": false
+}

@@ -51,7 +51,15 @@ def test_audit_keeps_one_snapshot_when_real_worker_publishes(actor, monkeypatch,
 
                 def one(sql, params=()):
                     value = original_one(sql, params)
-                    if not fired and boundary == 'run' and sql.startswith('SELECT * FROM runs WHERE id=? AND user_id=?'):
+                    # The first owned audit read preserves saved report text.
+                    # Match that complete query, including its owner binding.
+                    run_read = ('SELECT id,user_id,session_id,dataset_id,state,error,created_at,updated_at, '
+                        'idempotency_key,request_hash,payload,snapshot,result AS saved_result '
+                        'FROM runs WHERE id=? AND user_id=?')
+                    if not fired and boundary == 'run' and ' '.join(sql.split()) == run_read:
+                        assert params == (run['id'], actor.user['id'])
+                        assert store.db.in_transaction
+                        assert value['state'] == 'running' and value['saved_result'] is None
                         advance()
                     return value
 

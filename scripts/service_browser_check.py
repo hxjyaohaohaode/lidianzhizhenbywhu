@@ -21,8 +21,10 @@ import httpx
 from playwright.sync_api import sync_playwright
 try:
     from .acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
+    from .recorded_balance_reading import read_source_row
 except ImportError:
     from acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
+    from recorded_balance_reading import read_source_row
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
 UI_TIMEOUT_MS=10000
 
@@ -42,6 +44,23 @@ def assert_copilot_entity_binding(message, proposal, plan, run, *, message_id,
     assert plan['payload']['max_calls']==payload['external_calls']==0
     assert message['payload']['response']['external_calls']==0
     assert run['result']['llm']['state']=='not_requested' and run['result']['llm']['calls']==[]
+
+
+def assert_copilot_trace_binding(message, traced, dataset, *, message_id, thread_id):
+    """The actual trace response must bind this click to its source and revision."""
+    assert message['id']==message_id and message['thread_id']==thread_id
+    assert traced['source_message_id']==message_id and traced['source_thread_id']==thread_id
+    original=message['payload']['response']['context']['question_scope']
+    selected=traced['question_scope'];scope=traced['scope']
+    assert selected['status']=='supported' and selected['can_calculate'] is True
+    for key in ('period','comparison','topics'):assert selected[key]==original[key]
+    assert scope['dataset_id']==dataset['id'] and scope['dataset_version']==dataset['version']
+    assert scope['input_hash']==dataset['content_hash'] and scope['period']==original['period']
+    assert [fact['id'] for fact in traced['facts']]==original['topics']
+    for fact in traced['facts']:
+        assert fact['period']==original['period'] and fact['dataset_id']==dataset['id']
+        assert fact['dataset_version']==dataset['version'] and fact['input_hash']==dataset['content_hash']
+    assert traced['external_calls']==0
 
 
 def assert_form_errors(page, selector):
@@ -121,6 +140,7 @@ class FixtureRequestBudget:
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--native',action='store_true');args=parser.parse_args();native=args.native
     checks=[];errors=[];responses=[];screens=[];completed=False;api_budget=FixtureRequestBudget();fixture_budget_wait=0
+    balance_source_readings={}
     journal=EventJournal(OUT/('native-browser-events.jsonl' if native else 'bridge-browser-events.jsonl'))
     atexit.register(journal.close)
     def record(label):
@@ -722,15 +742,28 @@ def main():
                         tile=amount_turn.locator('.fact-tile').nth(position)
                         assert tile.locator('strong').first.inner_text()==fact['display_value']
                         tile.locator('summary').click()
-                        assert f'periods/{target_period}/{key}' in tile.inner_text() and 'CNY' in tile.inner_text()
-                    amount_turn.locator('[data-x-action="chat-trace"]').click()
+                        read_source_row(page,tile.locator('.fact-basis > div'),fact,growth_data,
+                            period=target_period,key=key,renderer='service',message_id=stock_message_id,
+                            screenshot=snap,observations=balance_source_readings,emit=journal.emit)
+                    stock_trace_path=f'/api/services/threads/{stock_thread_id}/messages/{stock_message_id}/trace'
+                    with page.expect_response(lambda response: response.request.method=='GET'
+                            and urlsplit(response.url).path==stock_trace_path) as trace_read:
+                        amount_turn.locator('[data-x-action="chat-trace"]').click()
+                    assert trace_read.value.status==200
+                    stock_trace=trace_read.value.json()
+                    assert_copilot_trace_binding(stock_message,stock_trace,growth_data,
+                        message_id=stock_message_id,thread_id=stock_thread_id)
                     amount_turn.locator('.trace-container .assistant-fact').nth(2).wait_for()
                     assert amount_turn.locator('.trace-container .assistant-fact').count()==3
                     for position,key in [(1,'assets'),(2,'liabilities')]:
+                        trace_fact=stock_trace['facts'][position]
                         traced=amount_turn.locator('.trace-container .assistant-fact').nth(position)
-                        assert traced.locator('.assistant-fact-head strong').inner_text()==stock_facts[position]['display_value']
+                        assert traced.locator('.assistant-fact-head strong').inner_text()==trace_fact['display_value']
                         traced.locator('summary').click()
                         assert '期末存量' in traced.inner_text()
+                        read_source_row(page,traced.locator('.trace-list > li'),trace_fact,growth_data,
+                            period=target_period,key=key,renderer='trace',message_id=stock_message_id,
+                            screenshot=snap,observations=balance_source_readings,emit=journal.emit)
                     amount_turn.scroll_into_view_if_needed();assert not overflow();snap('ui-current-recorded-balance-fields.png')
                     amount_turn.locator('[data-x-action="chat-propose"][data-kind="research"]').click()
                     f='form[data-service-form="proposal"]';page.locator(f).wait_for()
@@ -905,7 +938,7 @@ def main():
         finally:
             status_counts={str(status):sum(row['status']==status for row in responses) for status in sorted({row['status'] for row in responses})}
             http={'requests':len(responses),'status_counts':status_counts,'server_errors':[row for row in responses if row['status']>=500]}
-            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'screenshot_sha256':{name:hashlib.sha256((OUT/name).read_bytes()).hexdigest() for name in screens},'run_identity':{key:os.getenv(key,'') for key in ('GITHUB_SHA','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},'policy_modified':False,'fixture_budget_wait_seconds':fixture_budget_wait,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
+            (OUT/('native-service-browser.json' if native else 'service-browser-check.json')).write_text(json.dumps({'transport':'native Chromium + loopback HTTP' if native else 'Chromium DOM + fixed local HTTPX bridge','native_network_e2e':native and completed,'mode':'native' if native else 'bridge','all_checks_passed':completed,'checks':checks,'count':len(checks),'js_errors':errors,'http':http,'screenshots':screens,'screenshot_sha256':{name:hashlib.sha256((OUT/name).read_bytes()).hexdigest() for name in screens},'run_identity':{key:os.getenv(key,'') for key in ('GITHUB_SHA','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},'balance_source_readings':balance_source_readings,'policy_modified':False,'fixture_budget_wait_seconds':fixture_budget_wait,'data':'isolated synthetic test account and input'},ensure_ascii=False,indent=2),encoding='utf-8')
             journal.emit('browser_cleanup_requested',all_checks_passed=completed)
             b.close()
             journal.close()
