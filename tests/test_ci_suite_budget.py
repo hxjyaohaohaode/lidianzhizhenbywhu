@@ -13,7 +13,8 @@ def test_other_verification_stages_keep_their_original_budget(name):
 def test_backend_budget_does_not_change_whole_test_watchdog_or_failures():
     assert check_timeout('pytest')==1500
     source=(Path(__file__).parents[1]/'scripts/verify.py').read_text()
-    assert "'--diagnostics-test-timeout=120'" in source
+    shard_source=(Path(__file__).parents[1]/'scripts/pytest_shards.py').read_text()
+    assert "test_timeout=120" in shard_source and "MAX_SECONDS = 1500" in shard_source
     assert "timeout=check_timeout(name)" in source
     assert "return 0 if report['all_executed_checks_pass'] else 1" in source
     assert "'all_executed_checks_pass':all(r['exit_code']==0 for r in results)" in source

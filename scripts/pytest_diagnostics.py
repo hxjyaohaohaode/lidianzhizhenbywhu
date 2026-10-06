@@ -32,6 +32,9 @@ def pytest_configure(config):
     # assertion failure. Replace it, so a subsequent teardown hang stays bounded.
     if config.pluginmanager.hasplugin('faulthandler'):
         raise pytest.UsageError('verification diagnostics requires -p no:faulthandler')
+    # Admission creates diagnostics only after exact final shard selection.
+    if config.getoption('--shard-request', default=None):
+        return
     path = config.getoption('--diagnostics-output')
     timeout = config.getoption('--diagnostics-test-timeout')
     if not path or not math.isfinite(timeout) or not 0 < timeout <= MAX_TEST_SECONDS:
@@ -40,7 +43,7 @@ def pytest_configure(config):
 
 
 class Diagnostics:
-    def __init__(self, path, timeout):
+    def __init__(self, path, timeout, *, identity=None, admission=None):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.output = path.open('w', encoding='utf-8', buffering=1)
         self.stacks = path.with_suffix('.stacks.log').open('w', encoding='utf-8', buffering=1)
@@ -53,7 +56,7 @@ class Diagnostics:
         self.phases = {}
         self.original_handler = faulthandler.is_enabled()
         faulthandler.enable(file=self.stacks, all_threads=True)
-        self.emit('session_started', test_timeout_seconds=timeout)
+        self.emit('session_started', test_timeout_seconds=timeout, identity=identity, admission=admission)
 
     def emit(self, event, **fields):
         self.output.write(json.dumps({'event': event,
@@ -108,7 +111,8 @@ class Diagnostics:
         self.phases[report.when] = report.outcome
         self.phase_outcomes[f'{report.when}_{report.outcome}'] += 1
         self.emit('phase_finished', nodeid=report.nodeid, phase=report.when,
-            outcome=report.outcome, duration_seconds=round(report.duration, 6))
+            outcome=report.outcome, wasxfail=hasattr(report, 'wasxfail'),
+            duration_seconds=round(report.duration, 6))
 
     @pytest.hookimpl(trylast=True)
     def pytest_sessionfinish(self, session, exitstatus):

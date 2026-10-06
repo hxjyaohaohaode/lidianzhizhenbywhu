@@ -21,10 +21,10 @@ import httpx
 from playwright.sync_api import sync_playwright
 try:
     from .acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
-    from .recorded_balance_reading import read_source_row
+    from .recorded_balance_reading import read_source_row, read_report_rows
 except ImportError:
     from acceptance_diagnostics import EventJournal, attach_browser_diagnostics, route_metadata
-    from recorded_balance_reading import read_source_row
+    from recorded_balance_reading import read_source_row, read_report_rows
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'evidence'
 UI_TIMEOUT_MS=10000
 
@@ -798,6 +798,9 @@ def main():
                     assert '总资产' in report_view.inner_text() and '总负债' in report_view.inner_text()
                     assert '期末存量' in report_view.inner_text()
                     report_view.scroll_into_view_if_needed();assert not overflow();snap('ui-current-recorded-balance-report.png')
+                    read_report_rows(page,report_view,stock_message,stock_run,growth_data,
+                        period=target_period,proposal_id=stock_proposal_id,screenshot=snap,
+                        observations=balance_source_readings,emit=journal.emit)
                     record('明确总资产/总负债及资产负债率→双助手原字段、金额单位/季度/来源→预测保持未选→确认后原字段报告，未调用外部模型')
                     continue
                 assert amount_turn.locator('.fact-tile').count()==0

@@ -47,7 +47,11 @@ jobs:
             evidence/source-guard.json
             evidence/*-browser-events.jsonl
             evidence/*-process-events.jsonl
-            evidence/pytest-progress.jsonl
+            evidence/pytest-collection.json
+            evidence/pytest-manifest.json
+            evidence/pytest-shards.json
+            evidence/pytest-shard-0-progress.jsonl
+            evidence/pytest-shard-1-progress.jsonl
             evidence/*.log
             evidence/*.xml
             evidence/ui-current-*.png

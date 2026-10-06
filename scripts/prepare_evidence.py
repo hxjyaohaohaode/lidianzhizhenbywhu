@@ -4,6 +4,9 @@ import json
 import os
 from pathlib import Path
 import platform
+import sys
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
 ROOT=Path(__file__).resolve().parents[1]
 REPORTS=('verification.json','full-chain-http.json','native-service-browser.json',
@@ -31,7 +34,9 @@ REPORTS=('verification.json','full-chain-http.json','native-service-browser.json
 
 def prepare(root=ROOT):
     out=root/'evidence';out.mkdir(exist_ok=True)
-    targets={out/name for name in REPORTS}
+    # Exact current-invocation backend outputs, including original child files.
+    from scripts.pytest_output_contract import OUTPUTS
+    targets={out/name for name in (*REPORTS,*OUTPUTS)}
     targets.update(out.glob('ui-current-*.png'))
     targets.update(out.glob('*.log'))
     targets.update(out.glob('*-browser-events.jsonl'))

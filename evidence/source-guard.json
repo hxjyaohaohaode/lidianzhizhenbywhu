@@ -1,5 +1,5 @@
 {
-  "files_scanned": 132,
+  "files_scanned": 135,
   "files": [
     "server/__init__.py",
     "server/adaptive_runtime.py",
@@ -102,6 +102,7 @@
     "scripts/native_acceptance.py",
     "scripts/native_historical_fixture.py",
     "scripts/native_integrity_faults.py",
+    "scripts/owned_process.py",
     "scripts/pack_product_audit.py",
     "scripts/prepare_evidence.py",
     "scripts/product_action_evidence_journey.py",
@@ -127,6 +128,8 @@
     "scripts/product_tracking_units.py",
     "scripts/publish.py",
     "scripts/pytest_diagnostics.py",
+    "scripts/pytest_output_contract.py",
+    "scripts/pytest_shards.py",
     "scripts/recorded_balance_reading.py",
     "scripts/restart_replay_probe.py",
     "scripts/service_browser_check.py",
