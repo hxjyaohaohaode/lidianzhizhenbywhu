@@ -72,6 +72,15 @@ class Guard:
         hosts=[v for k,v in header_items if k==b'host']
         if len(hosts)!=1 or any(c<=32 or c==127 for c in hosts[0]) or any(c in hosts[0] for c in (b'/',b'\\',b'@')):
             return await reject(400,'INVALID_AUTHORITY','请求地址格式无效。')
+        try:
+            authority=hosts[0].decode('ascii');parsed=urlsplit('http://'+authority)
+            # Accessing .port validates decimal syntax and the supported range.
+            parsed.port
+            if (not parsed.hostname or parsed.netloc!=authority or parsed.path or
+                    parsed.query or parsed.fragment or authority.endswith(':')):
+                raise ValueError('invalid authority')
+        except (ValueError,UnicodeError):
+            return await reject(400,'INVALID_AUTHORITY','请求地址格式无效。')
         if not path.startswith('/') or path.startswith('//') or '\\' in path or any(ord(c)<32 or ord(c)==127 for c in path) or any(':' in part for part in path.split('/')):
             return await reject(400,'INVALID_PATH','请求路径格式无效。')
         # Never let the proxy, CSRF guard and application disagree about which

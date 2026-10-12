@@ -27,17 +27,40 @@ def execute_check(cmd,timeout):
         return 1,'\n'.join(chunks)
     except OSError as exc:return 1,type(exc).__name__+': '+str(exc)
 
+HTTP_REPORTS=('full-chain-http.json','crash-dispatch-http.json')
+
+def invalidate_http_reports(out):
+    # Establish both boundaries before ANY command. A blocked pytest stage must
+    # not leave a previous HTTP success eligible for this invocation's artifact.
+    for name in HTTP_REPORTS:
+        target=out/name;temporary=target.with_name(target.name+'.tmp')
+        value={'passed':False,'status':'not_started','prepared_at':datetime.now(timezone.utc).isoformat(),
+               'reason':'Current verification invocation has not completed this HTTP stage.'}
+        with temporary.open('w',encoding='utf-8') as output:
+            json.dump(value,output,ensure_ascii=False,indent=2)
+            output.flush();os.fsync(output.fileno())
+        temporary.replace(target)
+
 def check_timeout(name):
     # Full-suite wall budget is separate from the 120s whole-test watchdog.
-    return 1500 if name=='pytest' else 240
+    return 1500 if name=='pytest' else 120 if name=='crash-dispatch-http' else 240
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--tsc',help='Path to TypeScript tsc.js');p.add_argument('--full-chain',action='store_true',help='Run isolated real HTTP/SSE/restart/backup chain (no external suppliers)');a=p.parse_args();os.chdir(ROOT)
+    p=argparse.ArgumentParser();p.add_argument('--tsc',help='Path to TypeScript tsc.js');p.add_argument('--full-chain',action='store_true',help='Run isolated HTTP/SSE/restart/backup and crash-dispatch chains (no external suppliers)');a=p.parse_args();os.chdir(ROOT)
     out=ROOT/'evidence';out.mkdir(exist_ok=True);tsc=a.tsc or str(ROOT/'node_modules/typescript/bin/tsc')
     tc=['node',tsc,'--noEmit','-p','tsconfig.json'] if Path(tsc).is_file() else ['tsc','--noEmit','-p','tsconfig.json']
     build=[x for x in tc if x!='--noEmit']
     commands=[('python-compile',[sys.executable,'-m','compileall','-q','server','scripts']),('typecheck',tc),('build',build),('pytest',[sys.executable,'-m','scripts.pytest_shards']),('frontend-tests',['node','--test',*sorted(str(path.relative_to(ROOT)) for path in (ROOT/'tests').glob('*.test.mjs'))]),('source-guard',[sys.executable,'scripts/source_guard.py'])];results=[]
-    if a.full_chain:commands.append(('full-chain-http',[sys.executable,'scripts/full_chain_check.py']))
+    try:invalidate_http_reports(out)
+    except OSError as exc:
+        failure={'executed_at':datetime.now(timezone.utc).isoformat(),'checks':[],
+            'all_executed_checks_pass':False,'evidence_preparation_error':repr(exc)}
+        (out/'verification.json').write_text(json.dumps(failure,ensure_ascii=False,indent=2),encoding='utf-8')
+        print('HTTP evidence preparation failed:',repr(exc),flush=True)
+        return 1
+    if a.full_chain:commands.extend([
+        ('full-chain-http',[sys.executable,'scripts/full_chain_check.py']),
+        ('crash-dispatch-http',[sys.executable,'scripts/crash_dispatch_check.py'])])
     for name,cmd in commands:
         t=time.monotonic()
         # 9376956 Windows completed all 2821 tests in 1196.572s under the

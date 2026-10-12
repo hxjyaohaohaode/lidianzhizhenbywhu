@@ -1,0 +1,31 @@
+# Template only. Review paths, account, mount and permissions before installation.
+[Unit]
+Description=Lidian single-process workbench
+After=network.target
+RequiresMountsFor=/var/lib/lidian
+ConditionPathIsDirectory=/var/lib/lidian
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=lidian
+Group=lidian
+WorkingDirectory=/srv/lidian/current
+EnvironmentFile=/etc/lidian/lidian.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+ExecStart=/srv/lidian/venv/bin/python /srv/lidian/current/scripts/start.py --host 127.0.0.1 --port 8000 --trusted-local-proxy
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/lidian
+
+[Install]
+WantedBy=multi-user.target

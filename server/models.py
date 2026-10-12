@@ -1,12 +1,14 @@
 """Versioned deterministic business rules; scores are not empirically trained probabilities."""
 from __future__ import annotations
 from .clock import utc_today
+import math
 from decimal import Decimal
 from datetime import date
 from .schemas import Dataset
-from .store import digest
+from .store import digest, encode
 
 MODEL_VERSION='rules-3.0.0'
+NUMERIC_RANGE_ERROR='计算结果超出支持范围，请核实金额、数量和单位，尤其是接近0的分母；未截断或替换数值。'
 AMOUNT_FIELDS={'revenue','cost','net_profit','cash_flow','assets','liabilities','equity_begin','equity_end','inventory','manufacturing_cost','rd_expense'}
 
 def normalize(data: Dataset) -> dict:
@@ -17,11 +19,22 @@ def normalize(data: Dataset) -> dict:
                 p[key]=float(Decimal(str(p[key]))*factor)
                 if abs(p[key])>1e15:raise ValueError('标准化金额超出支持范围，请核实单位')
     result.update(input_amount_unit=data.amount_unit,amount_unit='yuan',verification='synthetic_example' if data.source_kind=='sample' else 'unverified_user_input')
+    # Finite input values do not guarantee representable derived ratios. Check
+    # both baseline modes at every queryable historical cutoff before writing.
+    # This does not round tiny values, clamp metrics, or rewrite saved history.
+    periods=sorted(result['periods'],key=lambda period:period['period'])
+    for end in range(1,len(periods)+1):
+        scoped={**result,'periods':periods[:end]}
+        for comparison in ('year_over_year','previous'):
+            calculate(scoped,comparison)
     return result
 
 def div(n,d):
     if n is None or d is None or d<=0:return None
-    return float(Decimal(str(n))/Decimal(str(d)))
+    quotient=Decimal(str(n))/Decimal(str(d))
+    result=float(quotient)
+    if not math.isfinite(result) or (result==0 and quotient!=0):raise ValueError(NUMERIC_RANGE_ERROR)
+    return result
 
 def growth(current,baseline):
     r=div(current,baseline)
@@ -35,7 +48,9 @@ def decreasing(value,low,high):
 
 def metric(p):
     equity=None
-    if p.get('equity_begin') is not None and p.get('equity_end') is not None:equity=(p['equity_begin']+p['equity_end'])/2
+    if p.get('equity_begin') is not None and p.get('equity_end') is not None:
+        equity_sum=p['equity_begin']+p['equity_end'];equity=equity_sum/2
+        if equity==0 and equity_sum>0:raise ValueError(NUMERIC_RANGE_ERROR)
     return {'period':p['period'],'gross_margin':div(p['revenue']-p['cost'],p['revenue']),
         'net_margin':div(p.get('net_profit'),p['revenue']),'roe':div(p.get('net_profit'),equity),
         'cash_ratio':div(p.get('cash_flow'),p['revenue']),'leverage':div(p.get('liabilities'),p.get('assets')),
@@ -91,7 +106,11 @@ def calculate(data,comparison='year_over_year', *, today=None):
     dqi={'score':round(dq_score,2) if dq_score is not None else None,'coverage':round(dq_cov,4),'dimensions':dq,'status':'不可计算' if dq_score is None else ('改善' if dq_score>55 else '恶化' if dq_score<45 else '稳定'),'method':'变化型经营质量规则指数，50为中性；非原版比值DQI，版本不可直接混比'}
     warnings.append('GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。')
     if coverage<1 or dq_cov<1:warnings.append('存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。')
-    return {'model_version':MODEL_VERSION,'input_hash':digest(data),'comparison':comparison,'current_period':current['period'],'baseline_period':baseline['period'] if baseline else None,'metrics':{**m,'revenue_growth':revenue_growth,'margin_change':margin_change},'gmps':gmps,'dqi':dqi,'series':[{**p,**metric(p)} for p in periods],'warnings':warnings}
+    result={'model_version':MODEL_VERSION,'input_hash':digest(data),'comparison':comparison,'current_period':current['period'],'baseline_period':baseline['period'] if baseline else None,'metrics':{**m,'revenue_growth':revenue_growth,'margin_change':margin_change},'gmps':gmps,'dqi':dqi,'series':[{**p,**metric(p)} for p in periods],'warnings':warnings}
+    # Differences between individually finite ratios can overflow as well.
+    try:encode(result)
+    except ValueError:raise ValueError(NUMERIC_RANGE_ERROR) from None
+    return result
 
 def scenario(data,price,cost,volume):
     p=data['periods'][-1];revenue=p['revenue']*(1+price)*(1+volume);expense=p['cost']*(1+cost)*(1+volume)

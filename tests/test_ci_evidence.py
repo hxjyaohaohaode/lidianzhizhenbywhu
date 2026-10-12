@@ -42,9 +42,10 @@ def configure_verify(monkeypatch, tmp_path, *, backend_code=0, cleanup=True):
 def test_ci_timeout_budget_is_bounded_and_all_other_checks_remain(monkeypatch,tmp_path):
     verify,calls=configure_verify(monkeypatch,tmp_path)
     assert verify.main()==0
-    assert len(calls)==7
+    assert len(calls)==8
     assert [timeout for cmd,timeout in calls if 'pytest' in cmd]==[1500]
-    assert all(timeout==240 for cmd,timeout in calls if 'pytest' not in cmd)
+    assert all(timeout==240 for cmd,timeout in calls if 'pytest' not in cmd and 'scripts/crash_dispatch_check.py' not in cmd)
+    assert [timeout for cmd,timeout in calls if 'scripts/crash_dispatch_check.py' in cmd]==[120]
     source=(ROOT/'scripts/pytest_shards.py').read_text()
     assert 'scripts.pytest_diagnostics' in source and 'no:faulthandler' in source
     assert 'test_timeout=120' in source
@@ -59,7 +60,7 @@ def test_failed_pytest_is_not_retried_or_hidden_by_other_passing_stages(monkeypa
     for name in OUTPUTS:(out/name).write_text('stale success')
     (out/'history').mkdir();(out/'history/pytest.xml').write_text('historical result')
     assert verify.main()==1
-    assert len(calls)==7 and sum('pytest' in command for command,timeout in calls)==1
+    assert len(calls)==8 and sum('pytest' in command for command,timeout in calls)==1
     report=json.loads((out/'verification.json').read_text())
     assert report['all_executed_checks_pass'] is False
     assert (out/'pytest.log').read_text()=='watchdog stack output'
@@ -72,7 +73,7 @@ def test_failed_evidence_preparation_does_not_launch_pytest(monkeypatch,tmp_path
     def fail(out,timeout,deadline):raise PermissionError('isolated evidence cleanup failure')
     monkeypatch.setattr(verify,'execute_pytest',fail)
     assert verify.main()==1
-    assert len(calls)==6 and not any('pytest' in command for command,timeout in calls)
+    assert len(calls)==7 and not any('pytest' in command for command,timeout in calls)
     report=json.loads((tmp_path/'evidence/verification.json').read_text())
     assert report['all_executed_checks_pass'] is False
     assert 'Evidence preparation failed: PermissionError' in (tmp_path/'evidence/pytest.log').read_text()
@@ -119,6 +120,7 @@ def test_artifact_upload_does_not_include_unexecuted_baseline_reports():
     # allowing explicitly bounded current-run fragment directories.
     assert not re.search(r'^\s*(?:path:\s*)?[\"\']?evidence/?[\"\']?\s*$', workflow, re.MULTILINE)
     assert 'evidence/run-context.json' in workflow and 'evidence/ui-current-*.png' in workflow
+    assert 'evidence/crash-dispatch-http.json' in workflow
     assert 'evidence/pytest-progress.jsonl' not in workflow
     assert 'evidence/pytest-shards.json' in workflow and 'evidence/*.log' in workflow
     for name in ('pytest-collection.json','pytest-manifest.json','pytest-shard-0-progress.jsonl','pytest-shard-1-progress.jsonl'):
@@ -126,3 +128,48 @@ def test_artifact_upload_does_not_include_unexecuted_baseline_reports():
     regression=workflow.split('  regression:',1)[1].split('\n  product-audit:',1)[0]
     assert 'timeout-minutes: 35' in regression
     assert 'evidence/brand-integrity.json' not in workflow  # Static reference, not a generated run report.
+
+
+def test_crash_stage_failure_propagates_and_is_not_retried(monkeypatch,tmp_path):
+    verify,calls=configure_verify(monkeypatch,tmp_path)
+    def checks(command,timeout):
+        calls.append((command,timeout))
+        return (1,'first crash-boundary failure') if 'scripts/crash_dispatch_check.py' in command else (0,'passed')
+    monkeypatch.setattr(verify,'execute_check',checks)
+    assert verify.main()==1
+    report=json.loads((tmp_path/'evidence/verification.json').read_text())
+    assert len(report['checks'])==8 and report['checks'][-1]['check']=='crash-dispatch-http'
+    assert report['checks'][-1]['exit_code']==1 and report['all_executed_checks_pass'] is False
+    assert sum('scripts/crash_dispatch_check.py' in command for command,_ in calls)==1
+    assert (tmp_path/'evidence/crash-dispatch-http.log').read_text()=='first crash-boundary failure'
+
+
+def test_early_cleanup_failure_invalidates_both_stale_http_successes(monkeypatch,tmp_path):
+    verify,calls=configure_verify(monkeypatch,tmp_path,backend_code=1,cleanup=False)
+    out=tmp_path/'evidence';out.mkdir()
+    for name in verify.HTTP_REPORTS:(out/name).write_text('{"passed":true,"status":"passed"}')
+    assert verify.main()==1
+    for name in verify.HTTP_REPORTS:
+        report=json.loads((out/name).read_text())
+        assert report['passed'] is False and report['status']=='not_started'
+    assert not any('scripts/crash_dispatch_check.py' in command for command,_ in calls)
+    assert not any('scripts/full_chain_check.py' in command for command,_ in calls)
+
+
+def test_http_report_boundary_failure_prevents_commands(monkeypatch,tmp_path):
+    verify,calls=configure_verify(monkeypatch,tmp_path)
+    def fail(_):raise PermissionError('cannot establish fresh HTTP reports')
+    monkeypatch.setattr(verify,'invalidate_http_reports',fail)
+    assert verify.main()==1 and calls==[]
+    report=json.loads((tmp_path/'evidence/verification.json').read_text())
+    assert report['all_executed_checks_pass'] is False
+    assert 'cannot establish fresh HTTP reports' in report['evidence_preparation_error']
+
+
+def test_prepare_clears_crash_report_but_retains_prior_failure_evidence(tmp_path):
+    prepare=module('prepare_evidence');out=tmp_path/'evidence';out.mkdir()
+    (out/'crash-dispatch-http.json').write_text('{"passed":true}')
+    (out/'history').mkdir();(out/'history/first-crash-failure.json').write_text('retained original failure')
+    result=prepare.prepare(tmp_path)
+    assert result['cleared_outputs']==['crash-dispatch-http.json']
+    assert (out/'history/first-crash-failure.json').read_text()=='retained original failure'

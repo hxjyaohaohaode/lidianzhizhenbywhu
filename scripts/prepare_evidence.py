@@ -9,7 +9,7 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
 ROOT=Path(__file__).resolve().parents[1]
-REPORTS=('verification.json','full-chain-http.json','native-service-browser.json',
+REPORTS=('verification.json','full-chain-http.json','crash-dispatch-http.json','native-service-browser.json',
     'native-service-command.json','service-browser-check.json','bridge-service-command.json',
     'product-browser-audit.json','product-audit-service-command.json','product-audit-transfer-status.json',
     'product-first-use-audit.json','product-first-use-service-command.json','product-first-use-transfer-status.json',
