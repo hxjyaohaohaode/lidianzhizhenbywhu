@@ -258,6 +258,21 @@ def create_report(p,dataset,number,mutations):
     return p.step('通过实际表单和零外部调用审批保存第'+str(number)+'份报告',action)
 
 
+def open_saved_report(p,control,run_id,number,mutations):
+    """Observe before navigation; only a fresh rejected read can permit rereading."""
+    original_mutations=deepcopy(mutations);failures=[]
+    def rejected(response):record_rate_limit(p,response,failures)
+    p.page.on('response',rejected)
+    try:
+        p.step('打开最初报告查看冻结原值',lambda:control.click())
+        assert mutations==original_mutations, 'Opening history must not produce any mutation.'
+        read_created_report(p,run_id,number,failures,mutations)
+        assert mutations==original_mutations
+        read_answer(p,number)
+        assert mutations==original_mutations
+    finally:p.page.remove_listener('response',rejected)
+
+
 def next_page(p):
     nav=p.visible('#main').locator('nav[aria-label="报告历史分页"]').first
     p.step('从可见分页进入较早报告',lambda:nav.get_by_role('button',name='下一页',exact=True).click())
@@ -289,7 +304,7 @@ def report_history_journey(p,*,repository_root,data_dir,expected_web_tree,expect
         read_group(p,oldest.locator('span'),[query(1)],'阅读第二页最初保存的问题')
         assert p.page.locator('#main .title-button').count()==1
         expect_history(p.get('/api/workspace/reports'+scope+'&offset=20&limit=20'),originals,20,20)
-        p.step('打开最初报告查看冻结原值',lambda:oldest.click());read_answer(p,1)
+        open_saved_report(p,oldest,originals[0]['run']['id'],1,mutations)
         p.step('浏览器Back回到原第二页',lambda:p.page.go_back(wait_until='domcontentloaded'))
         p.page.get_by_text('21–21 / 21 份',exact=True).wait_for()
         p.step('刷新仍保持报告第二页',lambda:p.page.reload(wait_until='domcontentloaded'))

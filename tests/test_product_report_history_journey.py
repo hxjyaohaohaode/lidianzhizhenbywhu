@@ -521,3 +521,87 @@ def test_creation_observer_precedes_execute_race_and_never_replays_mutations(exe
         assert not recovery_calls and not gets
     assert calls==['/api/workspace/plans','/api/workspace/plans/plan-id/execute']
     assert not listeners and p.observations['report_read_rate_limits'][0]['status']==429
+
+
+def history_open_fixture(monkeypatch,*,status=429,damage=None):
+    """Inert navigation double around the real recovery helper; no native replay."""
+    p,failures,mutations,record=recovery_fixture(monkeypatch,initial=[],outcomes=[[]])
+    listeners={};reads=[];opens=[]
+    def on(name,callback):
+        assert name=='response' and name not in listeners
+        listeners[name]=callback
+    def remove(name,callback):assert listeners.pop(name) is callback
+    p.page.on=on;p.page.remove_listener=remove
+    p.page.url=BASE+'/#reports:1'
+    row=rate_limit_row(seconds=1,part='runtime');row['status']=status
+    if damage=='missing_retry_after':row.pop('retry_after')
+    elif damage=='other_run':row['url']=row['url'].replace(RUN,'another-run')
+    elif damage=='other_origin':row['url']=row['url'].replace(BASE,'https://unrelated.test')
+    elif damage=='write_rejection':row['method']='POST'
+    if status not in (200,429):row['body']['error']={'code':'READ_FAILED','message':'读取失败'}
+    def click():
+        assert 'response' in listeners, 'The observer must precede the navigation response.'
+        opens.append(RUN)
+        if damage=='click_raises':raise RuntimeError('navigation failed')
+        p.page.url=BASE+'/#agents:run-'+RUN
+        record.state['phase']='success' if status==200 else 'failed'
+        record.state['message']=row['body']['error']['message']
+        # Response arrives synchronously before the click returns, as in the trace.
+        listeners['response'](response_for(row))
+        if damage=='mutation_on_open':mutations.append({'method':'POST','path':'/api/workspace/plans'})
+    def read_answer(probe,number):
+        assert probe is p and number==1 and record.state['phase']=='success'
+        reads.append(number)
+        if damage=='read_raises':raise AssertionError('frozen answer mismatch')
+    monkeypatch.setattr(journey,'read_answer',read_answer)
+    return p,SimpleNamespace(click=click),mutations,record,SimpleNamespace(listeners=listeners,reads=reads,opens=opens)
+
+
+def test_history_open_observes_early_runtime_429_then_reads_same_frozen_report(monkeypatch):
+    p,control,mutations,record,opened=history_open_fixture(monkeypatch)
+    before=deepcopy(mutations)
+    journey.open_saved_report(p,control,RUN,1,mutations)
+    assert opened.opens==[RUN] and opened.reads==[1] and not opened.listeners
+    assert record.waits==[1000] and record.state['clicks']==1 and mutations==before
+    assert [name for name,text in record.reads]==['heading','subtitle','message','retry']
+    failure,=p.observations['report_read_rate_limits']
+    assert failure['status']==429 and failure['path'].endswith('/runtime') and failure['retry_after']=='1'
+    recovery,=p.observations['report_read_recoveries']
+    assert recovery['run_id']==RUN and recovery['report_number']==1
+    assert recovery['outcome']=='readout_restored' and recovery['recovery_exercised']
+    assert all(timeout==10_000 for timeout in record.timeouts)
+
+
+def test_history_open_success_does_not_wait_or_claim_recovery(monkeypatch):
+    p,control,mutations,record,opened=history_open_fixture(monkeypatch,status=200)
+    journey.open_saved_report(p,control,RUN,1,mutations)
+    assert opened.opens==[RUN] and opened.reads==[1] and not opened.listeners
+    assert not record.waits and not record.state['clicks'] and not record.reads
+    assert not p.observations.get('report_read_recoveries')
+
+
+@pytest.mark.parametrize('status,damage',[(429,'missing_retry_after'),(429,'other_run'),
+    (429,'other_origin'),(429,'write_rejection'),(429,'mutation_on_open'),
+    (401,None),(403,None),(404,None),(409,None),(500,None)])
+def test_history_open_unproven_recovery_fails_bounded_without_any_retry(status,damage,monkeypatch):
+    p,control,mutations,record,opened=history_open_fixture(monkeypatch,status=status,damage=damage)
+    with pytest.raises(AssertionError):journey.open_saved_report(p,control,RUN,1,mutations)
+    assert opened.opens==[RUN] and not opened.reads and not opened.listeners
+    assert not record.waits and not record.state['clicks']
+    assert not p.observations.get('report_read_recoveries')
+    assert all(timeout==10_000 for timeout in record.timeouts)
+
+
+@pytest.mark.parametrize('damage',['click_raises','read_raises'])
+def test_history_open_always_detaches_observer_on_navigation_or_oracle_failure(damage,monkeypatch):
+    p,control,mutations,record,opened=history_open_fixture(monkeypatch,status=200,damage=damage)
+    with pytest.raises((RuntimeError,AssertionError)):journey.open_saved_report(p,control,RUN,1,mutations)
+    assert not opened.listeners and not record.waits and not record.state['clicks']
+
+
+def test_history_open_does_not_reuse_a_previous_read_rejection(monkeypatch):
+    p,control,mutations,record,opened=history_open_fixture(monkeypatch,status=500)
+    p.observations['report_read_rate_limits']=[rate_limit_row(seconds=1,part='runtime')]
+    with pytest.raises(AssertionError,match='no fresh same-run GET429'):
+        journey.open_saved_report(p,control,RUN,1,mutations)
+    assert not opened.listeners and not opened.reads and not record.waits and not record.state['clicks']
