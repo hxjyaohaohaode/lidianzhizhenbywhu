@@ -46,7 +46,7 @@ def test_suite_destinations_and_registry_are_disjoint_with_l6_l7_l8_l9_l10_l11()
     registry = runner.scenario_registry(repository_root='unused', data_dir='unused',
         expected_web_tree=REVIEWED_WEB, expected_server_tree=REVIEWED_SERVER)
     assert tuple(registry) == ('F1-trace-handoff', 'F2-forecast-units', 'F3-report-points', 'L1-first-use-report',
-        'I1-import-integrity','I2-report-integrity','I3-memory-integrity','I4-comparison-integrity','I5-review-scope','I6-dataset-source','I7-tracking-source','L6-plan-history','L4-tracking-units','I8-memory-preference','I9-report-export','L7-question-scope','L8-experiment-recovery','L9-strategy-consent','L10-report-history','L11-late-actions','L12-action-evidence','I10-copilot-report-integrity','historical-cost-percentage-warning')
+        'I1-import-integrity','I2-report-integrity','I3-memory-integrity','I4-comparison-integrity','I5-review-scope','I6-dataset-source','I7-tracking-source','L6-plan-history','L4-tracking-units','I8-memory-preference','I9-report-export','L7-question-scope','L8-experiment-recovery','L9-strategy-consent','L13-strategy-success','L10-report-history','L11-late-actions','L12-action-evidence','I10-copilot-report-integrity','historical-cost-percentage-warning')
     assert registry['L1-first-use-report'].keywords['expected_web_tree'] == REVIEWED_WEB
     assert tuple(code for code, _ in first_use['scenarios']) == ('L1-first-use-report',)
     assert integrity['database_fault_injection'] is True and comparison_integrity['database_fault_injection'] is True
@@ -261,10 +261,10 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
             assert f'path: evidence/{mode}-transfer/part-{part:02d}/\n' in job
     assert protected_pins == {('fb2a03ab5f1697b75e15a7292efa71fab0a7ca5f',
         'fed21d68569863e8d3d0a0da0fe6a827ccca6090')}
-    assert len(re.findall(r'^  product-[a-z-]+:', after, re.M)) == 18
+    assert len(re.findall(r'^  product-[a-z-]+:', after, re.M)) == 19
     jobs = re.findall(r'^  ([a-z][a-z-]*):\n', after, re.M)
-    assert len(jobs) == 20 and {'regression', 'dependency-audit'} <= set(jobs)
-    assert sum(2 if 'os: [ubuntu-latest, windows-latest]' in section(name) else 1 for name in jobs) == 39
+    assert len(jobs) == 21 and {'regression', 'dependency-audit'} <= set(jobs)
+    assert sum(2 if 'os: [ubuntu-latest, windows-latest]' in section(name) else 1 for name in jobs) == 40
     assert 'timeout-minutes: 35' in section('regression')
     from scripts.pack_product_audit import PART_BYTES, MAX_PARTS
     assert PART_BYTES == 24 * 1024 * 1024 and MAX_PARTS == 16
@@ -276,7 +276,7 @@ def test_native_workflow_pins_match_the_current_reviewed_production_trees():
     root = Path(__file__).resolve().parents[1]
     workflow = (root / '.github/workflows/ci.yml').read_text()
     pins = re.findall(r'--expected-web-tree ([0-9a-f]{40}) --expected-server-tree ([0-9a-f]{40})', workflow)
-    assert len(pins) == 18
+    assert len(pins) == 19
     # A source checkout is required for CI; archived historical constants are not
     # evidence that this checkout matches the explicit current workflow pins.
     current = tuple(subprocess.check_output(

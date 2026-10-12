@@ -1,4 +1,6 @@
 """Bounded native audit suites and disjoint evidence destinations."""
+import os
+import sys
 
 AUDIT_SUITES = {
     'contract': {
@@ -62,6 +64,14 @@ AUDIT_SUITES = {
         'fixture_file': 'strategy-single-synthetic-input.csv',
         'scenarios': (('L9-strategy-consent', '一份输入一份报告→人工同意0→1→0→诚实阻塞激活→中文逐例与冻结历史'),),
         'precondition': 'Fresh synthetic account; one two-quarter financial input and one report with background-only evidence; all mutations through visible controls; explicit consent 0 to 1 to 0; blocked activation with no fabricated UI activation request; readable saved case, browser Back/reload and zero-case replay preserve history; no successful activation, rollback, three-input quality, database faults or providers',
+    },
+    'strategy-success': {
+        'mode': 'product-strategy-success',
+        'report': 'product-strategy-success-audit.json',
+        'runner_platform': 'windows',
+        'fixture_files': tuple(f'strategy-success-input-{index}.csv' for index in range(1, 4)),
+        'scenarios': (('L13-strategy-success', '三份独立输入与人工同意→真实回放→明确激活与回滚→冻结历史'),),
+        'precondition': 'Fresh synthetic account on a real authorized Windows GitHub runner; three distinct financial inputs and completed reports; visible human assessment and explicit replay consent; actual local replay and explicit strategy activation/rollback; frozen original history; no database faults or providers',
     },
     'report-history': {
         'mode': 'product-report-history',
@@ -144,6 +154,22 @@ def audit_suite(name):
         return AUDIT_SUITES[name]
     except KeyError as exc:
         raise ValueError('Unknown native product audit suite: ' + str(name)) from exc
+
+
+def windows_ci_runner_matches(*, os_name, platform, github_actions, runner_os):
+    """Pure policy predicate; arguments are observations, never runner overrides."""
+    return (os_name == 'nt' and platform == 'win32'
+            and github_actions == 'true' and runner_os == 'Windows')
+
+
+def require_suite_runner(name):
+    """Read actual runtime identity; no environment flag can impersonate Windows."""
+    if audit_suite(name).get('runner_platform') == 'windows' and not windows_ci_runner_matches(
+            os_name=os.name, platform=sys.platform,
+            github_actions=os.getenv('GITHUB_ACTIONS'), runner_os=os.getenv('RUNNER_OS')):
+        raise RuntimeError('This native suite requires a real Windows GitHub runner '
+            '(os.name=nt, sys.platform=win32, GITHUB_ACTIONS=true, RUNNER_OS=Windows); '
+            'no socket, process or browser may be started on an unauthorized host.')
 
 
 def audit_artifact_kinds(name):

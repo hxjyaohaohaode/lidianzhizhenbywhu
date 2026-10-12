@@ -34,6 +34,12 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS, suite='cont
     report = json.loads(report_path.read_text(encoding='utf-8'))
     if report.get('suite', 'contract') != suite:
         raise ValueError('Audit report belongs to a different suite')
+    fixture_files = configuration.get('fixture_files')
+    if fixture_files and report.get('all_checks_passed') is True:
+        rows = report.get('scenarios', [])
+        if ([row.get('id') for row in rows] != [code for code, _ in configuration['scenarios']]
+                or any(row.get('status') != 'passed' for row in rows)):
+            raise ValueError('Successful multi-input audit requires every configured scenario to pass')
     audit = evidence / mode
     selected = {}
 
@@ -114,6 +120,35 @@ def package(evidence, *, part_bytes=PART_BYTES, max_parts=MAX_PARTS, suite='cont
         # The current root report already embeds each scenario and its steps.
         # Do not sweep auxiliary JSON that may belong to an earlier attempt.
         fixture = row.get('observations', {}).get('fixture')
+        if fixture_files:
+            declared = {item['file']: item for item in row.get('artifacts', [])
+                        if item.get('kind') == 'synthetic-input'}
+            if set(declared) - set(fixture_files) or any(
+                    item['file'] in fixture_files and item.get('kind') != 'synthetic-input'
+                    for item in row.get('artifacts', [])):
+                raise ValueError('Configured fixture CSV inputs require exact synthetic-input artifact names')
+            observed = {}
+            if fixture is not None:
+                if (not isinstance(fixture, dict) or fixture.get('synthetic') is not True
+                        or not isinstance(fixture.get('inputs'), list)):
+                    raise ValueError('Configured fixture CSV inputs require a synthetic input observation list')
+                for item in fixture['inputs']:
+                    if not isinstance(item, dict):
+                        raise ValueError('Configured fixture CSV input observation must be an object')
+                    name, expected = item.get('file'), item.get('csv_sha256')
+                    if not isinstance(name, str) or name not in fixture_files or name in observed:
+                        raise ValueError('Configured fixture CSV input observation name is unknown or duplicate')
+                    if (not isinstance(expected, str) or not re.fullmatch(r'[0-9a-f]{64}', expected)
+                            or name not in declared or declared[name]['sha256'] != expected):
+                        raise ValueError('Configured fixture CSV input requires its exact current artifact hash')
+                    observed[name] = expected
+                    include(directory / name, expected)
+            # Early failure may happen after a CSV artifact is registered but
+            # before its observation is recorded. Preserve those checked bytes.
+            if row.get('status') == 'passed' and (set(observed) != set(fixture_files)
+                    or set(declared) != set(fixture_files)):
+                raise ValueError('Successful multi-input audit requires all configured fixture CSV inputs')
+            continue
         fixture_hash = (fixture or {}).get('csv_sha256')
         fixture_file = configuration.get('fixture_file')
         if fixture_file:

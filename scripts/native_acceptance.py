@@ -19,10 +19,10 @@ from datetime import datetime, timezone
 import httpx
 try:
     from scripts.acceptance_diagnostics import EventJournal
-    from scripts.product_audit_config import audit_suite
+    from scripts.product_audit_config import audit_suite, require_suite_runner
 except ModuleNotFoundError:
     from acceptance_diagnostics import EventJournal
-    from product_audit_config import audit_suite
+    from product_audit_config import audit_suite, require_suite_runner
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -74,6 +74,7 @@ def main():
     mode_args.add_argument('--product-question-scope',action='store_true',help='Run four visible questions, service identity and reload/re-login preservation')
     mode_args.add_argument('--product-experiment-recovery',action='store_true',help='Run three committed save response losses and explicit experiment recovery')
     mode_args.add_argument('--product-strategy-consent',action='store_true',help='Run one-input human feedback, explicit replay consent and honest activation blocking')
+    mode_args.add_argument('--product-strategy-success',action='store_true',help='Run the Windows-only three-input replay, explicit activation and rollback journey')
     mode_args.add_argument('--product-report-history',action='store_true',help='Run actual21-report history and cross-page comparison')
     mode_args.add_argument('--product-late-actions',action='store_true',help='Run delayed actual deletion/refresh and normal edited research proposal')
     mode_args.add_argument('--product-action-evidence',action='store_true',help='Read complete review/source details and preserve selected action history')
@@ -82,8 +83,8 @@ def main():
     parser.add_argument('--expected-web-tree')
     parser.add_argument('--expected-server-tree')
     args=parser.parse_args()
-    product_mode=args.product_historical_warning or args.product_audit or args.product_first_use or args.product_integrity or args.product_comparison_integrity or args.product_source_integrity or args.product_tracking_integrity or args.product_plan_history or args.product_tracking_units or args.product_memory_eligibility or args.product_report_export or args.product_question_scope or args.product_experiment_recovery or args.product_strategy_consent or args.product_report_history or args.product_late_actions or args.product_action_evidence or args.product_copilot_integrity
-    suite='historical-warning' if args.product_historical_warning else 'copilot-integrity' if args.product_copilot_integrity else 'action-evidence' if args.product_action_evidence else 'late-actions' if args.product_late_actions else 'report-history' if args.product_report_history else 'strategy-consent' if args.product_strategy_consent else 'experiment-recovery' if args.product_experiment_recovery else 'question-scope' if args.product_question_scope else 'report-export' if args.product_report_export else 'memory-eligibility' if args.product_memory_eligibility else 'tracking-units' if args.product_tracking_units else 'plan-history' if args.product_plan_history else 'tracking-integrity' if args.product_tracking_integrity else 'source-integrity' if args.product_source_integrity else 'comparison-integrity' if args.product_comparison_integrity else 'integrity' if args.product_integrity else 'first-use' if args.product_first_use else 'contract'
+    product_mode=args.product_strategy_success or args.product_historical_warning or args.product_audit or args.product_first_use or args.product_integrity or args.product_comparison_integrity or args.product_source_integrity or args.product_tracking_integrity or args.product_plan_history or args.product_tracking_units or args.product_memory_eligibility or args.product_report_export or args.product_question_scope or args.product_experiment_recovery or args.product_strategy_consent or args.product_report_history or args.product_late_actions or args.product_action_evidence or args.product_copilot_integrity
+    suite='strategy-success' if args.product_strategy_success else 'historical-warning' if args.product_historical_warning else 'copilot-integrity' if args.product_copilot_integrity else 'action-evidence' if args.product_action_evidence else 'late-actions' if args.product_late_actions else 'report-history' if args.product_report_history else 'strategy-consent' if args.product_strategy_consent else 'experiment-recovery' if args.product_experiment_recovery else 'question-scope' if args.product_question_scope else 'report-export' if args.product_report_export else 'memory-eligibility' if args.product_memory_eligibility else 'tracking-units' if args.product_tracking_units else 'plan-history' if args.product_plan_history else 'tracking-integrity' if args.product_tracking_integrity else 'source-integrity' if args.product_source_integrity else 'comparison-integrity' if args.product_comparison_integrity else 'integrity' if args.product_integrity else 'first-use' if args.product_first_use else 'contract'
     configuration=audit_suite(suite)
     if not product_mode and (args.expected_web_tree or args.expected_server_tree):
         parser.error('Expected application trees apply only to product audit modes')
@@ -99,6 +100,14 @@ def main():
         'policy_modified':False,'note':'本次执行尚未完成；不继承旧验收成功或历史截图。'}
     if product_mode:attempt['suite']=suite
     report.write_text(json.dumps(attempt,ensure_ascii=False,indent=2),encoding='utf-8')
+    if product_mode:
+        try:
+            require_suite_runner(suite)
+        except RuntimeError as exc:
+            attempt.update(status='blocked_or_error',error={'type':type(exc).__name__,'message':str(exc)})
+            report.write_text(json.dumps(attempt,ensure_ascii=False,indent=2),encoding='utf-8')
+            journal.emit('product_audit_blocked',reason='authorized_windows_ci_runner_required');journal.close()
+            raise SystemExit(str(exc)) from exc
     if product_mode and os.getenv('GITHUB_ACTIONS')!='true':
         journal.emit('product_audit_blocked',reason='authorized_ci_runner_required');journal.close()
         raise SystemExit('独立原生产品审计仅在已授权的 GitHub runner 执行；没有启动本地服务或浏览器。')

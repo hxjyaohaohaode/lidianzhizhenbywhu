@@ -27,9 +27,9 @@ import uuid
 from functools import partial
 
 try:
-    from .product_audit_config import AUDIT_SUITES, audit_suite, audit_artifact_kinds
+    from .product_audit_config import AUDIT_SUITES, audit_suite, audit_artifact_kinds, require_suite_runner
 except ImportError:
-    from product_audit_config import AUDIT_SUITES, audit_suite, audit_artifact_kinds
+    from product_audit_config import AUDIT_SUITES, audit_suite, audit_artifact_kinds, require_suite_runner
 
 FIXTURE_COMPANY = '独立合同验收合成企业（非真实财报）'
 FIXTURE_REVENUE = 100_000
@@ -167,6 +167,67 @@ class Probe:
             self.observations.setdefault('expected_dialogs',[]).append(dict(pending))
             self._expected_dialog=None
 
+    def with_strategy_decision(self, *, operation, accept, action):
+        """One target-bound native synthetic strategy confirmation or cancellation.
+
+        Kept separate from ordinary confirmations: no other suite gains an
+        activation/rollback allowance, and each operation/decision is single-use.
+        """
+        fixture = self.observations.get('native_created_strategy_success')
+        if (not isinstance(fixture, dict) or fixture.get('synthetic') is not True
+                or fixture.get('created_through_visible_controls') is not True
+                or operation not in ('activate', 'rollback') or type(accept) is not bool
+                or not callable(action)):
+            raise ValueError('Strategy decisions require this Probe’s native synthetic fixture.')
+        candidate, evaluation = fixture.get('candidate_id'), fixture.get('evaluation_id')
+        if any(not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]+', value)
+               for value in (candidate, evaluation)):
+            raise ValueError('Strategy decision target IDs are invalid.')
+        if self._expected_dialog is not None:
+            raise RuntimeError('Expected browser decisions cannot be nested.')
+        key = operation + ('-accept' if accept else '-cancel')
+        completed = fixture.setdefault('decisions_started', [])
+        if key in completed:
+            raise ValueError('The same strategy decision cannot be replayed.')
+        current = self.get('/api/workspace/evolution')
+        if operation == 'activate':
+            if current['active'] is not None:
+                raise ValueError('Activation must still use the original empty active baseline.')
+            matching = [row for row in current['evaluations'] if row['id'] == evaluation]
+            if (len(matching) != 1 or matching[0]['payload']['candidate_id'] != candidate
+                    or matching[0]['payload']['eligible'] is not True
+                    or matching[0]['payload']['active_version'] != 0):
+                raise ValueError('The target-bound current eligible evaluation is missing.')
+            selector = ('#main[data-page="evolution"] [data-action="strategy-activate"]'
+                        f'[data-id="{candidate}"][data-evaluation="{evaluation}"]')
+            message = '仅对未来计划激活该策略？既有报告保持不变，未执行旧计划需要重新生成。'
+        else:
+            active = current.get('active')
+            if (not active or active['version'] != 1
+                    or active['payload']['candidate_id'] != candidate
+                    or active['payload']['evaluation_id'] != evaluation):
+                raise ValueError('Rollback must still target this fixture’s first activation.')
+            selector = '#main[data-page="evolution"] [data-action="strategy-rollback"]'
+            message = '回滚到上一策略？旧报告不变，未执行计划需要重新核对。'
+        control = self.visible(selector)
+        if not control.is_enabled():
+            raise ValueError('The exact strategy control must be visible and enabled.')
+        completed.append(key)
+        pending = {'type': 'confirm', 'message': message, 'started_at': now(), 'events': [],
+                   'seen': 0, 'accepted': 0, 'dismissed': 0, 'mismatch': False,
+                   'decision': 'accept' if accept else 'dismiss', 'operation': operation,
+                   'candidate_id': candidate, 'evaluation_id': evaluation}
+        self._expected_dialog = pending
+        try:
+            value = action()
+            assert pending['seen'] == 1 and not pending['mismatch']
+            assert pending['accepted'] == int(accept) and pending['dismissed'] == int(not accept)
+            return value
+        finally:
+            pending['finished_at'] = now()
+            self.observations.setdefault('strategy_dialogs', []).append(dict(pending))
+            self._expected_dialog = None
+
     def handle_expected_dialog(self, dialog):
         pending=self._expected_dialog
         if pending is None:return False
@@ -176,9 +237,14 @@ class Probe:
         if pending['seen']!=1 or dialog.type!=pending['type'] or dialog.message!=pending['message']:
             pending['mismatch']=True
             return False
-        dialog.accept()
-        event.update(accepted=True,accepted_at=now())
-        pending['accepted']+=1
+        if pending.get('decision') == 'dismiss':
+            dialog.dismiss()
+            event.update(dismissed=True, dismissed_at=now())
+            pending['dismissed'] += 1
+        else:
+            dialog.accept()
+            event.update(accepted=True,accepted_at=now())
+            pending['accepted']+=1
         return True
 
     def record_artifact(self, path, *, kind):
@@ -916,6 +982,10 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
     except ImportError:
         from product_strategy_journey import strategy_consent_journey
     try:
+        from .product_strategy_success import strategy_success_journey
+    except ImportError:
+        from product_strategy_success import strategy_success_journey
+    try:
         from .product_report_history_journey import report_history_journey
         from .product_late_action_journey import late_action_journey
     except ImportError:
@@ -953,6 +1023,7 @@ def scenario_registry(*, repository_root, data_dir, expected_web_tree, expected_
         'L7-question-scope': bind(question_scope_journey),
         'L8-experiment-recovery': bind(experiment_recovery_outcome),
         'L9-strategy-consent': bind(strategy_consent_journey),
+        'L13-strategy-success': bind(strategy_success_journey),
         'L10-report-history': bind(report_history_journey),
         'L11-late-actions': bind(late_action_journey),
         'L12-action-evidence': bind(action_evidence_journey),
@@ -969,6 +1040,7 @@ def run_contract_audit(browser, *, base_url, data_dir, output_dir, repository_ro
     Caller must exit nonzero if all_checks_passed is false. An expected-red
     baseline is still FAIL and never emits PASS or an XFAIL success.
     """
+    require_suite_runner(suite)
     require_isolated_runner(base_url, data_dir)
     configuration = audit_suite(suite)
     root = Path(repository_root).resolve()
@@ -1116,6 +1188,7 @@ def main():
     dump(report_path, initial)
     try:
         # No override: local execution or missing temporary-server provenance is blocked.
+        require_suite_runner(args.suite)
         require_isolated_runner('http://127.0.0.1:8000', os.getenv('DATA_DIR', ''))
         identity = git_identity(root)
         expected = initial['expected_protected_tree_ids']
