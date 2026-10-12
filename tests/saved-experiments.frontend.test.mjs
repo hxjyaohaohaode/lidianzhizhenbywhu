@@ -54,3 +54,14 @@ test('unchanged approved response applies once and form writes remain double-sub
  assert(code.includes("if(el.id==='plan-experiment')syncExperimentControls"));
  assert(code.includes('syncExperimentControls(main,state.cache.planExperiments??[],scopedDatasets())'));
 });
+
+test('unverified modern records remain selectable for inspection but cannot become approved inputs',()=>{
+ for(const payload of [row.payload,{},null]){
+  const bad={...row,payload,integrity:{valid:false,message:'Synthetic creation seal mismatch'}};
+  assert.match(experimentProblem(bad,[ds]),/seal mismatch/);
+  assert.throws(()=>selectedExperimentRequest(bad,ds.id,[ds]),/seal mismatch/);
+  assert.doesNotThrow(()=>experimentSelection([bad],bad.id));
+  const f=dom();assert.doesNotThrow(()=>syncExperimentControls(f.root,[bad],[ds]));
+  assert.match(f.details.innerHTML,/seal mismatch/);
+ }
+});

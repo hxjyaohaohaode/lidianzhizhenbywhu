@@ -249,3 +249,66 @@ test('deleted comparison does not reappear in a late assistant catalog batch',as
  const h=await harness();let resolve;try{state.cache={comparison};let experimentReads=0,comparisonReads=0;globalThis.fetch=(url,init)=>{if(init.method==='DELETE')return Promise.resolve(response({deleted:true}));if(url.includes('/experiments?')&&++experimentReads===1)return new Promise(r=>resolve=r);if(url.includes('/comparisons?'))return Promise.resolve(response({items:++comparisonReads===1?[comparison]:[]}));return h.normal(url,init);};const opening=h.open();await turn();await removeSavedComparison(comparisonRemovalTarget(comparison.id,comparison.version,state.identity));resolve(response({items:[experiment]}));await opening;assert.equal(comparisonReads,2);assert.equal(h.shown.length,1);assert(!h.shown[0].html.includes('value="'+comparison.id+'"'));
  }finally{h.restore();}
 });
+
+// A quarantined catalog row is still shown and explained, never repaired or selected.
+const quarantinedRequests=[
+ ['missing',undefined],['null',null],['string','not a request'],['number',7],['boolean',false],['array',[]],['empty object',{}],
+ ['unknown kind',{name:'原名称',assumptions:'原说明',kind:'unknown'}],
+ ['incomplete forecast',{name:'原预测',assumptions:'原说明',kind:'forecast',metric:'cash_flow'}],
+ ['incomplete scenario',{name:'原情景',assumptions:'原说明',kind:'scenario',price_change:.1}],
+];
+for(const [label,request] of quarantinedRequests)test(`quarantined ${label} request is isolated across options, controls, joint details and forged submission`,()=>{
+ const bad={...experiment,id:'unavailable-'+label,integrity:{valid:false,message:'创建凭据无法核验，原记录仅供核对'},payload:{...experiment.payload,request,target_period:'2020-Q1'}};
+ if(request===undefined)delete bad.payload.request;
+ const original=structuredClone(bad),inputs=catalog([experiment,bad,scenario]);
+ assert.deepEqual(inputs.experiments.map(row=>row.id),[experiment.id,bad.id,scenario.id],'do not hide a bad row or its healthy neighbors');
+ const html=researchInputFields(inputs);
+ assert(html.includes(`value="${bad.id}" disabled`));assert(html.includes(`data-unavailable-experiment="${bad.id}"`));assert(html.includes('不可用'));assert(html.includes(bad.integrity.message));
+ assert(html.indexOf('value="'+experiment.id+'"')<html.indexOf('value="'+bad.id+'"'));assert(html.indexOf('value="'+bad.id+'"')<html.indexOf('value="'+scenario.id+'"'));
+ assert(!html.includes('value="'+experiment.id+'" disabled'));assert(!html.includes('value="'+scenario.id+'" disabled'));
+ assert.equal((html.match(/value="" selected/g)||[]).length,2,'neither optional input is auto-selected');
+ const form=inputForm({experiment_id:experiment.id,comparison_artifact_id:comparison.id,forecast_metric:'gross_margin',horizon:'3'});
+ syncResearchInputControls(form,inputs,datasets);assert(form.nodes.forecast.disabled);assert.equal(form.nodes.horizon.value,'4');
+ form.nodes.experiment_id.value=bad.id;assert.doesNotThrow(()=>syncResearchInputControls(form,inputs,datasets));
+ assert(!form.nodes.forecast.disabled);assert(!form.nodes.forecast.checked);assert.equal(form.nodes.forecast_metric.value,'gross_margin');assert.equal(form.nodes.horizon.value,'3');
+ assert(form.details['copilot-experiment-details'].innerHTML.includes(bad.integrity.message));assert(!form.details['copilot-experiment-details'].innerHTML.includes('冻结预测目标'));
+ assert.equal(form.details['copilot-input-conflicts'].innerHTML,'','do not compare untrusted frozen periods');
+ assert.throws(()=>researchInputRequest(data({experiment_id:bad.id,comparison_artifact_id:comparison.id,forecast:'on'}),inputs,'identity-a',ds.id,datasets),/创建凭据无法核验/);
+ assert.deepEqual(researchInputRequest(data({experiment_id:experiment.id}),inputs,'identity-a',ds.id,datasets),{references:{experiment:{id:experiment.id,version:experiment.version,hash:experiment.experiment_hash}},forecast:{}});
+ assert.deepEqual(researchInputRequest(data({experiment_id:scenario.id,forecast:'on',forecast_metric:'gross_margin',horizon:3}),inputs,'identity-a',ds.id,datasets),{references:{experiment:{id:scenario.id,version:scenario.version,hash:scenario.experiment_hash}},forecast:{forecast:true,forecast_metric:'gross_margin',horizon:3}});
+ assert.deepEqual(researchInputRequest(data({forecast:'on',forecast_metric:'revenue',horizon:2}),inputs,'identity-a',ds.id,datasets),{references:{},forecast:{forecast:true,forecast_metric:'revenue',horizon:2}});
+ assert.deepEqual(bad,original,'rendering and selection do not repair saved history');
+});
+
+for(const [label,request] of quarantinedRequests)test(`malformed ${label} request without an integrity marker also fails closed`,()=>{
+ const bad={...experiment,id:'malformed',payload:{...experiment.payload,request}},inputs=catalog([bad,scenario]);
+ if(request===undefined)delete bad.payload.request;
+ const html=researchInputFields(inputs);assert(html.includes('value="malformed" disabled'));assert(html.includes('实验原始参数缺失或记录不可读'));
+ const form=inputForm({experiment_id:bad.id,comparison_artifact_id:comparison.id});assert.doesNotThrow(()=>syncResearchInputControls(form,inputs,datasets));
+ assert(!form.nodes.forecast.disabled);assert.equal(form.details['copilot-input-conflicts'].innerHTML,'');
+ assert.throws(()=>researchInputRequest(data({experiment_id:bad.id}),inputs,'identity-a',ds.id,datasets),/实验原始参数缺失或记录不可读/);
+});
+
+test('unavailable labels and explanations are escaped, and invalid full requests cannot freeze controls or appear as approved details',()=>{
+ const bad={...experiment,id:'bad-"<tag>',integrity:{valid:false,message:'<script>untrusted reason</script>'},payload:{...experiment.payload,request:{...experiment.payload.request,name:'<img src=x onerror=unsafe()>'}}};
+ const inputs=catalog([bad,scenario]),html=researchInputFields(inputs);
+ for(const raw of ['<img src=x','<script>','<tag>'])assert(!html.includes(raw));
+ for(const escaped of ['&lt;img src=x','&lt;script&gt;','&quot;&lt;tag&gt;'])assert(html.includes(escaped));
+ const form=inputForm({experiment_id:bad.id,horizon:'2'});syncResearchInputControls(form,inputs,datasets);
+ assert(!form.nodes.horizon.disabled);assert.equal(form.nodes.horizon.value,'2');assert(!form.details['copilot-experiment-details'].innerHTML.includes('<script>'));
+ assert.throws(()=>researchInputRequest(data({experiment_id:bad.id}),inputs,'identity-a',ds.id,datasets),/untrusted reason/);
+ const approval=researchApprovalInputs({snapshot:{experiment:bad}});assert(approval.includes('&lt;script&gt;'));assert(!approval.includes('冻结预测目标'));assert(!approval.includes('<script>'));
+});
+
+test('mixed quarantined catalog opens the actual proposal form; forged selection cannot post while a healthy neighbor can',async()=>{
+ const h=await harness();try{
+  const bad={...experiment,id:'quarantined-in-flow',integrity:{valid:false,message:'原记录缺少请求，仅供核对'},payload:{...experiment.payload,request:null}};
+  globalThis.fetch=(url,init)=>url.includes('/experiments?')?Promise.resolve(response({items:[experiment,bad,scenario]})):h.normal(url,init);
+  const form=await h.open();assert(form);assert.equal(h.shown.length,1);assert(h.shown[0].html.includes('value="quarantined-in-flow" disabled'));
+  form.nodes.experiment_id.value=bad.id;const count=h.calls.length;
+  assert.doesNotThrow(()=>listeners.get('change')({target:{id:'copilot-experiment',form}}));
+  await assert.rejects(chat.copilotSubmit(form,new FormData(form)),/原记录缺少请求/);assert.equal(h.calls.length,count,'bad selection must fail before API submission');
+  form.nodes.experiment_id.value=scenario.id;await chat.copilotSubmit(form,new FormData(form));
+  const posted=h.calls.find(c=>c.url.endsWith('/proposals'));assert(posted);assert.deepEqual(JSON.parse(posted.init.body).experiment,{id:scenario.id,version:scenario.version,hash:scenario.experiment_hash});
+ }finally{h.restore();}
+});

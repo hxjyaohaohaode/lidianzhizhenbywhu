@@ -1,8 +1,10 @@
 """Bounded provider transport. Configuration is not proof of live connectivity."""
 from __future__ import annotations
 import asyncio
-import json
 import os
+import re
+import secrets
+import json
 import time
 import threading
 from dataclasses import dataclass, field
@@ -36,16 +38,6 @@ class Provider:
     dispatch_started: Callable[[], None] | None = field(default=None, repr=False, compare=False)
 
 
-# Preserve existing deployments' model choices. All model names remain configurable;
-# neither this list nor saving a credential asserts that an account has access.
-DEFAULTS = [
-    ('deepseek', 'api.deepseek.com', '/v1/chat/completions', 'deepseek-chat', 'DEEPSEEK_API_KEY', 'DEEPSEEK_MODEL'),
-    ('qwen', 'dashscope.aliyuncs.com', '/compatible-mode/v1/chat/completions', 'qwen-plus', 'QWEN_API_KEY', 'QWEN_MODEL'),
-    ('glm', 'open.bigmodel.cn', '/api/paas/v4/chat/completions', 'glm-4-plus', 'GLM_API_KEY', 'GLM_MODEL'),
-    ('mimo', 'api.xiaomimimo.com', '/v1/chat/completions', 'mimo-v2.6-flash', 'MIMO_API_KEY', 'MIMO_MODEL'),
-]
-
-
 def _unique_object(pairs):
     out = {}
     for key, value in pairs:
@@ -72,27 +64,83 @@ def _http_error(status, raw):
     return ValueError(f'MODEL_HTTP_{status}{code}')
 
 
+# Official China-provider API routes reviewed 2026-10-10. Exact host AND path;
+# no international gateway, lookalike suffix, workspace wildcard or custom proxy.
+SERVER_AI_ENDPOINTS = {
+    ('api.deepseek.com', '/chat/completions'),
+    ('api.deepseek.com', '/v1/chat/completions'),
+    ('dashscope.aliyuncs.com', '/compatible-mode/v1/chat/completions'),
+    ('api.xiaomimimo.com', '/v1/chat/completions'),
+}
+
+
+def _contains_secret(value, secret):
+    if isinstance(value, str):
+        return secret in value
+    if isinstance(value, dict):
+        return any(_contains_secret(k, secret) or _contains_secret(v, secret) for k, v in value.items())
+    if isinstance(value, list):
+        return any(_contains_secret(item, secret) for item in value)
+    return False
+
+
 class ProviderService:
     def __init__(self, timeout=20, max_inflight=8):
         self.timeout = timeout
-        self.providers = {id: Provider(id, host, path, os.getenv(model_env, model), os.getenv(key_env, ''))
-                          for id, host, path, model, key_env, model_env in DEFAULTS}
+        # No presets. Optional operator-owned transport requires explicit opt-in.
+        # Private account selection remains in ScopedProviders.
+        self.providers: dict[str, Provider] = {}
+        self._load_server_provider()
         self.failures = {}; self.open_until = {}; self.vault = None
         # Include abandoned DNS/transport workers, not just awaiting coroutines.
         # Fail closed at capacity; never queue an unbounded number of paid sends.
         self._slots = threading.BoundedSemaphore(max_inflight)
         self._transport = threading.local()
+        self._server_budget_lock = threading.Lock()
+        self._server_calls_reserved = 0
+
+    def _load_server_provider(self):
+        # Missing/invalid optional configuration never prevents local-only startup.
+        # Reuse the account endpoint validator and the bounded pinned transport;
+        # no network request or credential persistence occurs during startup.
+        if os.getenv('SERVER_AI_ENABLED', '').strip().lower() != 'true':
+            return
+        key = os.getenv('SERVER_AI_API_KEY', '')
+        model = os.getenv('SERVER_AI_MODEL', '').strip()
+        base_url = os.getenv('SERVER_AI_BASE_URL', '').strip()
+        if (not key or key.startswith('your_') or len(key) > 8192
+                or any(ord(c) < 32 or ord(c) == 127 for c in key)
+                or not model or len(model) > 120
+                or any(ord(c) < 32 or ord(c) == 127 for c in model)):
+            return
+        try:
+            from .connections import endpoint
+            host, path = endpoint(base_url)
+        except (ValueError, UnicodeError):
+            return
+        if (host, path) not in SERVER_AI_ENDPOINTS:
+            return
+        family = {'api.deepseek.com':'deepseek', 'dashscope.aliyuncs.com':'qwen',
+                  'api.xiaomimimo.com':'mimo'}[host]
+        if not re.fullmatch(re.escape(family) + r'[-0-9][a-z0-9._:-]*', model.lower()):
+            return
+        provider = Provider('server_ai', host, path, model, key)
+        # Per-process revision: even a same-model credential rotation/restart
+        # invalidates an old approval rather than silently reusing consent.
+        provider.configuration_version = secrets.randbelow(2**53 - 2) + 1
+        self.providers[provider.id] = provider
 
     def status(self):
         return [{'id': p.id, 'model': p.model, 'configured': bool(p.key and not p.key.startswith('your_')),
-                 'connectivity': 'not_tested', 'scope': 'server_configuration'} for p in self.providers.values()]
+                 'connectivity': 'not_tested', 'scope': 'server_configuration',
+                 **({'name':'基础 AI（部署方共享）','host':p.host,'path':p.path} if p.id == 'server_ai' else {})} for p in self.providers.values()]
 
     def select(self, id=''):
         # Private credentials must pass through ScopedProviders with an account ID.
         # A guessed connection ID is never authority to decrypt its credential.
         if id.startswith('u_'):
             return None
-        ids = [id] if id else list(self.providers)
+        ids = [id] if id else [value for value in self.providers if value != 'server_ai']
         return next((self.providers[i] for i in ids if i in self.providers and self.providers[i].key
                      and not self.providers[i].key.startswith('your_')), None)
 
@@ -111,6 +159,12 @@ class ProviderService:
             payload.update(max_completion_tokens=1000, thinking={'type': 'disabled'})
         else:
             payload['max_tokens'] = 1000
+        if p.id == 'server_ai':
+            if p.host == 'api.deepseek.com':
+                payload['thinking'] = {'type':'disabled'}
+            elif p.host == 'dashscope.aliyuncs.com':
+                payload['enable_thinking'] = False
+                payload['max_completion_tokens'] = payload.pop('max_tokens')
         body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode()
         deadline = getattr(self._transport, 'deadline', None) or RequestDeadline(self.timeout)
         deadline.remaining()
@@ -147,10 +201,14 @@ class ProviderService:
             text = message.get('content')
             if not isinstance(text, str) or not text.strip():
                 raise ValueError('MODEL_INVALID_CONTENT')
+            if p.key in text:
+                raise ValueError('MODEL_CREDENTIAL_ECHO')
             text = text.strip()
             if text.startswith('```'):
                 text = text.removeprefix('```json').removeprefix('```').removesuffix('```').strip()
             parsed = output_schema.model_validate(json.loads(text, object_pairs_hook=_unique_object))
+            if _contains_secret(parsed.model_dump(), p.key):
+                raise ValueError('MODEL_CREDENTIAL_ECHO')
             usage = obj.get('usage', {})
             if not isinstance(usage, dict):
                 raise ValueError('MODEL_INVALID_USAGE')
@@ -167,6 +225,14 @@ class ProviderService:
             raise ValueError('MODEL_CIRCUIT_OPEN')
         if not self._slots.acquire(blocking=False):
             raise ValueError('MODEL_TRANSPORT_BUSY')
+        if p.id == 'server_ai':
+            # Site-wide, process-lifetime cap across all accounts. Reserve before
+            # scheduling; cancellation/failure never refunds possibly billable work.
+            with self._server_budget_lock:
+                if self._server_calls_reserved >= 100:
+                    self._slots.release()
+                    raise ValueError('MODEL_SITE_BUDGET_EXHAUSTED')
+                self._server_calls_reserved += 1
         deadline = RequestDeadline(self.timeout)
         args = (p, system, context) if output_schema is ModelOutput else (p, system, context, output_schema)
         startup_lock = threading.Lock()

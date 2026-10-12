@@ -25,7 +25,11 @@ class ResearchProviders(ProviderService):
         try:
             await asyncio.sleep(.005)
             if self.handler:return await self.handler(p,system,obj,len(self.calls))
-            return {'output':{'claims':[{'text':('经营现金流需结合账期核验' if '反证' in system else '毛利率变化仍需核对原始报表'),'metric_ids':['gross_margin']}],'missing':[]},'usage':{'total_tokens':15},'provider':p.id,'model':p.model}
+            # A successful provider fixture cites a numeric metric it actually
+            # received. Hard-coded gross_margin was outside cash-only queries.
+            metric=next((k for k,v in obj.get('metrics',{}).items() if isinstance(v,(int,float)) and not isinstance(v,bool)),None)
+            claims=[{'text':('已披露指标还需反向核验' if '反证' in system else '已披露指标仍须核对原始报表'),'metric_ids':[metric]}] if metric else []
+            return {'output':{'claims':claims,'missing':[]},'usage':{'total_tokens':15},'provider':p.id,'model':p.model}
         finally:self.active-=1
     async def propose(self,p,context):
         self.calls.append({'provider':p.id,'planner':True,'context':json.loads(context)})
@@ -171,7 +175,7 @@ def test_adaptive_revision_is_bounded_and_independently_rechecked(factory,limit)
 
 def test_revision_can_fix_structure_without_mutating_prior_artifact(factory):
     async def replies(p,system,obj,index):
-        metric='gross_margin' if 'structural_rejections' in obj else 'invented_metric'
+        metric=next(k for k,v in obj['metrics'].items() if isinstance(v,(int,float))) if 'structural_rejections' in obj else 'invented_metric'
         return {'output':{'claims':[{'text':'毛利率仍须核对原始报表','metric_ids':[metric]}],'missing':[]},'usage':{}}
     ps=ResearchProviders(replies);a=Actor(factory(ps));r=completed(a,use_llm=True,provider='alpha',max_calls=4)
     assert r['result'],r

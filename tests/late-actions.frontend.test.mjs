@@ -110,7 +110,7 @@ function harness(action,{holdRefresh=false,holdArchive=false,holdRead=false,sync
  }
  const edit=async(field,event='input')=>{field.value='新的未保存草稿';await listeners[event]({target:field});return field;};
  return {state,calls,write,writeStarted,preflight,preflightStarted,refresh,refreshStarted,archive,archiveStarted,read,readStarted,button,modal,inspector,control,
-  get main(){return main;},get draft(){return main.field;},get hash(){return location.hash;},restore:()=>globalThis.fetch=oldFetch,
+  get main(){return main;},get draft(){return main.field;},get hash(){return location.hash;},get title(){return document.title;},goToHash:async hash=>{location.hash=hash;windowListeners.hashchange();await tick();},restore:()=>globalThis.fetch=oldFetch,
   click:doClick,action:a=>click(new Button({action:a})),allowRefresh:()=>{holdRefresh=false;},allowRead:()=>{holdRead=false;},
   async programmaticEdit(action){
    state.cache.templates=[{id:'template-old',payload:{query:'程序填入的草稿',mode:'balanced',success_criteria:'可核对'}}];
@@ -142,7 +142,7 @@ function assertSavedNotice(h){assert.equal(h.control.readSync(),true);assert.mat
 for(const [route,path] of [['agents:run-original','/workspace/runs/original/reviews'],['reports:20','/workspace/reports?offset=20&limit=20']])register(`429: complete production render retains ${route} and manual reread uses GET only`,withHarness('refresh',{initialRoute:route,viewReadPath:path,holdRead:true},async h=>{
  const pending=h.control.render();await h.readStarted.promise;h.read.resolve(rateFailure());await pending;
  assert.equal(h.hash,'#'+route);assert.equal(h.state.id,route.split(':')[1]);
- assert(h.main.innerHTML.includes('读取未完成'));assert(h.main.innerHTML.includes(rateMessage));
+ assert(h.main.innerHTML.includes('读取未完成'));assert(h.main.innerHTML.includes(rateMessage));assert.equal(h.title,'读取未完成 · '+route.split(':')[0]+' · 锂电智诊');
  assert(h.main.innerHTML.includes('data-action="refresh"'));assert(h.main.innerHTML.includes('重新读取'));
  assert.equal(reads(h).length,1);assert.equal(writes(h).length,0);assert.equal(h.calls.resets,0);
  await tick();assert.equal(h.calls.requests.length,1,'429 never schedules a transport replay');
@@ -158,6 +158,24 @@ register('429: earlier render rejection cannot replace a newer page or draft',wi
  h.read.resolve(rateFailure());await pending;
  assert.equal(h.hash,'#data');assert.equal(h.main.innerHTML,html);assert.equal(h.calls.renders,renders);assertDraft(h,draft);
  assert.equal(h.calls.requests.length,1);assert.equal(writes(h).length,0);assert.deepEqual(h.calls.toasts,[]);
+}));
+
+// Failed-route titles must describe the accepted error, never the previous page.
+const readFailure=status=>response({error:{code:status===404?'NOT_FOUND':'UNAVAILABLE',message:'Synthetic read unavailable'}},status);
+register('404: failed task title keeps route context and successful hash Back restores its page title',withHarness('refresh',{initialRoute:'agents:run-missing',viewReadPath:'/workspace/runs/missing/reviews',holdRead:true},async h=>{
+ const pending=h.control.render();await h.readStarted.promise;h.read.resolve(readFailure(404));await pending;
+ assert.equal(h.hash,'#agents:run-missing');assert.equal(h.title,'读取未完成 · agents · 锂电智诊');assert(h.main.innerHTML.includes('Synthetic read unavailable'));assert.equal(writes(h).length,0);
+ await h.goToHash('#copilot');assert.equal(h.hash,'#copilot');assert.equal(h.title,'copilot · 锂电智诊');assert.equal(h.main.innerHTML,dataHTML);assert(!h.main.innerHTML.includes('读取未完成'));assert.equal(writes(h).length,0);
+}));
+register('503: manual reread replaces error title only after successful current route read',withHarness('refresh',{initialRoute:'reports:20',viewReadPath:'/workspace/reports?offset=20&limit=20',holdRead:true},async h=>{
+ const pending=h.control.render();await h.readStarted.promise;h.read.resolve(readFailure(503));await pending;
+ assert.equal(h.hash,'#reports:20');assert.equal(h.title,'读取未完成 · reports · 锂电智诊');
+ h.allowRead();await h.click();assert.equal(h.hash,'#reports:20');assert.equal(h.title,'reports · 锂电智诊');assert.equal(h.main.innerHTML,dataHTML);assert.equal(writes(h).length,0);
+}));
+for(const code of [404,503])register(`${code}: late failed task read cannot overwrite a newer successful page title`,withHarness('refresh',{initialRoute:'agents:run-missing',viewReadPath:'/workspace/runs/missing/reviews',holdRead:true},async h=>{
+ const pending=h.control.render();await h.readStarted.promise;await h.goToHash('#copilot');const title=h.title,html=h.main.innerHTML;
+ assert.equal(title,'copilot · 锂电智诊');h.read.resolve(readFailure(code));await pending;
+ assert.equal(h.hash,'#copilot');assert.equal(h.title,title);assert.equal(h.main.innerHTML,html);assert.equal(writes(h).length,0);
 }));
 
 for(const action of ['refresh','sync-refresh'])for(const transition of ['current','navigation','new-dialog','input','change','context'])register(`${action}: 429 preserves current or newer draft after ${transition}`,withHarness(action,{holdRefresh:true,syncPending:true},async h=>{

@@ -1,7 +1,7 @@
 """Capability compiler and persistent control. No LLM may add tools or enlarge consent."""
 from __future__ import annotations
 from .store import now, encode
-from .security import fail
+from .security import fail, next_version
 from . import workspace_store as ws
 
 CAPABILITIES = {
@@ -37,6 +37,13 @@ def execute_local_capability(capability, snapshot, request, execution, outputs, 
     if capability == 'comparison':
         from .saved_comparisons import selected_output
         return selected_output(snapshot, request)
+    if capability == 'forecast':
+        from .forecast_scope import validate_frozen_forecast, frozen_forecast_scope
+        try:
+            target,scope=frozen_forecast_scope(snapshot,request)
+            validate_frozen_forecast(scope,target,execution,snapshot)
+        except ValueError as exc:
+            return {'status':'blocked','error_class':'ValueError','reason':str(exc)}
     if capability in ('forecast','sensitivity') and snapshot.get('experiment'):
         from .saved_experiments import selected_output
         # A provenance/assumption mismatch is an integrity failure, not a reason
@@ -168,13 +175,14 @@ def compile_graph(payload, *, policy=None):
     r = payload['request']; s = payload['snapshot']; ex = r['execution']
     depth = ex.get('depth') or (policy['depth'] if policy else 'balanced')
     q = r['query'].lower(); decisions = []
-    forecast = ex['forecast'] or any(w in q for w in ('预测', '趋势回测', 'forecast'))
+    from .forecast_scope import forecast_requested, forecast_target
+    forecast = forecast_requested(forecast_target(s,r,payload.get('scope_query')),ex)
     scenario = ex['scenario'] is not None
     comparison = s.get('comparison_artifact') is not None
     counter = depth == 'deep' or r['mode'] in ('industry', 'investment', 'deep_dive') or any(w in q for w in ('反证', '反向', '不同解释', '矛盾')) or bool(policy and policy.get('require_counterevidence'))
     gaps = depth == 'deep' or bool(policy and policy.get('require_gap_analysis'))
     for cap, selected, reason in [
-        ('forecast', forecast, '明确预测开关或问题中的预测意图；执行时仍须通过样本门槛'),
+        ('forecast', forecast, s.get('research_scope',{}).get('forecast_unavailable') or '明确预测开关或问题中的预测意图；执行时仍须通过样本门槛'),
         ('sensitivity', scenario, '仅在已填写并批准情景假设时启用'),
         ('comparison', comparison, '仅复核用户明确选中并批准的企业比较产物'),
         ('counterevidence', counter, '研究方向、反向证据意图或已激活策略要求'),
@@ -316,10 +324,12 @@ def control_run(store, user, run_id, body, queue_limit=6):
         if body.action == 'pause':
             if c['status'] in ('pause_requested', 'paused'):
                 return c
+            next_version(c['version'])
             status = 'paused' if r['state'] in ('queued', 'interrupted') else 'pause_requested'
             if status == 'paused':
                 db.execute("UPDATE runs SET state='interrupted',error=?,updated_at=? WHERE id=?", ('已在执行边界暂停；可以显式继续', now(), run_id))
         else:
+            next_version(c['version'])
             if r['state'] != 'interrupted':
                 fail('NOT_PAUSED', '等待当前步骤到达安全边界后再继续', 409)
             from .studio import approved_run_valid

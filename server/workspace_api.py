@@ -11,7 +11,7 @@ from typing import Literal
 from .connections import scoped_providers
 from fastapi import APIRouter,Request,Depends,UploadFile,File,Form,Query
 from fastapi.responses import Response
-from .security import require_user,fail,check_version
+from .security import require_user,fail,check_version,next_version
 from .schemas import Dataset
 from .contracts import (CompanyProfile,PlanDraft,PlanConsent,EvidenceReview,ActionCreate,ActionEdit,ActionTransition,
     ExperimentRequest,SavedComparisonRequest,ImportPreview,RevisionRestore,ClaimReview,TaskTemplate,AssistantRequest,StageCommit,DismissInsight)
@@ -270,6 +270,7 @@ def import_commit(id:str,body:StageCommit,request:Request,user=Depends(require_u
         if p['target_id']:
             old=owned(store,user,'datasets',key)
             if old['version']!=p['target_version']:fail('VERSION_CONFLICT','预览期间原数据已更新，请重新预览',409)
+            next_version(old['version'])
             store.validate_dataset_identity(old,data)
             db.execute('UPDATE datasets SET payload=?,version=version+1,content_hash=?,updated_at=? WHERE id=? AND user_id=?',(encode(data),digest(data),at,key,user['id']))
         else:
@@ -613,7 +614,7 @@ def run_audit(id:str,request:Request,user=Depends(require_user)):
 
 
 @router.get('/runs/{id}/reviews')
-def claim_reviews(id:str,request:Request,user=Depends(require_user)):
+def claim_reviews(id:str,request:Request,include_source_refs:bool=False,user=Depends(require_user)):
     store=dbof(request);run,_,_=read_result_record(store,user['id'],id)
     # A corrupt payload must not erase the versioned record from this read model.
     # Scope by the owned live report first, then consider both saved bindings.
@@ -667,9 +668,23 @@ def claim_reviews(id:str,request:Request,user=Depends(require_user)):
             'reason_code':'malformed_json' if not parsed else 'ambiguous_association' if not associated else 'invalid_version' if not recoverable_version else 'invalid_payload',
             'association':'natural_key' if associated else 'unverified',
             'reason':reason,'can_rereview':parsed and associated and recoverable_version})
-    # Preserve the healthy response contract, including the absence of extras.
-    return {'items':items,**({'unavailable':unavailable} if unavailable else {}),
+    # Preserve the existing response and saved row bytes. Clients explicitly
+    # requesting new-write references get a separate projection of this view.
+    response={'items':items,**({'unavailable':unavailable} if unavailable else {}),
         **({'read_only':read_only} if read_only else {})}
+    if include_source_refs:
+        selected={row['payload']['claim_id']:row for row in items}
+        occupied={row['natural_key'] for row in rows}
+        references={}
+        for claim_id in sorted(claim_ids):
+            current=selected.get(claim_id)
+            # An occupied damaged slot is never advertised as no review.
+            if current is None and prefix+claim_id in occupied:continue
+            references[claim_id]={'kind':'report','run_id':id,'claim_id':claim_id,
+                'claim_review_version':current['version'] if current else 0,
+                'claim_review_hash':digest(current['payload']) if current else None}
+        response['claim_source_refs']=references
+    return response
 
 
 @router.post('/runs/{id}/reviews')

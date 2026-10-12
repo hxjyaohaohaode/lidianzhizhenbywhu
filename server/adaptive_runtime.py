@@ -14,6 +14,7 @@ import time
 from datetime import date, datetime, timezone
 from pydantic import ValidationError
 from .store import uid, now, digest, encode
+from .security import next_version
 from .models import MODEL_VERSION
 from .analytics import lineage
 from .studio import SYSTEM
@@ -32,7 +33,7 @@ class PauseBoundary(Exception):
     """An intentional, durable suspension, not a workflow failure."""
 
 
-def check_claims(claims, metrics, permitted, *, disclosures=None):
+def check_claims(claims, metrics, permitted, *, disclosures=None, expected_metric_bindings=None, require_metric_bindings=True):
     """Exact reference checks; no claim of semantic truth or numerical reliability."""
     valid = []; rejected = []; seen = set()
     available = {k for k, v in metrics.items() if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)}
@@ -40,10 +41,16 @@ def check_claims(claims, metrics, permitted, *, disclosures=None):
         c = dict(raw); reason = None
         m = set(c.get('metric_ids', [])); e = set(c.get('citation_ids', [])); t = set(c.get('tool_reference_ids', []))
         disclosure = (disclosures or {}).get(c.get('agent'), {})
+        metric_ids=available
+        if expected_metric_bindings is not None:
+            from .model_metrics import disclosed_metric_ids
+            metric_ids=(set(expected_metric_bindings) if not require_metric_bindings and 'metric_binding_version' not in disclosure
+                        else disclosed_metric_ids(expected_metric_bindings,disclosure.get('metric_bindings'))
+                        if type(disclosure.get('metric_binding_version')) is int and disclosure['metric_binding_version']==1 else set())
         citations = set(disclosure.get('citation_ids', [])) if disclosures is not None else set(permitted)
         references = disclosure.get('tool_references', {})
         if not (m or e or t): reason = '无指标或证据引用'
-        elif not m <= available or not e <= citations or not t <= set(references): reason = '引用不在实际发送或可计算范围'
+        elif not m <= metric_ids or not e <= citations or not t <= set(references): reason = '引用不在实际发送或可计算范围'
         elif re.search(r'\d|https?://|<[^>]+>', c['text']): reason = '存在未经数值合同渲染的数字、链接或标记'
         elif c['text'] in seen: reason = '重复解释'
         if reason:
@@ -84,6 +91,7 @@ class AdaptiveRun:
                 raise RuntimeError('CHECKPOINT_NODE_IMMUTABLE')
         with self.store.transaction() as db:
             self.worker.ensure_running(self.id)
+            next_version(self.version)
             changed = db.execute('UPDATE adaptive_graphs SET payload=?,version=version+1,updated_at=? WHERE run_id=? AND user_id=? AND version=?',
                                  (encode(self.graph), now(), self.id, self.user_id, self.version)).rowcount
             if not changed: raise RuntimeError('GRAPH_CONFLICT')
@@ -102,10 +110,11 @@ class AdaptiveRun:
 
     def pause_guard(self):
         self.worker.ensure_running(self.id)
-        c = self.store.one('SELECT status FROM adaptive_controls WHERE run_id=?', (self.id,))
+        c = self.store.one('SELECT status,version FROM adaptive_controls WHERE run_id=?', (self.id,))
         if c and c['status'] in ('pause_requested', 'paused'):
             with self.store.transaction() as db:
                 self.worker.ensure_running(self.id)
+                next_version(c['version'])
                 db.execute("UPDATE adaptive_controls SET status='paused',version=version+1,updated_at=? WHERE run_id=?", (now(),self.id))
                 db.execute("UPDATE runs SET state='interrupted',error=?,updated_at=? WHERE id=?", ('已在节点边界暂停；已完成步骤不会重复执行',now(),self.id))
                 self.store.event(db,self.id,'paused',{'checkpoint_count':len(self.outputs),'no_new_external_calls':True})
@@ -377,8 +386,10 @@ class AdaptiveRun:
         for b in candidates:
             if b['id'] in seen:continue
             seen.add(b['id'])
+            from .model_metrics import metric_receipt
             disclosure={'memory_ids':[m['id'] for m in obj.get('approved_memory',[])],
                         'citation_ids':[c['id'] for c in obj.get('evidence',[])],
+                        'metric_binding_version':1,'metric_bindings':metric_receipt(obj),
                         'tool_output_hashes':{k:digest(v) for k,v in obj.get('approved_tool_results',{}).items()},
                         'tool_references':disclosed_references(obj.get('approved_tool_results',{})),
                         'claim_contract_version':CLAIM_CONTRACT_VERSION}
@@ -474,7 +485,10 @@ class AdaptiveRun:
                 if not call_id:continue
                 call=self.store.one("SELECT * FROM adaptive_calls WHERE id=? AND run_id=? AND node_id=? AND state='completed'",(call_id,self.id,agent))
                 if call:disclosures[agent]=call['payload']
-            return check_claims(claims,self.outputs['quant']['metrics'],[],disclosures=disclosures)
+            from .model_metrics import metric_receipt
+            return check_claims(claims,self.st['context'].get('metrics',{}),[],disclosures=disclosures,
+                expected_metric_bindings=metric_receipt(self.st['context']),
+                require_metric_bindings='metric_scope' in self.st['context'])
         if cap=='reflection':
             review=self.outputs[self.latest_review]
             calls=self.store.all('SELECT * FROM adaptive_calls WHERE run_id=?',(self.id,))

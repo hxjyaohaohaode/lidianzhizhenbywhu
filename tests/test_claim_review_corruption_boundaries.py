@@ -97,7 +97,7 @@ def test_selected_unreadable_review_blocks_new_sources_and_keeps_old_actions_wat
     assert ok(missing, 404)['error']['code'] == 'NOT_FOUND'
     assert store.db.total_changes == changes and raw_rows(store) == frozen
     # An independently selected healthy claim remains a usable source.
-    independent = ok(action(actor, dataset, source_ref={**src, 'claim_id': other_claim}), 201)
+    independent = ok(action(actor, dataset, source_ref=actor.claim_ref(report, other_claim)), 201)
     assert independent['source_impact']['state'] == 'current'
     assert independent['payload']['provenance']['claim_review_hash']
     assert ok(actor.get('/workspace/runs/'+report['id']+'/reviews'))['items'] == [healthy]

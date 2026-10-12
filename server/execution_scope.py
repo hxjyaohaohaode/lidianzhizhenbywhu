@@ -5,8 +5,9 @@ snapshot or checkpoint is rewritten, and ordinary reads never call this gate.
 """
 import re
 
-from .question_scope import COMPARISON_PATTERNS, resolve_question, unsupported_amount_percentage, unsupported_growth
+from .question_scope import COMPARISON_PATTERNS, resolve_question, unsupported_amount_percentage, unsupported_growth, annualization_requested
 from .store import digest, now
+from .security import next_version
 
 
 def plan_scope_target(store, plan):
@@ -61,18 +62,43 @@ def plan_scope_issue(store, plan):
     def issue(reason, message):
         return {'code': 'PLAN_SCOPE_REPREVIEW', 'reason': reason, 'message': message}
     try:
+        # A genuine pre-fix approval may contain an unsealed modern experiment.
+        # Read-only history remains intact; no new local node, send or resume may
+        # turn those original bytes into trusted execution authority.
+        frozen = plan['payload']['snapshot'].get('experiment')
+        if frozen:
+            from .saved_experiments import verify_payload_seal
+            try:
+                verify_payload_seal(frozen['payload'],frozen['version'])
+            except (KeyError,TypeError,ValueError):
+                return issue('experiment_creation_unverified','原计划的数学实验创建凭据无法核验；原始记录保留，不能继续执行。请明确重新保存实验并重新预览。')
         target = plan_scope_target(store, plan)
         if not isinstance(target, str) or not target.strip():
             raise ValueError('unavailable target')
         p = plan['payload']; q = target.lower()
         # Check bounded incompatible operations, not every new metric/period
         # interpretation. Unspecified comparisons retain the approved form.
-        if resolve_question(target, p['snapshot']['dataset'], [])['unsupported_currency']:
+        resolved = resolve_question(target, p['snapshot']['dataset'], [])
+        if resolved['unsupported_currency']:
             return issue('foreign_currency_unsupported', '原批准目标要求外币口径，当前金额计算仅支持人民币（CNY）；不能用人民币替代，请重新预览并确认研究目标。')
+        if annualization_requested(q):
+            return issue('annualization_unsupported','原批准目标明确要求年化指标，当前计算仅提供季度口径，不能用季度值替代；请重新预览并确认研究目标。')
         if unsupported_growth(target):
             return issue('percentage_transformation_unsupported', '原批准目标要求当前不支持的指标增长率或百分比变化，不能用原始金额、原比率或比较差额替代；请重新预览并确认研究目标。')
         if unsupported_amount_percentage(target):
             return issue('amount_percentage_unsupported', '原批准目标要求金额指标的百分比，但未明确受支持的分母与比率口径，不能用原始金额替代；请重新预览并确认研究目标。')
+        if resolved.get('unsupported_financial_operation'):
+            return issue('financial_operation_unsupported', '原批准目标要求当前未支持的财务口径，不能用其他金额或比率替代；请重新预览并确认研究目标。')
+        from .forecast_scope import forecast_requested, validate_frozen_forecast, frozen_forecast_scope, ForecastUnavailable
+        execution=p['request'].get('execution') or {}
+        forecast_text,forecast_scope=frozen_forecast_scope(p['snapshot'],p['request'],target)
+        if forecast_requested(forecast_text,execution):
+            try:
+                validate_frozen_forecast(forecast_scope,forecast_text,execution,p['snapshot'])
+            except ForecastUnavailable:
+                pass
+            except ValueError as exc:
+                return issue('forecast_metric_mismatch',str(exc)+' 原计划保持不变，请重新预览。')
         explicit = [key for key, pattern in COMPARISON_PATTERNS.items() if re.search(pattern, q)]
         if len(explicit) > 1 or '同环比' in q:
             return issue('explicit_comparison_ambiguous', '原批准目标同时要求同比与环比；一次计划只支持一个比较基期，请明确后重新预览。')
@@ -102,6 +128,8 @@ def stop_for_scope(worker, row):
     issue = run_scope_issue(worker.store, row)
     if issue:
         with worker.store.transaction() as db:
+            control=worker.store.one('SELECT version FROM adaptive_controls WHERE run_id=? AND user_id=?',(row['id'],row['user_id']))
+            if control:next_version(control['version'])
             if db.execute("UPDATE runs SET state='interrupted',error=?,updated_at=? WHERE id=? AND user_id=? AND state='running'",
                           (issue['message'], now(), row['id'], row['user_id'])).rowcount:
                 db.execute("UPDATE adaptive_controls SET status='paused',version=version+1,updated_at=? WHERE run_id=? AND user_id=?",

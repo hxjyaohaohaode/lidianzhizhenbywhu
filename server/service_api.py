@@ -6,7 +6,7 @@ import hmac
 import time
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, Query, Response
-from .security import require_user, fail, password_matches, COOKIE, check_version
+from .security import require_user, fail, password_matches, COOKIE, check_version, next_version
 from .store import digest, encode, now
 from . import workspace_store as ws
 from .service_contracts import (IdentitySpec, ThreadCreate, CopilotMessage, ProposalRequest,
@@ -15,6 +15,7 @@ from .identities import resolve_identity, PERSPECTIVES
 from .connections import scoped_providers
 from .copilot import cancel_proposal_preview, make_thread, read_thread, send_message, trace_message, propose, confirm_proposal, evaluate_watches
 from .business_provenance import resolve_source, with_source_impact
+from .watch_scope import bind_watch_scope, require_watch_scope
 
 router=APIRouter(prefix='/api/services',tags=['Identity, Copilot and Security'])
 
@@ -91,10 +92,11 @@ def delete_identity(id:str,request:Request,version:int|None=Query(None,ge=1,le=M
 
 
 @router.get('/threads')
-def threads(request:Request,identity_id:str=Query('',max_length=80),dataset_id:str=Query('',max_length=80),user=Depends(require_user)):
+def threads(request:Request,identity_id:str=Query('',max_length=80),dataset_id:str=Query('',max_length=80),offset:int=Query(0,ge=0,le=MAX_SAFE_INTEGER),limit:int=Query(100,ge=1,le=200),user=Depends(require_user)):
     store=storeof(request);resolve_identity(store,user['id'],identity_id,dataset_id)
-    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_thread' AND json_extract(payload,'$.identity_id')=? AND json_extract(payload,'$.dataset_id')=? ORDER BY updated_at DESC,id LIMIT 100",(user['id'],identity_id,dataset_id))
-    return {'items':rows}
+    rows=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_thread' AND json_extract(payload,'$.identity_id')=? AND json_extract(payload,'$.dataset_id')=? ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",(user['id'],identity_id,dataset_id,limit+1,offset))
+    has_more=len(rows)>limit
+    return {'items':rows[:limit],'offset':offset,'limit':limit,'has_more':has_more,'next_offset':offset+limit if has_more else None}
 
 
 @router.post('/threads',status_code=201)
@@ -111,13 +113,23 @@ def get_thread(id:str,request:Request,user=Depends(require_user)):
 def delete_thread(id:str,request:Request,version:int|None=Query(None,ge=1,le=MAX_SAFE_INTEGER),user=Depends(require_user)):
     store=storeof(request)
     with store.transaction() as db:
-        versioned_row(store,user['id'],'assistant_thread',id,version)
+        row=versioned_row(store,user['id'],'assistant_thread',id,version)
         # Deleting chat history must not silently cancel or erase independently approved runs.
         proposals=store.all("SELECT * FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.thread_id')=?",(user['id'],id))
         for proposal in proposals:cancel_proposal_preview(store,db,user['id'],proposal)
         db.execute("DELETE FROM workspace_objects WHERE user_id=? AND kind='assistant_proposal' AND json_extract(payload,'$.thread_id')=?",(user['id'],id))
         db.execute('DELETE FROM workspace_objects WHERE user_id=? AND id=?',(user['id'],id))
-        store.audit(db,user['id'],'assistant_thread',id,'deleted',{'independent_runs':'retained'})
+        receipt={'independent_runs':'retained'}
+        if row['natural_key'].startswith('request:'):
+            # Keep only the original retry binding, never the deleted chat,
+            # title, messages, or scope. The same transaction seals deletion.
+            receipt.update(creation_request_id=row['natural_key'][len('request:'):],
+                creation_request_hash=row['payload'].get('creation_request_hash'))
+            # The token lives independently of JSON, so damaged metadata cannot
+            # turn a known deletion into permission to create another thread.
+            store.audit(db,user['id'],'assistant_thread_request',receipt['creation_request_id'],'deleted',
+                {'creation_request_hash':receipt['creation_request_hash']})
+        store.audit(db,user['id'],'assistant_thread',id,'deleted',receipt)
     return {'ok':True,'notice':'助手会话和提案副本已删除；已派发任务和报告是独立记录，需要另行清理。'}
 
 
@@ -220,7 +232,9 @@ def create_watch(body:WatchSpec,request:Request,user=Depends(require_user)):
     if body.version:
         fail('VERSION_CONFLICT','新跟踪规则版本必须为0',409)
     with store.transaction() as db:
-        creation=body.model_dump(mode='json',exclude={'version','request_id'});request_hash=digest(creation)
+        creation=body.model_dump(mode='json',exclude={'version','request_id'})
+        if body.comparison is None:creation.pop('comparison')
+        request_hash=digest(creation)
         key='request:'+body.request_id if body.request_id else None
         old=ws.keyed(store,user['id'],'watch',key) if key else None
         if old:
@@ -230,7 +244,8 @@ def create_watch(body:WatchSpec,request:Request,user=Depends(require_user)):
         resolve_identity(store,user['id'],body.identity_id,body.dataset_id);verify_datasets(store,user['id'],[body.dataset_id])
         provenance=resolve_source(store,user['id'],body.identity_id,body.dataset_id,body.source_ref)
         payload={**body.model_dump(mode='json',exclude={'version','source_ref','request_id'}),'provenance':provenance,'changes':[],'evaluation_revision':1,
-            'creation_request_id':body.request_id,'creation_request_hash':request_hash,'creation_request':creation}
+            'creation_request_id':body.request_id,'creation_request_hash':request_hash,'creation_request':creation,
+            **bind_watch_scope(store,user['id'],body.metric,provenance,body.comparison,body.dataset_id)}
         return with_source_impact(store,user['id'],ws.save(store,db,user['id'],'watch',payload,key=key))
 
 
@@ -244,13 +259,26 @@ def update_watch(id:str,body:WatchSpec,request:Request,user=Depends(require_user
         if body.source_ref is not None or body.dataset_id!=old['payload']['dataset_id'] or body.identity_id!=old['payload'].get('identity_id',''):
             fail('SOURCE_IMMUTABLE','跟踪规则的来源、企业和服务身份不可改写，请另建规则',409)
         values=body.model_dump(mode='json',exclude={'version','source_ref','request_id'})
+        # Omitted comparison from an older client preserves an already approved basis.
+        if 'comparison' not in body.model_fields_set:
+            values['comparison']=old['payload'].get('comparison') if body.metric=='revenue_growth' else None
+        material={'metric','operator','threshold','stale_after_days','expires_at','comparison'}
+        changed_material=any(old['payload'].get(k)!=values.get(k) for k in material)
+        if old['payload']['metric']=='revenue_growth' and changed_material:
+            require_watch_scope(store,user['id'],old['payload'])  # Never reseal unknown legacy growth.
+        if body.metric=='revenue_growth' and (old['payload']['metric']!='revenue_growth' or changed_material):
+            values.update(bind_watch_scope(store,user['id'],body.metric,old['payload'].get('provenance'),values.get('comparison'),body.dataset_id))
+        elif body.metric!='revenue_growth':
+            if values.get('comparison') is not None:fail('WATCH_SCOPE_INVALID','只有收入增速需要选择同/环比。',422)
+            if 'source_scope' in old['payload']:values['source_scope']=None
         changes={k:{'before':old['payload'].get(k),'after':v} for k,v in values.items() if old['payload'].get(k)!=v}
         if not changes:return with_source_impact(store,user['id'],old)
         prior=old['payload'].get('changes',[])
         if changes and len(prior)>=100:fail('WATCH_HISTORY_LIMIT','规则变更记录达到上限，请另建规则',409)
         history=prior+[{'at':now(),'actor_id':user['id'],'version':old['version']+1,'fields':changes}] if changes else prior
-        evaluation_fields={'metric','operator','threshold','stale_after_days','expires_at'}
-        revision=old['payload'].get('evaluation_revision',old['version'])+int(bool(evaluation_fields.intersection(changes)))
+        evaluation_fields={'metric','operator','threshold','stale_after_days','expires_at','comparison'}
+        evaluation_version=old['payload'].get('evaluation_revision',old['version'])
+        revision=next_version(evaluation_version) if evaluation_fields.intersection(changes) else evaluation_version
         payload={**old['payload'],**values,'changes':history,'evaluation_revision':revision}
         return with_source_impact(store,user['id'],ws.save(store,db,user['id'],'watch',payload,key=old['natural_key'],expected=body.version))
 

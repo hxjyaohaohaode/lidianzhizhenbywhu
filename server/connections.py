@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from cryptography.fernet import Fernet, InvalidToken
 from .store import uid, now
-from .security import fail
+from .security import fail, next_version
 from .providers import Provider
 
 
@@ -99,6 +99,7 @@ class ConnectionVault:
             fail('NOT_FOUND', '连接不存在或无权访问', 404)
         if spec.version != (old['version'] if old else 0):
             fail('VERSION_CONFLICT', '连接已改变，请刷新后重新配置', 409)
+        if old:next_version(old['version'])
         if not old and not spec.api_key:
             fail('MISSING_SECRET', '首次配置必须填写密钥', 422)
         key = spec.api_key
@@ -177,7 +178,7 @@ class ScopedProviders:
         if id:
             return self.service.select(id)
         private=self.service.vault.catalog(self.user_id)
-        return self.service.vault.select(private[0]['id'],self.user_id) if private else self.service.select('')
+        return self.service.vault.select(private[0]['id'],self.user_id) if private else None
 
     async def complete(self, provider, system, context):
         return await self.service.complete(provider, system, context)

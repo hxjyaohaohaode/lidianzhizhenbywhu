@@ -10,9 +10,14 @@ function reviewedDataset(reference:Json){
  if(!Number.isSafeInteger(reference.dataset_version)||reference.dataset_version<1||typeof reference.dataset_hash!=='string'||!/^[a-f0-9]{64}$/.test(reference.dataset_hash))throw new Error('来源数据版本或指纹缺失，请刷新并重新打开表单；不会自动使用最新数据');
  return reference;
 }
+function reviewedClaim(reference:Json){
+ const version=reference.claim_review_version,hash=reference.claim_review_hash;
+ if(!Object.hasOwn(reference,'claim_review_version')||!Object.hasOwn(reference,'claim_review_hash')||!Number.isSafeInteger(version)||version<0||(version===0?hash!==null:typeof hash!=='string'||!/^[a-f0-9]{64}$/.test(hash)))throw new Error('解释审阅版本或指纹缺失，请重新打开来源并核对；不会自动使用最新审阅');
+ return reference;
+}
 export function formSource(fd:FormData,requiredDatasetId=''){
  const value=fd.get('source_ref');
- if(value){const reference=JSON.parse(String(value));if(reference.kind==='dataset')reviewedDataset(reference);return {source_ref:{...reference,allow_historical:fd.has('allow_historical')}};}
+ if(value){const reference=JSON.parse(String(value));if(reference.kind==='dataset')reviewedDataset(reference);if(reference.kind==='report'&&reference.claim_id)reviewedClaim(reference);return {source_ref:{...reference,allow_historical:fd.has('allow_historical')}};}
  const datasets=fd.get('source_datasets');
  if(datasets){const reference=JSON.parse(String(datasets))[String(fd.get('dataset_id')??'')];if(!reference)throw new Error('所选数据不在此表单的来源范围，请重新打开表单');return {source_ref:reviewedDataset({kind:'dataset',dataset_version:reference.version,dataset_hash:reference.hash})};}
  if(requiredDatasetId)throw new Error('来源数据版本或指纹缺失，请刷新并重新打开表单；不会自动使用最新数据');

@@ -24,10 +24,11 @@ def answer(**patch):
 
 
 def test_mimo_uses_bounded_non_thinking_contract_without_new_auth_header(monkeypatch):
-    monkeypatch.setenv('MIMO_API_KEY','FIXTURE-NOT-A-REAL-KEY');monkeypatch.setenv('MIMO_MODEL','fixture-mimo')
-    service=ProviderService();p=service.select('mimo');calls,closed=transport(monkeypatch,answer())
+    service=ProviderService()
+    p=Provider('u_fixture_mimo','api.xiaomimimo.com','/v1/chat/completions','fixture-mimo','FIXTURE-NOT-A-REAL-KEY')
+    calls,closed=transport(monkeypatch,answer())
     result=service._request(p,'bounded','{}')
-    assert result['provider']=='mimo' and result['model']=='fixture-mimo'
+    assert result['provider']=='u_fixture_mimo' and result['model']=='fixture-mimo'
     method,path,payload,headers=calls[0]
     assert path=='/v1/chat/completions' and p.host=='api.xiaomimimo.com'
     assert payload['thinking']=={'type':'disabled'} and payload['max_completion_tokens']==1000
@@ -35,8 +36,7 @@ def test_mimo_uses_bounded_non_thinking_contract_without_new_auth_header(monkeyp
     assert headers['Authorization']=='Bearer FIXTURE-NOT-A-REAL-KEY'
     assert 'FIXTURE-NOT-A-REAL-KEY' not in repr(p)
     assert closed==[True]
-    assert next(s for s in service.status() if s['id']=='mimo')['connectivity']=='not_tested'
-    assert set(service.providers)=={'deepseek','qwen','glm','mimo'}
+    assert service.status()==[] and service.providers=={}
 
 
 @pytest.mark.parametrize('finish',['length','tool_calls','content_filter','repetition_truncation',None,'invented'])

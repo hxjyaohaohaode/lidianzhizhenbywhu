@@ -249,7 +249,7 @@ def test_same_financial_group_preserves_all_human_tasks_and_holdout_gate(actor,e
 def test_claim_review_context_requires_explicit_reconfirmation_without_relabeling_capability(factory):
     from test_adaptive import ResearchProviders
     a=Actor(factory(providers=ResearchProviders()))
-    run=completed(a,use_llm=True,max_calls=2)
+    run=completed(a,use_llm=True,provider='alpha',max_calls=2)
     claim=run['result']['llm']['review']['claims'][0]
     first=assessment(a,run,expected_capabilities=['quant'])
     review=a.post('/workspace/runs/'+run['id']+'/reviews',json={'claim_id':claim['id'],'verdict':'rejected','note':'这条解释的依据不充分，需要原始证据'})

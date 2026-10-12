@@ -27,7 +27,7 @@ def rows(store, user, kind):
 
 
 def reviewed_run(actor, dataset=None, **fields):
-    run=completed(actor,dataset=dataset,use_llm=True,**fields)
+    run=completed(actor,dataset=dataset,use_llm=True,**{'provider':'alpha',**fields})
     claim=run['result']['llm']['review']['claims'][0]
     review=ok(actor.post('/workspace/runs/'+run['id']+'/reviews',json={
         'claim_id':claim['id'],'verdict':'accepted','note':'隔离测试中人工核对解释依据'}))
@@ -198,7 +198,7 @@ def test_batch_checks_every_root_before_deleting_any_child(factory,invalid):
 @pytest.mark.parametrize('kind,limit',[('evidence_review',200),('assessment',200),('claim_review',1000)])
 def test_legacy_orphans_remain_exportable_without_blocking_current_capacity(factory,kind,limit):
     actor=Actor(factory(providers=ResearchProviders()));store=actor.client.app.state.store;user=actor.user['id']
-    run=completed(actor,use_llm=True) if kind!='evidence_review' else None
+    run=completed(actor,use_llm=True,provider='alpha') if kind!='evidence_review' else None
     # Legacy rows explicitly model the pre-fix API deletion bug. A future timestamp
     # makes them outrank current rows, proving parent filtering happens before LIMIT.
     with store.transaction() as db:

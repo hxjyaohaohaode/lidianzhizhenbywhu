@@ -1,9 +1,27 @@
 export function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-export function num(v, d = 2) { return typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString('zh-CN', { maximumFractionDigits: d }) : '—'; }
-export function pct(v) { return typeof v === 'number' && Number.isFinite(v) ? num(v * 100) + '%' : '—'; }
+export function num(v, d = 2) {
+    if (typeof v !== 'number' || !Number.isFinite(v))
+        return '—';
+    const shown = v.toLocaleString('zh-CN', { maximumFractionDigits: d });
+    // A rounded zero must not hide a persisted nonzero amount, ratio or sign.
+    return v !== 0 && Number(shown.replaceAll(',', '')) === 0 ? v.toExponential() : shown;
+}
+function scaledNumber(v, power, d = 2) {
+    const scaled = power < 0 ? v / 10 ** (-power) : v * 10 ** power;
+    const shown = num(scaled, d);
+    // Display-unit conversion can exceed IEEE-754's range. Shift the decimal
+    // exponent as text only; never change the stored value or calculator output.
+    if (v !== 0 && (scaled === 0 || !Number.isFinite(scaled) || shown.includes('e'))) {
+        const [coefficient, exponent] = v.toExponential().split('e');
+        const shifted = Number(exponent) + power;
+        return coefficient + 'e' + (shifted >= 0 ? '+' : '') + shifted;
+    }
+    return shown;
+}
+export function pct(v) { return typeof v === 'number' && Number.isFinite(v) ? scaledNumber(v, 2) + '%' : '—'; }
 // A display-unit change must not round an otherwise visible yuan amount to zero.
 // Retain precision down to cents in each unit; this formats persisted values only.
-export function amount(v, unit = 'wan') { const scale = { yuan: 1, wan: 1e4, yi: 1e8 }[unit] ?? 1e4; return typeof v === 'number' ? num(v / scale, 2 + Math.log10(scale)) : '—'; }
+export function amount(v, unit = 'wan') { const power = { yuan: 0, wan: 4, yi: 8 }[unit] ?? 4; return typeof v === 'number' && Number.isFinite(v) ? scaledNumber(v, -power, 2 + power) : '—'; }
 export function unitName(unit) { return { yuan: '元', wan: '万元', yi: '亿元' }[unit] ?? '万元'; }
 export function timeText(v) { if (!v)
     return '—'; const d = new Date(String(v)); return Number.isFinite(d.valueOf()) ? d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—'; }

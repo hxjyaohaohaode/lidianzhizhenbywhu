@@ -2,7 +2,7 @@
 
 面向锂电企业经营研究的工作台：数学建模、动态 Agent 协同和可审阅的策略演进是基础，研究助手、数据、证据、报告、行动与跟踪围绕同一条真实数据链工作。
 
-完整产品验收进行中，暂不建议合并。最新改动、已知未完成项和独立验证边界见[本轮记录](docs/READER_NATIVE_COVERAGE_20261005.md)及[PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2)。
+完整产品验收进行中。当前运行、备份和发布前置见[部署与验证边界](docs/DEPLOY.md)，此前原生验收历史见[2026-10-05记录](docs/READER_NATIVE_COVERAGE_20261005.md)。本地交付候选、[PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2) 与 main 的版本分别核对，不把旧记录或本地通过当作远端全部通过。
 
 保留比赛工程原始 Logo 和开场动画。首次工作区为空，没有自动生成的企业财报、模拟模型回复或无来源概率。
 
@@ -24,6 +24,8 @@ cd "D:\项目文件\比赛文件\计算机设计大赛\lidian-workbench"
 1. 注册自己的账户，导入自己的企业数据，核对单季/累计口径后确认入库。
 2. 在“身份与连接”设置工作身份和企业范围；要使用外部模型，再保存私有模型连接。
 3. 在研究助手中提出问题，查看实际工具结果；需要进一步研判时预览并批准计划，之后从同一会话查看报告、建立行动或设置跟踪。
+
+应用不预置模型；旧供应商环境变量不会启用模型。个人连接与历史报告保持不变。可在“身份与连接”添加自己的兼容接口、模型名和密钥。部署者也可显式启用默认关闭的 SERVER_AI 配置；必须手动选择并批准计划，详见[Render与基础AI准备](docs/RENDER_READINESS_20261010.md)。
 
 无密钥仍可使用本地数据核验、检索、数学工具和报告，但不伪装成已调用大模型。模型兼容性、实际额度及第三方网络需要在自己的账户下验证。
 
@@ -75,6 +77,6 @@ python scripts/native_acceptance.py
 
 ## 发布
 
-仓库：`https://github.com/hxjyaohaohaode/lidianzhizhenbywhu`，当前交付候选在 [PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2) 的 `feat/research-workbench-hardening` 分支，尚未合并到 `main`；请按PR顶部记录的精确SHA取得本轮代码，不把main或旧ZIP当作该候选。`python scripts/publish.py` 是未来变更的预览及审阅分支辅助工具，`--confirm` 才会测试并推送；不会强推或合并 main。推送 SHA 核对、GitHub CI 成功、第三方模型可用和公网生产验收是四项不同结果。
+仓库：`https://github.com/hxjyaohaohaode/lidianzhizhenbywhu`，远端审阅入口为 [PR #2](https://github.com/hxjyaohaohaode/lidianzhizhenbywhu/pull/2) 的 `feat/research-workbench-hardening` 分支。取得代码时同时核对交付清单和实际提交 SHA；本地修订可能尚未推送，不把 main、PR旧说明或旧ZIP当作当前候选。`python scripts/publish.py` 是未来变更的预览及审阅分支辅助工具，`--confirm` 才会测试并推送；不会强推或合并 main。使用前必须完成 DEPLOY.md 所列发布前置，不能借该命令跳过受阻的原生验证。推送 SHA 核对、GitHub CI 成功、第三方模型可用和公网生产验收是四项不同结果。
 
 本地/远端验收状态以本次交付报告和命令记录为准。没有宣称零漏洞、所有环境都验证过或软件著作权已审批。

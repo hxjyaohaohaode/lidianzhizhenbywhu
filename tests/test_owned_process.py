@@ -101,9 +101,17 @@ def test_real_exit_is_distinct_from_guardian_and_full_stdout_cannot_deadlock(tmp
 def test_watchdog_exit_reaps_live_node_descendant_and_preserves_stacks(tmp_path, launch):
     (tmp_path / 'pytest.ini').write_text('[pytest]\n', encoding='utf-8')
     (tmp_path / 'test_hang.py').write_text(
-        'import subprocess, time\n'
+        'import pathlib, subprocess, time\n'
+        f'node = subprocess.Popen({node_command(tmp_path / "node.pid")!r})\n'
+        f'pid_path = pathlib.Path({str(tmp_path / "node.pid")!r})\n'
+        'ready_deadline = time.monotonic() + 10\n'
+        'while not pid_path.exists() or not pid_path.stat().st_size:\n'
+        '    assert node.poll() is None, "Node exited before readiness"\n'
+        '    assert time.monotonic() < ready_deadline, "Node readiness was not confirmed"\n'
+        '    time.sleep(.02)\n'
+        'assert int(pid_path.read_text(encoding="utf-8")) == node.pid\n'
+        'assert node.poll() is None, "Node must be live before the watchdog test"\n'
         'def test_hangs():\n'
-        f'    subprocess.Popen({node_command(tmp_path / "node.pid")!r})\n'
         '    print("watchdog target started", flush=True)\n'
         '    time.sleep(60)\n', encoding='utf-8')
     progress = tmp_path / 'progress.jsonl'

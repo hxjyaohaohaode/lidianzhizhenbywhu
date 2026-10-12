@@ -1,4 +1,4 @@
-import { esc, input, jsonView, metricNames, table } from './components.js';
+import { esc, input, jsonView, metricNames, table, select } from './components.js';
 // This is the existing server WatchSpec metric set, not a financial capability registry.
 export const watchMetrics = { gross_margin: '毛利率（%）', cash_ratio: '经营现金收入比（%）', leverage: '资产负债率（%）', revenue_growth: '收入增速（%）', cash_flow: '经营现金流（人民币元）', revenue: '营业收入（人民币元）' };
 const ratioMetrics = new Set(['gross_margin', 'cash_ratio', 'leverage', 'revenue_growth']);
@@ -45,6 +45,11 @@ export function watchThresholdField(metric = 'gross_margin', value = null) {
     return `<label class="field" data-watch-threshold><span data-watch-threshold-label>阈值（${esc(watchUnit(metric))}）</span>${input('threshold', watchInputValue(metric, value), `type="number" step="any" required min="-${limit}" max="${limit}" data-watch-metric="${esc(metric)}" aria-describedby="watch-threshold-hint"`)}<small id="watch-threshold-hint" data-watch-threshold-hint aria-live="polite">${esc(thresholdHint(metric))}</small></label>`;
 }
 export function syncWatchMetric(form, metric) {
+    const comparison = form.querySelector('[name="comparison"]'), scope = form.querySelector('[data-watch-comparison]');
+    if (comparison)
+        comparison.disabled = metric !== 'revenue_growth';
+    if (scope)
+        scope.hidden = metric !== 'revenue_growth';
     const control = form.querySelector('[name="threshold"]');
     if (!control || control.dataset.watchMetric === metric)
         return;
@@ -71,4 +76,24 @@ export function watchThresholdRequest(form, metric, raw) {
 export function watchRawValues(metric, threshold, value) {
     return `<details><summary>技术原始值与存储单位</summary>${jsonView({ metric, storage_unit: ratioMetrics.has(metric) ? 'ratio_fraction' : known(metric) ? 'CNY_yuan' : 'unknown', threshold, ...(value === undefined ? {} : { value }) })}</details>`;
 }
-export function watchPreview(p) { return table(['跟踪指标', '触发条件', '阈值'], [[esc(metricNames[p.metric] ?? p.metric), p.operator === 'lt' ? '低于' : '高于', esc(watchValue(p.metric, p.threshold))]]) + watchRawValues(p.metric, p.threshold); }
+export function watchComparisonRequest(metric, raw, allowUnspecified = false) {
+    if (metric !== 'revenue_growth')
+        return {};
+    if (raw === 'previous' || raw === 'year_over_year')
+        return { comparison: raw };
+    if (!raw && allowUnspecified)
+        return {};
+    throw new Error('收入增速跟踪必须明确选择环比或同比。');
+}
+export function watchComparisonField(metric = 'gross_margin', comparison = null) {
+    const selected = comparison === 'previous' || comparison === 'year_over_year' ? comparison : '';
+    return `<div data-watch-comparison ${metric === 'revenue_growth' ? '' : 'hidden'}><label class="field"><span>收入增速比较基期</span>${select('comparison', { '': '请选择；原回答来源可保留其已记录基期', previous: '环比 · 上一季度', year_over_year: '同比 · 上年同季度' }, selected, metric === 'revenue_growth' ? '' : 'disabled')}</label><p class="micro">持续核对最新保存季度，季度完成后才判断；原问题季度仅作来源归属。原回答的同/环比不可替换。历史规则缺少基期时只供查阅，请另建明确规则。</p></div>`;
+}
+export function watchScopeText(p) {
+    if (p.metric !== 'revenue_growth')
+        return '';
+    const basis = p.comparison === 'previous' ? '环比（上一季度）' : p.comparison === 'year_over_year' ? '同比（上年同季度）' : '比较基期未记录，不能据此判断';
+    const policy = p.source_scope?.period_policy === 'latest_saved_quarter' ? ' · 持续核对最新保存季度，季度完成后才判断' : '';
+    return `<p class="micro">${esc(basis + policy)}${p.source_scope?.source_period ? ' · 原回答季度 ' + esc(p.source_scope.source_period) : ''}${p.baseline_period ? ' · 本次基期 ' + esc(p.baseline_period) : ''}</p>`;
+}
+export function watchPreview(p) { return watchScopeText(p) + table(['跟踪指标', '触发条件', '阈值'], [[esc(metricNames[p.metric] ?? p.metric), p.operator === 'lt' ? '低于' : '高于', esc(watchValue(p.metric, p.threshold))]]) + watchRawValues(p.metric, p.threshold); }

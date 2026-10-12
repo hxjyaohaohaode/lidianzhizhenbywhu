@@ -49,13 +49,25 @@ def open_when_ready(url):
         time.sleep(.25)
 
 
+def resolve_port(explicit=None):
+    value = explicit if explicit is not None else os.getenv('PORT', '8000')
+    try:
+        port = int(value)
+    except (ValueError, TypeError):
+        raise ValueError('PORT/--port 必须是1–65535之间的整数；未显示配置值。') from None
+    if not 1 <= port <= 65535:
+        raise ValueError('端口必须在1–65535之间。')
+    return port
+
+
 def main():
     if hasattr(sys.stdout,'reconfigure'):sys.stdout.reconfigure(encoding='utf-8',errors='replace')
-    p=argparse.ArgumentParser(description='启动锂电智诊');p.add_argument('--host',default='127.0.0.1');p.add_argument('--port',type=int,default=8000);p.add_argument('--open-browser',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description='启动锂电智诊');p.add_argument('--host',default='127.0.0.1');p.add_argument('--port',type=int,default=None);p.add_argument('--open-browser',action='store_true');a=p.parse_args()
     os.chdir(ROOT);sys.path.insert(0,str(ROOT))
-    if not 1<=a.port<=65535:raise SystemExit('端口必须在1–65535之间。')
     try:load_env(ROOT/'.env')
     except (ValueError,OSError) as exc:raise SystemExit(str(exc)) from None
+    try:a.port=resolve_port(a.port)
+    except ValueError as exc:raise SystemExit(str(exc)) from None
     if not (ROOT/'web/dist/app.js').is_file():raise SystemExit('缺少前端构建产物；先运行npm ci与npm run build。完整发布ZIP已包含。')
     if a.host not in ('127.0.0.1','localhost','::1') and os.getenv('APP_ENV')!='production':raise SystemExit('开发模式禁止外网绑定。请先配置生产HTTPS入口和注册邀请码。')
     host='127.0.0.1' if a.host=='localhost' else a.host

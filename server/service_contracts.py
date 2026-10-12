@@ -68,6 +68,7 @@ class ProposalRequest(StrictModel):
     comparison_artifact: ExperimentReference | None = None
     mode: Literal['operational', 'margin', 'industry', 'investment', 'deep_dive'] = 'operational'
     metric: Literal['gross_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'cash_flow', 'revenue'] = 'gross_margin'
+    comparison: Literal['previous', 'year_over_year'] | None = None
     operator: Literal['lt', 'gt'] = 'lt'
     threshold: float = Field(default=0.0, strict=True, ge=-1e15, le=1e15)
     due_at: date | None = None
@@ -76,6 +77,8 @@ class ProposalRequest(StrictModel):
 
     @model_validator(mode='after')
     def no_irrelevant_external(self):
+        if self.kind != 'watch' and self.comparison is not None:
+            raise ValueError('跟踪比较基期只能用于指标跟踪提案')
         if self.kind != 'research' and self.use_llm:
             raise ValueError('此类操作不需要外部模型')
         if self.kind != 'research' and (self.experiment or self.comparison_artifact):
@@ -91,6 +94,16 @@ class ProposalConfirm(StrictModel):
     external_consent: bool = False
 
 
+class WatchSourceScope(StrictModel):
+    """Server-owned approval scope; never accepted as a client source override."""
+    schema_version: Literal[1] = 1
+    comparison: Literal['previous', 'year_over_year']
+    period_policy: Literal['latest_saved_quarter'] = 'latest_saved_quarter'
+    source_kind: Literal['dataset', 'copilot']
+    source_period: str | None = Field(default=None, pattern=r'^\d{4}-Q[1-4]$')
+    question_scope_hash: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
+
+
 class WatchSpec(StrictModel):
     request_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{8,80}$')
     source_ref: SourceRef | None = Field(default=None, description='新建必须提供完整的数据修订引用或可核验的原始来源。更新必须省略此不可变来源，并使用跟踪记录自身版本。')
@@ -98,6 +111,7 @@ class WatchSpec(StrictModel):
     identity_id: str = Field(default='', max_length=80)
     dataset_id: str = Field(min_length=1, max_length=80)
     metric: Literal['gross_margin', 'cash_ratio', 'leverage', 'revenue_growth', 'cash_flow', 'revenue']
+    comparison: Literal['previous', 'year_over_year'] | None = None
     operator: Literal['lt', 'gt']
     threshold: float = Field(strict=True, ge=-1e15, le=1e15)
     active: bool = True

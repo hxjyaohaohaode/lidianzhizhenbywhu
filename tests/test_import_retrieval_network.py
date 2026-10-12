@@ -108,7 +108,7 @@ def test_strict_model_output_contract(payload):
     with pytest.raises(ValidationError):ModelOutput.model_validate(payload)
 def test_configuration_status_not_connectivity(monkeypatch):
     monkeypatch.setenv('DEEPSEEK_API_KEY','your_placeholder');p=ProviderService()
-    assert not next(x for x in p.status() if x['id']=='deepseek')['configured']
+    assert p.status()==[] and p.select('deepseek') is None
     assert all(x['connectivity']=='not_tested' for x in p.status()) and p.select('unknown-provider') is None
 def test_circuit_breaker_no_silent_retry(monkeypatch):
     p=ProviderService();provider=Provider('test','test.example','/v1','fixture','fake-test-key');calls=[]

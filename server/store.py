@@ -214,9 +214,11 @@ class Store:
     def update(self,table,user,id,version,payload):
         if table not in {'datasets','memories','conversations'}:raise ValueError('invalid table')
         with self.transaction() as db:
+            from .security import next_version
+            current=self.owned(table,user,id)
+            if not current or current['version']!=version:return None
+            next_version(current['version'])
             if table=='datasets':
-                current=self.owned(table,user,id)
-                if not current or current['version']!=version:return None
                 self.validate_dataset_identity(current,payload)
             extra,args=(',content_hash=?',[digest(payload)]) if table=='datasets' else ('',[])
             c=db.execute(f'UPDATE {table} SET payload=?,version=version+1,updated_at=?{extra} WHERE id=? AND user_id=? AND version=?',(encode(payload),now(),*args,id,user,version))

@@ -1,10 +1,12 @@
 """Read-time operation warnings, separate from frozen results and integrity.
 
-Use the current bounded question router only to identify known unsupported
-percentage operations. Never reconstruct old metrics, fill absent scope fields,
+Use finite current guards only to identify known unsupported operations.
+Never reconstruct old metrics, fill absent scope fields,
 or treat a missing modern field as evidence that a historical answer is wrong.
 """
-from .question_scope import unsupported_amount_percentage, unsupported_growth, unsupported_modifier
+import re
+from .question_scope import (unsupported_amount_percentage, unsupported_growth, unsupported_modifier,
+                             unsupported_account_metric, annualization_requested)
 
 
 def question_warning(question):
@@ -12,6 +14,17 @@ def question_warning(question):
         return None
     reason = ('percentage_transformation_unsupported' if unsupported_growth(question) else
               'amount_percentage_unsupported' if unsupported_amount_percentage(question) else None)
+    q=question.lower()
+    negated=bool(re.search(r'不要|不看|不分析|不核查|排除|别看'
+        r'|(?<![a-z0-9])(?:not|without|excluding|except)(?![a-z0-9])',q))
+    account_notice=unsupported_account_metric(q) if not negated else ''
+    annualized=annualization_requested(q) and not negated
+    if not reason and (account_notice or annualized):
+        return {'status':'unsupported_operation',
+                'reason':'account_metric_unsupported' if account_notice else 'annualization_unsupported',
+                'question':question,
+                'notice':account_notice or '当前财务比率按单季度计算，不支持年化转换；不能用季度比率代替年化结果。',
+                'history_notice':'已保存的指标值和原答复仅供历史查阅，不能作为原问题所要求口径的答案；请明确受支持的指标后重新提问。原记录未改写，未重新计算。'}
     if not reason:
         return None
     return {'status': 'unsupported_operation', 'reason': reason, 'question': question,

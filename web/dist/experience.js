@@ -1,4 +1,4 @@
-import { watchValue, watchRawValues, watchThresholdRequest, syncWatchMetric } from './watch-units.js';
+import { watchValue, watchRawValues, watchThresholdRequest, syncWatchMetric, watchComparisonRequest, watchScopeText } from './watch-units.js';
 import { comparisonArtifactView, comparisonHistoryDeleteButton, currentComparisonRead } from './saved-comparisons.js';
 import { unchangedInputGuard } from './saved-experiments.js';
 import { formSource, sourcePanel } from './business-source.js';
@@ -10,6 +10,7 @@ import { esc, field, input, textarea, formFooter, notice, jsonView, table, metri
 import { identityForm, connectionForm, watchForm, serviceForm } from './views-services.js';
 import { configureCopilot, chatAction, copilotSubmit, resetCopilot, handoffCopilot } from './copilot-ui.js';
 let hooks;
+const growthAlertHandoffReason = '收入增速提醒暂不支持可靠保留比较基期的助手转交；请在研究助手中明确选择季度及环比或同比后重新核查。历史提醒保持不变。';
 export async function selectIdentity(id) { if (id === state.identity)
     return true; if (id && !state.identities.some(x => x.id === id))
     throw new Error('服务身份已失效，请刷新。'); if (state.dirty && !confirm('切换身份将放弃当前未保存表单，是否继续？'))
@@ -178,7 +179,7 @@ export function setupExperience(value) {
                         throw new Error('提醒已变化，请刷新');
                     const p = row.payload;
                     const current = state.datasets.find(d => d.id === p.dataset_id);
-                    hooks.inspect('历史提醒的判定依据', `<h3>${esc(p.title)}</h3>${table(['判定期间', '输入修订', '历史观测值', '历史阈值'], [[esc(p.period), esc(p.dataset_version), esc(watchValue(p.metric, p.value)), esc(p.operator === 'lt' ? '低于' : '高于') + ' ' + esc(watchValue(p.metric, p.threshold))]])}${watchRawValues(p.metric, p.threshold, p.value)}<p class="micro wrap">当时输入校验：${esc(p.dataset_hash ?? '旧提醒未记录')}</p>${notice(current ? '当前数据为修订 ' + current.version + '。历史提醒不按新数据重算；后续助手核查将明确使用当前修订。' : '源数据已删除；这条提醒仍保留当时的判定记录。', 'warm')}${current ? `<div class="inline-actions"><button type="button" class="secondary" data-x-action="alert-current-investigate" data-id="${esc(id)}">明确用当前修订继续核查</button><button type="button" class="primary" data-x-action="alert-action" data-id="${esc(id)}">以此历史提醒创建行动</button></div>` : ''}${p.acknowledgement ? `<h4>已记录的核对说明</h4><p>${esc(p.acknowledgement)}</p>` : ''}`);
+                    hooks.inspect('历史提醒的判定依据', `<h3>${esc(p.title)}</h3>${watchScopeText(p)}${table(['判定期间', '输入修订', '历史观测值', '历史阈值'], [[esc(p.period), esc(p.dataset_version), esc(watchValue(p.metric, p.value)), esc(p.operator === 'lt' ? '低于' : '高于') + ' ' + esc(watchValue(p.metric, p.threshold))]])}${watchRawValues(p.metric, p.threshold, p.value)}<p class="micro wrap">当时输入校验：${esc(p.dataset_hash ?? '旧提醒未记录')}</p>${current && p.metric === 'revenue_growth' ? `<div id="growth-alert-handoff-reason">${notice(growthAlertHandoffReason, 'warm')}</div>` : notice(current ? '当前数据为修订 ' + current.version + '。历史提醒不按新数据重算；后续助手核查将明确使用当前修订。' : '源数据已删除；这条提醒仍保留当时的判定记录。', 'warm')}${current ? `<div class="inline-actions"><button type="button" class="secondary" data-x-action="alert-current-investigate" data-id="${esc(id)}" ${p.metric === 'revenue_growth' ? 'disabled aria-describedby="growth-alert-handoff-reason"' : ''}>明确用当前修订继续核查</button><button type="button" class="primary" data-x-action="alert-action" data-id="${esc(id)}">以此历史提醒创建行动</button></div>` : ''}${p.acknowledgement ? `<h4>已记录的核对说明</h4><p>${esc(p.acknowledgement)}</p>` : ''}`);
                     break;
                 }
                 case 'alert-action': {
@@ -190,6 +191,8 @@ export function setupExperience(value) {
                 case 'alert-current-investigate': {
                     const row = state.cache.tracking.alerts.find((x) => x.id === id);
                     const p = row.payload;
+                    if (p.metric === 'revenue_growth')
+                        throw new Error(growthAlertHandoffReason);
                     if (!scopedDatasets().some(d => d.id === p.dataset_id))
                         throw new Error('原企业数据已删除或不在当前身份范围，请先调整研究范围');
                     if (state.dirty && !confirm('继续将离开未保存表单，是否继续？'))
@@ -293,7 +296,7 @@ export function setupExperience(value) {
                     break;
                 }
                 case 'watch': {
-                    const saved = await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { request_id: str('request_id') || null, ...formSource(fd, id ? '' : str('dataset_id')), title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), operator: str('operator'), threshold: watchThresholdRequest(form, str('metric'), str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
+                    const saved = await api('/services/watches' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', { request_id: str('request_id') || null, ...formSource(fd, id ? '' : str('dataset_id')), title: str('title'), identity_id: state.identity, dataset_id: str('dataset_id'), metric: str('metric'), ...watchComparisonRequest(str('metric'), str('comparison'), !!id), operator: str('operator'), threshold: watchThresholdRequest(form, str('metric'), str('threshold')), active: fd.has('active'), stale_after_days: Number(str('stale_after_days')), expires_at: str('expires_at') || null, version });
                     if (submittedContext() && form.isConnected && id)
                         form.dataset.version = String(saved.version);
                     savedWatchCreate = !id;
@@ -351,8 +354,9 @@ export function setupExperience(value) {
             buttons.forEach(b => b.disabled = form.dataset.completed === 'true');
         }
     }, true);
-    document.addEventListener('change', async (e) => { const el = e.target; const watch = el.closest('form[data-service-form="watch"],form[data-service-form="proposal"][data-kind="watch"]'); if (watch && el.name === 'metric') {
-        syncWatchMetric(watch, el.value);
+    document.addEventListener('change', async (e) => { const el = e.target; const watch = el.closest('form[data-service-form="watch"],form[data-service-form="proposal"][data-kind="watch"]'); if (watch && (el.name === 'metric' || el.name === 'comparison')) {
+        if (el.name === 'metric')
+            syncWatchMetric(watch, el.value);
         state.dirty = true;
         return;
     } if (el.id !== 'active-identity')

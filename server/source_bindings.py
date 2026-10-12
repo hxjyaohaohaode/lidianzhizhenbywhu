@@ -161,6 +161,9 @@ def source_error(store, user, request, snapshot, bindings):
         from .saved_comparisons import current_impact
         if current_impact(store, owner, snapshot.get('comparison_artifact'))['state'] != 'current':
             return '比较来源或成员输入已变化，请重新保存比较并预览'
+        from .saved_experiments import binding_current
+        if not binding_current(store,owner,bindings.get('experiment')):
+            return '数学实验已删除、变化或创建凭据无法核验，请重新保存实验并预览'
         return None
     except (KeyError, TypeError, ValueError, OverflowError):
         return '来源授权记录不完整或校验失败，请重新预览并批准；原报告保持不变'

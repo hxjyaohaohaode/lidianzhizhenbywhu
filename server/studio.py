@@ -6,7 +6,7 @@ import re
 import time
 from datetime import date,datetime,timezone
 from .store import uid,now,encode,digest
-from .security import fail
+from .security import fail, next_version
 from .models import calculate,MODEL_VERSION
 from .analytics import quality_report,lineage
 from .intelligence import scoped_retrieve,profile_for
@@ -47,7 +47,9 @@ def selected_memory(store,user,company,enabled):
 
 def pack_context(snapshot,query,mode,limit):
     a=calculate(analysis_dataset(snapshot),snapshot['comparison'], today=date.fromisoformat(snapshot['analysis_as_of']) if snapshot.get('analysis_as_of') else None)
-    obj={'question':query,'mode':mode,'metrics':a['metrics'],
+    from .model_metrics import project_metrics
+    metrics,metric_scope=project_metrics(snapshot,a)
+    obj={'question':query,'mode':mode,'metrics':metrics,'metric_scope':metric_scope,
         'evidence':[{'id':c['id'],'excerpt':c['excerpt'][:800],'company_scope':c.get('company_scope',''),
             'review_state':c.get('review_state','unreviewed'),'stance':c.get('stance','context'),'stale':c['stale'],
             'source_kind':c.get('source_kind'),'verification':c.get('verification'),
@@ -78,7 +80,7 @@ def pack_context(snapshot,query,mode,limit):
         'unit':'characters_not_tokens','token_count':'供应商响应usage才是实测token数'}
 
 
-def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal_id=None):
+def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal_id=None, forecast_intent=None):
     from .connections import scoped_providers, provider_binding
     from .identities import resolve_identity, context_user, identity_context, identity_binding
     providers=scoped_providers(providers,user['id'])
@@ -88,9 +90,11 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
     if not d:fail('NOT_FOUND','数据不存在或无权访问',404)
     from .source_bindings import require_dataset_content
     require_dataset_content(d)
-    research_scope=plan_scope(scope_query if scope_query is not None else body.query,d['payload'])
-    if body.execution and body.execution.forecast and {'assets','liabilities'}.intersection(research_scope['topics']):
-        research_scope.update(status='blocked',notice='总资产、总负债仅支持已保存的期末金额；本次金额问题不能启用预测并默认生成收入预测。请关闭预测，或单独明确受支持的预测指标后重新预览。')
+    target=scope_query if scope_query is not None else body.query
+    research_scope=plan_scope(target,d['payload'])
+    explicit_forecast_metric=bool(body.execution and 'forecast_metric' in body.execution.model_fields_set)
+    explicit_forecast_choice=bool(body.execution and body.execution.forecast is True
+        and {'forecast','forecast_metric'}<=body.execution.model_fields_set)
     comparison=research_scope.get('requested_comparison')
     if comparison and 'comparison' not in body.model_fields_set:
         body=body.model_copy(update={'comparison':comparison})
@@ -100,6 +104,25 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
     body,comparison_artifact=select_comparison(store,user['id'],body,d,research_scope)
     from .saved_experiments import select_experiment
     body,experiment=select_experiment(store,user['id'],body,d,research_scope)
+    from .forecast_scope import forecast_requested, forecast_choice, frozen_forecast_scope, ForecastUnavailable
+    from .autonomy_contracts import ExecutionOptions
+    options=body.execution or ExecutionOptions()
+    forecast_snapshot={'dataset':d['payload'],'research_scope':research_scope,'scope_query':target}
+    selection=({'schema_version':1,'source':'explicit_form','metric':options.forecast_metric,'horizon':options.horizon}
+        if explicit_forecast_choice else None)
+    if selection:forecast_snapshot['forecast_selection']=selection
+    if experiment:forecast_snapshot['experiment']=experiment
+    if forecast_intent is not None:forecast_snapshot['forecast_intent']=dict(forecast_intent)
+    forecast_text,forecast_scope=frozen_forecast_scope(forecast_snapshot,body.model_dump())
+    if forecast_requested(forecast_text,options.model_dump()):
+        try:
+            metric=forecast_choice(forecast_scope,forecast_text,options.model_dump(),forecast_snapshot,
+                bind_target=True,explicit_metric=explicit_forecast_metric)
+            body=body.model_copy(update={'execution':options.model_copy(update={'forecast':True,'forecast_metric':metric})})
+        except ForecastUnavailable as exc:
+            research_scope['forecast_unavailable']=str(exc)
+        except ValueError as exc:
+            research_scope.update(status='blocked',notice=str(exc))
     if comparison_artifact and experiment and experiment['payload'].get('analysis_as_of') and experiment['payload']['analysis_as_of']!=comparison_artifact['payload']['analysis_as_of']:
         fail('COMPARISON_ASOF','企业比较和数学实验的原始计算日期不同，请以相同日期重新保存后组合使用',409)
     company=d['payload']['company'];profile=profile_for(store,user['id'],company)
@@ -121,7 +144,9 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
         'input_source':capture_input_source(store,user['id'],d,research_scope['period']),
         'citations':citations,'memory':memories,'preferences':user['preferences'],'profile':profile,
         'history':history,'comparison':body.comparison,'identity':identity_context(identity),
-        'research_scope':research_scope,'analysis_as_of':utc_today().isoformat()}
+        'research_scope':research_scope,'scope_query':target,'analysis_as_of':utc_today().isoformat()}
+    if forecast_intent is not None:snapshot['forecast_intent']=dict(forecast_intent)
+    if selection:snapshot['forecast_selection']=selection
     if experiment:snapshot['experiment']=experiment
     if comparison_artifact:
         snapshot['comparison_artifact']=comparison_artifact
@@ -159,6 +184,8 @@ def build_plan(store,user,body,settings,providers, *, scope_query=None, proposal
         'excluded_memory':excluded,'blockers':blockers,'quality':quality_report(analysis_dataset(snapshot),today=date.fromisoformat(snapshot['analysis_as_of'])),
         'consent_scope':['问题','指标','选中证据片段、标识、企业范围、审阅/核验状态、来源类型与时间信息（当前展示与原始采集地址元数据保留本地；片段正文按预览发送）','装配后的已批准记忆','已选择的会话历史','企业目标与偏好'] if body.use_llm else [],
         'created_at':now(),'run_id':None}
+    if body.use_llm and provider and provider.id == 'server_ai':
+        payload['consent_scope'].insert(0, '接收方：部署方共享基础 AI · https://' + provider.host + provider.path + ' · 模型 ' + provider.model)
     from .autonomy import attach_plan
     attach_plan(store,user,payload,providers)
     if experiment and body.use_llm:payload['consent_scope'].append('选中数学实验的名称、原始假设、期间、指纹与经核验计算结果')
@@ -277,6 +304,7 @@ def dispatch_plan(store,user,id,body,settings,providers, *, proposal_id=None):
         else:
             session=store.owned('conversations',user['id'],session_id)
             if not session:fail('NOT_FOUND','会话已删除',404)
+            next_version(session['version'])
             if store.one('SELECT count(*) AS n FROM runs WHERE session_id=?',(session_id,))['n']>=200:fail('SESSION_FULL','该会话已满，请新建',409)
             db.execute('UPDATE conversations SET version=version+1,updated_at=? WHERE id=?',(now(),session_id))
         request={k:r[k] for k in ('dataset_id','query','mode','comparison','use_llm','provider','include_memory')};request['session_id']=session_id
@@ -328,7 +356,7 @@ async def perform_studio(worker,id):
         node('quant',lambda:immediate(calculate(analysis_dataset(s),r['comparison'], today=date.fromisoformat(s.get('analysis_as_of',row['created_at'][:10])))),'同一服务端计算源，前端不重复实现公式'),
         node('evidence',lambda:immediate(s['citations']),'使用计划时冻结的企业作用域证据'))
     await node('context',lambda:immediate(st['packing']),'仅发送批准时展示的内容，超预算整条排除')
-    outputs=[];calls=[];claims=[];state='not_requested';used_memory=[];sent=[]
+    outputs=[];calls=[];claims=[];state='not_requested';used_memory=[];sent=[];call_disclosures={}
     from .connections import scoped_providers
     from fastapi import HTTPException
     provider=None;unavailable_reason=''
@@ -379,9 +407,12 @@ async def perform_studio(worker,id):
                     # Reserve the call before entering transport. Reservation is
                     # intent only, never evidence that approved data was sent.
                     call_id=uid()
+                    from .model_metrics import metric_receipt
                     disclosure={'agent':name,'provider':provider.id,'model':provider.model,
                         'call_id':call_id,'characters':len(prompt),'memory_ids':st['packing']['included_memory_ids'],
-                        'citation_ids':planned_citations,'request_hash':digest(prompt),'consent':st['consent']}
+                        'citation_ids':[c['id'] for c in obj.get('evidence',[])],
+                        'metric_binding_version':1,'metric_bindings':metric_receipt(obj),
+                        'request_hash':digest(prompt),'consent':st['consent']}
                     with store.transaction() as db:
                         worker.ensure_running(id)
                         store.event(db,id,'external_call_reserved',{**disclosure,'dispatch_state':'reserved','dispatched':False})
@@ -425,6 +456,7 @@ async def perform_studio(worker,id):
                             selected.dispatch_guard=dispatch_guard
                             selected.dispatch_started=dispatch_started
                         result=await worker.providers.complete(selected,SYSTEM+'\n本次职责：'+next(a['purpose'] for a in AGENTS if a['id']==name),prompt)
+                        call_disclosures[name]=disclosure
                         return {**result,**close_call('completed',True)}
                     except asyncio.CancelledError as exc:
                         dispatched=getattr(exc,'dispatched',True if boundary_recorded else None)
@@ -451,12 +483,15 @@ async def perform_studio(worker,id):
     for a in st['nodes']:
         if not a['enabled']:worker.event(id,'step_skipped',{'node':a['id'],'reason':a['skip_reason']})
     async def review():
-        valid=[];rejected=[];seen=set();metric_ids={k for k,v in maths['metrics'].items() if isinstance(v,(int,float)) and not isinstance(v,bool)}
+        from .model_metrics import metric_receipt,disclosed_metric_ids
+        valid=[];rejected=[];seen=set();expected=metric_receipt(st['context'])
         for c in claims:
             reason=None;m=set(c.get('metric_ids',[]));e=set(c.get('citation_ids',[]))
+            disclosure=call_disclosures.get(c['agent'],{})
+            metric_ids=disclosed_metric_ids(expected,disclosure.get('metric_bindings'))
             if c.get('tool_reference_ids'):reason='旧版执行器未提供数学产物引用'
             elif not (m or e):reason='无依据引用'
-            elif not m<=metric_ids or not e<=set(sent):reason='引用超出实际发送/可计算范围'
+            elif not m<=metric_ids or not e<=set(disclosure.get('citation_ids',[])):reason='引用超出该调用实际发送且绑定的范围'
             elif re.search(r'[0-9]|https?://|<[^>]+>',c['text']):reason='解释包含未按数值合同生成的数字、URL或标记'
             elif c['text'] in seen:reason='重复解释'
             if reason:rejected.append({'agent':c['agent'],'reason':reason});continue

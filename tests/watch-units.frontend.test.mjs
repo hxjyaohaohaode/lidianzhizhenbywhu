@@ -123,3 +123,61 @@ test('unit-aware save failure keeps the editor open and never announces success'
  const old=fetch,h=setup(),f=form('watch',{metric:'cash_flow',threshold:'15000.25'},{id:'w',version:'2'});
  try{globalThis.fetch=async()=>new Response(JSON.stringify({error:{code:'VERSION_CONFLICT',message:'规则版本已变化'}}),{status:409,headers:{'Content-Type':'application/json'}});await h.submit(f);assert.equal(h.close,0);assert.equal(h.toasts.length,0);assert.match(f.error.textContent,/规则版本已变化/);assert.equal(f.threshold.value,'15000.25');assert.equal(f.dataset.version,'2');assert.equal(f.button.disabled,false)}finally{globalThis.fetch=old}
 });
+
+// Growth scope is independent of percentage-unit conversion.
+const {watchComparisonRequest,watchComparisonField,watchScopeText,watchPreview}=await import('../web/dist/watch-units.js');
+test('growth basis must be explicit, source-derived, or preserved by an old edit client',()=>{
+ assert.deepEqual(watchComparisonRequest('revenue_growth','previous'),{comparison:'previous'});
+ assert.deepEqual(watchComparisonRequest('revenue_growth','year_over_year'),{comparison:'year_over_year'});
+ assert.throws(()=>watchComparisonRequest('revenue_growth',''),/明确选择/);
+ assert.throws(()=>watchComparisonRequest('revenue_growth','inferred',true),/明确选择/);
+ assert.deepEqual(watchComparisonRequest('revenue_growth','',true),{});
+ assert.deepEqual(watchComparisonRequest('gross_margin','previous'),{});
+ const initial=watchComparisonField();assert.match(initial,/data-watch-comparison hidden/);assert.match(initial,/disabled/);
+ const explicit=watchComparisonField('revenue_growth','previous');assert.match(explicit,/value="previous" selected/);assert(!explicit.includes(' disabled'));
+ assert.match(explicit,/最新保存季度，季度完成后才判断/);
+});
+for(const basis of ['previous','year_over_year'])test(`actual growth watch submit preserves ${basis}`,async()=>{
+ const old=fetch,h=setup(),f=form('watch',{metric:'revenue_growth',comparison:basis,threshold:'10'}),calls=[];
+ try{globalThis.fetch=async(url,init)=>{calls.push(JSON.parse(init.body));return json({id:'w',version:1})};await h.submit(f);assert.equal(calls.length,1);assert.equal(calls[0].comparison,basis);assert.equal(calls[0].threshold,.1);assert.equal(h.close,1)}finally{globalThis.fetch=old}
+});
+test('unselected growth basis blocks creation before API while legacy metadata edit omits it',async()=>{
+ const old=fetch,h=setup(),create=form('watch',{metric:'revenue_growth',threshold:'10'}),calls=[];
+ try{globalThis.fetch=async(url,init)=>{calls.push(JSON.parse(init.body));return json({id:'w',version:2})};await h.submit(create);assert.equal(calls.length,0);assert.match(create.error.textContent,/明确选择/);assert.equal(h.close,0);
+ const edit=form('watch',{metric:'revenue_growth',threshold:'10'},{id:'w',version:'1'});await h.submit(edit);assert.equal(calls.length,1);assert(!Object.hasOwn(calls[0],'comparison'));
+ }finally{globalThis.fetch=old}
+});
+test('growth preview and frozen historical alert show basis without mutating old values',async()=>{
+ const old=fetch,h=setup(),payload={title:'收入增速',metric:'revenue_growth',operator:'lt',threshold:.1,value:.05699481865284972,dataset_id:'d',period:'2026-Q3',comparison:'previous',baseline_period:'2026-Q2',source_scope:{comparison:'previous',period_policy:'latest_saved_quarter',source_period:'2025-Q4'}},before=structuredClone(payload);
+ assert.match(watchPreview(payload),/环比（上一季度）/);assert.match(watchPreview(payload),/原回答季度 2025-Q4/);assert.match(watchScopeText({...payload,comparison:null}),/比较基期未记录/);
+ state.cache.tracking={alerts:[{id:'a',payload}]};await h.click('alert-investigate','a');assert.match(h.inspectors.at(-1).html,/本次基期 2026-Q2/);assert.deepEqual(payload,before);globalThis.fetch=old;
+});
+test('growth alert assistant handoff explicitly refuses rather than silently defaulting to YoY',async()=>{
+ const old=fetch,h=setup({navigateRendered:async()=>{throw new Error('must not navigate')}});let calls=0;
+ state.cache.tracking={alerts:[{id:'a',payload:{metric:'revenue_growth',dataset_id:'d',comparison:'previous'}}]};
+ try{globalThis.fetch=async()=>{calls++;return json({})};await h.click('alert-current-investigate','a');assert.equal(calls,0);assert.match(h.toasts.at(-1).message,/比较基期/)}finally{globalThis.fetch=old}
+});
+test('growth comparison changes while a save is pending preserve the newer draft',async()=>{
+ const old=fetch,h=setup(),f=form('watch',{metric:'revenue_growth',comparison:'previous',threshold:'10'}),calls=[];let finish;
+ try{globalThis.fetch=(url,init)=>{calls.push(JSON.parse(init.body));return new Promise(resolve=>finish=resolve)};const pending=h.submit(f);await turn();f.fields.set('comparison','year_over_year');await listeners.get('change')({target:{name:'comparison',value:'year_over_year',closest:()=>f}});finish(json({id:'w',version:1}));await pending;assert.equal(calls[0].comparison,'previous');assert.equal(f.fields.get('comparison'),'year_over_year');assert.equal(h.close,0);assert.equal(state.dirty,true);assert.notEqual(f.fields.get('request_id'),'watch-request');assert.equal(calls.length,1)}finally{globalThis.fetch=old}
+});
+test('actual growth proposal visibly retains source basis and submits it unchanged',async()=>{
+ const old=fetch,h=setup(),calls=[];copilotShell();
+ const thread={thread:{id:'t',version:1,payload:{identity_id:'',dataset_id:'d'}},context:{writable:true},messages:[{id:'m',payload:{question:'2025-Q4营业收入环比增长率',response:{context:{question_scope:{comparison:'previous'}}}}}],proposals:[],runs:[]};
+ try{globalThis.fetch=async(url,init)=>{if(init.method==='POST'){calls.push(JSON.parse(init.body));return json({id:'p',version:1,payload:{kind:'watch',status:'draft',title:'合成提案',text:'核查',binding:{dataset_version:2},fingerprint:'x',preview:{metric:'revenue_growth',operator:'lt',threshold:.1,comparison:'previous'}}})}return json(url.includes('/threads?')?{items:[{id:'t'}]}:thread)};
+ await mountCopilot();await chatAction('chat-propose',{dataset:{kind:'watch',message:'m'}});assert.match(h.dialogs.at(-1).html,/value="previous" selected/);
+ const f=form('proposal',{metric:'revenue_growth',comparison:'previous',threshold:'10',text:'2025-Q4营业收入环比增长率'},{thread:'t',kind:'watch',key:'proposal-key',message:'m'});await copilotSubmit(f,new FormData(f));assert.equal(calls.length,1);assert.equal(calls[0].comparison,'previous');assert.equal(calls[0].source_message_id,'m');assert.match(h.dialogs.at(-1).html,/环比（上一季度）/);
+ }finally{globalThis.fetch=old;resetCopilot()}
+});
+
+test('growth alert inspector keeps its refusal visible and disables the inaccessible handoff',async()=>{
+ const h=setup(),payload={title:'合成增长提醒',metric:'revenue_growth',operator:'lt',threshold:.1,value:.05699481865284972,dataset_id:'d',period:'2026-Q3',comparison:'previous',baseline_period:'2026-Q2',source_scope:{comparison:'previous',period_policy:'latest_saved_quarter',source_period:'2025-Q4'}},before=structuredClone(payload);
+ state.cache.tracking={alerts:[{id:'a',payload}]};await h.click('alert-investigate','a');const html=h.inspectors.at(-1).html;
+ const button=html.match(/<button\b[^>]*data-x-action="alert-current-investigate"[^>]*>/)?.[0];assert(button);
+ assert.match(button,/\bdisabled\b/);assert.match(button,/aria-describedby="growth-alert-handoff-reason"/);
+ assert.match(html,/<div id="growth-alert-handoff-reason">/);assert.match(html,/收入增速提醒暂不支持可靠保留比较基期的助手转交/);
+ assert(!html.includes('后续助手核查将明确使用当前修订'));assert.deepEqual(payload,before);
+ payload.metric='gross_margin';await h.click('alert-investigate','a');const ordinary=h.inspectors.at(-1).html;
+ const supported=ordinary.match(/<button\b[^>]*data-x-action="alert-current-investigate"[^>]*>/)?.[0];assert(supported);assert(!supported.includes('disabled'));
+ assert(!ordinary.includes('growth-alert-handoff-reason'));assert.match(ordinary,/后续助手核查将明确使用当前修订/);
+});

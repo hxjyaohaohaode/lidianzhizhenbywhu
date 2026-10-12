@@ -9,12 +9,20 @@ function reviewedDataset(reference) {
         throw new Error('来源数据版本或指纹缺失，请刷新并重新打开表单；不会自动使用最新数据');
     return reference;
 }
+function reviewedClaim(reference) {
+    const version = reference.claim_review_version, hash = reference.claim_review_hash;
+    if (!Object.hasOwn(reference, 'claim_review_version') || !Object.hasOwn(reference, 'claim_review_hash') || !Number.isSafeInteger(version) || version < 0 || (version === 0 ? hash !== null : typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash)))
+        throw new Error('解释审阅版本或指纹缺失，请重新打开来源并核对；不会自动使用最新审阅');
+    return reference;
+}
 export function formSource(fd, requiredDatasetId = '') {
     const value = fd.get('source_ref');
     if (value) {
         const reference = JSON.parse(String(value));
         if (reference.kind === 'dataset')
             reviewedDataset(reference);
+        if (reference.kind === 'report' && reference.claim_id)
+            reviewedClaim(reference);
         return { source_ref: { ...reference, allow_historical: fd.has('allow_historical') } };
     }
     const datasets = fd.get('source_datasets');

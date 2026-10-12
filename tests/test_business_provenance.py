@@ -68,7 +68,7 @@ def test_claim_source_rejection_changes_overlay_not_historical_action(factory):
     actor=Actor(factory(providers=StudioProvider()));d=actor.dataset()
     report=execute(actor,plan(actor,d,use_llm=True),True)
     claim=report['result']['llm']['review']['claims'][0]
-    src={'kind':'report','run_id':report['id'],'claim_id':claim['id']}
+    src=actor.claim_ref(report,claim['id'])
     other_claim=report['result']['llm']['review']['claims'][1]
     ok(actor.post('/workspace/runs/'+report['id']+'/reviews',json={'claim_id':other_claim['id'],'verdict':'rejected','note':'这条其他解释缺乏充分资料依据'}))
     a=ok(action(actor,d,source_ref=src),201)

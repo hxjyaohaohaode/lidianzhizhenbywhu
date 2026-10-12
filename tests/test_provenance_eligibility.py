@@ -223,7 +223,7 @@ def claim_chain(factory, *, with_evidence=False):
     claim = report['result']['llm']['review']['claims'][0]
     review = ok(actor.post('/workspace/runs/' + report['id'] + '/reviews', json={
         'claim_id': claim['id'], 'verdict': 'accepted', 'note': '原始人工核查限定说明'}))
-    saved = ok(action(actor, dataset, source_ref={'kind': 'report', 'run_id': report['id'], 'claim_id': claim['id']}), 201)
+    saved = ok(action(actor, dataset, source_ref=actor.claim_ref(report, claim['id'])), 201)
     rule = watch(actor, dataset, source_ref=action_ref(saved))
     assert provider.calls
     return actor, dataset, report, review, saved, rule

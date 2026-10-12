@@ -1,7 +1,7 @@
 """Versioned user-owned workspace objects; transactions are controlled by the caller."""
 from __future__ import annotations
 from .store import encode, digest, uid, now, unpack
-from .security import fail
+from .security import fail, next_version
 
 KINDS = frozenset({'profile','plan','action','experiment','comparison','evidence_review','claim_review','template','import_stage','dismissal','assessment','strategy','strategy_active','strategy_evaluation','identity','assistant_thread','assistant_proposal','watch','alert'})
 
@@ -109,6 +109,7 @@ def save(store, db, user, kind, payload, *, key=None, expected=0, id=None):
     if current:
         if expected != current['version']:
             fail('VERSION_CONFLICT','记录已改变；请刷新，未覆盖他人的修改',409)
+        next_version(current['version'])
         db.execute('UPDATE workspace_objects SET payload=?,version=version+1,updated_at=? WHERE id=?', (encode(payload),now(),current['id']))
         id = current['id']
     else:

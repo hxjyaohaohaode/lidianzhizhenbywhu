@@ -10,7 +10,7 @@ import json
 import math
 import re
 from typing import Literal
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, ValidationError, model_serializer, model_validator
 from .schemas import StorageInteger, StrictModel, Memory
 from .store import digest, now
 from .security import fail
@@ -132,6 +132,10 @@ class SourceRef(StrictModel):
     kind: Literal['dataset', 'report', 'copilot', 'insight', 'alert', 'action']
     run_id: str = Field(default='', max_length=80)
     claim_id: str = Field(default='', max_length=80)
+    # Legacy selections remain parseable for an owned reselection error. A new
+    # claim source must explicitly carry both fields, including 0/null for no review.
+    claim_review_version: StorageInteger | None = Field(default=None, strict=True, ge=0)
+    claim_review_hash: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     thread_id: str = Field(default='', max_length=80)
     message_id: str = Field(default='', max_length=80)
     source_key: str = Field(default='', max_length=200)
@@ -143,6 +147,16 @@ class SourceRef(StrictModel):
     dataset_hash: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
     allow_historical: bool = False
 
+    @model_serializer(mode='wrap')
+    def preserve_reference_shape(self, handler):
+        result = handler(self)
+        # Do not change historical request fingerprints by adding default nulls.
+        # Explicit null is retained, so missing and viewed-no-review differ.
+        for key in ('claim_review_version', 'claim_review_hash'):
+            if key not in self.model_fields_set:
+                result.pop(key, None)
+        return result
+
     @model_validator(mode='after')
     def exact_reference(self):
         fields={'report':{'run_id','claim_id'},'copilot':{'thread_id','message_id'},
@@ -152,6 +166,8 @@ class SourceRef(StrictModel):
             raise ValueError('来源缺少对应记录标识')
         if any(getattr(self,key) for key in {'run_id','claim_id','thread_id','message_id','source_key','alert_id','action_id'}-fields[self.kind]):
             raise ValueError('来源标识与来源类型不一致')
+        if self.model_fields_set & {'claim_review_version','claim_review_hash'} and not (self.kind=='report' and self.claim_id):
+            raise ValueError('解释审阅版本与来源类型不一致')
         if self.kind=='action' and (self.action_version is None or self.action_hash is None):
             raise ValueError('行动来源必须携带已查看的行动版本和内容指纹')
         if self.kind!='action' and (self.action_version is not None or self.action_hash is not None):
@@ -327,9 +343,13 @@ def resolve_source(store, user_id, identity_id, dataset_id, source_ref=None, *, 
             review=_selected_claim_review(store,user_id,run['id'],ref['claim_id'])
             if review and not _claim_review_valid(review,run['id'],ref['claim_id']):
                 fail('SOURCE_INTEGRITY','当前解释审阅记录无法校验，不能将其保存为新来源；请先核对原始审阅记录',409)
+            if not {'claim_review_version','claim_review_hash'} <= ref.keys() or ref['claim_review_version'] is None:
+                fail('CLAIM_REVIEW_REFERENCE_REQUIRED','解释来源必须携带已查看的审阅版本和内容指纹；尚无审阅时也需明确记录，请重新打开来源',409)
+            live_review=(review['version'],digest(review['payload'])) if review else (0,None)
+            if (ref['claim_review_version'],ref['claim_review_hash']) != live_review:
+                fail('SOURCE_CHANGED','已查看的解释审阅版本或内容已变化，请重新打开来源并核对；不能自动使用新的审阅',409)
             extra.update(claim_id=ref['claim_id'],claim_hash=digest(claim),claim_snapshot=deepcopy(claim),
-                claim_review_version=review['version'] if review else 0,
-                claim_review_hash=digest(review['payload']) if review else None)
+                claim_review_version=live_review[0],claim_review_hash=live_review[1])
             citations=[c for c in citations if c.get('id') in claim.get('citation_ids',[])]
         evidence=_citation_evidence(citations)
     elif kind=='copilot':

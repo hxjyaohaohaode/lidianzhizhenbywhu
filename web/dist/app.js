@@ -102,6 +102,7 @@ catch (e) {
         resetAuth();
         return;
     }
+    document.title = '读取未完成 · ' + routes[state.route].label + ' · 锂电智诊';
     main.innerHTML = heading('读取未完成', '没有使用缓存或模拟数据替代失败的结果。') + notice(e instanceof Error ? e.message : '读取失败', 'danger') + button('重新读取', 'refresh', 'primary');
 } }
 function resetAuth() { invalidateInteractions(); resetCopilot(); clearLayout(); state.identity = ''; state.identities = []; live?.dispose(); live = null; state.user = null; state.cache = {}; state.cursor = 0; syncPending = false; state.datasets = []; state.active = ''; state.query = ''; state.dirty = false; setCsrf(''); if (modal.open)
@@ -110,7 +111,7 @@ function resetAuth() { invalidateInteractions(); resetCopilot(); clearLayout(); 
 function read(form) { const f = new FormData(form); const str = (k) => String(f.get(k) ?? '').trim(); const val = (k, optional = false) => { const s = str(k); if (optional && !s)
     return null; const n = Number(s); if (!s || !Number.isFinite(n))
     throw new Error('请填写有效数值：' + k); return n; }; return { f, str, val, check: (k) => f.has(k), list: (k) => f.getAll(k).map(String) }; }
-async function showStage(stage) { state.cache.stage = stage; dialog('保存前核对', stageView(stage), true); }
+async function showStage(stage) { state.cache.stage = stage; dialog('保存前核对', stageView(stage), true); modal.scrollTop = 0; }
 function rawDataset(d) { const p = { ...d }; delete p.verification; delete p.input_amount_unit; return p; }
 async function createEvidence(data, company, global_scope = false) { if (!company && !global_scope)
     throw new Error('请填写所属企业，或明确选择通用资料。'); const result = await api('/evidence', 'POST', { ...data, company, global_scope }); if (result.deduplicated)

@@ -1,0 +1,29 @@
+# REVIEW ONLY. Not an active render.yaml; do not create resources without approval.
+# PAID service + paid persistent disk. This is NOT a free deployment.
+# Only repository hxjyaohaohaode/lidianzhizhenbywhu.
+services:
+  - type: web
+    name: lidian-workbench
+    runtime: docker
+    plan: starter
+    autoDeployTrigger: off
+    healthCheckPath: /api/health
+    disk:
+      name: lidian-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_ORIGIN
+        sync: false
+      - key: REGISTRATION_CODE
+        sync: false
+      - key: DATA_DIR
+        value: /data
+      - key: SERVER_AI_ENABLED
+        value: "false"
+# Optional SERVER_AI_BASE_URL, SERVER_AI_MODEL and SERVER_AI_API_KEY are entered
+# privately by the operator only after choosing a provider. Never put keys here.
+# Do not enable AI until every field is present and provider privacy/cost reviewed.
+# Verify UID 10001 write access, actual health-check Host and backup/restore first.

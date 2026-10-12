@@ -52,9 +52,35 @@ def create_payload(dataset, request):
     return p
 
 
+def verify_payload_seal(payload, version):
+    """Verify saved creation bytes; missing fields never confer legacy trust."""
+    p=payload
+    try:
+        valid=(version==1 and isinstance(p,dict) and isinstance(p.get('request'),dict)
+            and all(key in p for key in ('creation_request_id','creation_request_hash','creation_payload_hash'))
+            and p['creation_request_hash']==digest(p['request'])
+            and p['creation_payload_hash']==digest({k:v for k,v in p.items() if k!='creation_payload_hash'})
+            and p['dataset_id']==p['request']['dataset_id']
+            and p['dataset_version']==p['request']['dataset_version']
+            and p['dataset_hash']==p['request']['dataset_hash']==digest(p['snapshot']))
+    except (KeyError,TypeError,ValueError):
+        valid=False
+    if not valid:
+        raise ValueError('原实验缺少可信创建凭据或封存内容已变化；保留原始记录供核对，不能作为新执行依据，请明确重新保存实验')
+
+
+def payload_integrity(row):
+    try:
+        verify_payload_seal(row['payload'],row['version'])
+    except (KeyError,TypeError,ValueError) as exc:
+        return {'valid':False,'status':'unavailable','creation_payload_verified':False,'message':str(exc)}
+    return {'valid':True,'status':'verified','creation_payload_verified':True,'message':''}
+
+
 def verify_creation_receipt(row):
     p = row['payload']; request = p.get('request') if isinstance(p, dict) else None
     try:
+        verify_payload_seal(p,row['version'])
         valid = (row['version'] == 1 and isinstance(request, dict)
                  and p.get('creation_request_id')
                  and row['natural_key'] == 'experiment_request:' + p['creation_request_id']
@@ -71,8 +97,10 @@ def verify_creation_receipt(row):
 
 def public_record(row, *, summary=False):
     # Hash the full archived payload, never the trimmed list projection.
+    payload = row['payload']
     return {**row, 'experiment_hash': digest(row['payload']),
-            'payload': {k: v for k, v in row['payload'].items() if not summary or k not in ('snapshot', 'result')}}
+            'integrity':payload_integrity(row),
+            'payload': {k: v for k, v in payload.items() if not summary or k not in ('snapshot', 'result')} if isinstance(payload,dict) else payload}
 
 
 def provenance(frozen):
@@ -89,6 +117,7 @@ def provenance(frozen):
 
 def verified_result(frozen):
     p = frozen['payload']
+    verify_payload_seal(p,frozen['version'])
     if digest(p) != frozen['hash'] or digest(p['snapshot']) != p['dataset_hash']:
         raise ValueError('实验冻结输入或结果指纹不一致')
     if p['request']['dataset_id'] != p['dataset_id'] or (p['request'].get('target_period') and p['request']['target_period'] != p.get('target_period')):
@@ -108,6 +137,10 @@ def select_experiment(store, user_id, request, dataset, scope):
     if row['version'] != ref.version or digest(row['payload']) != ref.hash:
         fail('EXPERIMENT_STALE', '实验版本或指纹已变化，请重新选择', 409)
     p = row['payload']
+    try:
+        verify_payload_seal(p,row['version'])
+    except (ValueError,KeyError,TypeError) as exc:
+        fail('EXPERIMENT_INTEGRITY',str(exc),409)
     if (p['dataset_id'], p['dataset_version'], p['dataset_hash']) != (dataset['id'], dataset['version'], dataset['content_hash']):
         fail('EXPERIMENT_DATASET', '实验必须属于所选数据集的当前相同版本；请重新保存实验', 409)
     frozen = {**ref.model_dump(), 'payload': copy.deepcopy(p)}
@@ -132,7 +165,13 @@ def binding_current(store, user_id, binding):
     if not binding:
         return True
     row = store.one("SELECT * FROM workspace_objects WHERE user_id=? AND kind='experiment' AND id=?", (user_id, binding['id']))
-    return bool(row and row['version'] == binding['version'] and digest(row['payload']) == binding['hash'])
+    if not row or row['version'] != binding['version'] or digest(row['payload']) != binding['hash']:
+        return False
+    try:
+        verify_payload_seal(row['payload'],row['version'])
+    except (KeyError,TypeError,ValueError):
+        return False
+    return True
 
 
 def check_binding(store, user_id, binding):

@@ -20,6 +20,15 @@ def check_version(row, expected):
     if expected is None:fail('VERSION_REQUIRED','请提供已查看记录的版本后重试。',428)
     if row['version']!=expected:fail('VERSION_CONFLICT','记录已改变，请重新查看后确认；未删除新版本。',409)
 
+def next_version(value):
+    """Bound every version increment; reads and version-matched deletes remain possible."""
+    from .schemas import MAX_SAFE_INTEGER
+    if isinstance(value,bool) or not isinstance(value,int) or value<1:
+        fail('INVALID_VERSION','保存的版本无效；请核对可信备份，未修复或覆盖记录。',409)
+    if value>=MAX_SAFE_INTEGER:
+        fail('VERSION_LIMIT','记录版本已达上限；仍可查看、导出或明确删除，不能继续修改，请另建新记录。',409)
+    return value+1
+
 def password_hash(password):
     salt=secrets.token_hex(16)
     value=hashlib.scrypt(password.encode(),salt=bytes.fromhex(salt),n=16384,r=8,p=1,dklen=32).hex()

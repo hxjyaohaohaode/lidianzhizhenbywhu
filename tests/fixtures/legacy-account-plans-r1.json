@@ -1,0 +1,1493 @@
+[
+  {
+    "id": "a529e1784b454a99ab78a37e04b9b133",
+    "user_id": "e30ef530afc44e399ffb639844596c86",
+    "kind": "plan",
+    "natural_key": "18a544349d3b431ba871a9324af8d024",
+    "payload": {
+      "bindings": {
+        "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+        "dataset_version": 1,
+        "evidence": [],
+        "identity": null,
+        "memory": [],
+        "profile_version": 0,
+        "provider": null,
+        "session_version": null,
+        "user_version": 1
+      },
+      "blockers": [],
+      "call_ids": [],
+      "consent_scope": [],
+      "context": {
+        "approved_memory": [],
+        "data_limits": [
+          "缺少指定的同/环比季度；基期指标保持缺失，不改用任意季度。",
+          "输入未经本系统独立核验；来源链接不等于真实性认证。",
+          "行业波动率由用户提供，不是实时拉取或历史校准结果。",
+          "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。",
+          "存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。"
+        ],
+        "evidence": [],
+        "history": [],
+        "metrics": {
+          "asset_turnover": 0.4013761467889908,
+          "cash_ratio": 0.122,
+          "gross_margin": 0.225,
+          "inventory_turnover": 3.8529829545454546,
+          "leverage": 0.5068807339449541,
+          "margin_change": null,
+          "net_margin": 0.082,
+          "period": "2025-Q4",
+          "rd_ratio": 0.045,
+          "revenue_growth": null,
+          "roe": 0.06307692307692307,
+          "sales_production_ratio": 0.9259259259259259
+        },
+        "mode": "operational",
+        "objective": {
+          "cash_floor": null,
+          "company": "示例锂电企业（虚构）",
+          "focus": [
+            "margin",
+            "cash"
+          ],
+          "leverage_ceiling": null,
+          "margin_floor": null,
+          "objective": "",
+          "stale_after_days": 180
+        },
+        "preferences": {
+          "amount_unit": "wan",
+          "horizon": "long",
+          "interests": [],
+          "memory_enabled": true,
+          "risk_appetite": "medium",
+          "role": "enterprise",
+          "theme": "light",
+          "watchlist": []
+        },
+        "question": "2025-Q4年化净资产收益率",
+        "research_scope": {
+          "available_periods": [
+            "2025-Q2",
+            "2025-Q3",
+            "2025-Q4",
+            "2026-Q1",
+            "2026-Q2",
+            "2026-Q3"
+          ],
+          "explicit": true,
+          "notice": "限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。",
+          "period": "2025-Q4",
+          "question_status": "supported",
+          "requested_comparison": null,
+          "status": "selected",
+          "topics": [
+            "roe"
+          ]
+        },
+        "service_identity": null
+      },
+      "created_at": "2026-10-09T04:27:37.382+00:00",
+      "excluded_memory": [],
+      "fingerprint": "ff93a9612a5c1a746347d081d79c2004fcd7ff241e0dc6e5c114308c87d76312",
+      "max_calls": 0,
+      "nodes": [
+        {
+          "depends_on": [],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quality",
+          "name": "数据核验",
+          "purpose": "口径、缺失、期间与异常检查",
+          "skip_reason": null,
+          "tools": [
+            "quality_report"
+          ]
+        },
+        {
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quant",
+          "name": "量化分析",
+          "purpose": "财务指标、规则贡献与逐字段血缘",
+          "skip_reason": null,
+          "tools": [
+            "calculate",
+            "lineage"
+          ]
+        },
+        {
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "lexical",
+          "id": "evidence",
+          "name": "证据整理",
+          "purpose": "企业作用域过滤、来源核对与片段定位",
+          "skip_reason": null,
+          "tools": [
+            "scoped_retrieve"
+          ]
+        },
+        {
+          "depends_on": [
+            "quant",
+            "evidence"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "context",
+          "name": "上下文管理",
+          "purpose": "已批准记忆、目标与预算装配",
+          "skip_reason": null,
+          "tools": [
+            "pack_context"
+          ]
+        },
+        {
+          "depends_on": [
+            "context"
+          ],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "analyst",
+          "name": "经营研究员",
+          "purpose": "提出与当前指标和证据绑定的解释假设",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "context"
+          ],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "researcher",
+          "name": "行业证据员",
+          "purpose": "核查外部资料的业务适用性与时效条件",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "challenger",
+          "name": "反证审阅员",
+          "purpose": "审阅前序解释，指出替代原因及无法推出的结论",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "quant",
+            "evidence"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "review",
+          "name": "结果门禁",
+          "purpose": "引用白名单、指标有效性及输出合同检查",
+          "skip_reason": null,
+          "tools": [
+            "verify_claims"
+          ]
+        },
+        {
+          "depends_on": [
+            "review"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "report",
+          "name": "报告归档",
+          "purpose": "冻结结论、证据、执行记录和待核查事项",
+          "skip_reason": null,
+          "tools": [
+            "archive_report"
+          ]
+        }
+      ],
+      "packing": {
+        "characters": 1249,
+        "dropped": [],
+        "included_citation_ids": [],
+        "included_memory_ids": [],
+        "limit": 18000,
+        "reserved_for_review": 2400,
+        "token_count": "供应商响应usage才是实测token数",
+        "unit": "characters_not_tokens"
+      },
+      "quality": {
+        "as_of": "2026-10-09",
+        "closed_quarters": 3,
+        "field_coverage": {
+          "missing": [],
+          "period": "2025-Q4",
+          "present": 8,
+          "total": 8
+        },
+        "findings": [
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q2",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q3",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q4",
+            "severity": "warning"
+          },
+          {
+            "code": "MISSING_SOURCE",
+            "fields": [
+              "source_url"
+            ],
+            "message": "未填写原始来源地址，可在证据库关联文件并人工审阅",
+            "period": "2025-Q4",
+            "severity": "info"
+          }
+        ],
+        "input_hash": "78e91e23f693b2a414a709d364ca80c0d96825dbb82538e4633362e5d0dbcd06",
+        "source_state": "user_declared_not_verified",
+        "warning_count": 3
+      },
+      "request": {
+        "comparison": "year_over_year",
+        "comparison_artifact": null,
+        "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+        "execution": null,
+        "experiment": null,
+        "identity_id": "",
+        "include_history": false,
+        "include_memory": true,
+        "max_calls": 2,
+        "mode": "operational",
+        "provider": "",
+        "query": "2025-Q4年化净资产收益率",
+        "session_id": "",
+        "success_criteria": "",
+        "use_llm": false
+      },
+      "requested_max_calls": 0,
+      "run_id": null,
+      "scope_query": "2025-Q4年化净资产收益率",
+      "snapshot": {
+        "analysis_as_of": "2026-10-09",
+        "citations": [],
+        "comparison": "year_over_year",
+        "dataset": {
+          "amount_unit": "yuan",
+          "company": "示例锂电企业（虚构）",
+          "currency": "CNY",
+          "input_amount_unit": "yuan",
+          "name": "示例企业 · 六季度经营数据",
+          "notes": "完全合成的教学演示数据；不指向真实企业、行情或财报。按单季度而非累计口径。",
+          "period_basis": "standalone_quarter",
+          "periods": [
+            {
+              "assets": 40000000.0,
+              "cash_flow": 2240000.0,
+              "cost": 12320000.0,
+              "equity_begin": 22000000.0,
+              "equity_end": 22300000.0,
+              "industry_volatility": 0.22,
+              "inventory": 3000000.0,
+              "liabilities": 19000000.0,
+              "lithium_price": 82000.0,
+              "manufacturing_cost": 6529600.0,
+              "net_profit": 1440000.0,
+              "period": "2025-Q2",
+              "production_volume": 740.0,
+              "rd_expense": 720000.0,
+              "revenue": 16000000.0,
+              "sales_volume": 700.0
+            },
+            {
+              "assets": 41800000.0,
+              "cash_flow": 2200800.0,
+              "cost": 12852000.0,
+              "equity_begin": 22300000.0,
+              "equity_end": 22600000.0,
+              "industry_volatility": 0.235,
+              "inventory": 3260000.0,
+              "liabilities": 20550000.0,
+              "lithium_price": 85500.0,
+              "manufacturing_cost": 6811560.0,
+              "net_profit": 1444800.0,
+              "period": "2025-Q3",
+              "production_volume": 775.0,
+              "rd_expense": 756000.0,
+              "revenue": 16800000.0,
+              "sales_volume": 725.0
+            },
+            {
+              "assets": 43600000.0,
+              "cash_flow": 2135000.0,
+              "cost": 13562500.0,
+              "equity_begin": 22600000.0,
+              "equity_end": 22900000.0,
+              "industry_volatility": 0.25,
+              "inventory": 3520000.0,
+              "liabilities": 22100000.0,
+              "lithium_price": 89000.0,
+              "manufacturing_cost": 7188125.0,
+              "net_profit": 1435000.0,
+              "period": "2025-Q4",
+              "production_volume": 810.0,
+              "rd_expense": 787500.0,
+              "revenue": 17500000.0,
+              "sales_volume": 750.0
+            },
+            {
+              "assets": 45400000.0,
+              "cash_flow": 2045300.0,
+              "cost": 14299000.0,
+              "equity_begin": 22900000.0,
+              "equity_end": 23200000.0,
+              "industry_volatility": 0.265,
+              "inventory": 3780000.0,
+              "liabilities": 23650000.0,
+              "lithium_price": 92500.0,
+              "manufacturing_cost": 7578470.0,
+              "net_profit": 1411800.0,
+              "period": "2026-Q1",
+              "production_volume": 845.0,
+              "rd_expense": 814500.0,
+              "revenue": 18100000.0,
+              "sales_volume": 775.0
+            },
+            {
+              "assets": 47200000.0,
+              "cash_flow": 2007200.0,
+              "cost": 15440000.0,
+              "equity_begin": 23200000.0,
+              "equity_end": 23500000.0,
+              "industry_volatility": 0.28,
+              "inventory": 4040000.0,
+              "liabilities": 25200000.0,
+              "lithium_price": 96000.0,
+              "manufacturing_cost": 8183200.0,
+              "net_profit": 1428200.0,
+              "period": "2026-Q2",
+              "production_volume": 880.0,
+              "rd_expense": 868500.0,
+              "revenue": 19300000.0,
+              "sales_volume": 800.0
+            },
+            {
+              "assets": 49000000.0,
+              "cash_flow": 1938000.0,
+              "cost": 16626000.0,
+              "equity_begin": 23500000.0,
+              "equity_end": 23800000.0,
+              "industry_volatility": 0.295,
+              "inventory": 4300000.0,
+              "liabilities": 26750000.0,
+              "lithium_price": 99500.0,
+              "manufacturing_cost": 8811780.0,
+              "net_profit": 1428000.0,
+              "period": "2026-Q3",
+              "production_volume": 915.0,
+              "rd_expense": 918000.0,
+              "revenue": 20400000.0,
+              "sales_volume": 825.0
+            }
+          ],
+          "source_kind": "user_provided",
+          "source_url": "",
+          "verification": "unverified_user_input",
+          "volume_unit": "ton"
+        },
+        "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "dataset_version": 1,
+        "history": [],
+        "identity": null,
+        "input_source": {
+          "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+          "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+          "dataset_version": 1,
+          "input_amount_unit": "yuan",
+          "input_basis": null,
+          "normalized_amount_unit": "yuan",
+          "normalized_basis": "standalone_quarter",
+          "notice": "本修订未保存可绑定到目标季度的原文件回执；不推测文件名或指纹。",
+          "period": "2025-Q4",
+          "schema_version": 1,
+          "status": "not_recorded",
+          "verification": "user_provided_not_independently_verified"
+        },
+        "memory": [],
+        "preferences": {
+          "amount_unit": "wan",
+          "horizon": "long",
+          "interests": [],
+          "memory_enabled": true,
+          "risk_appetite": "medium",
+          "role": "enterprise",
+          "theme": "light",
+          "watchlist": []
+        },
+        "profile": {
+          "cash_floor": null,
+          "company": "示例锂电企业（虚构）",
+          "focus": [
+            "margin",
+            "cash"
+          ],
+          "leverage_ceiling": null,
+          "margin_floor": null,
+          "objective": "",
+          "stale_after_days": 180
+        },
+        "research_scope": {
+          "available_periods": [
+            "2025-Q2",
+            "2025-Q3",
+            "2025-Q4",
+            "2026-Q1",
+            "2026-Q2",
+            "2026-Q3"
+          ],
+          "explicit": true,
+          "notice": "限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。",
+          "period": "2025-Q4",
+          "question_status": "supported",
+          "requested_comparison": null,
+          "status": "selected",
+          "topics": [
+            "roe"
+          ]
+        }
+      },
+      "status": "draft"
+    },
+    "version": 1,
+    "created_at": "2026-10-09T04:27:37.382+00:00",
+    "updated_at": "2026-10-09T04:27:37.382+00:00"
+  },
+  {
+    "id": "bc39d9cc11ca494ebafce724e1e69ac5",
+    "user_id": "e30ef530afc44e399ffb639844596c86",
+    "kind": "plan",
+    "natural_key": "a8297993c68a45e5875294349eab781a",
+    "payload": {
+      "bindings": {
+        "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+        "dataset_version": 1,
+        "evidence": [],
+        "identity": null,
+        "memory": [],
+        "profile_version": 0,
+        "provider": null,
+        "session_version": null,
+        "user_version": 1
+      },
+      "blockers": [],
+      "call_ids": [],
+      "consent_scope": [],
+      "context": {
+        "approved_memory": [],
+        "data_limits": [
+          "缺少指定的同/环比季度；基期指标保持缺失，不改用任意季度。",
+          "输入未经本系统独立核验；来源链接不等于真实性认证。",
+          "行业波动率由用户提供，不是实时拉取或历史校准结果。",
+          "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。",
+          "存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。"
+        ],
+        "evidence": [],
+        "history": [],
+        "metrics": {
+          "asset_turnover": 0.4013761467889908,
+          "cash_ratio": 0.122,
+          "gross_margin": 0.225,
+          "inventory_turnover": 3.8529829545454546,
+          "leverage": 0.5068807339449541,
+          "margin_change": null,
+          "net_margin": 0.082,
+          "period": "2025-Q4",
+          "rd_ratio": 0.045,
+          "revenue_growth": null,
+          "roe": 0.06307692307692307,
+          "sales_production_ratio": 0.9259259259259259
+        },
+        "mode": "operational",
+        "objective": {
+          "cash_floor": null,
+          "company": "示例锂电企业（虚构）",
+          "focus": [
+            "margin",
+            "cash"
+          ],
+          "leverage_ceiling": null,
+          "margin_floor": null,
+          "objective": "",
+          "stale_after_days": 180
+        },
+        "preferences": {
+          "amount_unit": "wan",
+          "horizon": "long",
+          "interests": [],
+          "memory_enabled": true,
+          "risk_appetite": "medium",
+          "role": "enterprise",
+          "theme": "light",
+          "watchlist": []
+        },
+        "question": "2025-Q4营业外收入",
+        "research_scope": {
+          "available_periods": [
+            "2025-Q2",
+            "2025-Q3",
+            "2025-Q4",
+            "2026-Q1",
+            "2026-Q2",
+            "2026-Q3"
+          ],
+          "explicit": true,
+          "notice": "限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。",
+          "period": "2025-Q4",
+          "question_status": "supported",
+          "requested_comparison": null,
+          "status": "selected",
+          "topics": [
+            "revenue"
+          ]
+        },
+        "service_identity": null
+      },
+      "created_at": "2026-10-09T04:27:37.389+00:00",
+      "excluded_memory": [],
+      "fingerprint": "b230e529a691bf9dfa27014f4b9fe59e0de9a993821a696aef18324cd5519fd1",
+      "max_calls": 0,
+      "nodes": [
+        {
+          "depends_on": [],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quality",
+          "name": "数据核验",
+          "purpose": "口径、缺失、期间与异常检查",
+          "skip_reason": null,
+          "tools": [
+            "quality_report"
+          ]
+        },
+        {
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quant",
+          "name": "量化分析",
+          "purpose": "财务指标、规则贡献与逐字段血缘",
+          "skip_reason": null,
+          "tools": [
+            "calculate",
+            "lineage"
+          ]
+        },
+        {
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "lexical",
+          "id": "evidence",
+          "name": "证据整理",
+          "purpose": "企业作用域过滤、来源核对与片段定位",
+          "skip_reason": null,
+          "tools": [
+            "scoped_retrieve"
+          ]
+        },
+        {
+          "depends_on": [
+            "quant",
+            "evidence"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "context",
+          "name": "上下文管理",
+          "purpose": "已批准记忆、目标与预算装配",
+          "skip_reason": null,
+          "tools": [
+            "pack_context"
+          ]
+        },
+        {
+          "depends_on": [
+            "context"
+          ],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "analyst",
+          "name": "经营研究员",
+          "purpose": "提出与当前指标和证据绑定的解释假设",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "context"
+          ],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "researcher",
+          "name": "行业证据员",
+          "purpose": "核查外部资料的业务适用性与时效条件",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "challenger",
+          "name": "反证审阅员",
+          "purpose": "审阅前序解释，指出替代原因及无法推出的结论",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "quant",
+            "evidence"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "review",
+          "name": "结果门禁",
+          "purpose": "引用白名单、指标有效性及输出合同检查",
+          "skip_reason": null,
+          "tools": [
+            "verify_claims"
+          ]
+        },
+        {
+          "depends_on": [
+            "review"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "report",
+          "name": "报告归档",
+          "purpose": "冻结结论、证据、执行记录和待核查事项",
+          "skip_reason": null,
+          "tools": [
+            "archive_report"
+          ]
+        }
+      ],
+      "packing": {
+        "characters": 1250,
+        "dropped": [],
+        "included_citation_ids": [],
+        "included_memory_ids": [],
+        "limit": 18000,
+        "reserved_for_review": 2400,
+        "token_count": "供应商响应usage才是实测token数",
+        "unit": "characters_not_tokens"
+      },
+      "quality": {
+        "as_of": "2026-10-09",
+        "closed_quarters": 3,
+        "field_coverage": {
+          "missing": [],
+          "period": "2025-Q4",
+          "present": 8,
+          "total": 8
+        },
+        "findings": [
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q2",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q3",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q4",
+            "severity": "warning"
+          },
+          {
+            "code": "MISSING_SOURCE",
+            "fields": [
+              "source_url"
+            ],
+            "message": "未填写原始来源地址，可在证据库关联文件并人工审阅",
+            "period": "2025-Q4",
+            "severity": "info"
+          }
+        ],
+        "input_hash": "78e91e23f693b2a414a709d364ca80c0d96825dbb82538e4633362e5d0dbcd06",
+        "source_state": "user_declared_not_verified",
+        "warning_count": 3
+      },
+      "request": {
+        "comparison": "year_over_year",
+        "comparison_artifact": null,
+        "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+        "execution": null,
+        "experiment": null,
+        "identity_id": "",
+        "include_history": false,
+        "include_memory": true,
+        "max_calls": 2,
+        "mode": "operational",
+        "provider": "",
+        "query": "2025-Q4营业外收入",
+        "session_id": "",
+        "success_criteria": "",
+        "use_llm": false
+      },
+      "requested_max_calls": 0,
+      "run_id": null,
+      "scope_query": "2025-Q4营业外收入",
+      "snapshot": {
+        "analysis_as_of": "2026-10-09",
+        "citations": [],
+        "comparison": "year_over_year",
+        "dataset": {
+          "amount_unit": "yuan",
+          "company": "示例锂电企业（虚构）",
+          "currency": "CNY",
+          "input_amount_unit": "yuan",
+          "name": "示例企业 · 六季度经营数据",
+          "notes": "完全合成的教学演示数据；不指向真实企业、行情或财报。按单季度而非累计口径。",
+          "period_basis": "standalone_quarter",
+          "periods": [
+            {
+              "assets": 40000000.0,
+              "cash_flow": 2240000.0,
+              "cost": 12320000.0,
+              "equity_begin": 22000000.0,
+              "equity_end": 22300000.0,
+              "industry_volatility": 0.22,
+              "inventory": 3000000.0,
+              "liabilities": 19000000.0,
+              "lithium_price": 82000.0,
+              "manufacturing_cost": 6529600.0,
+              "net_profit": 1440000.0,
+              "period": "2025-Q2",
+              "production_volume": 740.0,
+              "rd_expense": 720000.0,
+              "revenue": 16000000.0,
+              "sales_volume": 700.0
+            },
+            {
+              "assets": 41800000.0,
+              "cash_flow": 2200800.0,
+              "cost": 12852000.0,
+              "equity_begin": 22300000.0,
+              "equity_end": 22600000.0,
+              "industry_volatility": 0.235,
+              "inventory": 3260000.0,
+              "liabilities": 20550000.0,
+              "lithium_price": 85500.0,
+              "manufacturing_cost": 6811560.0,
+              "net_profit": 1444800.0,
+              "period": "2025-Q3",
+              "production_volume": 775.0,
+              "rd_expense": 756000.0,
+              "revenue": 16800000.0,
+              "sales_volume": 725.0
+            },
+            {
+              "assets": 43600000.0,
+              "cash_flow": 2135000.0,
+              "cost": 13562500.0,
+              "equity_begin": 22600000.0,
+              "equity_end": 22900000.0,
+              "industry_volatility": 0.25,
+              "inventory": 3520000.0,
+              "liabilities": 22100000.0,
+              "lithium_price": 89000.0,
+              "manufacturing_cost": 7188125.0,
+              "net_profit": 1435000.0,
+              "period": "2025-Q4",
+              "production_volume": 810.0,
+              "rd_expense": 787500.0,
+              "revenue": 17500000.0,
+              "sales_volume": 750.0
+            },
+            {
+              "assets": 45400000.0,
+              "cash_flow": 2045300.0,
+              "cost": 14299000.0,
+              "equity_begin": 22900000.0,
+              "equity_end": 23200000.0,
+              "industry_volatility": 0.265,
+              "inventory": 3780000.0,
+              "liabilities": 23650000.0,
+              "lithium_price": 92500.0,
+              "manufacturing_cost": 7578470.0,
+              "net_profit": 1411800.0,
+              "period": "2026-Q1",
+              "production_volume": 845.0,
+              "rd_expense": 814500.0,
+              "revenue": 18100000.0,
+              "sales_volume": 775.0
+            },
+            {
+              "assets": 47200000.0,
+              "cash_flow": 2007200.0,
+              "cost": 15440000.0,
+              "equity_begin": 23200000.0,
+              "equity_end": 23500000.0,
+              "industry_volatility": 0.28,
+              "inventory": 4040000.0,
+              "liabilities": 25200000.0,
+              "lithium_price": 96000.0,
+              "manufacturing_cost": 8183200.0,
+              "net_profit": 1428200.0,
+              "period": "2026-Q2",
+              "production_volume": 880.0,
+              "rd_expense": 868500.0,
+              "revenue": 19300000.0,
+              "sales_volume": 800.0
+            },
+            {
+              "assets": 49000000.0,
+              "cash_flow": 1938000.0,
+              "cost": 16626000.0,
+              "equity_begin": 23500000.0,
+              "equity_end": 23800000.0,
+              "industry_volatility": 0.295,
+              "inventory": 4300000.0,
+              "liabilities": 26750000.0,
+              "lithium_price": 99500.0,
+              "manufacturing_cost": 8811780.0,
+              "net_profit": 1428000.0,
+              "period": "2026-Q3",
+              "production_volume": 915.0,
+              "rd_expense": 918000.0,
+              "revenue": 20400000.0,
+              "sales_volume": 825.0
+            }
+          ],
+          "source_kind": "user_provided",
+          "source_url": "",
+          "verification": "unverified_user_input",
+          "volume_unit": "ton"
+        },
+        "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "dataset_version": 1,
+        "history": [],
+        "identity": null,
+        "input_source": {
+          "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+          "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+          "dataset_version": 1,
+          "input_amount_unit": "yuan",
+          "input_basis": null,
+          "normalized_amount_unit": "yuan",
+          "normalized_basis": "standalone_quarter",
+          "notice": "本修订未保存可绑定到目标季度的原文件回执；不推测文件名或指纹。",
+          "period": "2025-Q4",
+          "schema_version": 1,
+          "status": "not_recorded",
+          "verification": "user_provided_not_independently_verified"
+        },
+        "memory": [],
+        "preferences": {
+          "amount_unit": "wan",
+          "horizon": "long",
+          "interests": [],
+          "memory_enabled": true,
+          "risk_appetite": "medium",
+          "role": "enterprise",
+          "theme": "light",
+          "watchlist": []
+        },
+        "profile": {
+          "cash_floor": null,
+          "company": "示例锂电企业（虚构）",
+          "focus": [
+            "margin",
+            "cash"
+          ],
+          "leverage_ceiling": null,
+          "margin_floor": null,
+          "objective": "",
+          "stale_after_days": 180
+        },
+        "research_scope": {
+          "available_periods": [
+            "2025-Q2",
+            "2025-Q3",
+            "2025-Q4",
+            "2026-Q1",
+            "2026-Q2",
+            "2026-Q3"
+          ],
+          "explicit": true,
+          "notice": "限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。",
+          "period": "2025-Q4",
+          "question_status": "supported",
+          "requested_comparison": null,
+          "status": "selected",
+          "topics": [
+            "revenue"
+          ]
+        }
+      },
+      "status": "draft"
+    },
+    "version": 1,
+    "created_at": "2026-10-09T04:27:37.389+00:00",
+    "updated_at": "2026-10-09T04:27:37.389+00:00"
+  },
+  {
+    "id": "f6c35b2908104ca6b9b188372ae66c85",
+    "user_id": "e30ef530afc44e399ffb639844596c86",
+    "kind": "plan",
+    "natural_key": "cb18082fb99a4c1f921f008ad556051d",
+    "payload": {
+      "bindings": {
+        "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+        "dataset_version": 1,
+        "evidence": [],
+        "identity": null,
+        "memory": [],
+        "profile_version": 0,
+        "provider": null,
+        "session_version": null,
+        "user_version": 1
+      },
+      "blockers": [],
+      "call_ids": [],
+      "consent_scope": [],
+      "context": {
+        "approved_memory": [],
+        "data_limits": [
+          "缺少指定的同/环比季度；基期指标保持缺失，不改用任意季度。",
+          "输入未经本系统独立核验；来源链接不等于真实性认证。",
+          "行业波动率由用户提供，不是实时拉取或历史校准结果。",
+          "GMPS与DQI权重/阈值为启发式研究规则，未经样本外校准；不是概率、信用评级或投资建议。",
+          "存在缺失指标；综合分按可用权重归一，覆盖率单独披露，不代表统计置信度。"
+        ],
+        "evidence": [],
+        "history": [],
+        "metrics": {
+          "asset_turnover": 0.4013761467889908,
+          "cash_ratio": 0.122,
+          "gross_margin": 0.225,
+          "inventory_turnover": 3.8529829545454546,
+          "leverage": 0.5068807339449541,
+          "margin_change": null,
+          "net_margin": 0.082,
+          "period": "2025-Q4",
+          "rd_ratio": 0.045,
+          "revenue_growth": null,
+          "roe": 0.06307692307692307,
+          "sales_production_ratio": 0.9259259259259259
+        },
+        "mode": "operational",
+        "objective": {
+          "cash_floor": null,
+          "company": "示例锂电企业（虚构）",
+          "focus": [
+            "margin",
+            "cash"
+          ],
+          "leverage_ceiling": null,
+          "margin_floor": null,
+          "objective": "",
+          "stale_after_days": 180
+        },
+        "preferences": {
+          "amount_unit": "wan",
+          "horizon": "long",
+          "interests": [],
+          "memory_enabled": true,
+          "risk_appetite": "medium",
+          "role": "enterprise",
+          "theme": "light",
+          "watchlist": []
+        },
+        "question": "2025-Q4营业收入",
+        "research_scope": {
+          "available_periods": [
+            "2025-Q2",
+            "2025-Q3",
+            "2025-Q4",
+            "2026-Q1",
+            "2026-Q2",
+            "2026-Q3"
+          ],
+          "explicit": true,
+          "notice": "限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。",
+          "period": "2025-Q4",
+          "question_status": "supported",
+          "requested_comparison": null,
+          "status": "selected",
+          "topics": [
+            "revenue"
+          ]
+        },
+        "service_identity": null
+      },
+      "created_at": "2026-10-09T04:27:37.394+00:00",
+      "excluded_memory": [],
+      "fingerprint": "8028a29309ec06e287f882ad9eae8a492b85bca481e725b2847212004d7b39da",
+      "max_calls": 0,
+      "nodes": [
+        {
+          "depends_on": [],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quality",
+          "name": "数据核验",
+          "purpose": "口径、缺失、期间与异常检查",
+          "skip_reason": null,
+          "tools": [
+            "quality_report"
+          ]
+        },
+        {
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "quant",
+          "name": "量化分析",
+          "purpose": "财务指标、规则贡献与逐字段血缘",
+          "skip_reason": null,
+          "tools": [
+            "calculate",
+            "lineage"
+          ]
+        },
+        {
+          "depends_on": [
+            "quality"
+          ],
+          "enabled": true,
+          "engine": "lexical",
+          "id": "evidence",
+          "name": "证据整理",
+          "purpose": "企业作用域过滤、来源核对与片段定位",
+          "skip_reason": null,
+          "tools": [
+            "scoped_retrieve"
+          ]
+        },
+        {
+          "depends_on": [
+            "quant",
+            "evidence"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "context",
+          "name": "上下文管理",
+          "purpose": "已批准记忆、目标与预算装配",
+          "skip_reason": null,
+          "tools": [
+            "pack_context"
+          ]
+        },
+        {
+          "depends_on": [
+            "context"
+          ],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "analyst",
+          "name": "经营研究员",
+          "purpose": "提出与当前指标和证据绑定的解释假设",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "context"
+          ],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "researcher",
+          "name": "行业证据员",
+          "purpose": "核查外部资料的业务适用性与时效条件",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [],
+          "enabled": false,
+          "engine": "optional_llm",
+          "id": "challenger",
+          "name": "反证审阅员",
+          "purpose": "审阅前序解释，指出替代原因及无法推出的结论",
+          "skip_reason": "任务不需要该专家或未授权模型调用",
+          "tools": []
+        },
+        {
+          "depends_on": [
+            "quant",
+            "evidence"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "review",
+          "name": "结果门禁",
+          "purpose": "引用白名单、指标有效性及输出合同检查",
+          "skip_reason": null,
+          "tools": [
+            "verify_claims"
+          ]
+        },
+        {
+          "depends_on": [
+            "review"
+          ],
+          "enabled": true,
+          "engine": "deterministic",
+          "id": "report",
+          "name": "报告归档",
+          "purpose": "冻结结论、证据、执行记录和待核查事项",
+          "skip_reason": null,
+          "tools": [
+            "archive_report"
+          ]
+        }
+      ],
+      "packing": {
+        "characters": 1249,
+        "dropped": [],
+        "included_citation_ids": [],
+        "included_memory_ids": [],
+        "limit": 18000,
+        "reserved_for_review": 2400,
+        "token_count": "供应商响应usage才是实测token数",
+        "unit": "characters_not_tokens"
+      },
+      "quality": {
+        "as_of": "2026-10-09",
+        "closed_quarters": 3,
+        "field_coverage": {
+          "missing": [],
+          "period": "2025-Q4",
+          "present": 8,
+          "total": 8
+        },
+        "findings": [
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q2",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q3",
+            "severity": "warning"
+          },
+          {
+            "code": "BALANCE_MISMATCH",
+            "fields": [
+              "assets",
+              "liabilities",
+              "equity_end"
+            ],
+            "message": "资产−负债与期末净资产差异超过0.5%/1元容差，可能存在合并口径或录入问题",
+            "period": "2025-Q4",
+            "severity": "warning"
+          },
+          {
+            "code": "MISSING_SOURCE",
+            "fields": [
+              "source_url"
+            ],
+            "message": "未填写原始来源地址，可在证据库关联文件并人工审阅",
+            "period": "2025-Q4",
+            "severity": "info"
+          }
+        ],
+        "input_hash": "78e91e23f693b2a414a709d364ca80c0d96825dbb82538e4633362e5d0dbcd06",
+        "source_state": "user_declared_not_verified",
+        "warning_count": 3
+      },
+      "request": {
+        "comparison": "year_over_year",
+        "comparison_artifact": null,
+        "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+        "execution": null,
+        "experiment": null,
+        "identity_id": "",
+        "include_history": false,
+        "include_memory": true,
+        "max_calls": 2,
+        "mode": "operational",
+        "provider": "",
+        "query": "2025-Q4营业收入",
+        "session_id": "",
+        "success_criteria": "",
+        "use_llm": false
+      },
+      "requested_max_calls": 0,
+      "run_id": null,
+      "scope_query": "2025-Q4营业收入",
+      "snapshot": {
+        "analysis_as_of": "2026-10-09",
+        "citations": [],
+        "comparison": "year_over_year",
+        "dataset": {
+          "amount_unit": "yuan",
+          "company": "示例锂电企业（虚构）",
+          "currency": "CNY",
+          "input_amount_unit": "yuan",
+          "name": "示例企业 · 六季度经营数据",
+          "notes": "完全合成的教学演示数据；不指向真实企业、行情或财报。按单季度而非累计口径。",
+          "period_basis": "standalone_quarter",
+          "periods": [
+            {
+              "assets": 40000000.0,
+              "cash_flow": 2240000.0,
+              "cost": 12320000.0,
+              "equity_begin": 22000000.0,
+              "equity_end": 22300000.0,
+              "industry_volatility": 0.22,
+              "inventory": 3000000.0,
+              "liabilities": 19000000.0,
+              "lithium_price": 82000.0,
+              "manufacturing_cost": 6529600.0,
+              "net_profit": 1440000.0,
+              "period": "2025-Q2",
+              "production_volume": 740.0,
+              "rd_expense": 720000.0,
+              "revenue": 16000000.0,
+              "sales_volume": 700.0
+            },
+            {
+              "assets": 41800000.0,
+              "cash_flow": 2200800.0,
+              "cost": 12852000.0,
+              "equity_begin": 22300000.0,
+              "equity_end": 22600000.0,
+              "industry_volatility": 0.235,
+              "inventory": 3260000.0,
+              "liabilities": 20550000.0,
+              "lithium_price": 85500.0,
+              "manufacturing_cost": 6811560.0,
+              "net_profit": 1444800.0,
+              "period": "2025-Q3",
+              "production_volume": 775.0,
+              "rd_expense": 756000.0,
+              "revenue": 16800000.0,
+              "sales_volume": 725.0
+            },
+            {
+              "assets": 43600000.0,
+              "cash_flow": 2135000.0,
+              "cost": 13562500.0,
+              "equity_begin": 22600000.0,
+              "equity_end": 22900000.0,
+              "industry_volatility": 0.25,
+              "inventory": 3520000.0,
+              "liabilities": 22100000.0,
+              "lithium_price": 89000.0,
+              "manufacturing_cost": 7188125.0,
+              "net_profit": 1435000.0,
+              "period": "2025-Q4",
+              "production_volume": 810.0,
+              "rd_expense": 787500.0,
+              "revenue": 17500000.0,
+              "sales_volume": 750.0
+            },
+            {
+              "assets": 45400000.0,
+              "cash_flow": 2045300.0,
+              "cost": 14299000.0,
+              "equity_begin": 22900000.0,
+              "equity_end": 23200000.0,
+              "industry_volatility": 0.265,
+              "inventory": 3780000.0,
+              "liabilities": 23650000.0,
+              "lithium_price": 92500.0,
+              "manufacturing_cost": 7578470.0,
+              "net_profit": 1411800.0,
+              "period": "2026-Q1",
+              "production_volume": 845.0,
+              "rd_expense": 814500.0,
+              "revenue": 18100000.0,
+              "sales_volume": 775.0
+            },
+            {
+              "assets": 47200000.0,
+              "cash_flow": 2007200.0,
+              "cost": 15440000.0,
+              "equity_begin": 23200000.0,
+              "equity_end": 23500000.0,
+              "industry_volatility": 0.28,
+              "inventory": 4040000.0,
+              "liabilities": 25200000.0,
+              "lithium_price": 96000.0,
+              "manufacturing_cost": 8183200.0,
+              "net_profit": 1428200.0,
+              "period": "2026-Q2",
+              "production_volume": 880.0,
+              "rd_expense": 868500.0,
+              "revenue": 19300000.0,
+              "sales_volume": 800.0
+            },
+            {
+              "assets": 49000000.0,
+              "cash_flow": 1938000.0,
+              "cost": 16626000.0,
+              "equity_begin": 23500000.0,
+              "equity_end": 23800000.0,
+              "industry_volatility": 0.295,
+              "inventory": 4300000.0,
+              "liabilities": 26750000.0,
+              "lithium_price": 99500.0,
+              "manufacturing_cost": 8811780.0,
+              "net_profit": 1428000.0,
+              "period": "2026-Q3",
+              "production_volume": 915.0,
+              "rd_expense": 918000.0,
+              "revenue": 20400000.0,
+              "sales_volume": 825.0
+            }
+          ],
+          "source_kind": "user_provided",
+          "source_url": "",
+          "verification": "unverified_user_input",
+          "volume_unit": "ton"
+        },
+        "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+        "dataset_version": 1,
+        "history": [],
+        "identity": null,
+        "input_source": {
+          "dataset_hash": "8a9189fe56ebf5dc39557dee6b42605f77d989d23c58f2c0b582f9f45b9b9091",
+          "dataset_id": "12609cb23ba04c0fb31fb8715f111c2d",
+          "dataset_version": 1,
+          "input_amount_unit": "yuan",
+          "input_basis": null,
+          "normalized_amount_unit": "yuan",
+          "normalized_basis": "standalone_quarter",
+          "notice": "本修订未保存可绑定到目标季度的原文件回执；不推测文件名或指纹。",
+          "period": "2025-Q4",
+          "schema_version": 1,
+          "status": "not_recorded",
+          "verification": "user_provided_not_independently_verified"
+        },
+        "memory": [],
+        "preferences": {
+          "amount_unit": "wan",
+          "horizon": "long",
+          "interests": [],
+          "memory_enabled": true,
+          "risk_appetite": "medium",
+          "role": "enterprise",
+          "theme": "light",
+          "watchlist": []
+        },
+        "profile": {
+          "cash_floor": null,
+          "company": "示例锂电企业（虚构）",
+          "focus": [
+            "margin",
+            "cash"
+          ],
+          "leverage_ceiling": null,
+          "margin_floor": null,
+          "objective": "",
+          "stale_after_days": 180
+        },
+        "research_scope": {
+          "available_periods": [
+            "2025-Q2",
+            "2025-Q3",
+            "2025-Q4",
+            "2026-Q1",
+            "2026-Q2",
+            "2026-Q3"
+          ],
+          "explicit": true,
+          "notice": "限定财务输入截至目标季度；证据资料仍按本次检索范围，不声称历史当时已可获得。",
+          "period": "2025-Q4",
+          "question_status": "supported",
+          "requested_comparison": null,
+          "status": "selected",
+          "topics": [
+            "revenue"
+          ]
+        }
+      },
+      "status": "draft"
+    },
+    "version": 1,
+    "created_at": "2026-10-09T04:27:37.395+00:00",
+    "updated_at": "2026-10-09T04:27:37.395+00:00"
+  }
+]

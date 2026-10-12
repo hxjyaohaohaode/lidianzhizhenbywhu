@@ -10,10 +10,29 @@ export function scopedResearchInputs(identityId, datasetId, experiments, compari
         comparisons: (comparisons.items ?? []).filter((r) => (r.payload?.identity_id ?? '') === identityId && r.payload?.members?.some((m) => m.id === datasetId) && r.payload.members.every((m) => allowed.has(m.id))),
         hasMore: !!(experiments.has_more || comparisons.has_more) };
 }
+/** Quarantined history stays visible, but cannot supply controls or references. */
+function experimentUnavailable(row) {
+    if (row?.integrity?.valid === false)
+        return typeof row.integrity.message === 'string' && row.integrity.message.trim() ? row.integrity.message : '实验创建凭据无法核验；原记录保留，不能作为新执行依据';
+    const p = row?.payload, r = p?.request, record = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    if (!record(p) || !record(r) || typeof r.name !== 'string' || typeof r.assumptions !== 'string' || !['scenario', 'forecast'].includes(r.kind))
+        return '实验原始参数缺失或记录不可读；请核对原记录并明确重新保存实验';
+    const parameters = r.kind === 'forecast' ? ['revenue', 'cost', 'cash_flow', 'gross_margin'].includes(r.metric) && Number.isInteger(r.horizon) && r.horizon >= 1 && r.horizon <= 4 : ['price_change', 'cost_change', 'volume_change', 'fixed_cost_share'].every(k => typeof r[k] === 'number' && Number.isFinite(r[k]));
+    return parameters ? '' : '实验原始参数缺失或记录不可读；请核对原记录并明确重新保存实验';
+}
+function experimentCatalog(inputs) {
+    const rows = inputs.experiments.map(row => ({ row, problem: experimentUnavailable(row), name: typeof row?.payload?.request?.name === 'string' && row.payload.request.name.trim() ? row.payload.request.name : '原实验 ' + String(row.id) }));
+    const options = rows.map(({ row, problem, name }) => `<option value="${esc(row.id)}" ${problem ? 'disabled' : ''}>${esc(problem ? '不可用 · ' + name : name + ' · ' + (row.payload.target_period ?? '原始目标季度未记录') + ' · v' + row.version)}</option>`).join('');
+    const unavailable = rows.filter(r => r.problem).map(({ row, problem, name }) => `<div data-unavailable-experiment="${esc(row.id)}">${notice('实验 ' + name + '（' + row.id + '）不可用：' + problem, 'warm')}</div>`).join('');
+    return field('数学实验（可选）', `<select name="experiment_id" id="copilot-experiment"><option value="" selected>不引用已保存实验</option>${options}</select>`) + unavailable;
+}
 export function researchInputFields(inputs) {
-    return `<section class="subpanel"><h3>明确选择已保存研究依据</h3><p class="micro">仅列出当前身份可访问、与本会话企业匹配的记录。默认不引用；所选记录的原始假设和目标季度会在确认页再次展示。</p>${field('数学实验（可选）', select('experiment_id', [{ value: '', label: '不引用已保存实验' }, ...inputs.experiments.map(r => ({ value: r.id, label: r.payload.request.name + ' · ' + (r.payload.target_period ?? '原始目标季度未记录') + ' · v' + r.version }))], '', 'id="copilot-experiment"'))}<div id="copilot-experiment-details" aria-live="polite"></div>${field('企业对照（可选）', select('comparison_artifact_id', [{ value: '', label: '不加入多企业对照' }, ...inputs.comparisons.map(r => ({ value: r.id, label: r.payload.name + ' · ' + r.payload.period + ' · v' + r.version + ' · ' + r.payload.members.length + ' 份输入' }))], '', 'id="copilot-comparison"'))}<div id="copilot-comparison-details" aria-live="polite"></div><div id="copilot-input-conflicts" aria-live="polite"></div>${!inputs.experiments.length && !inputs.comparisons.length ? notice('当前范围还没有已保存的数学实验或企业对照。可以先在数学建模或企业对照工作区保存，也可直接继续本次研判。') : ''}${inputs.hasMore ? notice('仅列出最近 200 份记录，较早记录仍保留；未自动选用任何记录。') : ''}</section>`;
+    return `<section class="subpanel"><h3>明确选择已保存研究依据</h3><p class="micro">仅列出当前身份可访问、与本会话企业匹配的记录。默认不引用；所选记录的原始假设和目标季度会在确认页再次展示。</p>${experimentCatalog(inputs)}<div id="copilot-experiment-details" aria-live="polite"></div>${field('企业对照（可选）', select('comparison_artifact_id', [{ value: '', label: '不加入多企业对照' }, ...inputs.comparisons.map(r => ({ value: r.id, label: r.payload.name + ' · ' + r.payload.period + ' · v' + r.version + ' · ' + r.payload.members.length + ' 份输入' }))], '', 'id="copilot-comparison"'))}<div id="copilot-comparison-details" aria-live="polite"></div><div id="copilot-input-conflicts" aria-live="polite"></div>${!inputs.experiments.length && !inputs.comparisons.length ? notice('当前范围还没有已保存的数学实验或企业对照。可以先在数学建模或企业对照工作区保存，也可直接继续本次研判。') : ''}${inputs.hasMore ? notice('仅列出最近 200 份记录，较早记录仍保留；未自动选用任何记录。') : ''}</section>`;
 }
 function experimentView(row) {
+    const unavailable = experimentUnavailable(row);
+    if (unavailable)
+        return notice(unavailable, 'warm');
     const p = row.payload, r = p.request;
     return experimentProvenance({ id: row.id, version: row.version, hash: row.experiment_hash ?? row.hash, name: r.name, kind: r.kind, assumptions: r.assumptions, target_period: p.target_period ?? '原始目标季度未记录', analysis_as_of: p.analysis_as_of, dataset_id: p.dataset_id, dataset_version: p.dataset_version, dataset_hash: p.dataset_hash }) +
         `<p class="micro">冻结企业：${esc(p.company ?? p.dataset_id)} · 数据修订 ${esc(p.dataset_version)}</p>` +
@@ -21,7 +40,7 @@ function experimentView(row) {
 }
 function comparisonView(row, label, showResult = false) { return `<p class="micro">冻结对照记录 v${esc(row.version ?? '未记录')}</p>` + comparisonArtifactView(row, label, showResult); }
 function jointProblem(experiment, comparison) {
-    if (!experiment || !comparison)
+    if (!experiment || !comparison || experimentUnavailable(experiment))
         return '';
     if (!experiment.payload.target_period)
         return '旧实验摘要未记录目标季度，请重新保存实验后再与对照组合使用。';
@@ -36,7 +55,8 @@ export function syncResearchInputControls(form, inputs, datasets) {
     const selected = (name) => form.querySelector(`[name="${name}"]`)?.value ?? '';
     const experimentId = selected('experiment_id'), comparisonId = selected('comparison_artifact_id');
     const experiment = inputs.experiments.find(r => r.id === experimentId), comparison = inputs.comparisons.find(r => r.id === comparisonId);
-    const frozen = experiment?.payload.request.kind === 'forecast';
+    const problem = experiment ? experimentUnavailable(experiment) || experimentProblem(experiment, datasets) : experimentId ? '所选数学实验已不可用，请重新打开提案' : '';
+    const frozen = !!experiment && !problem && experiment.payload.request.kind === 'forecast';
     for (const name of ['forecast', 'forecast_metric', 'horizon']) {
         const input = form.querySelector(`[name="${name}"]`);
         if (!input)
@@ -61,7 +81,6 @@ export function syncResearchInputControls(form, inputs, datasets) {
     }
     const e = form.querySelector('#copilot-experiment-details');
     if (e) {
-        const problem = experiment ? experimentProblem(experiment, datasets) : experimentId ? '所选数学实验已不可用，请重新打开提案' : '';
         e.innerHTML = problem ? notice(problem, 'warm') : experiment ? notice('将复用此实验的原始参数和假设。研究问题须与下列目标季度一致；不会自动改写你的问题。') + experimentView(experiment) : '';
     }
     const c = form.querySelector('#copilot-comparison-details');
@@ -86,6 +105,9 @@ export function researchInputRequest(fd, inputs, identityId, datasetId, datasets
     if (id) {
         if (!experiment)
             throw new Error('所选数学实验不在当前会话范围');
+        const unavailable = experimentUnavailable(experiment);
+        if (unavailable)
+            throw new Error(unavailable);
         exact(experiment, experiment.experiment_hash);
         result.experiment = selectedExperimentRequest(experiment, datasetId, datasets);
     }

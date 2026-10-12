@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -258,8 +259,8 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
         for part in range(1, 17):
             assert f'name: {mode}-${{{{ matrix.os }}}}-part-{part:02d}\n' in job
             assert f'path: evidence/{mode}-transfer/part-{part:02d}/\n' in job
-    assert protected_pins == {('e2c04fef1051d098b653435903e2ce101477c199',
-        '53bde360fb8692a426b23e1bff425a69248bb930')}
+    assert protected_pins == {('fb2a03ab5f1697b75e15a7292efa71fab0a7ca5f',
+        '0d3e9a9d39e0eb0c054953d7fcd61b266a39c2e6')}
     assert len(re.findall(r'^  product-[a-z-]+:', after, re.M)) == 18
     jobs = re.findall(r'^  ([a-z][a-z-]*):\n', after, re.M)
     assert len(jobs) == 20 and {'regression', 'dependency-audit'} <= set(jobs)
@@ -269,3 +270,15 @@ def test_existing_f_job_and_l1_job_keep_separate_bounded_contracts():
     assert PART_BYTES == 24 * 1024 * 1024 and MAX_PARTS == 16
     assert 'product-first-use' not in legacy_job
     assert 'product-browser-audit.json' not in first_use
+
+
+def test_native_workflow_pins_match_the_current_reviewed_production_trees():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / '.github/workflows/ci.yml').read_text()
+    pins = re.findall(r'--expected-web-tree ([0-9a-f]{40}) --expected-server-tree ([0-9a-f]{40})', workflow)
+    assert len(pins) == 18
+    # A source checkout is required for CI; archived historical constants are not
+    # evidence that this checkout matches the explicit current workflow pins.
+    current = tuple(subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD:web', 'HEAD:server'], cwd=root, text=True).splitlines())
+    assert len(current) == 2 and set(pins) == {current}

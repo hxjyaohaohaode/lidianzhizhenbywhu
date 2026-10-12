@@ -6,8 +6,8 @@ is a proposal to the same consent-gated Agent engine used by the main workspace.
 from __future__ import annotations
 import time
 import re
+import json
 from datetime import date, datetime, timezone
-from typing import get_args
 from . import workspace_store as ws
 from .store import uid, now, digest, encode
 from .security import fail
@@ -15,6 +15,7 @@ from .identities import resolve_identity, identity_binding, identity_context, co
 from .analytics import calculate, quality_report, forecast_baselines, lineage, period_end, closed_quarter, METRIC_LABELS
 from .intelligence import scoped_retrieve, build_insights, assistant_answer
 from .service_contracts import WatchSpec
+from .watch_scope import bind_watch_scope, require_watch_scope, watch_scope_warning
 from .autonomy_contracts import ExecutionOptions
 from .business_provenance import resolve_source, assert_source_current, with_source_impact
 from .source_bindings import require_dataset_content
@@ -62,6 +63,18 @@ def make_thread(store,user,body):
             if old['payload'].get('creation_request_hash')!=request_hash:
                 fail('IDEMPOTENCY_CONFLICT','同一会话提交标识不能对应不同范围或标题',409)
             return old
+        removed=store.one("SELECT metadata AS receipt_json FROM audit WHERE user_id=? AND resource='assistant_thread_request' AND action='deleted' AND resource_id=? ORDER BY seq DESC LIMIT 1",(user['id'],body.request_id)) if key else None
+        if key and not removed:
+            removed=store.one("SELECT metadata AS receipt_json FROM audit WHERE user_id=? AND resource='assistant_thread' AND action='deleted' AND CASE WHEN json_valid(metadata) THEN json_extract(metadata,'$.creation_request_id') END=? ORDER BY seq DESC LIMIT 1",(user['id'],body.request_id))
+        if removed:
+            try:receipt=json.loads(removed['receipt_json'])
+            except (ValueError,TypeError):receipt=None
+            saved_hash=receipt.get('creation_request_hash') if isinstance(receipt,dict) else None
+            if not isinstance(saved_hash,str) or not re.fullmatch('[a-f0-9]{64}',saved_hash):
+                fail('THREAD_CREATION_INTEGRITY','原会话删除凭据无法核验；不会用旧提交标识重新创建，请明确新建会话',409)
+            if saved_hash!=request_hash:
+                fail('IDEMPOTENCY_CONFLICT','同一会话提交标识不能对应不同范围或标题',409)
+            fail('THREAD_REMOVED','这次提交曾创建的会话已删除，不会重新创建；请明确新建会话',409)
         return ws.save(store,db,user['id'],'assistant_thread',{
             **creation,'identity_snapshot':identity_context(identity),'creation_request_hash':request_hash},key=key)
 
@@ -143,31 +156,12 @@ def trace_message(store,user,thread_id,message_id,identity_id,dataset_id):
 from .question_scope import TOPICS, matches, resolve_followup, scoped_dataset, scoped_handoff_query
 
 
-_FORECAST_METRICS = frozenset(get_args(ExecutionOptions.model_fields['forecast_metric'].annotation))
-
-
-def _forecast_topics(scope, text):
-    """Select only from resolved scope, retaining unsupported/ambiguous targets.
-
-    A cash-flow fact includes a companion cash ratio by default; that does not
-    request a second forecast. An explicitly named ratio must still be refused.
-    """
-    topics = list(scope['topics'])
-    if ('cash_flow' in topics and 'cash_ratio' in topics
-            and not any(matches(text.lower(), term) for term in dict(TOPICS)['cash_ratio'])):
-        topics.remove('cash_ratio')
-    return topics
+from .forecast_scope import (FORECAST_METRICS as _FORECAST_METRICS,
+    forecast_topics as _forecast_topics, require_metric, forecast_requested)
 
 
 def _forecast_with_scope(data, topics):
-    # The mathematical function is generic; registered capability enforcement
-    # belongs here, before invoking it, rather than defaulting to another field.
-    if len(topics) != 1 or topics[0] not in _FORECAST_METRICS:
-        requested = '、'.join(METRIC_LABELS.get(key, key) for key in topics)
-        raise ValueError(f'本次预测范围（{requested}）不受支持或包含多个指标。'
-                         '本地预测一次仅支持明确的单个指标：营业收入、营业成本、经营现金流或毛利率；'
-                         '请单独指定其中一项，不会用其他指标替代。')
-    return forecast_baselines(data, topics[0], 2)
+    return forecast_baselines(data, require_metric(topics), 2)
 
 
 _DEFAULT_TOPICS = {
@@ -340,7 +334,7 @@ def answer_with_tools(store, user, identity, data, text, history):
             'missing_metric_ids': [f['id'] for f in facts if f['value'] is None],
             'stance_counts': {stance: len({c['document_id'] for c in citations if c['stance'] == stance}) for stance in ('supports', 'contradicts', 'context')},
             'causal_claims_supported': False, 'objective': ip.get('objective', '')}
-        if question_scope['can_calculate'] and any(w in q for w in ('预测', '回测', 'forecast')):
+        if question_scope['can_calculate'] and forecast_requested(text):
             forecast_topics = _forecast_topics(question_scope, text)
             metric = forecast_topics[0] if len(forecast_topics) == 1 and forecast_topics[0] in _FORECAST_METRICS else None
             forecast = tool('forecast_baselines', lambda: _forecast_with_scope(d, forecast_topics),
@@ -419,7 +413,9 @@ def _propose(store,user,thread_id,body,settings,providers):
         fail('DATA_REQUIRED','先为会话选择真实企业数据',422)
     key=thread_id+':'+body.request_id
     old=ws.keyed(store,user['id'],'assistant_proposal',key)
-    req=body.model_dump(mode='json');rh=digest(req)
+    req=body.model_dump(mode='json')
+    if body.comparison is None:req.pop('comparison')
+    rh=digest(req)
     if old:
         if old['payload']['request_hash']!=rh:
             fail('IDEMPOTENCY_CONFLICT','同一提案标识对应不同内容',409)
@@ -464,7 +460,11 @@ def _propose(store,user,thread_id,body,settings,providers):
             mode=body.mode,use_llm=body.use_llm,provider=body.provider,max_calls=body.max_calls,
             execution=body.execution,experiment=body.experiment,comparison_artifact=body.comparison_artifact,
             success_criteria=body.acceptance)
-        plan=build_plan(store,user,draft,settings,providers,scope_query=scope_query,proposal_id=proposal_id)
+        forecast_intent=({'schema_version':1,'query':source['payload']['question'],
+            'message_id':source['id'],'message_hash':provenance['message_hash']}
+            if source_scope and source_scope.get('can_calculate') else None)
+        plan=build_plan(store,user,draft,settings,providers,scope_query=scope_query,
+            proposal_id=proposal_id,forecast_intent=forecast_intent)
         p['plan_id']=plan['id'];p['plan_version']=plan['version'];p['plan_fingerprint']=plan['payload']['fingerprint']
         p['preview']={'nodes':plan['payload']['nodes'],'packing':plan['payload']['packing'],
             'provider_bindings':plan['payload'].get('adaptive',{}).get('provider_bindings',{}),
@@ -475,8 +475,9 @@ def _propose(store,user,thread_id,body,settings,providers):
             'selected_comparison':plan['payload']['context'].get('selected_comparison')}
     elif body.kind=='watch':
         spec=WatchSpec(title=title,identity_id=thread['payload']['identity_id'],dataset_id=data['id'],source_ref=source_ref,
-            metric=body.metric,operator=body.operator,threshold=body.threshold,expires_at=body.expires_at)
-        p['preview']={**spec.model_dump(mode='json',exclude={'source_ref','version','request_id'}),'provenance':provenance,'evaluation_revision':1}
+            metric=body.metric,comparison=body.comparison,operator=body.operator,threshold=body.threshold,expires_at=body.expires_at)
+        p['preview']={**spec.model_dump(mode='json',exclude={'source_ref','version','request_id'}),'provenance':provenance,'evaluation_revision':1,
+            **bind_watch_scope(store,user['id'],body.metric,provenance,body.comparison,data['id'])}
     elif body.kind=='action':
         if len(body.acceptance.strip())<5:
             fail('ACCEPTANCE_REQUIRED','请填写具体的行动验收标准',422)
@@ -557,6 +558,7 @@ def _confirm_proposal(store,user,id,body,settings,providers):
             fail('PROPOSAL_STALE','输入已变化',409)
         assert_source_current(store,user['id'],p.get('provenance'))
         if p['kind']=='watch':
+            require_watch_scope(store,user['id'],p['preview'])
             value=ws.save(store,db,user['id'],'watch',p['preview'])
             result={'watch_id':value['id'],'route':'tracking'}
         elif p['kind']=='action':
@@ -605,7 +607,13 @@ inputs are visible evaluations, never silently converted into safe values.
                 from .source_bindings import dataset_content_valid
                 if not dataset_content_valid(d):
                     evaluations.append({**entry,'reason':'当前财务输入校验失败，未计算或生成提醒；请核对原始资料或从可信修订恢复'});continue
-                a=calculate(d['payload']);latest=d['payload']['periods'][-1]
+                warning=watch_scope_warning(store,user_id,p)
+                if warning:
+                    evaluations.append({**entry,'reason':warning});continue
+                a=calculate(d['payload'],p['comparison'],today=today) if p['metric']=='revenue_growth' else calculate(d['payload'])
+                latest=d['payload']['periods'][-1]
+                if p['metric']=='revenue_growth':
+                    entry.update({'comparison':p['comparison'],'baseline_period':a['baseline_period'],'source_scope':p['source_scope']})
                 value=latest.get(p['metric']) if p['metric'] in ('revenue','cash_flow') else a['metrics'].get(p['metric'])
                 stale=(today-period_end(latest['period'])).days>p['stale_after_days']
                 entry.update({'value':value,'metric':p['metric'],'period':latest['period'],'dataset_version':d['version'],'dataset_id':d['id'],'dataset_hash':d['content_hash']})

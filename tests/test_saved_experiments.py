@@ -190,14 +190,18 @@ def test_experiment_reference_enables_real_adaptive_plan_without_inline_executio
     assert run['result']['experiment']['id']==e['id']
 
 
-def test_old_scenario_can_be_verified_without_inventing_asof_date(actor):
+def test_removed_modern_fields_remain_readable_but_never_confer_legacy_trust(actor):
     d=actor.dataset();e=save(actor,d)
     def legacy(p):
         p.pop('analysis_as_of');p.pop('target_period')
         for k in ('dataset_version','dataset_hash','target_period'):p['request'].pop(k)
     modify_experiment(actor,e,mutate=legacy)
+    store=actor.client.app.state.store
+    original=store.one('SELECT payload FROM workspace_objects WHERE id=?',(e['id'],))['payload']
     old=actor.get('/workspace/experiments/'+e['id']).json()
-    plan=preview(actor,dataset=d,experiment=reference(old))
-    run=actor.execute(dispatch(actor,plan))
-    assert run['result']['experiment']['analysis_as_of'] is None
-    assert run['result']['adaptive']['mathematical_outputs']['sensitivity']['result']==old['payload']['result']['result']
+    assert old['payload']==original and not old['integrity']['valid']
+    assert 'analysis_as_of' not in old['payload'] and 'target_period' not in old['payload']
+    response=actor.post('/workspace/plans',json={'dataset_id':d['id'],'query':'经营毛利研判','experiment':reference(old)})
+    assert response.status_code==409 and response.json()['error']['code']=='EXPERIMENT_INTEGRITY'
+    assert actor.get('/workspace/plans').json()['items']==[]
+    assert store.one('SELECT payload FROM workspace_objects WHERE id=?',(e['id'],))['payload']==original

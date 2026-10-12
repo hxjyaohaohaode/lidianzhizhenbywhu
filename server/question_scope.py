@@ -196,12 +196,53 @@ def unsupported_amount_percentage(text):
     return ordinary or balance_percent
 
 
+def annualization_requested(text):
+    """Identify explicit annualization, retaining the supported quarterly negation."""
+    q=re.sub(r'(?:未|非)\s*年化',' ',text.lower())
+    return bool(re.search(r'年化|(?<![a-z0-9_])annuali[sz](?:ed|ation)(?![a-z0-9_])',q))
+
+
+def unsupported_account_metric(text):
+    """Reject finite account/subtype compounds before generic aliases erase them.
+
+    Supported operating net cash flow is masked occurrence by occurrence, so
+    it cannot hide a separate unqualified net-cash request in the same question.
+    These are refusals, not new account fields, ratios, or forecast capabilities.
+    """
+    if re.search(r'(?:经营|营业)\s*(?:性\s*)?(?:的\s*)?利润(?!\s*(?:率|比率|比例))'
+            r'|(?<![a-z0-9_])operating\s+(?:profit|income)(?![a-z0-9_])',text):
+        return '当前问答不支持经营利润或营业利润金额，不能用净利润、毛利率或经营概览代替。请单独提问已支持的指标。'
+    if re.search(r'(?:净|有息|无息|非流动|流动|短期|长期|经营性|金融)\s*(?:资产\s*)?负债\s*(?:比率|比例|率)'
+            r'|(?<![a-z0-9_])(?:net\s+leverage|(?:net|current|non[ -]current|interest[ -]bearing)\s+(?:debt|liabilit(?:y|ies))\s+ratio)(?![a-z0-9_])',text):
+        return '当前资产负债率只支持总负债/总资产；净负债、有息负债、流动负债等限定比率不能用总资产负债率替代。请单独提问已支持的比率。'
+    operating_cash=(r'经营\s*(?:性\s*)?(?:活动\s*)?(?:产生\s*(?:的\s*)?|的\s*)?'
+        r'(?:净\s*现金流(?:量)?|现金\s*(?:流量?\s*净额|净流量))'
+        r'|(?<![a-z0-9_])(?:(?:net\s+operating|operating\s+net)\s+cash\s+flows?'
+        r'|net\s+cash\s+flows?\s+from\s+operat(?:ions|ing\s+activities))(?![a-z0-9_])')
+    # A matching suffix of 非经营/non-operating is not an operating qualifier.
+    # Keep that occurrence intact so the unsupported net-cash guard sees it.
+    cash_remainder=re.sub(operating_cash,lambda match: match.group()
+        if re.search(r'非\s*$|(?<![a-z0-9_])non[ -]*$',text[:match.start()]) else ' ',text)
+    if re.search(r'净\s*现金流(?:量)?|现金\s*(?:流量?\s*净额|净流量)'
+            r'|(?<![a-z0-9_])net\s+cash\s+flows?(?![a-z0-9_])',cash_remainder):
+        return '当前现金流指标只支持经营现金流；未明确经营活动的净现金流或现金净流量不能用经营现金流替代。请单独明确提问经营现金流。'
+    if re.search(r'(?:营业外|利息)\s*(?:的\s*)?收入'
+            r'|(?<![a-z0-9_])(?:non[ -]operating|interest)\s+(?:income|revenue)(?![a-z0-9_])',text):
+        return '当前收入指标只支持营业收入；营业外收入、利息收入不能用营业收入替代。请单独提问已支持的指标。'
+    if re.search(r'(?:融资|利息)\s*(?:的\s*)?成本'
+            r'|(?<![a-z0-9_])(?:financing|finance|interest)\s+costs?(?![a-z0-9_])',text):
+        return '当前成本指标只支持营业成本；融资成本、利息成本不能用营业成本替代。请单独提问已支持的指标。'
+    return ''
+
+
 def unsupported_modifier(text):
     """Reject unregistered units/operations on the finite metric catalog.
 
     Mask whole supported compounds locally before inspecting amount aliases;
     an independently requested amount elsewhere in the sentence remains visible.
     """
+    account_notice=unsupported_account_metric(text)
+    if account_notice:return account_notice
     remainder=re.sub(RD_RATIO_PATTERN,' ',mask_balance_ratios(text))
     for key in ('net_margin','cash_ratio'):
         for term in dict(TOPICS)[key]:
@@ -323,7 +364,10 @@ def resolve_question(text, data, defaults):
     remainder=list(q)
     for start,end in spans:remainder[start:end]=' '*(end-start)
     unresolved=''.join(remainder)
-    partial_period=bool(re.search(r'(?<![a-z])q\d+|第?\s*[0-9一二三四五六七八九十]+\s*季度|[0-9一二三四五六七八九十]+\s*月|(?:去年|今年|前年|上年|本年|明年)(?!同季)|上半年|下半年|半年度|年度|全年|本月|上月|下月|annual|yearly|last year|this year',unresolved))
+    # Explicitly unannualized is the saved quarterly contract, not a request
+    # for annualization. Mask locally; another annualized metric still blocks.
+    period_text=re.sub(r'(?:未|非)\s*年化',' ',unresolved)
+    partial_period=bool(re.search(r'(?<![a-z])q\d+|第?\s*[0-9一二三四五六七八九十]+\s*季度|[0-9一二三四五六七八九十]+\s*月|(?:去年|今年|前年|上年|本年|明年)(?!同季)|上半年|下半年|半年度|年度|全年|年化|本月|上月|下月|annual|yearly|last year|this year',period_text))
     extra_years=re.findall(r'(?<!\d)(?:19|20)\d{2}(?!\d)',''.join(remainder))
     available=sorted(p['period'] for p in data['periods'])
     period=quarters[0] if len(quarters)==1 else available[-1]
@@ -367,10 +411,14 @@ def resolve_question(text, data, defaults):
     elif not topics:
         status='unsupported_topic';notice='当前问题未匹配可计算的财务指标。本地助手可核查收入、成本、利润、现金流、比率及其同/环比；请明确指标。资料匹配仅作为待审阅候选。'
     if status!='supported':topics=[]
+    unsupported_financial_operation=(status=='unsupported_topic' and bool(unsupported_currency
+        or unsupported_cash_balance or unsupported_inventory_amount or unsupported_rd_amount
+        or unsupported_balance_forecast(q) or balance_notice or unsupported_cost_ratio
+        or unsupported_margin or gross_profit_amount or unsupported_turnover or modifier_notice))
     return {'status':status,'notice':notice,'topics':topics,'comparison':comparison,'period':period,
             'available_periods':available,'period_explicit':bool(quarters),'default_overview':overview,
             'comparison_explicit':previous or yearly,'period_basis':'single_quarter','can_calculate':status=='supported',
-            'unsupported_currency':unsupported_currency}
+            'unsupported_currency':unsupported_currency,'unsupported_financial_operation':unsupported_financial_operation}
 
 
 def scoped_dataset(data, scope):
@@ -436,6 +484,7 @@ def analysis_dataset(snapshot):
 def plan_scope(query, data):
     resolved=resolve_question(query,data,[])
     blocked=(resolved['status'] in ('needs_clarification','period_unavailable') or resolved['unsupported_currency']
+        or resolved['unsupported_financial_operation']
         or unsupported_growth(query) or unsupported_amount_percentage(query) or unsupported_balance_forecast(query)
         or unsupported_balance_transform(query))
     return {'status':'blocked' if blocked else 'selected','period':resolved['period'],

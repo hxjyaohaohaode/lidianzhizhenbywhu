@@ -164,3 +164,10 @@ test('integrity rejection keeps the uncertain receipt and never presents recover
  globalThis.fetch=async()=>({ok:false,status:409,headers:{get:()=> 'application/json'},json:async()=>({error:{code:'EXPERIMENT_INTEGRITY',message:'原实验的创建凭据、冻结输入或结果无法核验'}})});
  await invoke(f);assert.match(f.error.textContent,/无法核验/);assert.equal(attempts()[0].request.request_id,id);assert.equal(navigations.length,0);assert.equal(f.dataset.saved,undefined);assert.equal(f.button.disabled,false);
 });
+
+test('an unverified catalog row cannot confirm an uncertain committed save',async()=>{
+ const f=new Form();fault='network';await invoke(f);const row=[...records.values()][0];
+ const html=experimentRecoveryPanel([{...row,integrity:{valid:false,message:'Synthetic seal mismatch'}}]);
+ assert(!html.includes('查看已经保存的实验'));assert.match(html,/保存结果尚未确认/);assert.equal(attempts().length,1);assert.equal(calls.length,1);
+ const verified=experimentRecoveryPanel([{...row,integrity:{valid:true}}]);assert(verified.includes('查看已经保存的实验'));
+});

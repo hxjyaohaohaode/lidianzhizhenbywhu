@@ -80,7 +80,7 @@ export function experimentRecoveryPanel(saved:Json[]){
  const manage=all.length?button('管理本账户待确认提交','manage-experiment-requests'):'';
  if(!rows.length)return manage;
  return `<section class="panel"><h2>待确认的实验提交</h2>${manage}${notice('下方保留的是你曾提交的原始参数。请先核对记录；只有点击确认按钮才会再次发送原提交。若之前已保存，将确认同一份实验。刷新后也不会自动重发。','warm')}${rows.map(row=>{
-  const p=row.request,found=saved.find(r=>r.payload?.creation_request_id===p.request_id);
+  const p=row.request,found=saved.find(r=>r.integrity?.valid!==false&&r.payload?.creation_request_id===p.request_id);
   const d=scopedDatasets().find(d=>d.id===p.dataset_id);
   const parameters=p.kind==='scenario'?`售价 ${esc(p.price_change*100)}% · 单位变动成本 ${esc(p.cost_change*100)}% · 销量 ${esc(p.volume_change*100)}% · 固定成本占比 ${esc(p.fixed_cost_share*100)}%`:`预测指标 ${esc(({revenue:'营业收入',cost:'营业成本',cash_flow:'经营现金流',gross_margin:'毛利率'} as Record<string,string>)[p.metric]??p.metric)} · ${esc(p.horizon)} 个季度`;
   return `<form id="experiment-retry-${esc(p.request_id)}" data-experiment-retry="true" class="stack subpanel" ${experimentContextAttributes()} data-request-id="${esc(p.request_id)}"><h3>${esc(p.name)}</h3><p>${esc(d?.payload?.company??p.dataset_id)} · 原数据 v${esc(p.dataset_version)} · ${esc(p.target_period??'原数据最新季度')} · ${p.kind==='scenario'?'情景假设':'统计基线'}</p><p>${parameters}</p><p>${esc(p.assumptions)}</p><p class="micro">原数据指纹：${esc(p.dataset_hash)}</p>${found?routeButton('查看已经保存的实验','lab:'+found.id):notice('保存结果尚未确认；原数据变化时，未成功保存的旧提交会被拒绝，不会套用新数据。')}${row.rejection?notice('最近一次请求被拒绝：'+row.rejection+'。这不代表更早的未知提交未保存，请先核对记录。','warm'):''}${formFooter('确认原提交结果')}${button('结束这次重试','forget-experiment-request','text-button',`data-id="${esc(p.request_id)}"`)}</form>`;

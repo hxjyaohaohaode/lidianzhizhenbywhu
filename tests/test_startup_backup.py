@@ -206,3 +206,21 @@ def test_product_audit_does_not_start_local_server_or_browser(tmp_path,monkeypat
     report=json.loads((tmp_path/'evidence/product-browser-audit.json').read_text())
     assert report['all_checks_passed'] is False and report['native_network_e2e'] is False
     assert report['status']=='not_completed'
+
+
+def test_host_port_default_environment_and_cli_precedence(monkeypatch):
+    monkeypatch.delenv('PORT',raising=False)
+    assert start.resolve_port()==8000
+    monkeypatch.setenv('PORT','10000')
+    assert start.resolve_port()==10000
+    assert start.resolve_port(8001)==8001
+    monkeypatch.setenv('PORT','PRIVATE_INVALID_VALUE')
+    assert start.resolve_port(8001)==8001
+    with pytest.raises(ValueError) as error:start.resolve_port()
+    assert 'PRIVATE_INVALID_VALUE' not in str(error.value)
+
+
+@pytest.mark.parametrize('value',['0','65536','invalid','1.2',''])
+def test_invalid_host_port_is_rejected(monkeypatch,value):
+    monkeypatch.setenv('PORT',value)
+    with pytest.raises(ValueError):start.resolve_port()

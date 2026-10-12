@@ -23,11 +23,11 @@ from . import __version__
 from .config import Settings
 from .schemas import Register,Login,Preferences,RoleSwitch,Dataset,DatasetUpdate,Conversation,RunRequest,Evidence,EvidenceCapture,EvidenceMetadata,FetchEvidence,Memory,MemoryUpdate,Feedback,PasswordChange,Scenario,CompareRequest,SearchRequest,BatchDelete
 from .store import Store,encode,digest,uid,now
-from .security import require_user,fail,password_hash,password_matches,public_user,issue_session,COOKIE,DUMMY_HASH,RateLimiter,check_version
+from .security import require_user,fail,password_hash,password_matches,public_user,issue_session,COOKIE,DUMMY_HASH,RateLimiter,check_version,next_version
 from .models import normalize,calculate,scenario,MODEL_VERSION
 from .imports import import_dataset,parse_document_isolated
 from .retrieval import retrieve_indexed
-from .network import fetch_public
+from .network import fetch_public, PublicRequests
 from .providers import ProviderService
 from .connections import ConnectionVault, scoped_providers
 from .research import PublicResearch
@@ -142,6 +142,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             app.state.worker=Worker(store,app.state.providers,settings)
             app.state.hash_slots=asyncio.Semaphore(4);app.state.research=PublicResearch(settings.allowed_hosts)
             app.state.search_limiter=RateLimiter()
+            app.state.public_requests=PublicRequests()
             async def local_tracking_loop():
                 from .copilot import evaluate_watches
                 while True:
@@ -246,6 +247,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     def preferences(body: Preferences,request: Request,user=Depends(require_user)):
         db=store(request);data=body.model_dump(exclude={'version','name'})
         with db.transaction() as conn:
+            check_version(user,body.version);next_version(user['version'])
             count=conn.execute('UPDATE users SET preferences=?,name=?,version=version+1,updated_at=? WHERE id=? AND version=?',(encode(data),body.name,now(),user['id'],body.version)).rowcount
             if not count:fail('VERSION_CONFLICT','资料已在其他窗口更新，请刷新后重新修改。',409)
             db.audit(conn,user['id'],'preferences',user['id'],'updated',{'version':body.version+1})
@@ -255,6 +257,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     def switch_role(body: RoleSwitch,request: Request,user=Depends(require_user)):
         db=store(request)
         with db.transaction() as conn:
+            check_version(user,body.version);next_version(user['version'])
             updated={**user['preferences'],'role':body.role}
             count=conn.execute('UPDATE users SET preferences=?,version=version+1,updated_at=? WHERE id=? AND version=?',
                                (encode(updated),now(),user['id'],body.version)).rowcount
@@ -363,6 +366,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
                 if existing['request_hash']!=request_hash:fail('IDEMPOTENCY_CONFLICT','相同幂等键对应不同请求。',409)
                 return existing
             session=owned(db,'conversations',user,body.session_id);dataset=owned(db,'datasets',user,body.dataset_id)
+            next_version(session['version'])
             from .source_bindings import require_dataset_content
             require_dataset_content(dataset)
             if session['payload'].get('company') and session['payload']['company']!=dataset['payload']['company']:fail('COMPANY_MISMATCH','会话绑定企业与数据集不一致，请新建会话。',409)
@@ -371,12 +375,18 @@ def make_app(settings=None,providers=None,worker_enabled=True):
             if db.one('SELECT count(*) AS n FROM runs WHERE user_id=?',(user['id'],))['n']>=1000:fail('RUN_QUOTA','已达1000次存储上限，请先导出并删除旧会话。',409)
             if db.one("SELECT count(*) AS n FROM runs WHERE user_id=? AND state IN ('queued','running')",(user['id'],))['n']>=settings.max_queued_per_user:fail('QUEUE_FULL','未完成任务过多，请先取消或等待现有任务。',429)
             citations=retrieve_indexed(db,user['id'],body.query+' '+dataset['payload']['company'],6,company=dataset['payload']['company']);memory=[]
-            if body.include_memory and user['preferences'].get('memory_enabled',True):
+            from .source_bindings import effective_memory_user, memory_eligible
+            effective=effective_memory_user(user,None)
+            if body.include_memory and effective:
                 for m in db.items('memories',user['id']):
                     p=m['payload']
-                    if not p['approved'] or (p.get('expires_at') and p['expires_at']<utc_today().isoformat()):continue
-                    if p['role'] not in ('all',user['preferences'].get('role')):continue
-                    if p['company'] and p['company']!=dataset['payload']['company']:continue
+                    # Stored scope cannot gain authority from schema defaults;
+                    # in particular, an absent identity is not shared consent.
+                    if not isinstance(p,dict) or not {'identity_id','approved','expires_at','company','role','kind'}<=p.keys():continue
+                    try:
+                        Memory.model_validate_json(encode(p),strict=True)
+                        if not memory_eligible(p,effective,dataset['payload']['company']):continue
+                    except (ValueError,TypeError,KeyError):continue
                     memory.append({'id':m['id'],'version':m['version'],'text':p['text'],'kind':p['kind'],'payload_hash':digest(p)})
                     if len(memory)>=8:break
             history=db.all('SELECT role,payload FROM messages WHERE session_id=? AND user_id=? ORDER BY created_at DESC LIMIT 8',(body.session_id,user['id']))
@@ -449,6 +459,10 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     evidence_receipt_key=os.urandom(32)
     def search_receipt(user,payload):
         fields={k:payload.get(k,'').strip() for k in ('title','source_url','text','retrieved_at')}
+        # An absent provider date is also an authenticated value. A capture
+        # cannot turn an undated snippet into recent evidence without an edit.
+        published=payload.get('published_at')
+        fields['published_at']=published.isoformat() if isinstance(published,date) else published or None
         return hmac.new(evidence_receipt_key,encode({'user':user['id'],**fields}).encode(),'sha256').hexdigest()
     def create_evidence(db,user,payload,company='',global_scope=False):
         from . import workspace_store as ws
@@ -486,7 +500,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     async def evidence_fetch(body: FetchEvidence,request: Request,user=Depends(require_user)):
         if body.company and body.global_scope:fail('INVALID_SCOPE','企业范围与通用范围不能同时选择。',422)
         try:
-            raw,kind=await asyncio.wait_for(asyncio.to_thread(fetch_public,body.url,settings.allowed_hosts),12)
+            raw,kind=await app.state.public_requests.run(fetch_public,body.url,settings.allowed_hosts,transport_timeout=8,api_timeout=12)
             if kind=='application/pdf':text=await asyncio.wait_for(asyncio.to_thread(parse_document_isolated,'source.pdf',raw),14)
             elif kind=='text/html':
                 parser=TextHTML();parser.feed(raw.decode('utf-8',errors='replace'));text='\n'.join(x.strip() for x in parser.parts if x.strip())
@@ -498,7 +512,7 @@ def make_app(settings=None,providers=None,worker_enabled=True):
     def evidence_metadata(id: str,body: EvidenceMetadata,request: Request,user=Depends(require_user)):
         db=store(request)
         with db.transaction() as conn:
-            row=owned(db,'evidence',user,id);check_version(row,body.version)
+            row=owned(db,'evidence',user,id);check_version(row,body.version);next_version(row['version'])
             payload={**row['payload'],**body.model_dump(mode='json',exclude={'version'})}
             # Capture origin is immutable even when the user corrects display metadata.
             payload['original_source_url']=row['payload'].get('original_source_url',row['payload'].get('source_url',''))
@@ -522,12 +536,31 @@ def make_app(settings=None,providers=None,worker_enabled=True):
         if not app.state.research.status()['configured']:fail('SEARCH_UNCONFIGURED','服务端未配置TAVILY_API_KEY；未发出请求。',503)
         if not app.state.search_limiter.allow(user['id'],10,3600):fail('SEARCH_BUDGET','每账户每小时最多10次外部搜索。',429)
         db=store(request);id=uid()
-        with db.transaction() as conn:db.audit(conn,user['id'],'research',id,'dispatched',{'query_hash':digest(body.query),'provider':'tavily','max_results':5,'consent':True})
-        try:result=await asyncio.wait_for(asyncio.to_thread(app.state.research.search,body.query),15)
+        sent=False
+        reservation={'query_hash':digest(body.query),'provider':'tavily','max_results':5,'consent':True}
+        with db.transaction() as conn:db.audit(conn,user['id'],'research',id,'reserved',{**reservation,'dispatched':False,'dispatch_state':'reserved'})
+        def on_send():
+            nonlocal sent
+            with db.transaction() as conn:
+                db.audit(conn,user['id'],'research',id,'dispatched',{'dispatched':True,'dispatch_state':'unknown','remote_outcome_known':False})
+            sent=True
+        def record_failure(exc,cancelled=False):
+            dispatched=getattr(exc,'dispatched',sent)
+            with db.transaction() as conn:
+                # Account deletion can remove the reservation while work stops.
+                if db.one('SELECT id FROM users WHERE id=?',(user['id'],)):
+                    db.audit(conn,user['id'],'research',id,'cancelled' if cancelled else 'failed',
+                        {'error_class':type(exc).__name__,'dispatched':dispatched,
+                         'dispatch_state':'unknown' if dispatched else 'not_sent','remote_outcome_known':not dispatched})
+        try:result=await app.state.public_requests.run(app.state.research.search,body.query,transport_timeout=12,api_timeout=15,on_send=on_send)
+        except asyncio.CancelledError as exc:
+            record_failure(exc,cancelled=True)
+            raise
         except Exception as exc:
-            with db.transaction() as conn:db.audit(conn,user['id'],'research',id,'failed',{'error_class':type(exc).__name__})
-            fail('SEARCH_FAILED','外部搜索未完成；未插入证据、重试付费请求或使用样例。',502)
-        with db.transaction() as conn:db.audit(conn,user['id'],'research',id,'completed',{'items':len(result['items']),'rejected':result['rejected'],'credits_reported':result['credits_reported']})
+            record_failure(exc)
+            notice='远程处理与计费结果未知；没有自动重试。' if getattr(exc,'dispatched',sent) else '请求未发送。'
+            fail('SEARCH_FAILED','外部搜索未完成；'+notice+'未插入证据或使用样例。',502)
+        with db.transaction() as conn:db.audit(conn,user['id'],'research',id,'completed',{'items':len(result['items']),'rejected':result['rejected'],'credits_reported':result['credits_reported'],'dispatched':sent,'dispatch_state':'sent' if sent else 'not_sent','remote_outcome_known':True})
         for item in result['items']:item['search_receipt']=search_receipt(user,item)
         return result
 

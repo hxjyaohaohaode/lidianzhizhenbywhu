@@ -1,7 +1,7 @@
 """Explicit-consent public search. Search snippets are never independently verified facts."""
 import json
 import os
-from .network import PinnedHTTPS,public_addresses,validate_url
+from .network import PinnedHTTPS,public_addresses,validate_url,public_request_deadline
 from .retrieval import terms
 from .store import digest,now
 
@@ -10,11 +10,14 @@ class PublicResearch:
     def status(self):return {'provider':'tavily','configured':bool(self.key and not self.key.startswith('your_')),'connectivity':'not_tested'}
     def search(self,query):
         if not self.status()['configured']:raise ValueError('SEARCH_UNCONFIGURED')
-        host='api.tavily.com';conn=PinnedHTTPS(host,public_addresses(host)[0],12)
+        deadline=public_request_deadline(12);deadline.remaining()
+        host='api.tavily.com';ip=public_addresses(host)[0]
+        conn=PinnedHTTPS(host,ip,deadline.remaining());conn.deadline=deadline
         body=json.dumps({'query':query,'topic':'general','search_depth':'basic','max_results':5,'include_domains':list(self.allowed_hosts),'include_answer':False,'include_raw_content':False,'include_images':False,'auto_parameters':False,'include_usage':True},ensure_ascii=False).encode()
         try:
             conn.request('POST','/search',body,{'Authorization':f'Bearer {self.key}','Content-Type':'application/json','Accept-Encoding':'identity'})
             response=conn.getresponse();raw=response.read(300001)
+            deadline.remaining()
             if response.status!=200:raise ValueError('SEARCH_HTTP_'+str(response.status))
             if len(raw)>300000:raise ValueError('SEARCH_RESPONSE_TOO_LARGE')
             result=json.loads(raw)

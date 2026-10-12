@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {actionForm} from '../web/dist/views-analysis.js';
-import {watchThresholdRequest} from '../web/dist/watch-units.js';
+import {watchThresholdRequest,watchComparisonRequest} from '../web/dist/watch-units.js';
 import {watchForm} from '../web/dist/views-services.js';
 import {formSource} from '../web/dist/business-source.js';
 import {state} from '../web/dist/state.js';
@@ -15,7 +15,7 @@ function fromHtml(html,name){const fd=new FormData();fd.set(name,hidden(html,nam
 function branch(file,label){const js=ts.transpileModule(readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;const begin=js.indexOf(`case '${label}':`),end=js.indexOf("case '",begin+8);assert(begin>=0&&end>begin);return js.slice(begin,end);}
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
 const submitAction=new AsyncFunction('env',`const {form,f,str,workspace,formSource}=env;const submittedContext=()=>false;let changed=false,savedDraftMessage='';switch('action-form'){${branch('app.ts','action-form')}}return changed;`);
-const submitWatch=new AsyncFunction('env',`const {form,fd,str,api,formSource,state,watchThresholdRequest}=env;const id=form.dataset.id??'',version=Number(form.dataset.version??0),submittedContext=()=>false;let savedWatchCreate=false;switch('watch'){${branch('experience.ts','watch')}}return savedWatchCreate;`);
+const submitWatch=new AsyncFunction('env',`const {form,fd,str,api,formSource,state,watchThresholdRequest,watchComparisonRequest}=env;const id=form.dataset.id??'',version=Number(form.dataset.version??0),submittedContext=()=>false;let savedWatchCreate=false;switch('watch'){${branch('experience.ts','watch')}}return savedWatchCreate;`);
 
 test('rendered manual action keeps its viewed revision across a later global dataset refresh',async()=>{
  setup();const f=fromHtml(actionForm(),'source_ref');const form={dataset:{datasetId:'viewed',identityId:'',requestId:'frozen-request'},isConnected:true};
@@ -26,7 +26,7 @@ test('rendered manual action keeps its viewed revision across a later global dat
 });
 test('rendered watch picker submits the selected frozen revision and preserves an older open draft',async()=>{
  setup();const fd=fromHtml(watchForm(),'source_datasets');fd.set('dataset_id','other');fd.set('metric','gross_margin');fd.set('threshold','15');state.datasets=[];const calls=[];
- assert(await submitWatch({watchThresholdRequest,form:{dataset:{},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),state,formSource,api:async(...args)=>{calls.push(args);return {id:'watch'};}}));
+ assert(await submitWatch({watchThresholdRequest,watchComparisonRequest,form:{dataset:{},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),state,formSource,api:async(...args)=>{calls.push(args);return {id:'watch'};}}));
  assert.equal(calls[0][2].threshold,.15);assert.equal(calls[0][0],'/services/watches');assert.equal(calls[0][2].dataset_id,'other');
  assert.deepEqual(calls[0][2].source_ref,{kind:'dataset',dataset_version:3,dataset_hash:otherHash});
 });
@@ -34,7 +34,7 @@ for(const ref of [null,{kind:'dataset'},{kind:'dataset',dataset_version:2},{kind
  const fd=new FormData();fd.set('dataset_id','viewed');if(ref)fd.set('source_ref',JSON.stringify(ref));let calls=0;
  const io=async()=>{calls++;return {};};
  await assert.rejects(submitAction({form:{dataset:{datasetId:'viewed'}},f:fd,str:()=>'',workspace:io,formSource}),/请刷新并重新打开表单/);
- await assert.rejects(submitWatch({watchThresholdRequest,form:{dataset:{},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),api:io,formSource,state}),/请刷新并重新打开表单/);
+ await assert.rejects(submitWatch({watchThresholdRequest,watchComparisonRequest,form:{dataset:{},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),api:io,formSource,state}),/请刷新并重新打开表单/);
  assert.equal(calls,0);
 });
 test('incomplete picker entries cannot silently omit undefined hashes during JSON transport',()=>{
@@ -43,7 +43,24 @@ test('incomplete picker entries cannot silently omit undefined hashes during JSO
 test('dataset-less manual action and versioned watch update remain valid without a new source ref',async()=>{
  const calls=[],io=async(...args)=>{calls.push(args);return {version:3};},fd=new FormData();fd.set('dataset_id','viewed');fd.set('metric','gross_margin');fd.set('threshold','15');
  await submitAction({form:{dataset:{datasetId:''}},f:new FormData(),str:()=>'',workspace:io,formSource});
- await submitWatch({watchThresholdRequest,form:{dataset:{id:'original-watch',version:'2'},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),api:io,formSource,state});
+ await submitWatch({watchThresholdRequest,watchComparisonRequest,form:{dataset:{id:'original-watch',version:'2'},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),api:io,formSource,state});
  assert.equal(calls[0][2].dataset_id,'');assert(!('source_ref' in calls[0][2]));
  assert.equal(calls[1][0],'/services/watches/original-watch');assert.equal(calls[1][1],'PUT');assert.equal(calls[1][2].version,2);assert(!('source_ref' in calls[1][2]));
+});
+
+for(const comparison of ['previous','year_over_year'])test('growth watch keeps explicit '+comparison+' and the viewed dataset revision together',async()=>{
+ setup();const fd=fromHtml(watchForm(),'source_datasets');fd.set('dataset_id','other');fd.set('metric','revenue_growth');fd.set('comparison',comparison);fd.set('threshold','10');state.datasets=[];const calls=[];
+ assert(await submitWatch({watchThresholdRequest,watchComparisonRequest,form:{dataset:{},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),state,formSource,api:async(...args)=>{calls.push(args);return {id:'watch'};}}));
+ assert.equal(calls.length,1);assert.equal(calls[0][2].comparison,comparison);assert.equal(calls[0][2].threshold,.1);
+ assert.deepEqual(calls[0][2].source_ref,{kind:'dataset',dataset_version:3,dataset_hash:otherHash});
+});
+test('a valid frozen source does not authorize an unspecified new growth basis',async()=>{
+ setup();const fd=fromHtml(watchForm(),'source_datasets');fd.set('dataset_id','viewed');fd.set('metric','revenue_growth');fd.set('threshold','10');let calls=0;
+ await assert.rejects(submitWatch({watchThresholdRequest,watchComparisonRequest,form:{dataset:{},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),state,formSource,api:async()=>{calls++;return {};}}),/明确选择环比或同比/);
+ assert.equal(calls,0);
+});
+test('older growth update clients omit basis so the server can preserve the approved scope',async()=>{
+ const fd=new FormData();fd.set('dataset_id','viewed');fd.set('metric','revenue_growth');fd.set('threshold','10');const calls=[];
+ await submitWatch({watchThresholdRequest,watchComparisonRequest,form:{dataset:{id:'original-watch',version:'2'},querySelector:()=>null},fd,str:k=>String(fd.get(k)??''),state,formSource,api:async(...args)=>{calls.push(args);return {version:3};}});
+ assert.equal(calls.length,1);assert.equal(calls[0][1],'PUT');assert.equal(calls[0][2].version,2);assert(!Object.hasOwn(calls[0][2],'comparison'));assert(!Object.hasOwn(calls[0][2],'source_ref'));
 });

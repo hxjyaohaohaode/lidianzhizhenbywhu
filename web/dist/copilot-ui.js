@@ -1,5 +1,5 @@
 import { unverifiedReader, keepUnverifiedReaders, restoreUnverifiedReaders } from './unverified-reader.js';
-import { watchMetrics, watchThresholdField, watchThresholdRequest, watchPreview } from './watch-units.js';
+import { watchMetrics, watchThresholdField, watchThresholdRequest, watchPreview, watchComparisonField, watchComparisonRequest } from './watch-units.js';
 import { historicalQuestionWarning, reportReadout } from './report-readout.js';
 import { currentComparisonRead, removeComparisonOption } from './saved-comparisons.js';
 import { scopedResearchInputs, researchInputFields, syncResearchInputControls, researchInputRequest, researchApprovalInputs, researchRunOutputs } from './copilot-research-inputs.js';
@@ -358,11 +358,18 @@ export async function chatAction(action, el) {
         return;
     }
     if (action === 'chat-history') {
-        const e = epoch;
-        const r = await api('/services/threads?identity_id=' + encodeURIComponent(state.identity) + '&dataset_id=' + encodeURIComponent(state.active));
-        if (e !== epoch || !active())
+        const raw = Number(el.dataset.offset ?? '0'), offset = Number.isSafeInteger(raw) && raw >= 0 ? raw : 0, limit = 100;
+        const query = new URLSearchParams({ identity_id: state.identity, dataset_id: state.active, offset: String(offset), limit: String(limit) });
+        const r = await api('/services/threads?' + query);
+        if (!active())
             return;
-        hooks.dialog('当前身份与企业的研究会话', r.items.length ? r.items.map((t) => `<article class="thread-history"><h3>${esc(t.payload.title)}</h3><small>${timeText(t.updated_at)}</small><div class="inline-actions">${xbutton('打开', 'chat-open', `data-id="${esc(t.id)}"`)}${xbutton('导出', 'chat-export', `data-id="${esc(t.id)}"`)}${xbutton('删除', 'chat-delete', `data-id="${esc(t.id)}" data-version="${t.version}"`, 'text-button danger-text')}</div></article>`).join('') : notice('当前上下文没有历史会话。'));
+        const rows = r.items.map((t) => `<article class="thread-history"><h3>${esc(t.payload.title)}</h3><small>${timeText(t.updated_at)}</small><div class="inline-actions">${xbutton('打开', 'chat-open', `data-id="${esc(t.id)}"`)}${xbutton('导出', 'chat-export', `data-id="${esc(t.id)}"`)}${xbutton('删除', 'chat-delete', `data-id="${esc(t.id)}" data-version="${t.version}"`, 'text-button danger-text')}</div></article>`).join('');
+        const summary = r.items.length ? `第 ${offset + 1}–${offset + r.items.length} 条研究会话` : offset ? '这一页已没有历史会话，可返回较新会话查看。' : '当前上下文没有历史会话。';
+        const paging = `<div class="inline-actions" aria-label="研究会话分页">${offset ? xbutton('较新会话', 'chat-history', `data-offset="${Math.max(0, offset - limit)}"`) : ''}${r.has_more ? xbutton('更早会话', 'chat-history', `data-offset="${offset + limit}"`) : ''}</div>`;
+        hooks.dialog('当前身份与企业的研究会话', notice(summary) + paging + rows);
+        const modal = document.querySelector('#modal');
+        if (modal)
+            modal.scrollTop = 0;
         return;
     }
     if (action === 'chat-open') {
@@ -489,7 +496,7 @@ async function proposalForm(kind, messageId, valid) {
         body += field('验收标准', textarea('acceptance', '', 'rows="3" minlength="5" required maxlength="2000"')) + field('截止日期', input('due_at', '', 'type="date"'));
     }
     else if (kind === 'watch') {
-        body += field('跟踪截止日期（可选）', input('expires_at', '', 'type="date"'), '按 UTC 日期，含截止日；到期后不再生成提醒。') + field('跟踪指标', select('metric', watchMetrics, 'gross_margin')) + field('触发条件', select('operator', { lt: '低于', gt: '高于' })) + watchThresholdField();
+        body += field('跟踪截止日期（可选）', input('expires_at', '', 'type="date"'), '按 UTC 日期，含截止日；到期后不再生成提醒。') + field('跟踪指标', select('metric', watchMetrics, 'gross_margin')) + field('触发条件', select('operator', { lt: '低于', gt: '高于' })) + watchThresholdField() + watchComparisonField('gross_margin', source?.payload.response?.context?.question_scope?.comparison);
     }
     else
         body += notice('确认后作为当前服务身份的已批准记忆保存。请勿写入密钥、口令或不必要的敏感信息。');
@@ -539,7 +546,7 @@ export async function copilotSubmit(form, fd) {
         else if (kind === 'action')
             Object.assign(body, { acceptance: get('acceptance'), due_at: get('due_at') || null });
         else if (kind === 'watch')
-            Object.assign(body, { metric: get('metric'), operator: get('operator'), threshold: watchThresholdRequest(form, get('metric'), get('threshold')), expires_at: get('expires_at') || null });
+            Object.assign(body, { ...watchComparisonRequest(get('metric'), get('comparison'), !!form.dataset.message), metric: get('metric'), operator: get('operator'), threshold: watchThresholdRequest(form, get('metric'), get('threshold')), expires_at: get('expires_at') || null });
         const row = await api('/services/threads/' + threadId + '/proposals', 'POST', body);
         const keepDraft = () => { if (validContext(e, scope) && renewSavedDraft(JSON.stringify([...fd]), () => form.isConnected ? JSON.stringify([...new FormData(form)]) : null, () => { form.dataset.key = crypto.randomUUID(); })) {
             state.dirty = true;
