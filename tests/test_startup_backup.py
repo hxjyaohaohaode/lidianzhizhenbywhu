@@ -143,6 +143,37 @@ def test_db_only_backup_does_not_implicitly_copy_secret_key(actor,tmp_path):
     assert not (tmp_path/'db.credentials.key').exists()
 
 
+@pytest.mark.parametrize('encoding', ['ascii', 'cp1252'])
+def test_backup_cli_receipt_survives_strict_legacy_pipe_encoding(actor, tmp_path, encoding):
+    """Real isolated CLI with an explicitly narrow stream, not a Windows claim."""
+    vault = actor.client.app.state.providers.vault
+    vault.save(actor.user['id'], PrivateConnection(
+        name='中文备份检查', base_url='https://models.test.example/v1',
+        model='synthetic', api_key='SYNTHETIC_BACKUP_ENCODING', password=actor.password))
+    target = tmp_path / '中文恢复目录' / '中文备份.sqlite3'
+    bootstrap = '''import runpy,sys
+sys.stdout.reconfigure(encoding=sys.argv[1], errors='strict')
+script=sys.argv[2]
+sys.argv=[script,*sys.argv[3:]]
+runpy.run_path(script,run_name='__main__')
+'''
+    result = subprocess.run(
+        [sys.executable, '-I', '-c', bootstrap, encoding, str(ROOT/'scripts/backup.py'),
+         '--source', str(actor.client.app.state.store.path), '--output', str(target), '--include-key'],
+        capture_output=True, timeout=30)
+    assert result.returncode == 0, result.stderr.decode('ascii', errors='backslashreplace')
+    assert all(byte < 128 for byte in result.stdout)
+    receipt = json.loads(result.stdout)
+    saved = json.loads(target.with_name(target.name+'.backup.json').read_text(encoding='utf-8'))
+    assert receipt == saved and receipt['output'] == str(target.absolute())
+    assert receipt['key_included'] and receipt['integrity'] == receipt['foreign_key_check'] == 'ok'
+    assert '密钥' in receipt['warning']
+    assert b'SYNTHETIC_BACKUP_ENCODING' not in result.stdout + result.stderr
+    with closing(sqlite3.connect(target)) as db:
+        assert db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+        assert db.execute('PRAGMA foreign_key_check').fetchall() == []
+
+
 def test_missing_key_is_not_silently_replaced(actor,tmp_path):
     vault=actor.client.app.state.providers.vault
     row=vault.save(actor.user['id'],PrivateConnection(name='x',base_url='https://models.test.example/v1',model='x',api_key='TEST_ONLY',password=actor.password))

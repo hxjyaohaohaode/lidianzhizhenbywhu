@@ -73,6 +73,9 @@ def backup(source: Path, target: Path, *, include_key=False) -> dict:
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--source',default='.runtime/workbench/lidian.sqlite3');p.add_argument('--output',required=True);p.add_argument('--include-key',action='store_true',help='明确同意复制配对的API凭据主密钥到单独文件，请离线加密保护');a=p.parse_args()
-    try:print(json.dumps(backup(Path(a.source),Path(a.output),include_key=a.include_key),ensure_ascii=False))
+    # stdout is a machine-readable JSON transport. ASCII escaping preserves all
+    # receipt text/paths even under an isolated Windows interpreter whose pipe
+    # encoding cannot represent Chinese. The saved receipt remains UTF-8.
+    try:print(json.dumps(backup(Path(a.source),Path(a.output),include_key=a.include_key),ensure_ascii=True))
     except (ValueError,OSError,sqlite3.Error) as exc:raise SystemExit(str(exc)) from None
 if __name__=='__main__':main()

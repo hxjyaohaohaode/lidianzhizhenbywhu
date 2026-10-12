@@ -143,3 +143,98 @@ def test_changed_source_fails_otherwise_successful_cases(monkeypatch,tmp_path):
     report=json.loads((tmp_path/'crash-dispatch-http.json').read_text())
     assert report['source_unchanged'] is False and report['passed'] is False
     harness.shutil.rmtree(report['retained_temporary_root'])
+
+
+@pytest.fixture
+def snapshot_connections(monkeypatch, tmp_path):
+    """Retain handles deliberately: correctness must not depend on GC timing."""
+    root = tmp_path/'isolated'
+    data = root/'data';data.mkdir(parents=True)
+    original_connect = harness.sqlite3.connect
+    db = original_connect(data/'lidian.sqlite3')
+    try:
+        db.execute('CREATE TABLE runs (id TEXT, payload TEXT)')
+        db.execute('INSERT INTO runs VALUES (?, ?)', ('run-1', '{"fixture":true}'))
+        for table in ('adaptive_calls', 'adaptive_checkpoints', 'agent_artifacts', 'event_integrity'):
+            db.execute(f'CREATE TABLE {table} (run_id TEXT, payload TEXT)')
+        db.execute('CREATE TABLE run_events (run_id TEXT, seq INTEGER, payload TEXT)')
+        db.commit()
+    finally:
+        db.close()
+    connections = []
+    class TrackedConnection(harness.sqlite3.Connection):
+        explicitly_closed = False
+        def close(self):
+            super().close()
+            self.explicitly_closed = True
+    def connect(*args, **kwargs):
+        assert args[0].endswith('?mode=ro') and kwargs == {'uri': True, 'timeout': .5}
+        value = original_connect(*args, **kwargs, factory=TrackedConnection)
+        connections.append(value)
+        return value
+    monkeypatch.setattr(harness.sqlite3, 'connect', connect)
+    try:
+        yield root, connections
+    finally:
+        for connection in connections:
+            connection.close()
+
+
+def test_snapshot_closes_database_before_return_without_waiting_for_gc(snapshot_connections):
+    root, connections = snapshot_connections
+    result = harness.snapshot(root, 'run-1')
+    assert result['run'] == {'id': 'run-1', 'payload': {'fixture': True}}
+    assert result['provider_journal'] == []
+    assert len(connections) == 1 and connections[0].explicitly_closed
+    with pytest.raises(harness.sqlite3.ProgrammingError, match='closed'):
+        connections[0].execute('SELECT 1')
+
+
+@pytest.mark.parametrize('failure', ['missing_run', 'malformed_journal'])
+def test_snapshot_closes_database_on_read_failure(snapshot_connections, failure):
+    root, connections = snapshot_connections
+    if failure == 'malformed_journal':
+        (root/'provider.jsonl').write_text('not JSON\n', encoding='utf-8')
+    with pytest.raises((IndexError, json.JSONDecodeError)):
+        harness.snapshot(root, 'missing' if failure == 'missing_run' else 'run-1')
+    assert len(connections) == 1 and connections[0].explicitly_closed
+
+
+def test_successful_collector_removes_temp_tree_under_windows_open_file_rules(
+        snapshot_connections, monkeypatch, tmp_path):
+    root, connections = snapshot_connections
+    monkeypatch.setattr(harness.tempfile, 'mkdtemp', lambda **kwargs: str(root))
+    def case(*args):
+        assert harness.snapshot(root, 'run-1')['run']['id'] == 'run-1'
+        args[-1]['passed'] = True
+    monkeypatch.setattr(harness, 'run_case', case)
+    real_rmtree = harness.shutil.rmtree
+    removals = []
+    def windows_rmtree(path):
+        removals.append(path)
+        if any(not connection.explicitly_closed for connection in connections):
+            raise PermissionError(13, 'The process cannot access the file because it is being used by another process')
+        real_rmtree(path)
+    monkeypatch.setattr(harness.shutil, 'rmtree', windows_rmtree)
+    assert harness.run(tmp_path/'out') == 0
+    report = json.loads((tmp_path/'out/crash-dispatch-http.json').read_text())
+    assert len(connections) == len(harness.CASES) == 4
+    assert all(case['passed'] for case in report['cases'])
+    assert report['passed'] and report['cleanup_confirmed'] and report['source_unchanged']
+    assert removals == [root] and not root.exists()
+
+
+def test_confirmed_process_cleanup_never_masks_remaining_file_removal_failure(monkeypatch, tmp_path):
+    root = tmp_path/'still-locked';root.mkdir()
+    monkeypatch.setattr(harness.tempfile, 'mkdtemp', lambda **kwargs: str(root))
+    monkeypatch.setattr(harness, 'run_case', lambda *args: args[-1].update(passed=True))
+    def denied(path):
+        raise PermissionError(13, 'unrelated open file remains locked')
+    monkeypatch.setattr(harness.shutil, 'rmtree', denied)
+    assert harness.run(tmp_path/'out') == 1
+    report = json.loads((tmp_path/'out/crash-dispatch-http.json').read_text())
+    assert all(case['passed'] for case in report['cases'])
+    assert report['cleanup_confirmed'] and report['source_unchanged']
+    assert not report['passed'] and report['status'] == 'failed'
+    assert 'unrelated open file remains locked' in report['cleanup_error']
+    assert report['retained_temporary_root'] == str(root) and (root/'failure-report.json').exists()

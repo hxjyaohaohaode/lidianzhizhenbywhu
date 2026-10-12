@@ -8,6 +8,7 @@ an attempted send. It models provider outcomes, not a live supplier integration.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 from datetime import datetime, timezone
 import json
 import os
@@ -200,7 +201,9 @@ class Server:
 def snapshot(directory, run_id):
     """Read-only diagnostic copy. Never repair or manufacture a business row."""
     database = (directory / 'data' / 'lidian.sqlite3').resolve()
-    with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=.5) as db:
+    # Connection's transaction context does not close its file handle. Close on
+    # every return/error so Windows can remove the isolated database after use.
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=.5)) as db:
         db.row_factory = sqlite3.Row
         def rows(table, clause='run_id=?'):
             values = [dict(row) for row in db.execute(f'SELECT * FROM {table} WHERE {clause}', (run_id,))]

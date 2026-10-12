@@ -2,7 +2,10 @@
 import copy
 from datetime import date
 import pytest
-from conftest import dataset_ref
+from conftest import Actor, dataset_ref
+from in_process_oracle import offline_test_client
+from server.app import make_app
+from server.config import Settings
 from test_services import ok, thread, message, proposal, confirm, watch
 from server import workspace_store as ws
 from server.copilot import evaluate_watches
@@ -12,13 +15,16 @@ from server.store import encode, digest
 TODAY=date(2026,10,1)
 
 
-@pytest.fixture(autouse=True)
-def no_external_connections(monkeypatch):
-    import socket
-    def deny(*args,**kwargs):raise AssertionError('External connection prohibited in watch scope regression')
-    monkeypatch.setattr(socket,'create_connection',deny)
-    monkeypatch.setattr(socket.socket,'connect',deny)
-    monkeypatch.setattr(socket.socket,'connect_ex',deny)
+@pytest.fixture
+def actor(tmp_path):
+    # Only the empty ASGI host initializes its Windows wake-up socketpair before
+    # the guard. App construction, lifespan, requests and teardown stay offline;
+    # no loopback/application address is allowlisted and caught attempts fail.
+    def build_app(providers):
+        return make_app(Settings(data_dir=tmp_path, origin='http://testserver'),
+                        providers=providers, worker_enabled=False)
+    with offline_test_client(build_app) as (client, _providers, _attempts):
+        yield Actor(client)
 
 
 
