@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
-import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -20,13 +19,13 @@ import sys
 import tempfile
 import time
 import uuid
-from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.owned_process import OwnedProcess
+from scripts.source_identity import collect_source_identity
 
 MAX_SECONDS = 120
 CLEANUP_RESERVE = 8
@@ -166,7 +165,8 @@ class Server:
         for key in list(env):
             if key.endswith('_API_KEY') or key.startswith('SERVER_AI_') or key in ('APP_ENV', 'REGISTRATION_CODE', 'DATA_DIR', 'APP_ORIGIN'):
                 env.pop(key, None)
-        env.update(PYTHONPATH=str(ROOT), PYTHONIOENCODING='utf-8')
+        env.update(PYTHONPATH=str(ROOT), PYTHONIOENCODING='utf-8',
+                   PYTHONDONTWRITEBYTECODE='1', PYTHONPYCACHEPREFIX=str(directory / 'pycache'))
         self.process = OwnedProcess([sys.executable, str(Path(__file__).resolve()),
             '--serve', str(directory), '--case', case, '--phase', phase, '--port', str(self.port)],
             cwd=ROOT, env=env, stdout_path=self.log, temp_root=directory,
@@ -394,27 +394,14 @@ def cleanup_owned(owned):
 
 
 def source_identity(root, owned, process_deadline, work_deadline, phase):
-    """Bind evidence to actual working-tree bytes and a verified Git HEAD."""
-    remaining(work_deadline)
-    paths = sorted((ROOT / 'server').glob('*.py')) + [
-        ROOT / 'scripts/crash_dispatch_check.py', ROOT / 'scripts/owned_process.py']
-    identity = {'git_head': None, 'files_sha256': {}}
-    for path in paths:
-        remaining(work_deadline)
-        identity['files_sha256'][path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
-    log = root / ('source-' + phase + '.log')
-    descriptor = SimpleNamespace(case='source_identity', phase=phase, log=log)
-    process = OwnedProcess(['git', 'rev-parse', '--verify', 'HEAD'], cwd=ROOT,
-        env={**os.environ, 'GIT_TERMINAL_PROMPT':'0'}, stdout_path=log, temp_root=root,
-        deadline=process_deadline, cleanup_reserve=CLEANUP_RESERVE)
-    owned.append((descriptor, process))
-    result = process.wait()
-    value = log.read_text(encoding='utf-8', errors='replace').strip()
-    if result.returncode != 0 or not result.cleanup_confirmed or len(value) != 40 or any(c not in '0123456789abcdef' for c in value):
-        identity['git_error'] = {'output':value[:1000], 'process':result.as_dict()}
-    else:
-        identity['git_head'] = value
-    return identity
+    """Bind evidence to verified package bytes or this checkout's actual HEAD."""
+    paths = sorted((ROOT / 'server').rglob('*.py')) + [
+        ROOT / 'scripts/crash_dispatch_check.py', ROOT / 'scripts/owned_process.py',
+        ROOT / 'scripts/source_identity.py', ROOT / 'tests/fixtures/synthetic-financial.json']
+    return collect_source_identity(ROOT, paths, scratch_root=root,
+        register_process=lambda descriptor, process: owned.append((descriptor, process)),
+        process_deadline=process_deadline, work_deadline=work_deadline,
+        cleanup_reserve=CLEANUP_RESERVE, phase=phase)
 
 
 def run(out=None):
@@ -438,17 +425,15 @@ def run(out=None):
     try:
         report['status'] = 'running'
         report['source_before'] = source_identity(root, owned, process_deadline, work_deadline, 'before')
-        if report['source_before'].get('git_error'):
-            raise RuntimeError('Cannot verify actual Git HEAD before crash acceptance')
         for case in CASES:
             record = {'case': case, 'passed': False}
             report['cases'].append(record)
             run_case(case, root / case, owned, process_deadline, work_deadline, record)
             print('PASS', case, flush=True)
         report['source_after'] = source_identity(root, owned, process_deadline, work_deadline, 'after')
-        report['source_unchanged'] = report['source_after'] == report['source_before'] and not report['source_after'].get('git_error')
+        report['source_unchanged'] = report['source_after'] == report['source_before']
         if not report['source_unchanged']:
-            raise RuntimeError('Git HEAD or runtime/harness source changed during crash acceptance')
+            raise RuntimeError('Source identity or runtime/harness bytes changed during crash acceptance')
         report['passed'] = True
     except Exception as exc:
         report['error'] = repr(exc)

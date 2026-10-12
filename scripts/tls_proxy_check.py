@@ -12,6 +12,7 @@ import httpx
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 from scripts.owned_process import OwnedProcess
+from scripts.source_identity import collect_source_identity
 from scripts.backup import backup
 from server.security import COOKIE
 
@@ -20,10 +21,14 @@ def port():
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));return sock.getsockname()[1]
 
 
-def identity():
-    paths=sorted((ROOT/'server').glob('*.py'))+[ROOT/'scripts/start.py',Path(__file__).resolve(),ROOT/'deploy/native-vm/nginx.conf.example']
-    return {'head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-        'files':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}}
+def identity(root, owned, deadline, phase):
+    paths=sorted((ROOT/'server').rglob('*.py'))+[
+        ROOT/'scripts/start.py',Path(__file__).resolve(),ROOT/'scripts/owned_process.py',
+        ROOT/'scripts/source_identity.py',ROOT/'deploy/native-vm/nginx.conf.example',
+        ROOT/'tests/fixtures/synthetic-financial.json']
+    return collect_source_identity(ROOT,paths,scratch_root=root,
+        register_process=lambda descriptor,process:owned.append(process),
+        process_deadline=deadline-2,work_deadline=deadline-12,cleanup_reserve=8,phase=phase)
 
 
 def main():
@@ -32,10 +37,10 @@ def main():
     if not nginx.is_file():raise SystemExit('Supply an existing trusted nginx binary.')
     report={'passed':False,'transport':'actual local TLS -> nginx -> launcher/Uvicorn -> SQLite',
         'native_browser':False,'real_external_supplier_calls':0,'systemd_installed':False,'machine_reboot_tested':False,
-        'synthetic_only':True,'checks':[],'processes':[],'started_at':time.time(),'source':identity()}
+        'synthetic_only':True,'checks':[],'processes':[],'started_at':time.time()}
     destination=out/'tls-proxy.json';destination.write_text(json.dumps(report,indent=2))
     root=Path(tempfile.mkdtemp(prefix='lidian-tls-'));old_umask=os.umask(0o077);deadline=time.monotonic()+120;owned=[];seen=set()
-    source=report['source'];baseport=port();tlsport=port();base=f'https://127.0.0.1:{tlsport}';data=root/'data'
+    baseport=port();tlsport=port();base=f'https://127.0.0.1:{tlsport}';data=root/'data'
     def record(name):report['checks'].append(name);print('PASS',name,flush=True)
     def guard():
         if time.monotonic()>deadline-12:raise TimeoutError('TLS stage aggregate work deadline exhausted')
@@ -47,7 +52,7 @@ def main():
     def launch(command,name,env):
         guard();process=OwnedProcess(command,cwd=ROOT,env=env,stdout_path=root/(name+'.log'),temp_root=root,deadline=deadline-2,cleanup_reserve=8);owned.append(process);return process
     env={k:v for k,v in os.environ.items() if k in ('PATH','LANG','LC_ALL','TMPDIR','TZ','SYSTEMROOT','WINDIR')}
-    env.update(APP_ENV='production',APP_ORIGIN=base,DATA_DIR=str(data),REGISTRATION_CODE='SYNTHETIC-TLS-INVITE-ONLY',SERVER_AI_ENABLED='false',PYTHONPATH=str(ROOT),PYTHONDONTWRITEBYTECODE='1',FORWARDED_ALLOW_IPS='*')
+    env.update(APP_ENV='production',APP_ORIGIN=base,DATA_DIR=str(data),REGISTRATION_CODE='SYNTHETIC-TLS-INVITE-ONLY',SERVER_AI_ENABLED='false',PYTHONPATH=str(ROOT),PYTHONDONTWRITEBYTECODE='1',PYTHONPYCACHEPREFIX=str(root/'pycache'),FORWARDED_ALLOW_IPS='*')
     def app(name='app',**changes):
         return launch([sys.executable,'scripts/start.py','--host','127.0.0.1','--port',str(baseport),'--trusted-local-proxy'],name,{**env,**changes})
     def client(address='127.0.0.2',verify=None):
@@ -69,6 +74,7 @@ def main():
         c.headers['X-CSRF-Token']=result['csrf'];return result
     active=None
     try:
+        source=identity(root,owned,deadline,'before');report['source']=source
         (root/'logs').mkdir();(root/'body').mkdir()
         subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(root/'key.pem'),'-out',str(root/'cert.pem'),'-days','1','-subj','/CN=127.0.0.1','-addext','subjectAltName=IP:127.0.0.1','-addext','basicConstraints=critical,CA:TRUE'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=15)
         context=ssl.create_default_context(cafile=str(root/'cert.pem'))
@@ -165,7 +171,9 @@ def main():
             r=a.post('/api/workspace/plans',json={'dataset_id':dataset['id'],'query':'核验现金流','provider':connection['id'],'use_llm':True,'max_calls':1})
             assert r.status_code in (500,503) and len(expect(a.get('/api/runs'))['items'])==count;record('wrong private key blocks planning and creates no run')
             stop(active);(restored/'credentials.key').write_bytes(key)
-        assert identity()==source;record('runtime and proxy source bytes unchanged throughout acceptance')
+        report['source_after']=identity(root,owned,deadline,'after')
+        report['source_unchanged']=report['source_after']==source
+        assert report['source_unchanged'];record('runtime and proxy source bytes unchanged throughout acceptance')
         report['passed']=True
     except BaseException as exc:
         report['error']={'type':type(exc).__name__,'message':str(exc)[:1500]};print('FAIL',type(exc).__name__,str(exc)[:400],flush=True)
